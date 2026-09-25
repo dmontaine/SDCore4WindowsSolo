@@ -201,17 +201,16 @@ def main():
                                    'to this for every SD command')
     args = ap.parse_args()
 
-    # Checked before anything is copied, compiled or started - the failure it
-    # replaces arrived several minutes in, at SECOND.COMPILE, as a compile
-    # summary that never appeared.  Do NOT answer this by letting -INTERNAL
-    # skip the elevation gate: that restores exactly the bypass the
-    # 13 Aug 2026 session removed (PROJECT_STATUS.md 5.6).
-    if not is_elevated():
-        die('this needs an ELEVATED window, and this one is not.\n'
-            '  The "sd -internal" steps name SDSYS for themselves, and SDSYS\n'
-            '  is refused to a session that is not elevated - sysmsg(10002),\n'
-            '  PROJECT_STATUS.md section 5.6.\n'
-            '  Start the shell with "Run as administrator" and run this again.')
+    # 25 Sep 26 SD Core Solo (SOLO 4) - NO ELEVATION NEEDED, AND THE WARNING
+    # THAT STOOD HERE IS OVERRIDDEN ON PURPOSE.  It said not to let -INTERNAL
+    # skip the elevation gate, because on the multi-user server elevation was
+    # what kept other users out of SDSYS (PROJECT_STATUS.md 5.6).  Solo has no
+    # other users: the tree is the one user's (rulings 1 and 11), sd.c's
+    # check_admin() no longer tests elevation, kernel.c seeds the admin flag for
+    # an internal session, and the internal door is shut by LOGIN's one-shot
+    # marker, which this script writes (ruling 13, RELEASE_1.1 82).  Printed, so
+    # a log still says which kind of window built the tree.
+    print('bootstrap: elevated=%s (not required)' % is_elevated())
 
     sysdir = os.path.abspath(args.sysdir)
     sdexe = os.path.abspath(args.sd)

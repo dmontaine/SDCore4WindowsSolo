@@ -811,75 +811,14 @@ void dump(u_char *addr, int32_t bytes) {
    check_admin()  -  Check user has admin rights                          */
 
 void check_admin() {
-  PRIV_WHY why;
-
-  /* 13 Aug 26 Windows port - was (geteuid() != 0) && !in_group("admin").
-     Neither half means anything here: there is no uid zero on Windows, and
-     "admin" is a Linux group name.
-
-     15 Aug 26 Windows port - AND IT NOW ASKS IsElevated(), NOT IsAdmin().
-     Owner's rule, 15 Aug 2026: an unelevated session must not be able to
-     drive sd from the command line.  It could: "sd -start" and "sd -stop"
-     both worked for any administrator who had not elevated, because
-     IsAdmin() answers "is this ACCOUNT an administrator" while IsElevated()
-     answers "may this PROCESS act as one right now".  That is the same
-     distinction PROJECT_STATUS.md 5.6 draws for entry to SDSYS, applied to
-     the switches - and an ordinary user was never meant to have it either
-     way, since IsAdmin() would have refused them.
-
-     THE COST, STATED: there is no service (PROJECT_STATUS.md 5.7), so SD is
-     started by hand, and now only from an elevated window.  After a restart
-     nobody but an administrator can bring SD up.
-
-     WHAT IS DELIBERATELY NOT GATED, BECAUSE SD SPAWNS ITSELF.  op_kernel.c
-     builds "-p<n>" and forks sd for every PHANTOM, and the client, network
-     and API paths use -C, -N and -Q.  Gating them would break phantoms, the
-     client library, network logins and the API - the last of which is what
-     this port is for (PROJECT_STATUS.md 1).
-
-     20 Aug 26 Windows port - AND THE REASON THAT USED TO BE GIVEN FOR IT IS
-     FALSE FOR ONE OF THOSE FOUR.  It read "Those children inherit an ORDINARY
-     user's token".  True for PHANTOM and for -C, whose parent is a user's own
-     sd.exe.  NOT TRUE FOR THE API: its parent is sdwind, which is a Windows
-     service running as LocalSystem, so an API session inherits SYSTEM'S
-     token.  Measured 20 Aug 2026 with gplbld/verify-apiadmin.ps1 - a
-     PROGRAMMER-tier account over a remote API connection opened and wrote
-     $cred, which is granted to SYSTEM and Administrators alone.
-
-     THE DECISION NOT TO GATE IS UNCHANGED AND IS STILL RIGHT - check_admin()
-     is about the COMMAND LINE, and these children are spawned by SD rather
-     than typed by anybody.  What is wrong is only the sentence that said the
-     children are harmless because they are unprivileged.  This is the third
-     place in the tree to rest on that assumption; APISRVR carried the other
-     two.  PROJECT_STATUS.md's opening section has the finding and the fix
-     options, and nothing is fixed yet.                                     */
-
-  /* 03 Sep 26 Windows port - PRE_RELEASE_FIXES.md 96, AND THIS SITE IS THE ONE
-     THE ENTRY WAS FILED FOR.  The old message told an already-elevated
-     administrator to elevate, because a check that could not COMPLETE returned
-     the same FALSE as a check that answered no.  On Cygwin that is reachable
-     without any memory failure: getgroups() resolves through Windows, so a
-     domain account with the controller unreachable lands here.
-
-     IT PRINTS RATHER THAN LOGGING, AND THAT IS FORCED.  check_admin() runs
-     from comlin() at sd.c:175 and bind_sysseg() is at :180, so sysseg is still
-     init(NULL) - log_message() dereferences it unguarded (k_error.c:582) and
-     would crash at start-up.  priv_log_undetermined() tests sysseg for exactly
-     this reason and would silently do nothing here, which is why this site
-     does not call it.  stderr is all there is, and it already printed.     */
-
-  if (!IsElevated(&why)) {
-    if (why != PRIV_ANSWERED) {
-      fprintf(stderr, "Cannot tell whether this session is elevated: %s.\n"
-                      "Refusing rather than guessing - this is NOT a statement "
-                      "that you lack administrator rights.\n",
-              priv_why_text(why));
-    } else {
-      fprintf(stderr, "This command needs an elevated session - "
-                      "start the shell with \"Run as administrator\"\n");
-    }
-    exit(1);
-  }
+  /* 25 Sep 26 SD Core Solo (SOLO 4) - NO ELEVATION TEST.  Solo's server,
+     data and programs belong to the one user who runs them (rulings 1 and 11,
+     PROJECT_STATUS.md), and the daemon runs unelevated as that user (SOLO 3),
+     so "sd -start", "sd -stop" and the rest are that user's own business and
+     Windows' access control on their profile is the whole gate.  Admin
+     COMMANDS are gated by a password instead (ruling 12, SOLO 5).  The
+     multi-user body, which refused any unelevated session, is in sd4windows'
+     history.  Kept as a function so every switch still names its gate.    */
 }
 
 /* ====================================================================== */

@@ -13,6 +13,8 @@
  * GNU General Public License for more details.
  *
  * START-HISTORY:
+ * 25 Sep 26 SD Core Solo - SOLO 4: the set grants SYSTEM and the creating
+ *           user, not Administrators and sdusers (an unelevated start failed).
  * 16 Aug 26 Windows port - written.  POSIX sem_open() cannot be used in
  *           session 0, so SD could not run as a service.
  * END-HISTORY
@@ -73,49 +75,44 @@
    A MISSING GROUP IS NOT AN ERROR.  The bootstrap (gplbld/bootstrap.py) starts
    SD on a build machine that has never had the installer near it, so sdusers
    does not exist there.  Falling back to SYSTEM and Administrators is exactly
-   right for that case: the bootstrap is elevated and nobody else is involved. */
+   right for that case: the bootstrap is elevated and nobody else is involved.
+
+   25 Sep 26 SD Core Solo (SOLO 4) - SYSTEM AND THE CALLER'S OWN USER SID, NOT
+   Administrators and a group; everything above describes the multi-user
+   product.  MEASURED: the first unelevated bootstrap died at "sdwind: Error 5
+   getting semaphores" - sd -start created the set and sdwind, the SAME user,
+   could not open it: an unelevated token carries Administrators deny-only and
+   Solo has no sdusers, so no ACE matched.  Solo's server is the one user's
+   (rulings 1 and 11), so every process opening these is that user - or
+   SYSTEM, kept for SOLO 3's daemon.  The group argument is ignored.         */
 
 static PSECURITY_DESCRIPTOR build_descriptor(const char* group) {
   char sddl[256];
-  char* group_sid = NULL;
+  char* user_sid = NULL;
   PSECURITY_DESCRIPTOR sd = NULL;
-  SID* sid = NULL;
-  char* domain = NULL;
-  DWORD sid_len = 0;
-  DWORD dom_len = 0;
-  SID_NAME_USE use;
+  HANDLE tok = NULL;
+  BYTE buf[256];
+  DWORD len = 0;
 
-  if (group != NULL && *group != '\0') {
-    /* Documented two-call form: ask for the sizes, then the values. */
-    LookupAccountNameA(NULL, group, NULL, &sid_len, NULL, &dom_len, &use);
+  (void)group;
 
-    if (sid_len != 0) {
-      sid = (SID*)malloc(sid_len);
-      domain = (char*)malloc(dom_len + 1);
-
-      if (sid != NULL && domain != NULL &&
-          LookupAccountNameA(NULL, group, sid, &sid_len, domain, &dom_len,
-                             &use)) {
-        ConvertSidToStringSidA(sid, &group_sid);
-      }
-    }
-
-    if (sid != NULL)
-      free(sid);
-    if (domain != NULL)
-      free(domain);
+  if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &tok)) {
+    if (GetTokenInformation(tok, TokenUser, buf, sizeof(buf), &len))
+      ConvertSidToStringSidA(((TOKEN_USER*)buf)->User.Sid, &user_sid);
+    CloseHandle(tok);
   }
 
-  if (group_sid != NULL &&
-      strlen(group_sid) + strlen("D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;)") <
-          sizeof(sddl)) {
-    sprintf(sddl, "D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;%s)", group_sid);
-  } else {
-    strcpy(sddl, "D:(A;;GA;;;SY)(A;;GA;;;BA)");
-  }
+  /* No SID, no descriptor: refusing to create the set beats creating one that
+     nobody but SYSTEM can open, which is the failure this replaced.         */
+  if (user_sid == NULL)
+    return NULL;
 
-  if (group_sid != NULL)
-    LocalFree(group_sid);
+  if (strlen(user_sid) + strlen("D:(A;;GA;;;SY)(A;;GA;;;)") >= sizeof(sddl)) {
+    LocalFree(user_sid);
+    return NULL;
+  }
+  sprintf(sddl, "D:(A;;GA;;;SY)(A;;GA;;;%s)", user_sid);
+  LocalFree(user_sid);
 
   if (!ConvertStringSecurityDescriptorToSecurityDescriptorA(
           sddl, SDDL_REVISION_1, &sd, NULL))

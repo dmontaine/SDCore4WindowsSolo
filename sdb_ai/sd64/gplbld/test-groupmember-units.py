@@ -112,10 +112,7 @@ FAIL_CLOSED = {
     ("granta", "if not(is_grp_member(user, grp)) then"):
         "revoke: a could-not-tell reports 'has not been granted', which the "
         "site's own comment already accepts for an orphaned SID",
-    ("login", "if not(is_grp_member(lgn.id,'sdusers')) then"):
-        "the sdusers gate at LOGIN: an access check fails closed with 5009; "
-        "the audit reason 'not a member of sdusers' does not tell a failed "
-        "lookup from a real no (see NOTES)",
+    # 25 Sep 26 - LOGIN's sdusers gate is gone with SOLO 4 (no SD groups in Solo).
     ("modifya", "if is_grp_member(user.name,'sdusers') then"):
         "group add: a could-not-tell refuses the add as 'not in sdusers'; "
         "an administrator's verb, nothing is granted by mistake",

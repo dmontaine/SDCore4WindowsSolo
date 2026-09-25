@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 25 Sep 26 SD Core Solo - SOLO 4: os.users is gone; the one user may reach
+ *           the OS (a socket session excepted until SOLO 3)
  * 17 Sep 26 Windows port - sd_powershell_path() lifted out of sh_execute()
  *           so linuxprt.c's spooler finds PowerShell the same way
  *           (RELEASE_1.1 54).
@@ -229,76 +231,22 @@ Private bool os_permitted(PRIV_WHY* why) {
    from CPROC keeps test 1.                                                */
 
 Private bool os_user_permitted(PRIV_WHY* why) {
-  char path[MAX_PATHNAME_LEN + 1];
-  char buff[128];
-  int fu;
-  int n;
-  char* p;
-  char* q;
-
   if (why != NULL)
     *why = PRIV_ANSWERED;
 
-  if (my_uptr->flags & USR_ADMIN)
-    return TRUE;
+  /* 25 Sep 26 SD Core Solo (SOLO 4) - THE ONE USER MAY.  OS.USERS is gone:
+     every session is the user who owns the tree and runs as them, so the
+     operating system is theirs already (PROJECT_STATUS.md, "WHAT SD CORE SOLO
+     IS").  The multi-user record read is in sd4windows' history.
 
-  if (process.username[0] == '\0') {
-    if (why != NULL)
-      *why = PRIV_NO_USERNAME;
-    return FALSE;
-  }
+     EXCEPT A SOCKET SESSION, FOR NOW.  Until SOLO 3 moves the daemon off the
+     multi-user wiring, an API session's process can still carry the
+     daemon's token rather than the user's (kernel.c's 21 Aug note), so it
+     keeps the old answer for an unlisted user: no.  SOLO 3 removes this.  */
+  if (connection_type == CN_SOCKET)
+    return ((my_uptr->flags & USR_ADMIN) != 0);
 
-  if (snprintf(path, MAX_PATHNAME_LEN + 1, "%s%cos.users%c%s", sysseg->sysdir,
-               DS, DS, process.username) >= (MAX_PATHNAME_LEN + 1)) {
-    if (why != NULL)
-      *why = PRIV_PATH_TOO_LONG;
-    return FALSE;
-  }
-
-  /* 03 Sep 26 Windows port - ENOENT IS THE DESIGNED NO AND STAYS A PLAIN
-     FALSE, which PRE_RELEASE 96 called out specifically.  This file's own
-     banner says "MISSING FILE OR MISSING RECORD MEANS NO... the safe
-     direction", so an absent record is an ANSWER, not a failure to reach one.
-     Marking it undetermined would write a log line on every ordinary refusal
-     and drown the ones that matter - the same discrimination entry 101 made
-     for ENOENT in txn.c.  Any OTHER errno is the check failing to complete. */
-
-  fu = open(path, O_RDONLY);
-  if (fu < 0) {
-    if ((why != NULL) && (errno != ENOENT))
-      *why = PRIV_OPEN_FAILED;
-    return FALSE;
-  }
-  n = read(fu, buff, sizeof(buff) - 1);
-  close(fu);
-  if (n <= 0) {
-    if (why != NULL)
-      *why = PRIV_READ_FAILED;
-    return FALSE;
-  }
-  buff[n] = '\0';
-
-  /* OS.USERS is a DIRECTORY file, so a record is a file and a field mark is a
-     newline.  Field 1 is SH; field 2 is the one this reads.                */
-
-  p = strchr(buff, '\n');
-  if (p == NULL) {
-    if (why != NULL)
-      *why = PRIV_MALFORMED;
-    return FALSE;
-  }
-  p++;
-
-  for (q = p; (*q != '\0') && (*q != '\n') && (*q != '\r'); q++) {
-  }
-  *q = '\0';
-
-  while (*p == ' ')
-    p++;
-  while ((q > p) && (q[-1] == ' '))
-    *(--q) = '\0';
-
-  return (stricmp(p, "yes") == 0);
+  return TRUE;
 }
 
 /* ======================================================================

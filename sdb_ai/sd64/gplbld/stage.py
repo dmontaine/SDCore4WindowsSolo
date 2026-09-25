@@ -1252,15 +1252,10 @@ def main():
             print(name)
         return 0
 
-    # bootstrap.py refuses an unelevated window, and by the time it gets the
-    # chance this script has already copied several thousand files.  Ask the
-    # same question before doing any of that work.  Staging on its own needs no
-    # elevation at all, so only --bootstrap is gated.
-    if args.bootstrap and not is_elevated():
-        die('--bootstrap needs an ELEVATED window: it ends in "sd -internal"\n'
-            '  steps that SDSYS refuses to an unelevated session\n'
-            '  (PROJECT_STATUS.md section 5.6).  Start the shell with "Run as\n'
-            '  administrator", or drop --bootstrap to stage a cold tree.')
+    # 25 Sep 26 SD Core Solo (SOLO 4) - --bootstrap no longer needs an elevated
+    # window; see the note where bootstrap.py used to refuse one.
+    if args.bootstrap:
+        print('stage: elevated=%s (not required)' % is_elevated())
 
     if not os.path.isdir('gplsrc') or not os.path.isdir('sdsys'):
         die('run this from sd64 - gplsrc and sdsys are not here')

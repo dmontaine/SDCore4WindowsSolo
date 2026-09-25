@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 25 Sep 26 SD Core Solo - SOLO 4: no sdusers gate, no SDSYS landing, SDSYS
+*           refused as a login target, no batch gate (rulings 11, 12).
 * 25 Sep 26 SD Core Solo - the banner names SD Core Solo (SOLO 2).
 * 22 Sep 26 Windows port - RELEASE_1.1 106.  THE ONLY PRIVILEGED ACCOUNT IS
 *           SDSYS.  Owner's ruling: elevation must not give any account extra
@@ -523,13 +525,10 @@ deffun pw_complex(pw) calling '!pw_complex'
 *   to sdusers, read the data tree, or run as SYSTEM, so this is AN EXPLICIT
 *   ACT AND AN AUDIT TRAIL, NOT A BOUNDARY THAT HOLDS AGAINST THEM.  The owner
 *   was shown that before ruling.
-     if not(kernel(K$INTERNAL,-1)) then
-        if not(is_grp_member(lgn.id,'sdusers')) then
-           display sysmsg(5009) ;* This user is not registered for SD use
-           audit.reason = 'not a member of sdusers'
-           goto terminate.connection
-        end
-     end
+* 25 Sep 26 SD Core Solo (SOLO 4) - THE sdusers GATE IS GONE.  There are no SD
+*   groups: the one user's tree is in their own profile, and Windows' access
+*   control on it is the whole gate (PROJECT_STATUS.md, "WHAT SD CORE SOLO IS").
+*   A Windows user with no SD account still stops below, at the register read.
   end
 
 * 18 Sep 26 Windows port - RELEASE_1.1 64.  THE ADMINISTRATOR PEER GATE IS GONE
@@ -776,47 +775,17 @@ deffun pw_complex(pw) calling '!pw_complex'
 *   is the process-start elevation seed and remains the second half - elevation
 *   is immutable, so it still answers correctly after a logto, which is why the
 *   case kept it and :695 uses it for the internal route too.
-      case upcase(@logname) = 'SDSYS' and kernel(K$ADMINISTRATOR, -1)
-         initial.account = 'SDSYS'
-
-         read acc.rec from acc.f, initial.account else
-            display sysmsg(5018, initial.account) ;* Account %1 not in register
-            audit.account = initial.account
-            audit.reason = 'SDSYS is not in the register'
-            goto terminate.connection
-         end
-
-         if elevate('START', '') # 0 then
-            display sysmsg(10002) ;* SDSYS Account access is restricted to privileged users
-            audit.account = initial.account
-            audit.reason = 'elevation refused or unavailable'
-            goto terminate.connection
-         end
-
-*        31 Aug 26 Windows port - THE AUDIT RECORD MOVED TO THE GRANT.  It was
-*        written here, 85 lines before kernel(K$ADMINISTRATOR, 1) grants
-*        anything, and TWO abort paths an SDSYS login really reaches lie
-*        between with admin.login already @true: the SUSPENDED test and the
-*        ospath(OS$CD) test below.  Neither reaches the grant, so the trail
-*        could carry ELEVATION GRANTED *and* LOGIN REFUSED for the same
-*        session - and the false half was the privilege half.  :955 states the
-*        rule this broke, in this very file: "the single point at which a
-*        login has succeeded ... everything above can still refuse."
-*        PRE_RELEASE_FIXES.md 98.
-         admin.login = @true
+* 25 Sep 26 SD Core Solo (SOLO 4) - THE SDSYS LANDING CASE THAT STOOD HERE IS
+*   GONE.  Owner's ruling 11, 25 Sep 2026: SDSYS is never a login target.  Only
+*   "sd -internal" reaches it now, through the first case above.
 
       case 1
-*        18 Sep 26 Windows port - RELEASE_1.1 64.  SDSYS IS ELEVATED OR IT IS
-*        NOTHING.  An UNELEVATED session belonging to the Windows SDSYS account
-*        misses the case above and falls to here, where initial.account would
-*        name SDSYS and let it in without the elevation the decision requires.
-*        Refuse rather than land.  (The sdusers gate above would usually catch
-*        this first, but "usually" is not a gate, and the account the decision
-*        is most specific about is not the one to leave to a second line.)
-         if upcase(@logname) = 'SDSYS' and not(kernel(K$ADMINISTRATOR, -1)) then
+*        25 Sep 26 SD Core Solo - SDSYS IS NOT AN ACCOUNT ANYBODY SIGNS IN TO,
+*        elevated or not, and whatever the Windows account is called (ruling 11).
+         if upcase(@logname) = 'SDSYS' then
             display sysmsg(10002) ;* SDSYS Account access is restricted to privileged users
             audit.account = 'SDSYS'
-            audit.reason = 'SDSYS requires an elevated session'
+            audit.reason = 'SDSYS is not a login target'
             goto terminate.connection
          end
 
@@ -1176,12 +1145,10 @@ deffun pw_complex(pw) calling '!pw_complex'
 *   24 Aug 26 - batch.command IS NOW SET BY THE BLOCK ABOVE, under the same
 *   guard, because the password exemption added that day needs it too.  The
 *   assignment moved; nothing else here changed.
-   if mode = 0 and not(is.phantom) and not(kernel(K$INTERNAL,-1)) then
-      if batch.command # '' and not(kernel(K$ADMINISTRATOR,-1)) then
-         gosub batch.permitted
-         if not(batch.ok) then goto terminate.connection
-      end
-   end
+* 25 Sep 26 SD Core Solo (SOLO 4) - THE BATCH GATE IS GONE.  It limited what
+*   one SD user's scheduled job could run on a server other users shared; in
+*   Solo "sd <command>" is the one user running their own command, and admin
+*   verbs are gated by ruling 12's password where they run, not here.
 
 * 16 Aug 26 Windows port - PROJECT_STATUS.md 7 step 4.  The single point at
 *   which a login has succeeded, which is why the record is written here and

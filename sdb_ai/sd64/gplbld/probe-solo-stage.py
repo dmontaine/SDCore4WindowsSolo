@@ -73,10 +73,7 @@ def main():
     if not os.path.isfile(sdexe) or not os.path.isdir(sdsys):
         print('  FAIL  no staged tree at %s - nothing to measure' % wroot)
         return 1
-    if not B.is_elevated():
-        print('  FAIL  not elevated - "sd -internal" would be refused, so this'
-              ' would measure the refusal')
-        return 1
+    # 25 Sep 26 - SOLO 4: elevation is not required any more; printed above.
 
     env = dict(os.environ)
     env.pop('SD_CONFIG', None)
@@ -147,14 +144,88 @@ def finish(sdexe, sdsys, env, expect, fails):
         if not ok:
             fails.append('%s is not %s' % (key or '@PATH', want))
 
+    solo4(sdexe, sdsys, env, fails)
+
     print()
     if fails:
         for f in fails:
             print('  FAILED: %s' % f)
         print('probe-solo-stage: %d check(s) FAILED' % len(fails))
         return 1
-    print('probe-solo-stage: all checks passed - the tree found its own folders')
+    print('probe-solo-stage: all checks passed')
     return 0
+
+
+def solo4(sdexe, sdsys, env, fails):
+    """SOLO 4's legs (25 Sep 2026): the one account, the closed internal door,
+    SDSYS not a target, and the shell open to the user.
+
+    Each leg anchors on text that appears only on its own outcome: a WHOLE line
+    for a success, the refusal's own message for a refusal - and a refusal leg
+    also fails if the success value appears.  The raw output of every session
+    is printed by bootstrap.sd() whatever the verdict."""
+    # getpass, not USERNAME: an MSYS2 login shell does not pass USERNAME on
+    # (measured 25 Sep 2026 - the guard below caught it), but sets USER.
+    import getpass
+    user = (os.environ.get('USERNAME', '') or getpass.getuser() or '').strip()
+    acct = user.lower()
+    print('\n== SOLO 4 legs, Windows user %r, account %r' % (user, acct))
+    if not acct:
+        fails.append('USERNAME is empty - no account to create or enter')
+        return
+    root = os.path.dirname(sdsys)
+    accdir = winpath(os.path.join(root, 'user_accounts', acct))
+    sdsysdir = winpath(sdsys)
+    refused = 'Connection terminated'
+
+    def run(label, args, marker):
+        print('\nsession (%s): sd %s   [marker %s]'
+              % (label, ' '.join(args), 'written' if marker else 'NOT written'))
+        B.INTERNAL_MARKER_DIR = sdsys if marker else None
+        try:
+            return B.sd(sdexe, env, args, expect_fail=True)
+        finally:
+            B.INTERNAL_MARKER_DIR = sdsys
+
+    def lines(out):
+        return [l.strip().lower() for l in out.splitlines() if l.strip()]
+
+    def verdict(label, ok, why):
+        print('  %s  %s  (%s)' % ('PASS' if ok else 'FAIL', label, why))
+        if not ok:
+            fails.append('%s: %s' % (label, why))
+
+    # 1. The installer's step: create the account for this Windows user.
+    out = run('account', ['-internal', 'RUN', 'gpl.bp', 'solo_account', user], True)
+    want = 'solo account ready %s ' % acct
+    ok = any(l.startswith(want) for l in lines(out))
+    verdict('solo_account creates the account', ok, 'want a line starting %r' % want)
+
+    # 2. An ordinary "sd", no marker, no -internal: lands in that account.
+    out = run('login', ['WHERE'], False)
+    wants = {accdir.lower(), posixpath(accdir).lower()}
+    ok = bool(wants & set(lines(out))) and refused.lower() not in out.lower()
+    verdict('plain sd lands in the user account', ok, 'want a line %s' % sorted(wants))
+
+    # 3. The internal door with NO marker must stay shut (ruling 13).
+    out = run('door', ['-internal', 'WHERE'], False)
+    leaked = {sdsysdir.lower(), posixpath(sdsysdir).lower()} & set(lines(out))
+    ok = refused.lower() in out.lower() and not leaked and \
+        'internal session admitted' not in out.lower()
+    verdict('sd -internal without a marker is refused', ok,
+            'want %r and no SDSYS path' % refused)
+
+    # 4. SDSYS is not a login target (ruling 11).
+    out = run('sdsys', ['-ASDSYS', 'WHERE'], False)
+    leaked = {sdsysdir.lower(), posixpath(sdsysdir).lower()} & set(lines(out))
+    ok = refused.lower() in out.lower() and not leaked
+    verdict('sd -ASDSYS is refused', ok, 'want %r and no SDSYS path' % refused)
+
+    # 5. The shell is the user's (os.users gone).  6*7 is typed, 42 is not.
+    out = run('shell', ['SH', '6*7'], False)
+    ok = '42' in lines(out) and refused.lower() not in out.lower() and \
+        'not permitted' not in out.lower()
+    verdict('SH runs for the user', ok, "want a line '42'")
 
 
 if __name__ == '__main__':

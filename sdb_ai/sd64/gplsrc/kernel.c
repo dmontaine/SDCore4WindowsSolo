@@ -296,22 +296,18 @@ bool init_kernel() {
        "logto sdsys" to get everything back, because CPROC re-grants this very
        flag on entering SDSYS.                                              */
 
-    if (IsElevated(&why) && (connection_type != CN_SOCKET) &&
-        IsInteractive(&why_desktop)) {
+    /* 25 Sep 26 SD Core Solo (SOLO 4) - ELEVATION MEANS NOTHING TO SD NOW, and
+       everything above about it describes the multi-user product.  The one
+       user's admin rights come from a password (ruling 12; SOLO 5's ADMIN
+       verb grants them).  The only session born with the flag is
+       "sd -internal", the installer and bootstrap door: it is forced to SDSYS
+       (sd.c), runs the $internal build steps that need it, and is admitted
+       only against LOGIN's one-shot marker in SDSYS - a file in the user's
+       own tree.  Not for a socket session, whatever started it.            */
+    (void)why;
+    (void)why_desktop;
+    if (internal_mode && (connection_type != CN_SOCKET))
       my_uptr->flags |= USR_ADMIN;
-    } else {
-      /* WHICHEVER OF THE TWO COULD NOT ANSWER, and not just the first.  Two
-         out-parameters rather than one, because && short-circuits: reusing a
-         single "why" would leave IsElevated()'s PRIV_ANSWERED standing when it
-         was IsInteractive() that failed to complete, and the log would then
-         name the wrong predicate - the exact class of wrong-reason defect
-         PRE_RELEASE 96 was filed for.                                      */
-      if (why != PRIV_ANSWERED)
-        priv_log_undetermined("USR_ADMIN at session start", why);
-      else if (why_desktop != PRIV_ANSWERED)
-        priv_log_undetermined("USR_ADMIN at session start (desktop test)",
-                              why_desktop);
-    }
 
     /* Phantom processes have the user name entered by the parent when the
       user table entry is reserved.  For other users, initialise this now. */

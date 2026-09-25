@@ -1,0 +1,231 @@
+* SOLO_ACCOUNT
+* Create SD Core Solo's one account.  Install-only.
+* Copyright (c) 2026 Ladybridge Systems, All Rights Reserved
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 3, or (at your option)
+* any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software Foundation,
+* Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+*
+*
+* START-HISTORY:
+* 25 Sep 26 SD Core Solo - new, SOLO 4.
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*    sd -internal RUN gpl.bp solo_account <windows user name>
+*
+* Owner's ruling 10, 25 Sep 2026: the one account is named after the Windows
+* user and lives in <USRDIR>\<name>; the installer creates it and writes the
+* name into the register.  This is what the installer runs to do that.  There
+* is no CREATE.ACCOUNT verb in Solo, and no other way in: the program refuses
+* unless the session is internal, which LOGIN admits only against the
+* installer's one-shot marker (RELEASE_1.1 82, ruling 13).
+*
+* WHAT IT BUILDS is what CREATEA's make.account built, without the multi-user
+* half (Windows account checks, groups, os.users, ACLs): the directory, a VOC
+* copied whole from NEWVOC, $command.stack, $hold with its dictionary,
+* $savedlists, BP and the private catalogue, then the register record.
+*
+* RE-RUNNABLE.  An account already in the register with its directory present
+* is left alone and reported, so an installer run twice, or an upgrade, does
+* not fail.  A directory with no register record is refused, as CREATEA
+* refuses one: whatever is in it was not made by this.
+*
+* THE REGISTER PATH IS ABSOLUTE, the account directory as ospath() resolves it,
+* as CREATEA wrote it.  A path relative to @SDSYS would keep the tree free of
+* the user's folder (the sdsys record already is), but nothing has measured an
+* account path containing ".." through LOGIN and the API containment, so it
+* is not tried here.
+*
+* The last line on success is "SOLO ACCOUNT READY <name> <path>": a caller
+* anchors on that, never on the name it passed in.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+program solo_account
+
+$include keys.h
+$include int$keys.h
+$include err.h
+
+   @system.return.code = -ER$ARGS
+
+   if not(kernel(K$INTERNAL, -1)) then
+      display 'solo_account: only the installer may run this.'
+      stop
+   end
+
+*  RUN gpl.bp solo_account <name> - the name is the fourth word.
+   acc.name = downcase(trim(field(trim(@sentence), ' ', 4)))
+
+   if acc.name = '' then
+      display 'solo_account: no account name given.'
+      stop
+   end
+
+*  CREATEA's rule for a name (createa:1010): at most 32 characters, a letter
+*  first, no space.  And never SDSYS, which is not an account anybody enters.
+   if len(acc.name) > 32 or not(alpha(acc.name[1,1])) or index(acc.name, ' ', 1) then
+      display 'solo_account: "' : acc.name : '" cannot be an account name.'
+      stop
+   end
+   if acc.name = 'sdsys' then
+      display 'solo_account: SDSYS is not an account anybody signs in to.'
+      stop
+   end
+
+   usr.dir = config('USRDIR')
+   if usr.dir = '' then
+      display 'solo_account: USRDIR is not set, so there is nowhere to put the account.'
+      stop
+   end
+   pathname = ospath(usr.dir : @ds : acc.name, OS$FULLPATH)
+
+   openpath @sdsys : @ds : 'accounts' to acc.f else
+      display 'solo_account: cannot open the account register.'
+      stop
+   end
+
+   read acc.rec from acc.f, acc.name then
+      if ospath(parse.pathname.tokens(acc.rec<ACC$PATH>), OS$EXISTS) then
+         display 'solo_account: ' : acc.name : ' is already in the register; nothing to do.'
+         @system.return.code = 0
+         display 'SOLO ACCOUNT READY ' : acc.name : ' ' : acc.rec<ACC$PATH>
+         stop
+      end
+      display 'solo_account: the register names ' : acc.name : ' but its directory is missing: ' : acc.rec<ACC$PATH>
+      stop
+   end
+
+   if ospath(pathname, OS$EXISTS) then
+      display 'solo_account: ' : pathname : ' exists and is not in the register; refusing to use it.'
+      stop
+   end
+
+   if not(ospath(usr.dir, OS$EXISTS)) then
+      create.file usr.dir directory on error
+         display 'solo_account: cannot create ' : usr.dir
+         stop
+      end
+   end
+
+   create.file pathname directory on error
+      display 'solo_account: cannot create ' : pathname
+      stop
+   end
+
+   gosub make.account
+
+   acc.rec = ''
+   acc.rec<ACC$PATH> = pathname
+   write acc.rec to acc.f, acc.name
+   close acc.f
+
+   @system.return.code = 0
+   display 'SOLO ACCOUNT READY ' : acc.name : ' ' : pathname
+   stop
+
+* ======================================================================
+* make.account  -  CREATEA's make.account, less the tier handling it had
+* already stopped using (RELEASE_1.1 64).
+make.account:
+   create.file pathname : @ds : 'voc' dynamic on error
+      display 'solo_account: cannot create the VOC'
+      stop
+   end
+
+   openpath pathname : @ds : 'voc' to voc.f else
+      display 'solo_account: cannot open the new VOC'
+      stop
+   end
+
+   openpath @sdsys : @ds : 'newvoc' to newvoc.f else
+      display 'solo_account: cannot open NEWVOC'
+      stop
+   end
+
+   copied = 0
+   select newvoc.f to 11
+   loop
+      readnext id from 11 else exit
+      read rec from newvoc.f, id then
+         write rec to voc.f, id
+         copied += 1
+      end
+   repeat
+   close newvoc.f
+
+   if copied = 0 then
+      display 'solo_account: NEWVOC gave the account no VOC entries'
+      stop
+   end
+   display 'solo_account: ' : copied : ' VOC entries copied from NEWVOC'
+
+   write 'X' to voc.f, '$command.stack'
+
+   fn = '$hold' ; os.name = '$hold' ; descr = 'File for deferred prints' ; dict = @true
+   gosub create.dir.file
+
+   fn = '$savedlists' ; os.name = '$svlists' ; descr = 'File for saved select lists' ; dict = @false
+   gosub create.dir.file
+
+   fn = 'bp' ; os.name = 'bp' ; descr = 'File for BASIC programs' ; dict = @false
+   gosub create.dir.file
+
+   s = pathname : @ds : 'cat'
+   if not(ospath(s, OS$EXISTS)) then
+      create.file s directory on error
+         display 'solo_account: cannot create the private catalogue'
+         stop
+      end
+   end
+
+   close voc.f
+   return
+
+* ======================================================================
+* create.dir.file  -  CREATEA's, unchanged in effect.
+create.dir.file:
+   create.file pathname : @ds : os.name directory on error
+      display 'solo_account: cannot create ' : fn
+      stop
+   end
+
+   voc.rec = 'F ' : descr
+   voc.rec<2> = os.name
+
+   if dict then
+      create.file pathname : @ds : os.name : '.dic' dynamic on error
+         display 'solo_account: cannot create the dictionary of ' : fn
+         stop
+      end
+
+      openpath pathname : @ds : os.name : '.dic' to dict.f else
+         display 'solo_account: cannot open the dictionary of ' : fn
+         stop
+      end
+      write raise('D':@VM:'0':@VM:@VM:fn:@VM:'10L':@VM:'S') to dict.f, '@id'
+      close dict.f
+
+      voc.rec<3> = os.name : '.dic'
+   end
+
+   write voc.rec to voc.f, fn
+   return
+end
+
+* END-CODE
