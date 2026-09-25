@@ -61,7 +61,7 @@ def expect_die(name, fn):
 
 def build_tree(root, skip=(), empty=()):
     """A staged tree with the shape stage.py produces, and nothing in it."""
-    sdsys = os.path.join(root, 'ProgramData', 'sdsys')
+    sdsys = os.path.join(root, S.STAGE_ROOT, 'sdsys')  # 25 Sep 26 - Solo's one root
     os.makedirs(sdsys)
     declared = ([n for n, _w in S.SDSYS_SHIP] + [n for n, _w in S.SDSYS_EMPTY] +
                 [n for n, _w in S.TERMINFO_DIRS] +
