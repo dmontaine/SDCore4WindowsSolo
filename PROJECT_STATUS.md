@@ -49,16 +49,17 @@ or *"— PRE_RELEASE_FIXES.md"*; grep the number there.
 What it lists as owed is also an entry under OPEN TASKS — if the two disagree,
 OPEN TASKS wins.
 
-***HANDOFF 25 Sep 2026 — SOLO 2 AND SOLO 4 DONE AND WITNESSED (HISTORY.md).
-Next: SOLO 12, then SOLO 5 (needs ruling 14's scope answered).***
+***HANDOFF 25 Sep 2026 — SOLO 2, 4 AND 12 DONE AND WITNESSED (HISTORY.md).
+Next: SOLO 5 (needs ruling 14's scope answered).***
 
 **Start here:**
 1. **The agent can now cycle the tree itself, unelevated**: from MSYS2 bash in
    `sdb_ai/sd64`, `python3 gplbld/stage.py --stage <repo>/stage --force --bootstrap`
-   then `python3 gplbld/probe-solo-stage.py --stage <repo>/stage`. Use the repo
-   `stage` folder — a long path trips SOLO 12. `bin\` rebuilt 25 Sep with
-   `make -o sdpy sd` (`sdpy.exe` is 21 Sep's).
-2. **SOLO 12** — the 128-char runfile limit and the silent bootstrap step.
+   then `python3 gplbld/probe-solo-stage.py --stage <repo>/stage` (long paths work
+   since SOLO 12). `bin\` rebuilt 25 Sep with `make -o sdpy sd` (`sdpy.exe` is
+   21 Sep's).
+2. **Notes left in `sd4windows` and `SDCore4Linux`** (owner pushed them, 25 Sep):
+   SOLO 12's defects exist in both trees.
 3. **Rulings 12-14 (25 Sep) define SOLO 5**; ruling 14's scope is an open question.
 4. **One owner decision is open** (SOLO 3): remote sessions may carry an
    administrator user's UNFILTERED token.
@@ -173,7 +174,7 @@ conflicts with this section, this section wins.**
 
 ## OPEN TASKS — SD CORE SOLO S1.1-0
 
-New ids are **`SOLO <n>`**; the next is **SOLO 13**. `RELEASE_1.1 <n>` and
+New ids are **`SOLO <n>`**; the next is **SOLO 13** (SOLO 12 closed 25 Sep, HISTORY.md). `RELEASE_1.1 <n>` and
 `PRE_RELEASE <n>` citations in source and in §5/§6 name multi-user entries —
 grep HISTORY.md, or `sd4windows`, for them. **Every entry below is a plan: none
 of it is built or measured yet**, and each names what would change it.
@@ -359,21 +360,6 @@ runs, from the stick too. The fix is a code-signing certificate, a cost and an
 owner's decision; documenting the "More info → Run anyway" step is the free
 alternative.
 
-### SOLO 12 · a long runfile path fails, and the bootstrap does not notice
-
-**Measured 25 Sep 2026** (unelevated bootstrap into a scratchpad stage, root path
-~120 chars): `RUN gpl.bp write_install_dicts` printed `Invalid runfile pathname at line
-2386 of $cproc` and ***`bootstrap.py` carried on and `stage.py` exited 0*** — the
-dictionaries were silently not written. Cause: `op_run()` (`op_jumps.c:800`) copies
-the runfile path into `MAX_PROGRAM_NAME_LEN` (128, `sddefs.h:322`) and
-`k_get_c_string` fails beyond it; CPROC builds the path as `fileinfo(fl$path) :
-@ds : name` (`cproc:2383`). Same run: `RUN gpl.bp solo_account` failed the same
-way. The short `<repo>\stage` passes. Fix both: the length (a runfile path is a
-path, `MAX_PATHNAME_LEN`), and `bootstrap.py` must anchor on
-`write_install_dicts`' success wording and fail otherwise. An install at
-`%USERPROFILE%\SDCoreSolo` is ~40 + user name + 30 chars — normally under 128,
-which is how this survived. Check upstream `sdb64` for the 128 limit
-(UPSTREAM_FIXES.md).
 
 ---
 

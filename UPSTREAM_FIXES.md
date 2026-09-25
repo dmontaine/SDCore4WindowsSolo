@@ -2883,3 +2883,46 @@ prompt. The branch above is byte-for-byte the same in `sdb64`
 (`sd64/sdsys/GPL.BP/QDISP:851`, `main` at `ae0cc5f`) and carries no generation-2
 marker, so upstream has the same behaviour by reading. Corrected in the Windows
 port on 13 Sep 2026.
+
+## 40. `RUN` fails for any program whose file path is longer than 128 characters
+
+`RUN <file> <program>` builds the full path of the compiled program
+(`CPROC`, `run.pathname = fileinfo(run.file, fl$path) : @ds : run.record.name`)
+and hands it to `op_run()`, which copies it into a buffer of
+`MAX_PROGRAM_NAME_LEN` (128). A longer path fails with `Invalid runfile
+pathname`, however valid the file is. On Linux most installations sit under a
+short path such as `/usr/local/sdsys`, so this rarely shows; any installation
+under a deeper directory meets it.
+
+The 128 limit exists for a reason: `load_object()` in `object.c` copies the name
+into the object header's `program_name[MAX_PROGRAM_NAME_LEN + 1]`, which is part
+of the object format, with `strcpy`. So the fix is two changes, not one:
+
+- `op_run()` takes the path in a buffer of `MAX_PATHNAME_LEN`;
+- `load_object()` copies at most `MAX_PROGRAM_NAME_LEN` characters into the
+  header, keeping the TAIL of an over-long path (the useful part in an error
+  message). The truncated name can never compare equal to the full path on the
+  next call, so the loaded-object cache cannot return the wrong program; the
+  file is simply loaded again.
+
+Measured in the Windows port on 25 Sep 2026: from a directory about 120
+characters deep, `RUN GPL.BP WRITE_INSTALL_DICTS` failed this way, and after the
+change it completed from the same place. Upstream `op_run()`
+(`sd64/gplsrc/op_jumps.c`, `main` at `ae0cc5f`) is the same code.
+
+## 41. `k_error()` can write past its buffer when it appends "at line N of program"
+
+After formatting the message into `s[(MAX_ERROR_LINES * MAX_EMSG_LEN) + 1]`
+with `vsnprintf`, `k_error()` appends the location with three plain `sprintf`
+calls (`sysmsg(1120)`, `1121`, `1122`), the last two including the program
+name (up to 128 characters). Nothing bounds the append, so a message that
+already fills much of the buffer, followed by a long program name, writes past
+the end of `s`.
+
+Upstream's first `vsnprintf` is bounded at about 84 characters (entry 28), so
+the message leaves room, but 10 characters of offset prefix, an 84-character
+message, the fixed text and a 128-character name still exceed 241. The fix is
+`snprintf(s + n, sizeof(s) - n, ...)` for all three, so an over-long line is
+truncated, never overrun. Found by reading in the Windows port on 25 Sep 2026,
+while lengthening the runfile path in entry 40. Upstream `k_error.c` has the
+same three `sprintf` calls.

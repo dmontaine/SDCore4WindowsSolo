@@ -36944,3 +36944,25 @@ closing this. Owner's rulings 10-14 recorded in PROJECT_STATUS.md.
   verifiers → SOLO 9; socket exception, relay descriptor → SOLO 3.
 
 ====
+
+## SOLO 12 — a long runfile path failed RUN, and the bootstrap did not notice (25 Sep 2026)
+
+**DONE AND WITNESSED.** Found in SOLO 4's first unelevated bootstrap into a
+scratchpad stage (~120-char root): `RUN gpl.bp write_install_dicts` printed
+`Invalid runfile pathname` and the bootstrap exited 0 with no dictionaries.
+- `op_jumps.c` `op_run()`: runfile buffer `MAX_PROGRAM_NAME_LEN` → `MAX_PATHNAME_LEN`.
+- `object.c`: the header `program_name` copy (128, object format) is bounded,
+  keeping the tail; a truncated name never equals the full path, so the object
+  cache cannot return the wrong program.
+- `k_error.c`: the "at line N of <program>" suffix was three unbounded `sprintf`
+  after a `vsnprintf` that can fill `s[241]` — now `snprintf`. Found by reading.
+- `bootstrap.py`: `write_install_dicts` must print its own `COMPLETE` line and
+  none of `Invalid runfile`/`ERROR OPENING`/`PROCESS ABORTED`/`READLIST EMPTY`.
+- **Witness:** the same long-path stage that failed now bootstraps
+  (`checked: write_install_dicts printed COMPLETE`) and the probe passes 8/8
+  there; the earlier run on that path is the control. Free tier 51 pass, 1 no-tree.
+- **Upstream:** 1-3 are in `sdb64` at `ae0cc5f` — UPSTREAM_FIXES.md 40, 41. All four
+  are in `sd4windows` and `SDCore4Linux` (Linux names the limit, message 10918);
+  owner-pushed notes in both repos, `8135df26` and `2b1a9ef`.
+
+====

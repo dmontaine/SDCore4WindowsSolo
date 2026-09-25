@@ -3,6 +3,13 @@ S1.1-0 - SD Core Solo, in progress
 A personal SD Core for one Windows user. NOTHING IN THIS SECTION HAS BEEN
 RELEASED.
 
+25 Sep 26  RUN WORKS FROM A DEEP FOLDER.
+
+           RUN refused any program whose full path was longer than 128
+           characters, with "Invalid runfile pathname", which a folder
+           deep in a user profile can reach. It now takes any valid
+           path.
+
 25 Sep 26  ONE ACCOUNT, YOURS.
 
            SD Core Solo has one account, named after your Windows user,
