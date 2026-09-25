@@ -37,6 +37,9 @@
 #     Match User <name>
 #         ForceCommand "<app>\usr\bin\sd.exe"
 #         DisableForwarding yes
+# Written wherever OpenSSH is found - not a choice (ruling 5) - and sshd is
+# then set to start at boot, so ssh works with nobody signed in (owner, 25 Sep
+# 2026).  Only this user is matched; sign-in is sshd's own, the Windows password.
 # DisableForwarding for the reason allow-ssh-groups.ps1 gives: ForceCommand
 # does not constrain port forwarding.  Checked with "sshd -t" and put back if
 # rejected.  NOT MEASURED: that Win32-OpenSSH matches the user by the name
@@ -165,8 +168,22 @@ function Set-SshBlock([bool]$Want) {
         }
         Note '  sshd -t accepted it'
     }
+    # Owner, 25 Sep 2026: ssh must be reachable unattended, from boot, with
+    # nobody signed in - so sshd itself is set to start at boot.  Only when the
+    # block is wanted; -Action Remove leaves the startup type as it finds it.
     $svc = Get-Service sshd -ErrorAction SilentlyContinue
-    if ($svc -and $svc.Status -eq 'Running') { Restart-Service sshd; Note '  sshd restarted' }
+    if ($Want) {
+        if (-not $svc) { Fail 'there is no sshd service to start at boot' }
+        else {
+            Note ('  sshd before: ' + $svc.Status + ', ' + $svc.StartType)
+            if ($svc.StartType -ne 'Automatic') { Set-Service sshd -StartupType Automatic }
+            if ($svc.Status -eq 'Running') { Restart-Service sshd } else { Start-Service sshd }
+            $svc = Get-Service sshd
+            Note ('  sshd after : ' + $svc.Status + ', ' + $svc.StartType)
+            if ($svc.Status -ne 'Running' -or $svc.StartType -ne 'Automatic') { Fail 'sshd is not running and set to start at boot' }
+        }
+    }
+    elseif ($svc -and $svc.Status -eq 'Running') { Restart-Service sshd; Note '  sshd restarted' }
     $after = [IO.File]::ReadAllLines($cfg)
     $present = [bool]($after -contains $Begin)
     if ($present -eq $Want) { Note ('  PASS  SD Core Solo block ' + $(if ($Want) { 'present' } else { 'absent' }) + ' in sshd_config (backup ' + $backup + ')') }

@@ -55,7 +55,7 @@ INSTALLED.*** SOLO 8's entry says what was measured and what was not.
 ***OWNER'S ORDER, 25 Sep 2026: "both, installer first".***
 - **FIRST: the owner runs the Solo installer** — double-click, as himself, NOT
   "Run as administrator": `C:\Users\Don\SDCoreProject\SDCore4WindowsSolo\stage\sd-solo-setup-S1.1-0.exe`
-  (built 25 Sep 15:41 from a clean stage; rebuild with `stage.py --force
+  (built 25 Sep 16:04 from a clean stage; rebuild with `stage.py --force
   --bootstrap` then ISCC if the stage has moved). Then read
   `C:\Users\Don\SDCoreSolo\install-summary.log` (both helpers' full reports),
   and from an ordinary prompt `C:\Users\Don\SDCoreSolo\usr\bin\sd.exe` should land
@@ -335,7 +335,11 @@ to sd's stdin, `sd -stop`), `solo-machine.ps1` (the one `runas`: S4U task
 checked for an sd.exe owned by the user; `api-firewall.ps1`; `ssh-firewall.ps1
 -Installed` per ruling 8; a marked `Match User` block with `ForceCommand` +
 `DisableForwarding` appended to `sshd_config`, `sshd -t` checked; `-Action
-Remove` at uninstall). Both in `stage.py`'s ship list. Upgrade = own uninstall
+Remove` at uninstall). ***The ssh block is NOT a choice (owner, 25 Sep 2026)***:
+written wherever OpenSSH is found, and `sshd` set to Automatic and started, so
+ssh works from boot with nobody signed in and lands in `sd`. The checkbox that
+was there ("Start SD Core Solo when I sign in over ssh") read as starting the
+server on sign-in and is gone; SD itself starts at boot from the task. Both in `stage.py`'s ship list. Upgrade = own uninstall
 key present: pages skipped, `upgrade.iss` included with `DataDir={app}`, only the
 task re-registered; a kept data tree without the key = reinstall, tasks asked,
 passwords not. Refuses beside multi-user SD Core. Pages: mode, admin password,
