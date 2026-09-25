@@ -23,7 +23,8 @@ two checkers existed only to compare them. **They are gone.** What remains:
 | where | what it holds |
 |---|---|
 | **CURRENT PICKUP** | the newest handoff — where to start, in order |
-| **OPEN TASKS** | every task that is open now, one short entry each, in the register's ids |
+| **WHAT SD CORE SOLO IS** | the product and the owner's rulings that define it — read before any task |
+| **OPEN TASKS** | every task that is open now, one short entry each, `SOLO <n>` |
 | **§0** | how to maintain this file |
 | **§4.0.1, §4.0.2** | two elevation facts CLAUDE.md cites |
 | **§5** | decisions and why — do not reopen without the owner |
@@ -33,10 +34,9 @@ two checkers existed only to compare them. **They are gone.** What remains:
 **Everything closed goes to [HISTORY.md](HISTORY.md), and nothing else does.** A
 task that finishes is deleted from OPEN TASKS in the same commit and, if its
 story is worth keeping, appended to HISTORY. **Do not strike a row, do not keep a
-"done" list, do not add a second status anywhere.** New tasks continue
-`RELEASE_1.1`'s id space: the highest id issued is **111**, so **the next is 112** —
-take it here and cite it as `RELEASE_1.1 97`, never as a bare number (the old
-`PRE_RELEASE` space overlaps it). A citation such as
+"done" list, do not add a second status anywhere.** New tasks take the **`SOLO`**
+id space — the next id is given at the head of OPEN TASKS — cited as `SOLO 7`,
+never as a bare number. A citation such as
 `RELEASE_1.1 64` or `PRE_RELEASE 96` in a source comment names an entry that is
 now in HISTORY.md under the heading *"ARCHIVE 21 Sep 2026 — RELEASE_1.1_FIXES.md"*
 or *"— PRE_RELEASE_FIXES.md"*; grep the number there.
@@ -45,869 +45,199 @@ or *"— PRE_RELEASE_FIXES.md"*; grep the number there.
 
 ## CURRENT PICKUP
 
-**This is the newest handoff and the only one. A session that ends replaces it
-(delete the old, write the new); it does not stack a second block on top.** What
-it lists as owed is also an entry under OPEN TASKS — if the two ever disagree,
-OPEN TASKS wins and this block is the stale one.
+**This is the newest handoff and the only one. A session that ends replaces it.**
+What it lists as owed is also an entry under OPEN TASKS — if the two disagree,
+OPEN TASKS wins.
 
-***22 Sep 2026, END OF SESSION — 71, 69, 73, 76, 97, 105 and 106 closed/fixed; 47's second pass
-(ssh mechanism, console-login S.27/S.41, message text, source-diff verb sweep) and 48 (the whole
-tier-model doc rewrite and sweep across all three `SDCoreWindowsDocs` sets, plus the three broken
-tier-era tools) are both DONE.*** Detail is in each id's own OPEN TASKS entry below, not repeated
-here — read those, not this block, for specifics. Full narrative: HISTORY.md, 22 Sep 2026 (search
-`RELEASE_1.1` plus the id). §5/§6 also trimmed (329,082 → 142,944 bytes, `git show
-375c611:PROJECT_STATUS.md` for pre-trim text). `-Run` tokens spent through `b231`; next is `b232`.
-
-**Start here next session:**
-1. **106's own verify-osusers/verify-doors-suite and a full milestone suite** are still owed —
-   both need a human at the keyboard (nested UAC prompts). See 106's entry.
-2. **47's live witness run** (not source-reading) is the one item its own entry still lists as
-   unaudited — Linux's §12 precedent is the method if it's wanted; needs Linux's own half too.
-3. **48's PDF/book rebuild is DONE, 22 Sep 2026** — all three sets rebuilt with `tools\release.ps1`,
-   0 broken links each, and the copy step (bound PDFs into the release's `documentation\`) is done
-   too — see 49's entry, also closed this session.
-4. **Absorb 61's two remaining facts** (only SDSYS administers; an ssh session's reach is bounded
-   by NTFS, not by SD) as one standalone sentence each in the docs — currently said only in
-   context across the rewritten pages.
-
-***Open, not filed:*** `voc_template` has no `~` record; SDSYS's VOC never gets one. Ask before building.
-
-***Tooling:*** `agent-elevate.ps1 -Start` = one UAC click, then
-`-Run -Script <name>.ps1 -ScriptArgs '-Run','bNNN','-Only','<step>'` (comma-list args as an array, not a
-joined string). `bbcmp` compiles `set_acc_password`/`createa`, not `login`. `ISCC` needs a staged tree.
-`cycle.ps1`'s "handle on it" message is a guess — check ownership (`takeown`) before assuming a lock.
-
-> §5.29: *"we are responsible for the transport and the default unmodified system, after that it is the
-> wild west."* Read before filing a security finding — an admin's own grant is not our defect.
+***24 Sep 2026 — SD CORE SOLO STARTED. Phase 0 (this file, CLAUDE.md) done; nothing
+converted yet.*** The multi-user CURRENT PICKUP, OPEN TASKS and DEFERRED sections
+that stood here are archived by reference: `git show e311adc:PROJECT_STATUS.md`
+(lines 46-913), and `sd4windows` keeps them live. **Start with SOLO 1** — its three
+spikes decide the shape of SOLO 3, 6 and 8, so nothing in those should be built
+before it reports.
 
 ---
 
-## OPEN TASKS — RELEASE 1.1 (W1.1-0)
+## WHAT SD CORE SOLO IS (owner, 24 Sep 2026)
 
-**4 open (ids across 1 entry — the gates): 59, 69, 71, 73, 75, 76, 77, 84, 97, 100–105, 64, 95, 96
-and 99 all closed 22 Sep, 61 folded into gate 48; 53 is deferred to W1.2 (its own section, below
-the gates); 107 and 108 filed 22 Sep from 47's message-text audit; 109 filed 24 Sep, a user report
-of the OpenSSH install/limit/firewall cascade with no diagnosable reason; 110 filed and closed
-24 Sep (HISTORY.md); 111 filed 24 Sep, 110's PowerShell module clash reachable through SD's own
-script runner.** Every call
-that was the owner's has been ruled — he delegated them, 21 Sep 2026 — and each ruling
-is in its entry. `B` blocks
-the release, `S` should be fixed, `M` is minor. Each entry says what is open and
-what is owed; **the row it came from, with every earlier status layered under it,
-is in HISTORY.md under *"ARCHIVE 21 Sep 2026 — RELEASE_1.1_FIXES.md as it stood"*
-— grep `| 64 |`** for the full text of an id. Release 1.1's two objectives
-(owner, 11 Sep 2026) were the defects SD Core for Linux found in this tree and
-embedded Python installed rather than shipped; the Python route is built and
-witnessed (`verify-pyapi`, `verify-pygate`, §5.27).
+A **personal** SD for **one** Windows user, living entirely in that user's home
+directory. **No capability to create or manage other accounts; otherwise every
+feature of the full SD.** Tied to one Windows account, so it needs no security of
+its own beyond that account's. **Assume one copy per computer.** Product name
+**SD Core Solo**, version **S1.1-0**.
 
-### 106 · B — elevation gave an ordinary account SD privileges; fixed and witnessed, owed a full suite
+**The owner's rulings, 24 Sep 2026** — the plan's seven questions, answered:
 
-**Owner's ruling, 22 Sep 2026, from a scoped security audit** (checked against §5.29's "transport
-+ default unmodified system" framing): *"elevation should not give ANY user any additional SD
-privileges no matter if they are an administrator or not - making a user a Windows administrator
-does not change their use of SD in any way ... The only requirement is that only an administrator
-can install sd in an elevated session. The only privileged account is SDSYS."*
+1. **Everything under `%USERPROFILE%\SDCoreSolo`** — programs and data.
+2. **Remote access must work while the user is signed out locally.**
+3. **API login with the user's WINDOWS password, option A**: the client sends it
+   inside the existing TLS 1.3 tunnel and Windows checks it (`LogonUserW`) on every
+   login — always the current password, at the cost of a new login mode in the
+   client libraries. (Option B, enrolling it once as a SCRAM credential, was
+   declined: it goes stale when the Windows password changes.)
+4. **A GLOBAL PASSWORD, set by the installer, and optional.** *"It will be a global
+   password used by the server to access all client machines."* Two uses:
+   - **(a) standalone** — a single-user database like SQLite. **No global password.**
+   - **(b) managed client** — a local repository in a distributed scenario, where a
+     **master Linux SD Core server** keeps the central store and also manages the
+     clients. **Needs the global password.**
+5. **ssh lands straight in `sd`.**
+6. **Admin commands follow 4: in (a) everything is open; in (b) they are protected
+   by the global password. In both, the account and grant commands are removed.**
+7. **SD Core Solo, S1.1-0.**
+8. **(24 Sep 2026, later) The Solo installer does NOT install an ssh server** —
+   *"it also should not have the download of the installer included. The
+   documentation should tell the user how to download the Microsoft SSH server
+   package, or the person or company installing should have the option of using
+   whatever SSH server they want to use."* **It still offers opening or closing
+   the ssh port and the API port.** So: no bundled MSI, no download, and no
+   Windows-feature (dism) install either — the Windows feature is itself a
+   download (asked, and answered "yes", 24 Sep 2026).
+   The package the docs would point at: Microsoft's Win32-OpenSSH MSI on GitHub
+   (`PowerShell/Win32-OpenSSH`, 10.0.0.0p2 on 27 Oct 2025, checked 24 Sep 2026) —
+   installs offline, so one download serves many machines, but Windows Update does
+   not patch it.
 
-**Measured, not assumed — a genuine elevated session was run and probed live:** `MODIFY.ACCOUNT`
-answered *"is not in your VOC"* for an ordinary elevated account, confirming `CREATE.ACCOUNT`,
-`DELETE.ACCOUNT`, `MODIFY.ACCOUNT`, `GRANT`, `UNLOCK`, `REMOTE.API`, `REMOTE.SSH`, `SSH.SERVER`
-are absent from `newvoc` entirely — already unreachable by any ordinary account regardless of
-elevation; their `K$ADMINISTRATOR` checks are defense-in-depth for SDSYS's own copy in
-`voc_template`, not a live boundary. **The live gap is narrower, in verbs `newvoc` actually
-ships**: `CATALOG ... GLOBAL`, `DELETE.CATALOG` (global/reserved-prefix), `SH`/`!`/`EDIT`/`MICRO`
-(elevation bypassed the `os.users` grant), `BREAK ON USER`, `PDUMP` of another user's process —
-all gated on `kernel(K$ADMINISTRATOR,-1)` with no account test, so an elevated Windows
-administrator got them in their own ordinary account.
-
-**Root cause, traced to source:** `kernel.c:299` seeds `USR_ADMIN` (`K$ADMINISTRATOR`) from
-`IsElevated()` at session start, for every interactive elevated session, before `LOGIN` has
-decided which account it lands in — it has to, so the SDSYS-login case (`login:771`) has
-something to test. `CPROC`'s `LOGTO` handler already clears the flag correctly on the way *out*
-of SDSYS (`cproc:2921`, "the privilege goes with them") — which is why the seat's `-Internal`
-`LOGTO` into a throwaway account already needed the `os.users\SDSYS` fixture for
-`verify-apiadmin.ps1`/`verify-privundetermined.ps1`'s local control leg (76). **But a *direct*
-login into an ordinary account never went through that clear at all**, so the seed's `TRUE` stood
-for the whole session.
-
-**Fixed 22 Sep 2026, one line, `login`'s ordinary-account case**, mirroring `cproc:2921`:
-`void kernel(K$ADMINISTRATOR, 0)`. Does not touch the SDSYS-login case (evaluated first, unaffected),
-`CPROC`'s `LOGTO` grant/revoke (already correct), or `-internal`/bootstrap (forced into SDSYS by
-`sd.c`, never reaches this branch). `verify-catgate.ps1` and the seat-based legs of
-`verify-apiadmin`/`verify-privundetermined` already test `CATALOG GLOBAL` and the OS.EXECUTE
-control via `LOGTO`, which this change doesn't touch — checked before writing the fix, not after.
-
-**A documented safety valve is deliberately removed by this**: `cproc:3773`'s comment says
-elevation bypassing the `SH`/`EDIT`/`MICRO` gate exists so "an administrator at the console has to
-keep SH whatever [os.users] says, or an empty OS.USERS locks the machine's own administrator out
-of the shell." Under the new ruling, fixing an empty `os.users` means signing in as SDSYS, not
-staying elevated in your own account.
-
-**`ED` was never part of this** — it's a separate program from `EDIT`/`MICRO` (same source file
-name, `edit`, caused the confusion) and its own error text says so twice: *"ed, the line editor,
-works anywhere... needs none of this."*
-
-**Cycled and witnessed 22 Sep 2026, `-Run b231`, elevated (agent-run, one direct UAC prompt each
-for the cycle and the targeted run — no nested elevation, per §4.0.1).** `assert-current` clean on
-the fresh install. Targeted (8 of 35 elevated steps, all exit 0): `verify-elevdoor`,
-`verify-createaccount` (18/18), `verify-catgate`, `verify-sdsysgate` (11/11), `verify-routes`,
-`verify-apiadmin` (24/25), `verify-privundetermined` (27 PASS + 0 N/A of 27), `verify-registersweep`
-(auto-included). **The two checks that matter most for this exact change both passed, and by
-construction rather than luck**: `verify-apiadmin`/`verify-privundetermined`'s local OS.EXECUTE
-control leg still plants the `os.users\SDSYS` fixture and still passes — confirming the seat's
-`LOGTO`-based testing (already correctly scoped before this fix) is untouched, and only the
-*direct*-login path changed. **Not separately re-witnessed:** `verify-osusers` and
-`verify-doors-suite` both raise their own nested UAC prompts internally, which an agent cannot
-drive (§4.0.1) — left for a full milestone suite run.
-
-**The credential prompt (`login:1106`) no longer firing for an ordinary elevated account is
-ruled, not a gap.** Owner, 22 Sep 2026: no replacement trigger — the installing administrator's
-account is ordinary like any other now, and granting it (or any account) a credential or
-`SH-ON`/`OS-ON` means signing in to Windows as SDSYS and running `sd` elevated, same as any other
-account. **Documented as a gate-48 item** (below) rather than built as a code change.
-
-### 47 → 48 → 49 · B — the release gates, in order, none started
-
-Owner via the Linux mailbox, 15 Sep 2026 18:12. **47 is gated on every other 1.1
-task above; 48 on 47; 49 on 48.**
-
-- **47 — Windows↔Linux parity audit.** *Done when* a written comparison exists
-  and its findings are resolved or filed. **First pass done 22 Sep 2026** — a
-  structured comparison across the major axes, not yet the full verb-by-verb
-  sweep (scoped at the bottom). Still open: the next-pass items only —
-  `MODIFY.PASSWORD` turned out already built on Linux (corrected below).
-
-  ***THE TEST FOR EVERY ROW, STATED BY THE OWNER ON BOTH SIDES: ONLY THE
-  RESULT COUNTS. THE MECHANISM MAY DIFFER TO FIT EACH OS.*** Linux's own
-  governing rule (owner, 20 Sep 2026, `SDCore4Linux` S.40): *"if something
-  works on Windows it needs to work here... if something prevents a
-  particular behavior on Windows that behavior needs to be prevented here...
-  the mechanism to achieve parity can vary given the capabilities of the
-  underlying OS."* And, wider (owner, 15 Sep 2026, Linux `CLAUDE.md`): *"the
-  linux port should follow the windows port decisions where not
-  contraindicated by the differences between the two operating systems"* —
-  adopted on the Linux side without re-asking the owner, except where an OS
-  difference is named and forwarded. **This audit is checked in both
-  directions** — a Linux capability Windows lacks counts exactly the same as
-  the reverse.
-
-  **Method:** `SDCore4Linux` cloned and pulled fresh (`2d4a45a`, 22 Sep 2026)
-  — label everything from it as a snapshot, per the mailbox rule. Read
-  Linux's own governing decisions (`CLAUDE.md` "Project stance") against
-  `sd4windows`'s §5; then a **mechanical, bidirectional diff of both ports'
-  `newvoc` and `voc_template` directories** (the actual shipped verb surface,
-  not a description of it) to find one-sided capabilities directly, rather
-  than trust either side's prose. `newvoc`: 397 (Windows) vs 399 (Linux).
-  `voc_template`: 430 (Windows) vs 424 (Linux).
-
-  **Aligned — same result, mechanism differs as the OS requires; no action:**
-  - Tiered account model removed on both sides, independently, ~18 Sep 2026,
-    to the same shape: one VOC layer (`newvoc`) for every account, one
-    administrator (SDSYS), ssh and the API open to every account except
-    SDSYS by default (Windows §5.28; Linux `CLAUDE.md` "Project stance",
-    18 Sep, `e41d318`).
-  - SDSYS has zero remote access on both sides, refused at the door, not
-    merely ungranted (Windows: `modifya:246`, `sysmsg 12001`; Linux: S.35,
-    19 Sep 2026, "sdsys should not have any remote access from ssh or api").
-  - `batch.jobs`: Linux's S.40 (20 Sep 2026) was built explicitly to Windows
-    parity under the rule quoted above, after finding the two OS identity
-    models needed different mechanisms for the same allowlist behaviour.
-  - TLS 1.3 + SCRAM API tunnel: interop tested both directions, 15 Sep 2026
-    (RELEASE_1.1 41), both passed.
-  - Shared legacy message-number block (10030–10999): no live collisions.
-    Windows's recent additions (105, 106) and Linux's recent ones
-    (10073–10087, 11000–11002) checked byte-identical where numbers
-    coincide, or correctly in each side's own block otherwise
-    (`test-msgreserved-units.py`, 17/17).
-
-  **Deliberate divergence, OS-difference justified, confirmed by the VOC
-  diff (not assumed from prose) — record, do not "fix":**
-  - **`os.users`/`GRANT`/`REVOKE`/`LIST.GRANTS` are Windows-only, confirmed
-    absent from Linux's `voc_template` entirely** (not merely unused).
-    Windows needs a separate SD-level allow-list for `SH`/`OS.EXECUTE`
-    because Windows has no native way to sandbox what a shelled-out process
-    can do per SD-account; Linux's *"SH and OS.EXECUTE run at the account's
-    own Linux permissions"* (Linux `CLAUDE.md`) gets the same result for
-    free from real Unix file permissions every account already carries.
-    **`GRANT` on Windows turns out to be a pure convenience wrapper, not an
-    extra capability** — `granta`'s own history says so: *"the grant is a
-    Windows group membership and can be made without SD"* — exactly what
-    Linux's `usermod -aG` does directly, outside SD. Same result, and
-    Windows's version is *narrower* in one respect worth knowing: `os.users`
-    gives two independent switches (`SH-ON`, `OS-ON`) where Linux's native
-    permissions answer only one all-or-nothing question.
-  - **`APPEND.PATH`, `SSH.SERVER`**: Windows-only, no Linux equivalent found
-    or needed — Windows has no single shared PATH-management primitive and
-    ships no ssh server by default the way virtually every Linux
-    distribution does, so both are genuinely Windows-side installer/admin
-    concerns with nothing to mirror.
-
-  **CORRECTED 22 Sep 2026 — owner's ruling, relayed by Linux (S.42): "parity
-  goes both ways, if you have a feature that windows does not, then they need
-  to come into parity if possible."** The two rows below were filed as
-  "record, do not fix" under the old one-way reading; re-examined and acted
-  on directly under the parity-decision governance exception in this file's
-  own mailbox section (approved on one port is approved on both), and this
-  session's owner separately said in chat, "anything achieving parity is
-  approved."
-  - **`nano`**: Linux-only, cosmetic — its `voc_template` record is `CA
-    $EDIT`, the *same* catalogued program `MICRO`/`EDIT` already point to.
-    **Built 22 Sep 2026**: `newvoc/nano` and `voc_template/nano` added,
-    byte-identical to our own `micro`/`edit` (lower-case `$edit` per §5.12).
-    Free-tier clean — `test-vocverbs-units.ps1` all rows, `test-voctwins-
-    units.py` 9/9 with counts moved as expected (newvoc 397→398,
-    voc_template 430→431, no fold-collisions), full 54-guard sweep 54/0/0.
-    **Not yet cycled or witnessed** — rides the next milestone cycle rather
-    than a one-off install for one VOC record.
-  - **`UMASK`**: re-examined under the new bar, not just reasserted — still
-    inert, for a sharper reason than the pre-audit answer gave. Windows
-    already achieves what `umask` achieves — a predictable default
-    permission profile for every file an account creates — through **one
-    inheritable ACE the installer sets once on `C:\ProgramData\SD`**, which
-    NTFS applies at creation time to everything underneath, **including
-    files SD writes through the MSYS2 runtime** (§5.7, verified 13 Aug 2026:
-    *"files created through MSYS2 inside a locked directory still inherit
-    the restricted ACL correctly... NTFS applies inheritance at creation,
-    below the runtime"*). `createa`'s own history names the POSIX mechanism
-    this replaced (`:1059-1068`): the port used to run `sudo chmod g+s <dir>`
-    per account so new files inherited the directory's group; gone because
-    the installer's one-time ACE does the same job structurally. The shape
-    is inverted, not absent: Linux's `umask` is per-session and mutable;
-    Windows's equivalent is one-time and can't be forgotten. No verb to
-    build — there's no per-process mode-bits value SD passes when it writes
-    a file on Windows for a `UMASK`-shaped verb to expose. Sent to Linux
-    22 Sep 2026 (`to-linux/2026-09-22T1700-windows-parity-both-ways-reply.md`).
-  - **`%T`/`%t`** (soundex-test keyword): identical content, differ only in
-    record-name case — **not a feature gap, a Windows TODO**. Confirms §5.12
-    (lower case everywhere) is genuinely unfinished for the `$`/`%`/`@`
-    records Windows deliberately excluded from its sweep so far; Linux's own
-    lower-case work (`CLAUDE.md`: *"AND COMPLETE, WHICH THE PORT IS NOT"*)
-    has already gone past it. Low priority, no functional effect either way.
-
-  **Found 22 Sep 2026, this session's own verb-surface source-diff sweep —
-  the reverse direction, a real Windows-fixed bug Linux still has.** Windows
-  fixed *"a [Python] list could be appended to and read but never made"* on
-  14 Sep 2026 (`py_listcreate`, the 21st Python program, shaped like
-  `PY_CREATEDICT`). Checked Linux's tree the same way: `gplsrc/keys.h:443` —
-  `SD_PyListCrte` is commented out (`//#define SD_PyListCrte 2220`, the
-  number skipped between 2217 and 2221); `gplsrc/op_sdpyobj.c` has a
-  `PyDictCrte` case but no `PyListCrte` one — `PyListGet`/`PyListAppd`/
-  `PyListClr` exist, `PyListCrte` does not; no `py_listcreate`-equivalent
-  `.gpl.bp` file. Linux's dict CRUD is otherwise complete (Crte/Clr/Vset/
-  Vget/IDel/Keys/Values all present) — this looks like the exact same gap
-  Windows had, just not yet found there. Not filed as our own task (their
-  tree, their fix); sent as a finding, not a demand, in the same mail as the
-  `nano`/`UMASK` reply — their call whether anything in their tree actually
-  needs list creation.
-
-  **Built on Linux, same day (S.43, `SDCore4Linux ac02525`)**: confirmed a
-  real gap the moment they checked. `PyListCrte` implemented following
-  `PyDictCrte`'s own shape — their tree links `libpython` directly
-  (`PyList_New()` + `PyMapping_SetItemString`), not our helper-process
-  dispatch, same result by a different route, matching this audit's
-  "mechanism may differ" rule even for a bug fix. New BASIC wrapper
-  `py_listcrte` (their own `py_list<verb>` naming), opcode uncommented in
-  both their `keys.h` copies, two new error codes in their own
-  already-diverged numbering. C build clean; **not yet cycled or witnessed**
-  on their side either.
-
-  **CORRECTED 22 Sep 2026 — `MODIFY.PASSWORD` self-service was already built
-  on Linux before this audit ran; the line-number citation below was stale.**
-  The paragraph as first written cited `set_acc_password:79-80` at
-  `2d4a45a`(22 Sep) as still refusing before any prompt. Linux's mail reply
-  (`done/2026-09-22T1530-linux-modifypassword-correction.md`,
-  `SDCore4Linux main c88ab9e`) said the file had moved on since that read;
-  **checked directly against the pulled clone, not taken on the mail
-  alone**: `set_acc_password:71-97` at `c88ab9e` now describes a working
-  self-service path, and Linux's own `PROJECT_STATUS.md` row **W.10 is ✅,
-  built and witnessed 19 Sep 2026 on `60ac74a`** — three days before this
-  audit's 22 Sep pass, so the "open gap" finding was wrong from the moment
-  it was written, not a regression since. Mechanism, for gate 48's docs:
-  a setuid-root helper `sd-elevate cred-own` (`query`/`verify`/`set`),
-  reachable by every SD user through a scoped sudoers entry, taking the
-  caller's identity from `sudo` rather than from SD; `set_acc_password`
-  derives the credential record locally and hands it to the helper for an
-  ordinary account's own write, while an administrator (an actual `sdsys`
-  login) writes `$cred` directly through `!CRED_SET` — same process for
-  both, two write paths underneath, matching Windows's RELEASE_1.1 71
-  result with an OS-appropriate mechanism. **Aligned, not an open gap.**
-
-  **Sent over the mailbox, 22 Sep 2026, and answered — closed:**
-  - **RELEASE_1.1 106 (Windows, commit `17b0ae25`): "The only privileged
-    account is SDSYS."** Sent to Linux 13:00, ACKNOWLEDGED. **Linux's reply
-    (`done/2026-09-22T1500-linux-release-1.1-106-reply.md`, `SDCore4Linux
-    main c88ab9e`): no K$ADMINISTRATOR-shape leak.** Checked against source:
-    `USR_ADMIN` has no pre-identity seed (`my_uptr->flags = 0` at session
-    init, `gplsrc/kernel.c:157`); it is granted in exactly one place
-    (`sdsys/gpl.bp/cproc:424,432`), only after identity is already known (OS
-    user `sdsys` + local session + kernel-set audit loginuid `sdsys`), so
-    `sudo sd`/`su - sdsys` from another account carries that account's own
-    loginuid and is refused (10195/10176) rather than granted — the opposite
-    shape from Windows's bug. Not a fresh live witness, a source re-read
-    against the prior live witness on `60ac74a` (19 Sep 2026, M8a-h). `sudo
-    sd` as root itself is refused outright (10190), matching Windows's W.5.
-
-  **Audited 22 Sep 2026, second pass — ssh mechanism: aligned, checked
-  against both sources directly.**
-  - **Windows** (`gplbld/allow-ssh-groups.ps1:217,265-276,292-296`):
-    default-*deny* at the door — `AllowGroups sdssh <COMPUTERNAME>\sdssh` is
-    the only membership sshd will even authenticate; global (not
-    Match-scoped) `ForceCommand "<sd.exe>"` + `DisableForwarding yes` force
-    every authenticated session into `sd` with no tunnel. SDSYS's own OS
-    account is never added to `sdssh` — only `CREATE.ACCOUNT`'s `set.access`
-    does that (`createa:2199`), and SDSYS is not created through
-    `CREATE.ACCOUNT` — so it is excluded from ssh entirely by omission from
-    the allowlist.
-  - **Linux** (`gplbld/ssh-forcecommand.sh:31-40`): default-*allow* at
-    sshd (no global `AllowGroups`), three ordered `Match` arms instead —
-    `Match User sdsys` → `DenyUsers sdsys` (explicit); `Match Group
-    sdusers,!sdsys,!sdssh` → `ForceCommand` to a refusal binary (message
-    10074) with all four forwarding types off; `Match Group sdusers,!sdsys`
-    → `ForceCommand` into `sd`. Order is load-bearing (sshd's
-    first-obtained-value rule).
-  - **Same three outcomes both sides**: SDSYS refused entirely, a
-    no-ssh-route account refused with no shell and no tunnel, a routed
-    account forced into `sd` with no tunnel. Mechanism differs
-    (allowlist-by-omission vs. explicit deny-plus-refusal arms) — result
-    matches. **No action.**
-
-  **Audited 22 Sep 2026, second pass — console/local-login restriction:
-  answered by Linux, aligned, mechanism differs because the underlying
-  boundary differs.**
-  - **Windows** (`sdsys/gpl.bp/createa:1209-1231`, `gplbld/deny-logon.ps1`):
-    every ordinary SD account is unconditionally joined to `sdsshonly` at
-    `CREATE.ACCOUNT` time (administrators and `ADOPT`ed pre-existing
-    accounts exempted, `:1209-1211`), which carries
-    `SeDenyInteractiveLogonRight` (console) and
-    `SeDenyRemoteInteractiveLogonRight` (RDP) — an SD account can never get
-    a local Windows desktop session. This exists because `os.users` is a
-    *second* wall on Windows: `SH`/`OS.EXECUTE` can still be individually
-    denied inside SD even to an otherwise-fine account, and a console
-    session would walk around that wall entirely, reaching the full Windows
-    account unconditionally — `sdsshonly` is what stops that walk-around.
-  - **Linux's reply** (`done/2026-09-22T1615-linux-console-login-answer.md`,
-    `SDCore4Linux main 4ae3d79`, their **S.41**), **checked against their
-    source and their own `PROJECT_STATUS.md` row, not taken on the mail
-    alone**: the local-login door is genuinely open — no `-s` shell
-    override in `sd-elevate useradd`/`createa`, no `/etc/securetty`, no
-    `nologin.conf`, `pam_access.so` commented out, confirming exactly what
-    the Windows-side search had already found. **But there is no second
-    wall left to walk around**: their **S.27** (19 Sep 2026, witnessed)
-    already tore down the `os.users`-equivalent gate — `SH`/`OS.EXECUTE`
-    run *unconditionally* at the account's own Linux permissions from
-    inside `sd`, so an ssh session running `SH` and a local tty/GDM login
-    land at the exact same place: the account's own UID, its own groups,
-    its own files. Console access grants nothing beyond what `sd` already
-    hands out over ssh.
-  - **Aligned — not a gap.** The `sdsshonly`-shaped fix would solve a
-    problem Linux doesn't have, by its own earlier ruling (S.27) that OS
-    permissions are the only wall it keeps. Useful for gate 48's
-    security-posture section: the "why Windows needs `os.users` where Linux
-    uses native permissions" framing already planned there covers this case
-    too.
-
-  **Audited 22 Sep 2026, second pass — message text: no collisions, two minor
-  completeness gaps filed (not fixed here), read by hand with
-  `gplbld/scan-msgdiff.py`** (freshly pulled clone, `c88ab9e`). 102 ids shared
-  in the 10000-range; 16 differ on their first line, all read in full — every
-  one is either an identical platform-name substitution (`10024`, `10036`,
-  `10037`, `10038`, `10084`) or a genuinely different, correct mechanism
-  description for each OS (`10002` SDSYS entry, `10120` privilege refusal,
-  `10131`/`10133` API toggle, `10137`/`10139` ssh toggle, `10172` admin
-  route) — **no meaning collisions.** Two Linux records are missing a
-  reassurance/detail paragraph Windows's copy has (`10170`, `10919`) — filed
-  as **RELEASE_1.1 107 (M)** below, since it's their tree, not ours, to
-  amend. One Windows record is missing a changelog pointer Linux's copy has,
-  even though Windows ships the same file (`sdsys/changelog`) — filed as
-  **RELEASE_1.1 108 (M)** below. Neither blocks anything; neither is a
-  collision (no contradicting meaning on one number, just less detail on one
-  side).
-
-  **Started 22 Sep 2026, second pass — verb-surface semantic comparison, by
-  source diff rather than live witness runs (no live Linux box here to test
-  against; this is what source-reading *can* answer).** Method: `comm -12` on
-  both trees' `sdsys/gpl.bp` filenames finds 212 verbs implemented in a
-  same-named file on both sides; `diff -w` each pair and rank by line count —
-  a large diff is where OS-specific logic lives and is worth reading, a small
-  one is very likely comment-attribution style only (`Windows port -` vs.
-  `dm`). **Every file at or above ~90 diff lines is already covered by this
-  audit's other findings** (`createa`, `login`, `apisrvr`, `cproc`, `modifya`,
-  `edit`, `set_acc_password`, `delacc`, `deletef`, `set_passwd`, `remoteapi`,
-  `cred_set`, `catalog`, `qproc` — the account/session/remote-door/credential
-  core). **Spot-checked below that line, for real content, not just size:**
-  - `pw_complex`: rewritten (variable names, `case` formatting) but the same
-    logic — 8-char minimum, same four ASCII-range tests, same all-four-
-    required policy. Aligned, cosmetic rewrite only.
-  - `is_grp_member`/`is_sd_user`/`is_user`/`is_group`: Windows calls a
-    PowerShell/`!valid_os_name` helper, Linux reads `/etc/passwd`/`/etc/group`
-    directly — expected OS-mechanism divergence, same question answered.
-  - `setacc`: Windows derives the account name with `upcase()` where Linux
-    uses `downcase()` — looked like a real case-convention bug at first, but
-    **`setacc` is not reachable from any `newvoc`/`voc_template` entry on
-    the Windows side** (checked directly, `grep` for `setacc` across both
-    VOC directories: no hits) — dead code inherited from upstream
-    (`Copyright (c) 2006 Ladybridge`), not a live path. No finding.
-  - `cred_verify`/`cred_set`: same `upcase` vs. `downcase` shape, but **live**
-    this time (APISRVR and `MODIFY.PASSWORD` call it) — checked both the
-    reader (`cred_verify`) and the writer (`cred_set`) on **both** trees:
-    Windows upcases in both; Linux downcases in both. Each side is
-    internally self-consistent — a credential written and read on the same
-    port always agrees — so this is "aligned, mechanism differs" like the
-    rest of §5.12's case-folding story, not a bug.
-  - `copy`/`cd`/`show`/`delete`/`listi`/`deletei`/`term`/`ct`: diffs are
-    almost entirely `START-HISTORY` attribution style (`Windows port - ...`
-    vs. `dm ...`, same rulings re-told in each port's own voice); the code
-    lines that do differ are case-fold lookup order, already exercised by
-    each side's own account-name-folding convention and not a behavioural
-    difference a caller would see.
-  - **Not yet read**: the ~150 files under ~10 diff lines each (very likely
-    comment-only, going by the pattern above, but not individually
-    confirmed) and every verb that is *not* implemented in a same-named file
-    on both sides — some are genuinely one-sided (recorded above already:
-    `os.users`, `UMASK`, `nano`, …), others may just be named or organised
-    differently and this filename-based method would miss them entirely.
-  - **No live witness run performed or claimed** — this is a source-level
-    read, not an execution test on either OS; Linux's own §12 precedent
-    (live, numbered, both platforms actually running SD) is still the
-    complete version of this item if it's wanted, and would need Linux to
-    run its half.
-
-  **Not yet audited — scoped for a next pass:**
-  - Doc parity — gate 48 on each side; Linux's own S.22 explicitly waits for
-    Windows's docs to be current first, so sequence 48 before returning here.
-
-  **Precedent, not reinvented:** Linux's own gate is **S.21** in its
-  `PROJECT_STATUS.md`, blocked on Windows's 1.1 the same way this was blocked
-  on nobody having started it; its method note points at its own 10 Sep 2026
-  pass (**S.5**, `witness-release-run.sh` §12 — a live, numbered witness
-  checklist: account model, LOGTO, SUSPENDED, the API door, TLS/SCRAM,
-  message numbers) as *"the precedent to widen rather than reinvent."* The
-  next-pass items above are exactly what §12 already knows how to check.
-- **48 — documentation current with 1.1.** Bring `SDCoreWindowsDocs` up to date
-  with every W1.1 change (API TLS, the SDSYS elevation gate, `delete.account`'s
-  skip, the VOC-write fix, prompt defaults, …) — it still describes account tiers
-  on more than a dozen pages, which 64 made false.
-
-  ***STARTED 22 Sep 2026, SUBSTANTIAL PROGRESS — 17 files rewritten, verified,
-  committed across 11 `SDCoreWindowsDocs` commits*** (`b78dad6` `67e4066`
-  `100cc67` `ace7a0e` `b99c2df` `b0b18af` `3ec3b26` `915ed81` `72275f2`
-  `af0f0f4` `f29ab9e`). Every fix was checked against **verified live source**
-  (`createa`/`modifya`/`granta`/`set_acc_password`/`login`/`cproc`'s actual
-  current syntax messages and gates), not the old prose. **The scope was
-  worse than the 776-line estimate at every turn**: `Administrator/01` was
-  flagged for three one-line fixes (absorbed 61) and needed the same full
-  rewrite as the three `GettingStarted` pages; the two `Security` pages, `ssh
-  access`, `API access`, `installation`, `first-run`, `scheduled jobs`,
-  `hardening`, `start here`, and two pages in the `User` set all turned out
-  to describe the withdrawn model too, not just the three pages named.
-
-  ***THE SHARPEST FINDING: `LOGTO SDSYS` IS REFUSED UNCONDITIONALLY NOW, NOT
-  JUST GATED BY ELEVATION*** — verified directly at `cproc:2784-2787`
-  (message 10002, audited `LOGTO REFUSED account=SDSYS reason=SDSYS is not
-  reachable by LOGTO`) and `login:606,778,815`. The only route into SDSYS is
-  signing in to Windows as the `sdsys` account itself and starting `sd` fresh,
-  elevated — never `logto` from a session that started anywhere else, however
-  elevated that session is. **Seven separate pages instructed a reader to type
-  `logto sdsys`** as a working command — GettingStarted's installation,
-  first-run walkthrough (step 5, "become an administrator"), scheduled-jobs,
-  hardening, and start-here pages, plus `User/00b-sd-introduction.md`'s own
-  "becoming an administrator" section and `19a-sd-tcl-the-command-stack.md`'s
-  worked example — every one now fixed. **One page's fix was itself wrong
-  the first time**: `Administrator/03`'s "logto clears elevation" section was
-  initially left as "accurate, not rewritten" in an earlier commit this
-  session; its worked example of *recovering* with `logto sdsys` was exactly
-  the broken route, caught on a second pass and corrected (`b0b18af`) — a
-  reminder that "checked and found accurate" needs the same scrutiny as a
-  rewrite, not less.
-
-  The `08-ssh-access.md`/`09-api-access.md` rewrites found the same shape of
-  error again: both claimed a *local* administrator connection (ssh loopback,
-  or an API client on `127.0.0.1`) still worked, only remote being refused.
-  False now — SDSYS is never joined to `sdssh` or `sdapi` at all (only
-  `create.account` does that, and SDSYS isn't created that way) and carries
-  no SD credential to authenticate an API session with, so there is no
-  local/remote distinction left to make: SDSYS has neither route, from
-  anywhere.
-
-  **Each rewrite verified with the doc repo's own tooling**: `mkdoc.py`
-  renders clean and `checklinks.py` reports 0 broken across every affected
-  set on every commit; `docmap.py` unchanged at 411/411 throughout. The
-  **security-posture section is written** (in `12-security.md`, "What ships
-  secured, before you change anything") — the BASIC/RUN-removal and
-  break-key items in the owner's original wording don't map to one named SD
-  mechanism, so they're phrased as available hand techniques
-  (`pterm break off`, deleting VOC records) rather than a built-in feature,
-  since that's what the source actually shows. Absorbed 61's two remaining
-  facts (**only SDSYS administers**; **an ssh session's reach is bounded by
-  NTFS, not by SD**) are said repeatedly in context across the rewritten
-  pages but not yet as one standalone sentence anywhere.
-
-  ***DONE, 22 Sep 2026, LATER THE SAME SESSION — the sweep finished and all
-  three tooling defects fixed.*** 15 more `SDCoreWindowsDocs` commits
-  (`04f1e7f` `35bb919` `f6b1978` `703c1da` `e2eadb2` `1b0db2b` `4980901`
-  `f41d447` `41068b8` `d0e3057`, plus small fixes folded into the same run)
-  covered every file the `grep -rl -i tier` ceiling named: the rest of
-  `Administrator` (`01a`, `02`, `05`, `06`, `07`), all 13 remaining `User`-set
-  BASIC/TCL reference pages, the two VOC-structure pages, and the glossary.
-  A second, clean re-run of the same grep afterward found 19 files with a
-  hit — every one individually read and confirmed to be this session's own
-  correct usage (explaining the tier is gone, describing SDSYS), not a leftover
-  error. **`mktclsyntax.py`, `tclmap.py` and `verbcounts.py` are all fixed** —
-  the design decision flagged above (two rosters, not three: `newvoc` for
-  every ordinary account, `voc_template` for SDSYS) is what they now compute,
-  reading the two directories directly instead of the deleted `TIER.*` lists.
-  All three agree with each other and with this session's own hand-derived
-  count: **148 verbs total, 128 every account, 20 SDSYS-only.** Regenerating
-  `95-sd-tcl-syntax.md` with the fixed generator caught one real gap on its
-  own — `nano` (built earlier this session) had no shape line and no page;
-  both added. `verbcounts.py`'s prose check now passes clean: 3 figures found
-  in the whole doc set, 0 unaccounted for.
-
-  ***Two more errors caught along the way, both instructive.*** `08-ssh-
-  access.md`/`09-api-access.md` had the same false "local administrator
-  connection still works" claim `Administrator/03` did — fixed the same way,
-  SDSYS has neither route from anywhere. And `01-installation.md` /
-  `User/00b-sd-introduction.md` each had one more `logto sdsys`-shaped or
-  tier-shaped claim that survived an earlier "fixed" pass — found only on a
-  *third*, deliberately independent re-grep done specifically to check the
-  first two passes rather than trust them.
-
-  ***Still open***: absorbing 61's two facts (**only SDSYS administers**; **an
-  ssh session's reach is bounded by NTFS, not by SD**) as one standalone
-  sentence each, rather than said only in context; and `08-ssh-access.md`
-  (13,693 chars) and `13-hardening.md` (14,042) sit at or just over the
-  ~14,000 split guideline, worth a look before either grows further.
-
-  ***THE THREE SETS WERE REBUILT, 22 Sep 2026***, `tools\release.ps1` for
-  `GettingStarted`, `Administrator`, `User`, run unelevated (`python` on PATH
-  is 3.14.7 with `markdown` 3.10.3 already user-installed, so the 12 Sep PATH
-  trap did not recur; Edge found at the x86 path). All four roster checks
-  (`docmap`, `tclmap`, `confmap`, `verbcounts`) passed against the
-  freshly-pulled `sd4windows` tree for every set.
-
-  ***THEN A VERSION SWEEP, SAME SESSION: THE DOCS STILL SAID W1.0-0
-  EVERYWHERE THE PRODUCT ITSELF HAD ALREADY MOVED TO W1.1-0 ON 15 Sep.***
-  Checked against source, not assumed: `gplsrc/revstamp.h`, `gpl.bp/revstamp.h`,
-  `sdclilib/revstamp.h` and `sd.iss`'s `AppVer` all already read `W1.1-0`;
-  `op_sys.c:378-381` confirms `system(1012)` returns `SD_REV_STAMP`, `sd.c:554`
-  confirms `sd --version` reports the same string, `sd.iss:96` confirms the
-  installer filename derives from `AppVer`. **Bumped 8 current-version
-  statements only** — README's title, `00b-start-here.md`'s "what this release
-  is" and "quote the version", `01-installation.md`'s installer filename,
-  `10-client-distribution.md`'s "not what W1.0-0 ships", the `system(1012)`
-  table row, and both `config` transcript's "Virtual Machine Version Number"
-  lines. **Deliberately left alone**: every "run/compiled/witnessed on
-  W1.0-0" worked-example claim (sessions/locks, encryption, the TCL query/
-  select/index examples, the BASIC tutorial, dict conversions) — relabeling a
-  captured-run claim without re-running it on W1.1-0 would fabricate a
-  verification that didn't happen; and every reference to "the W1.0-0 audit"
-  as a named past event (README, `analysis/`). **Found and fixed along the
-  way**: `27-sd-tcl-micro.md`'s "Saving is broken ... in W1.0-0" section
-  described a bug already fixed 27 Aug 2026 (`PRE_RELEASE 29`) — stale
-  regardless of version, rewritten to describe the current per-user
-  `MICRO_CONFIG_HOME` behaviour, checked against `gpl.bp/EDIT`'s `micro.home`
-  gosub and `gplbld/micro-home.ps1`.
-
-  All three sets then rebuilt again, `-Version W1.1-0 -Force` (documented
-  flags, no new ones), so every page's header/footer/title carries the new
-  stamp rather than just the eight edited pages. `checklinks.py`:
-  GettingStarted 108/0 broken, Administrator 25/0, User 242/0 (one fewer link
-  — the removed `ed` cross-reference in the rewritten micro section). Bound
-  books and zips rewritten (`GettingStarted` 5,296,222 B sha256 `861D7324…`;
-  `Administrator` 4,520,858 B sha256 `32E47674…`; `User` 22,028,565 B sha256
-  `DE57D55C…`); stale `W1.0-0`-named zips deleted. All under
-  `SDCoreWindowsDocs\`, gitignored, nothing generated to commit — the
-  markdown fixes are `SDCoreWindowsDocs 1e54cd1`. **Pushed** (owner asked):
-  `sd4windows 6ec93508..56845b89`, `SDCoreWindowsDocs d0e3057..1e54cd1`.
-
-  ***NEW PAGE, 22 Sep 2026: "Differences from W1.0-0"***
-  (`GettingStarted/01b-differences-from-w1-0-0.md`, `SDCoreWindowsDocs
-  8d44f8a`), synthesising the changelog's whole "Changes since W1.0-0"
-  section (~40 entries) into a themed summary with a "what might stop
-  working" checklist, cross-checked against the already-audited pages
-  rather than the changelog alone where they disagreed. **Found while
-  writing it, not yet fixed**: the API's TLS 1.3 wrapping and the new
-  `sdrelay` service account have zero documentation anywhere in any of
-  the three sets (`grep -rln -i "TLS 1.3\|sdrelay"` across all three
-  `markdown\` trees: no hits) — `09-api-access.md` and `12-security.md`
-  are where a reader would look. Spun off rather than folded in here
-  (`task_784dacaf`). Rebuilt GettingStarted again (`-Version W1.1-0`, no
-  `-Force`, just the 3 changed pages): `checklinks.py` 119/0 broken (up
-  from 108 — the new page's own cross-references). Pushed with the rest.
-
-  ***SAME PAGE ADDED TO Administrator (`12-`) AND User (`41-`), 22 Sep
-  2026***, tailored per audience rather than duplicated (`SDCoreWindowsDocs
-  4b24c8a`) — Administrator's angle: tier removal, the `tier.policy` file
-  that existed for five days before tiers were removed outright, password
-  policy, API-session-runs-as-you, TLS 1.3/`sdrelay` again (still nobody's
-  fixed job but this page's own), installer/upgrade/uninstall, session
-  cleanup. User's angle: case-insensitivity everywhere, the lower-casing
-  and its typed/lower/upper lookup order, `PY_` functions and the
-  `sdpy.exe` model, ten prompt-default fixes. **A second doc-currency gap
-  found alongside the first**: `User/37-sd-client-api.md`'s "A session is
-  confined to its own account" predates the API-session-identity change
-  (an API session now runs as the logged-in Windows user, not the service
-  account) and TLS 1.3 — noted on the new page rather than fixed there,
-  since fixing it means rewriting an existing page. Cross-set references
-  are prose only, no hyperlink (`checklinks.py`'s `LINK` regex requires an
-  unqualified `NN-name.html` target — a cross-set link would either go
-  unchecked or resolve against the wrong page under the other set's own
-  numbering, e.g. User's own page 11 is CSV files). Rebuilt both:
-  Administrator `checklinks.py` 35/0 broken (up from 25, page count
-  14→15), User 245/0 (up from 242, page count 53→54). Pushed with the
-  rest.
-
-  ***Both the security-posture section and the 106 addition are DONE, 22 Sep
-  2026*** — the posture section is in `12-security.md` ("What ships secured,
-  before you change anything"); the 106 content (installing administrator is
-  an ordinary account now, grant `SH-ON`/`OS-ON`/a remote credential by
-  signing in to Windows as SDSYS and running `sd` elevated) is in
-  `05-account-types.md`'s "SDSYS is the only administrator" section, written
-  this session. Neither needs re-writing. **Absorbs old 18, still open:**
-  the sets are rebuilt (above) — what's left is copying the corrected bound
-  PDFs from `<Set>\book\` into the release's `documentation\` before zipping,
-  so the 29 `-ExecutionPolicy Bypass` fixes in `SDCoreWindowsDocs 76e1dce`
-  reach the shipped PDFs (assembly is a hand step with no script). **DONE,
-  22 Sep 2026** — see 49's entry: `SDCore-W1.1-0\documentation\` now holds
-  the three current bound PDFs. Linux starts its documentation from the
-  finished Windows docs, so name the shape early.
-
-  ***THE SHAPE, SETTLED 22 Sep 2026: TWO SEPARATE DOC SETS, ONE FORKED FROM THE
-  OTHER — NOT ONE MERGED SET WITH INLINE PLATFORM DIFFERENCES.*** Grounded in
-  47's audit, not a general preference: the two systems are closely aligned in
-  *behaviour* (tiers, SDSYS-only-admin, message numbers, TLS/SCRAM all
-  converged) but diverge at the *mechanism* level (`os.users` vs native Unix
-  permissions, `GRANT` vs `usermod -aG`, PowerShell vs bash, install paths,
-  the installer itself) — exactly the procedural content that doesn't compress
-  into "on Windows do X, on Linux do Y" without cluttering every page for both
-  audiences, including the ~95% that's identical in outcome. **Already the
-  plan, not a new decision**: Linux's own `CLAUDE.md` (S.22) already says its
-  docs task *"starts from the updated Windows documentation and changes it
-  where Linux differs"* — a fork, not a merge — and Linux currently has **no
-  doc set of its own at all** (checked 22 Sep: no docs folder, nothing named
-  in its `CLAUDE.md`), so this is Windows finishing first and Linux forking
-  from it, not reconciling two existing things.
-
-  **The risk this creates, and the discipline that answers it: the two sets
-  silently drifting on the ~95% that's supposed to stay identical** — the same
-  shape as the message-number collisions the mailbox governance rule already
-  exists to prevent, applied to prose instead of code. **Conceptual content**
-  (what SDSYS is, why the security model works the way it does, the "secure
-  the transport, admin's choice after that" framing, §5.29) gets **written
-  once and ported**, not independently re-derived on each side, the same
-  discipline already used for code decisions crossing the mailbox.
-  **Procedural content** (install steps, exact paths, commands) stays
-  genuinely separate, because it has to. **One place a genuine platform
-  difference belongs INSIDE each set rather than on a shared page**: the
-  security-posture section above should explain, for a Windows reader with
-  Unix instincts, *why* Windows needs a separate `os.users` allow-list where
-  Linux just uses file permissions — the honest answer is Windows has no
-  native per-account OS sandboxing, and that belongs in Windows's own docs,
-  not a cross-reference.
-- **49 — the W1.1 staging directories and zips**, one Windows and one Linux.
-  **The Windows half is DONE, 22 Sep 2026, on the owner's direct instruction**
-  (`C:\Users\Don\SDCoreProject\SDCore-W1.1-0\`, same structure as
-  `SDCore-W1.0-0\` — `README.txt`, `SDCore-W1.1-0-what-is-in-the-zip.txt`,
-  `clients\`, `documentation\`, `extras\`, `sd-setup-W1.1-0.exe`). **That
-  settles the snapshot-vs-built-artefact question for Windows, and the
-  answer is neither**: it's a hand-assembled folder of already-built
-  artefacts (installer, bound docs, client libraries), matching W1.0-0's own
-  precedent exactly — no git clone or tag involved, so the hazard this entry
-  used to flag never applied here. `clients\` now has a third folder,
-  `LinuxClient64\` (`sdclilib.so`, `libsdcli.so`, from `P:\SD1.1_Clients`,
-  alongside the existing `client32\`/`client64\` Windows DLLs from the same
-  drop) — the first time a Windows release has carried the Linux client.
-  **The installer inside it is the one this session rebuilt**, not the stale
-  noon one — see 106's entry above for why that mattered. `sd-setup-W1.1-0.exe`
-  sha256 `E714D35B…`, `cycle-20260922-172951.log`: `assert-current: the
-  installed tree matches source`. **This also closes 48's remaining
-  "copy step"**: the three bound PDFs in `documentation\` are the ones this
-  session rebuilt with `-Version W1.1-0`, including the new "Differences
-  from W1.0-0" pages (page counts 20/15/54). **Zipped, 22 Sep 2026**, and
-  **re-zipped the same day after the Python-chapter fix below.** ***SLIPSTREAMED
-  24 Sep 2026***: that zip was pulled from SourceForge before any download
-  (owner) and kept as `SDCore-W1.1-0-pulled-20260922.zip`. The staging tree's
-  installer is now the 109/110 build (sha256 `449766B6…23B215`, source =
-  `59b29843`), `README.txt`'s checksum updated to match; the new
-  `SDCore-W1.1-0.zip` is 45,298,566 bytes, sha256 `B4E4B71B…89BD2A5`, the same
-  18 paths as the pulled zip (compared by script), installer hashed from
-  inside the zip, `unzip -t` clean. **Tagged 24 Sep 2026, owner's request**,
-  annotated like `v1.0-0`: `sd4windows v1.1-0` → `59b29843` (the installer's
-  exact source), `SDCoreWindowsDocs v1.1-0` → `b2cc3b3` (the PDFs' commit);
-  both confirmed on GitHub by `ls-remote`. ***OWNER'S RULING, 24 Sep 2026: the
-  release stands without the full verify suite*** — *"the owner is satisfied,
-  the changes were in the installer and the installer ran on two different
-  computers with two versions of powershell"*. Checked before it went in the
-  tag: `30b28844..59b29843` touches only `gplbld/` (installer, `stage.py`,
-  shipped helper scripts), `sdsys/changelog` and the two record files — no C,
-  no BASIC; this host has no PowerShell 7 (5.1 only), the test machine 7.6.5.
-  The sd4windows tag was re-cut with that text on the same commit and
-  force-pushed (tag object `5549a746`). **Linux's half is not
-  started** — separate port, not touched here; their own staging directory
-  and zip are still owed on their side.
-
-  ***FOUND WHILE PACKAGING, 22 Sep 2026: THE PYTHON CHAPTER GAP WAS ON
-  WINDOWS TOO, AND WORSE.*** Owner reported Linux's audit found their whole
-  Python chapter missing. Checked ours the same way: no chapter existed
-  here either, and two pages (`Administrator/04-sd-encryption.md`,
-  `User/00b-sd-introduction.md`) still said Python/SDEXT was
-  "removed"/"dropped" permanently — true before 12 Sep 2026, false since.
-  **Fixed both, and wrote `User/37a-sd-basic-python-integration.md`**: the
-  `sdpy.exe` helper-process model, the `os.users` field 2 gate
-  (`-12040`/`-12041`/`-12042`), all 21 `PY_*` functions by family, the full
-  `-12001..-12042` error table (`sdsys/syscom/err.h`), a worked example
-  adapted from `gplbld/verify-pyapi.ps1`'s own witnessed probe.
-  **Coordinated with Linux over the mailbox before finalizing any
-  cross-port claim** (`P:\sdcore-mail`, sent 1853/1857/1905, received and
-  moved to done 0157) rather than assume parity: their Python integration
-  has **no permission gate at all** (S.27 already tore theirs down, same as
-  `SH`/`OS.EXECUTE`) — a real difference, now stated in the chapter rather
-  than implied shared. Error codes `-12001..-12034` match name-for-name on
-  both ports; `-12035` and up do not — checked our own
-  `gplsrc/sdpy/sdpy.c` (`verb_listappd`/`verb_listclr`/`verb_listcrte`)
-  directly to answer their specific question, and Windows reuses
-  `-12014`/`-12033`/`-12034`/`-12012` rather than needing dedicated codes,
-  so nothing was missing on our side. All 21 function names/signatures
-  match except `PY_LISTCREATE` (ours) vs `PY_LISTCRTE` (theirs), now noted
-  in the chapter for anyone writing cross-port code. `SDCoreWindowsDocs
-  b2cc3b3`. Rebuilt all three sets again: GettingStarted 119/0 broken
-  links, Administrator 35/0, User 247/0.
-
-### 107 · M — Linux message 10170/10919 missing a sentence Windows's copy has
-
-Found in 47's message-text comparison, 22 Sep 2026. Not ours to fix — noted here so
-it isn't lost, and flagged to Linux by mail. `10170` (UPDATE.ACCOUNTS ALL help):
-Windows explains *why* ALL exists ("the form an upgrade runs, so a command this
-release adds can be typed in accounts that already existed"); Linux's copy omits
-that sentence. `10919` (account-directory-not-removed warning): Windows adds
-"Everything else about the deletion has been done. The usual reasons are a file
-still open in that directory and an access rule that denies the delete."; Linux's
-copy stops after the first sentence, dropping the reassurance and the reasons.
-Neither is a collision — same meaning, less detail on the Linux side.
-
-### 108 · M — Windows message 10149 doesn't mention the changelog it ships
-
-Found in 47's message-text comparison, 22 Sep 2026. Windows's F1 no-built-in-help
-message (`10149`, `sdsys/gpl.bp/cproc:2625`) points at the Start Menu's "Check the
-SD installation" diagnostic but says nothing about the changelog; Linux's copy of
-the same message (`cproc:2766`) passes `@sdsys:@ds:'changelog'` as `%1` and reads
-"What each release of SD changed, and why, is in %1". Windows ships the identical
-file at `sdsys/changelog` (confirmed on disk, 350 KB) but 10149 never names it.
-Low priority, cosmetic — add a changelog line to 10149 and pass the path the same
-way Linux does, in a session that's already touching `cproc` and can afford the
-cycle+witness this needs (CLAUDE.md: no message edit ships unwitnessed).
-
-### 109 · S — user report: OpenSSH install/limit/firewall all "failed" with no captured reason
-
-Reported 23 Sep 2026 by the owner, relaying a user hitting all three closing-box failure
-lines together ("OpenSSH server could NOT be installed" / "ssh was NOT limited" / "Who
-may reach ssh has NOT been set"). **Traced to source, not reproduced on the reporter's
-machine.** The three are one cascade, not three defects: `install-ssh.ps1`'s `[Run]` entry
-(gated `SshServerWanted and not TrueUpgrade`, `sd.iss:1087`) failed first, and
-`allow-ssh-groups.ps1`/`ssh-firewall.ps1 -Installed -Restrict` (`sd.iss:2156,2268`) both
-require `sshd_config`, which only exists after sshd's first start — so once OpenSSH itself
-doesn't install, the other two fail as a direct consequence (`sd.iss:2100-2106` documents
-this as expected outcome 2). Ruled out: the shell launching setup.exe (elevated PowerShell
-vs. elevated cmd) — the `Exec()` calls run `powershell.exe` directly off the installer's own
-already-elevated token, no nested UAC involved (§4.0.1 doesn't apply here).
-
-**Root cause of the OpenSSH failure itself is still unknown.** A separate, unrelated
-diagnostic on a different (customized-local-account) machine returned `Get-WindowsCapability:
-Class not registered` — evidence that this class of error exists on *some* machines, not
-evidence about the reporter's, who is on stock Windows and hasn't been reached to run the
-same check.
-
-**Fixed this session, built and directly verified, not yet cycled through the installer:**
-`install-ssh.ps1`, `allow-ssh-groups.ps1`, `ssh-firewall.ps1` now append every line they'd
-have printed — including the `catch` block's exception message, the one line that would
-have named the real cause — to `C:\ProgramData\SD\ssh-setup.log`, because `sd.iss`'s
-`Exec()` calls (`Flags: runhidden`, no redirection) discarded stdout entirely and there is
-no `SetupLogging=yes`, so that text went nowhere. Verified: all three parse clean
-(`Parser]::ParseFile`, 0 errors); each run directly with the exact invocation `sd.iss` uses
-(`powershell -ExecutionPolicy Bypass -File ...`) and confirmed both console output and the
-log line appear; `test-outputtrap-units.ps1` (54/0/0 full free-tier run) confirms the one
-tricky spot — `allow-ssh-groups.ps1`'s `Get-Patterns`, which already uses `Write-Host`
-instead of `Write-Output` specifically because its return value would otherwise absorb
-printed text — still logs via a separate `Append-Log` call rather than `Write-Log`, so the
-fix does not reintroduce that exact bug. **Cycled and witnessed 24 Sep 2026 on the dev host, with OpenSSH removed first
-(`remove-ssh.ps1`, reboot, `C:\ProgramData\ssh` renamed to `ssh.before-sshtest` so
-`ssh-preflight.ps1:264` would not stop the install), `sshserver` ticked:** the fresh-install
-path works here end to end — download 00:50:49→00:58:47 (8 min), sshd Running/Automatic,
-firewall rule applied, `AllowGroups sdssh ACE\sdssh` written — and the log captured every
-line. **So the failure does not reproduce on this host; it is machine-specific.** The one
-machine known to reproduce the cascade is the owner's test machine (customized local
-account), where `Get-WindowsCapability` itself throws `Class not registered` — so there
-`install-ssh.ps1:52` fails before any download.
-
-**Cause found, same day, on the test machine, elevated:** `Get-WindowsCapability` waited
-minutes then threw `Class not registered`; `dism /online /get-capabilities` in the same kind of
-prompt listed every capability. So PowerShell's DISM module is broken there, not servicing.
-*(A first `winmgmt`/`dism` pair was run unelevated in cmd and is void; the elevated `winmgmt`
-line was pasted doubled and is void too — not needed once `dism` answered.)*
-
-**Fixed in source, owner's go-ahead:** new shipped `gplbld/dism-capability.ps1` (`stage.py`
-tuple) — `Invoke-Dism` (`/Online /English`, `/NoRestart` on add/remove, returns
-Command/Code/Lines, prints nothing) and `Get-CapabilityState` (State line, spaces stripped).
-`install-ssh.ps1` and `remove-ssh.ps1` use it **outright, not as a fallback**; exit contracts
-unchanged, 3010 = restart (exit 2 / staged). Changelog entry 24 Sep 26. **Checked here,
-unelevated:** all five ssh scripts parse (0 errors, function counts right); State parse right
-for `Installed`/`Not Present`/`Uninstall Pending`/`UninstallPending`/no line; a real `dism` call
-returned 740 with its three lines and an empty state (so `install-ssh.ps1` would report FAILED,
-not pass); no BOMs; `stage.py` compiles; free tier 54/0/0.
-
-***WITNESSED 24 Sep 2026.*** Dev host, elevated: `remove-ssh.ps1 -Show` printed `state :
-Installed` (first real `/Get-CapabilityInfo` State read). Cycle `cycle-20260924-013316.log`,
-`assert-current` clean; installed `dism-capability.ps1`/`install-ssh.ps1`/`remove-ssh.ps1`
-byte-identical to source; installer 01:33:51, sha256 `eb8b75ba…a24c19`, copied to `P:\` and
-read back identical. **Test machine** (SD uninstalled; OpenSSH removed with `dism
-/remove-capability`, reboot), new installer, box ticked — its `ssh-setup.log`: `State : Not
-Present` → `/Add-Capability` exit **0** 01:53→02:04 → sshd Running/Automatic → firewall →
-`AllowGroups sdssh HPNBK\sdssh`. **The machine that failed at line 1 now installs.** Still
-unseen: exit 3010 (restart) through `dism`. The logging was asked for as **temporary** (owner,
-24 Sep 2026) and is not in the changelog; keep or strip is his call. Nothing committed yet.
-
-### 111 · S — SD's own script runner can hit 110's module clash
-
-Filed 24 Sep 2026 beside 110, **not measured**. `gpl.bp/ps_script` starts Windows PowerShell for
-the administrative verbs, and nothing in `sdsys/gpl.bp` or `gplsrc` sets `PSModulePath` (grep,
-24 Sep). An `sd` session started from a PowerShell 7 window would pass PowerShell 7's module
-folders on, and any script using a `Microsoft.PowerShell.Security` cmdlet (`ConvertTo-
-SecureString`, `Get-Acl`, `Set-Acl`) would fail as 110 did. **First step:** start `sd` from a
-window whose `PSModulePath` has a stand-in module first (110's reproduction) and run a verb that
-reaches one of those cmdlets. **Likely fix:** set `$env:PSModulePath` at the top of the script
-text `ps_script` builds. **Same exposure, wider:** every recovery command SD prints as
-`powershell -ExecutionPolicy Bypass -File ...` (finish page, messages, docs), typed into a
-PowerShell 7 window, starts 5.1 with PS7's `PSModulePath` — the 110 fix is Setup-process-only and
-does not reach those. Candidate: each shipped script that uses a Security-module cmdlet resets
-`$env:PSModulePath` itself, first line.
+**What this retires, found in the 24 Sep review** — the multi-user model is in every
+layer: `sdsvc.exe` running the daemon as `LocalSystem`; API sessions proved by SCRAM
+against `$cred` and then given the user's identity by an S4U logon
+(`gplsrc/win32s4u.c`, `win32relay.c:292`); the `sdrelay` account; `LOGIN`'s
+register lookup and SDSYS-by-elevation case (`login:778`); the SDSYS-only verbs;
+the groups `sdusers`/`sdssh`/`sdapi`/`sdsshonly`, `os.users`, deny-logon and the
+ACL scripts; the machine paths (`sddefs.h:313-314` compiles in
+`C:\ProgramData\SD\sd.conf`); and an installer of 5,516 lines, 63 `[Code]`
+routines and 42 shipped scripts, most of them for accounts, groups, ACLs and the
+service. **§5 below records the multi-user product's decisions; where one
+conflicts with this section, this section wins.**
 
 ---
 
-## DEFERRED TO W1.2
+## OPEN TASKS — SD CORE SOLO S1.1-0
 
-Not open for 1.1 and not done: **out of the open count above**, not struck (that reads
-as done) and not left as an open 1.1 row (owner's rule, 16 Sep 2026). Each entry says
-what would bring it back.
+New ids are **`SOLO <n>`**; the next is **SOLO 11**. `RELEASE_1.1 <n>` and
+`PRE_RELEASE <n>` citations in source and in §5/§6 name multi-user entries —
+grep HISTORY.md, or `sd4windows`, for them. **Every entry below is a plan: none
+of it is built or measured yet**, and each names what would change it.
 
-### 53 · S — an ordinary local user can open the SD service's MSYS2 shared section for write
+### SOLO 1 · the three unverified foundations — spike them first
 
-***Deferred to W1.2, ruled 21 Sep 2026 by the agent on the owner's delegation.*** It
-is the MSYS2 runtime's own design rather than SD code, the only remedy is to take the
-runtime out of the LocalSystem daemon, and that is the same re-architecture as 59's
-broker — so it goes with it to W1.2 (59 itself is now closed by ruling, §5.29, and its
-hardening is no longer a 1.1 item). **Until the deciding experiment is run, no document
-may say a local user *cannot influence* the service through this section** — the claim
-is unmeasured, and saying less is the honest wording for 1.1.
+Each is small, and each one failing changes a later task's design:
 
-Measured 16 Sep unelevated (`probe-cygshared.c`): in `msys-2.0S5-11f4a83b0f193bff`
-(inferred to be SD's runtime — it holds LocalSystem's `S-1-5-18.1`), `shared.5` opened
-**READ and WRITE** as `ace\Don` at Medium integrity; at **Low** integrity, WRITE no on
-every section (0 of 8). Re-measured 21 Sep: the installed `sdwind.exe` (20 Sep 22:38
-build) still names `msys-2.0.dll`; `sdsvc.exe` and `sdtlsrelay.exe` do not. **The first
-task when it returns:** the deciding experiment — whether a write into `shared.5` can
-influence a LocalSystem MSYS2 process — before any remedy is chosen. 59 rules out the
-cheap option of a separately-pathed `msys-2.0.dll` copy, since SD's segment and
-semaphores live in that namespace. **What brings it back into 1.1:** the experiment
-showing influence is possible, or the broker work in 59 being pulled forward.
+- **(a) Signed-out remote access (ruling 2).** Can the daemon and TLS relay run
+  **as the user** from boot, with nobody signed in, and serve API and ssh sessions?
+  Candidates: a scheduled task at startup with an S4U principal ("do not store
+  password"); a service running as the user (stores the Windows password, and
+  breaks when it changes). **Caution already in the tree**: `sdtlsrelay.c:111`
+  notes a limit on a fresh S4U logon session in session 0 — read it first.
+  *If only the stored-password route works, the owner decides.*
+- **(b) `LogonUserW` on the user's own password from an unelevated process**
+  (ruling 3), including a user who signs in to Windows with a **Microsoft
+  account** or a **PIN** — such a user may not know a usable password, which also
+  touches ssh.
+- **(c) A per-user installer (`PrivilegesRequired=lowest`) raising ONE UAC prompt**
+  for the machine-wide pieces only — the `sshd_config` edit (ruling 5), the
+  firewall rules, the boot-time task — and landing in the right profile. **Trap to
+  test, not assume:** an installer elevated by a DIFFERENT administrator
+  ("over the shoulder") resolves the profile folders to that administrator's.
+
+### SOLO 2 · relocatable paths, product name and version
+
+Everything under `%USERPROFILE%\SDCoreSolo` (ruling 1). The config location stops
+being compiled in (`sddefs.h:313-314`, and its duplicate in `sdclilib.c` — change
+both together, §5.8). The `ProgramData` / `Program Files` literals come out of the
+C (13 files), BASIC (6) and shipped scripts (~43; the 24 Sep count includes
+comments). Name and version: `revstamp.h` ×3 (`gplsrc`, `gpl.bp`, `sdclilib`),
+`sd.iss` `AppVer`, `sd --version` (`sd.c:554`). **Also:** Solo should refuse to
+install beside a multi-user SD Core — the two would share pipe, segment and
+program names ("one copy per computer" assumes it, nothing enforces it).
+
+### SOLO 3 · everything runs as the user
+
+Retire `sdsvc.exe`, the S4U path and the `sdrelay` account; the daemon, the relay
+and every session run under the user's own token, started as SOLO 1(a) decides.
+The API handover (`apisrvr` → `K$HANDOFF` → relay) should then need no identity
+switch at all.
+
+### SOLO 4 · one account
+
+`LOGIN` lands every session in the user's own account; SDSYS stays as SD's system
+files (catalogue, programs, messages) and is not a login target. **Removed:**
+`CREATE.ACCOUNT`, `DELETE.ACCOUNT`, `MODIFY.ACCOUNT`, `GRANT`, `REVOKE`,
+`LIST.GRANTS`, `OS.USERS`, `ATTACH`/`ADOPT`, the all-accounts half of
+`UPDATE.ACCOUNTS` (an upgrade still has to refresh the one account's VOC —
+PRE_RELEASE 70's lesson), `attach-account.ps1`, `install-sdsys.ps1`,
+`reconcile-accounts.ps1`, `reclaim-profiles.ps1`, `remove-sdaccounts.ps1`,
+`deny-logon.ps1`, `sync-route-groups.ps1`, the `secure-*` ACL scripts, the four
+groups, and the `os.users` gates — `SH` and `OS.EXECUTE` just run as the user.
+
+### SOLO 5 · the two modes and the admin gate (rulings 4 and 6)
+
+The admin commands that survive SOLO 4 go into the user's VOC. **Proposed
+mechanism, cheap because it reuses what exists:** ~25 BASIC programs already test
+one flag, `K$ADMINISTRATOR`, today seeded from Windows elevation (`kernel.c:299`).
+- **Mode (a):** the seed is TRUE for the one user — everything open.
+- **Mode (b):** the seed is FALSE; a new `ADMIN` verb asks for the global password
+  and sets it for the session; an API login with the global password lands with
+  it set. The global password is stored as a SCRAM verifier in `$cred` under a
+  reserved name, so the Linux master's EXISTING client should authenticate
+  unchanged (to verify, SOLO 6).
+**Open, for the owner when it comes up:** can a mode-(a) install later become
+mode (b) (a command to set the global password), and can (b) go back?
+
+### SOLO 6 · API authentication (rulings 3 and 4)
+
+- **The user:** Windows password inside TLS 1.3, checked by `LogonUserW` per login
+  (SOLO 1(b)). A new login mode in `sdclilib` (Windows) and in the Linux client
+  library.
+- **The master server:** the global password over the existing SCRAM exchange.
+- **Dependency outside this repo:** what the master Linux server actually does to
+  a client — data transfer, which admin tasks — is not specified anywhere yet; it
+  needs the owner and the Linux side. There is no mailbox for Solo (owner, 24 Sep
+  2026), so it goes through the owner.
+
+### SOLO 7 · ssh straight into `sd` (ruling 5)
+
+**The ssh server is the installing person's choice, not Solo's (ruling 8).** Solo
+installs none. Where it finds **OpenSSH** — the Windows feature
+(`C:\Windows\System32\OpenSSH`) or Microsoft's MSI (`C:\Program Files\OpenSSH`),
+both reading `C:\ProgramData\ssh\sshd_config` — the installer would offer to add a
+`Match User <this user>` block with `ForceCommand` to Solo's `sd.exe` (and
+`DisableForwarding`, for the reason `allow-ssh-groups.ps1` records), replacing the
+`AllowGroups sdssh` model; machine-wide, so it rides SOLO 1(c)'s one elevation.
+**Any other ssh server** is configured by whoever installed it; the docs say what
+it must do (run Solo's `sd.exe` for this user). **The hard-coded System32 path must
+go**: `sd.iss:1483` (`SshWasAbsent`) and `allow-ssh-groups.ps1:174` look only
+there. `install-ssh.ps1`, `remove-ssh.ps1`, `dism-capability.ps1` and the
+`ssh.server` verb have no job left in Solo — retire them. **The ssh port stays an
+installer choice** (open to the network or not), independent of which server.
+
+### SOLO 8 · the Solo installer and uninstaller
+
+A new, small `sd-solo.iss`, reusing pieces rather than cutting down `sd.iss`:
+`install-summary.log`, `UseWindowsPowerShellModules` (the PowerShell 7 fix), the
+upgrade logic. **No ssh server install, no download (ruling 8).** Choices: **mode
+(a) or (b)** — (b) asks for the global password; **ssh port open or closed**;
+**API port open or closed**; **ssh straight into `sd`** (only where OpenSSH is
+found, SOLO 7); **PATH (the user's own)**. Creates the one account; no service, groups or SDSYS Windows
+account. The installer-text rule in CLAUDE.md still governs its screens.
+
+### SOLO 9 · the test harness
+
+Keep the shape — `cycle.ps1` (fresh install every cycle), `stage.py`,
+`assert-current`, the free guards — retargeted at the Solo tree and installer.
+Retire the ~150 multi-user `verify-*` scripts (they create accounts, groups and
+grants that no longer exist) and write a small Solo suite: one account, mode
+(a)/(b) admin gate, API with the Windows password and with the global password,
+ssh landing in `sd`, signed-out remote access.
+
+### SOLO 10 · documentation
+
+The three `SDCoreWindowsDocs` sets describe the multi-user product. Solo needs its
+own — a fork of them is the likely shape (the same pattern 48 settled for Linux).
+**The owner's call when it comes up.** **Required content (ruling 8):** how to get
+and install Microsoft's OpenSSH MSI (x64 and ARM64, offline, record its SHA-256,
+and that its updates are manual), and what any other ssh server must be set to do
+for Solo.
 
 ---
 

@@ -36837,3 +36837,18 @@ Finished page. The same clash through SD's own script runner and hand-typed reco
 false since 103.
 
 ====
+
+## SD Core Solo begins — the multi-user work stops here (24 Sep 2026)
+
+Owner, 24 Sep 2026: this repository becomes **SD Core Solo**, a personal single-user SD
+(PROJECT_STATUS.md, "WHAT SD CORE SOLO IS", holds the definition and his seven rulings). It
+started as one commit (`e311adc`) copied from `sd4windows` `36109e8e`. **Phase 0 closed the
+multi-user bookkeeping here**: PROJECT_STATUS.md's CURRENT PICKUP, OPEN TASKS (RELEASE_1.1 47
+→ 49, 107, 108, 109, 111) and DEFERRED TO W1.2 (53) were replaced by the Solo plan — the
+text is `git show e311adc:PROJECT_STATUS.md` lines 46-913, and those tasks stay live in
+`sd4windows`, which is where they belong. CLAUDE.md lost its Linux-mailbox section (owner:
+*"you can disable the mail feature - there will not be an equivalent system on Linux"*).
+Both cuts were made by a script, announced first as too large for the editor, and checked:
+no BOM, no CR, no mojibake, and every byte outside the cut identical to `e311adc`.
+
+====

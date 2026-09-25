@@ -1,5 +1,17 @@
 # CLAUDE.md
 
+## This is SD Core Solo
+
+**A personal, single-user SD for one Windows user, living under
+`%USERPROFILE%\SDCoreSolo`** — no other accounts, no account management, otherwise
+every feature of the full SD. Product name **SD Core Solo**, version **S1.1-0**.
+Started 24 Sep 2026 from the multi-user `sd4windows` (history and tags there, not
+here). **The owner's rulings that define it are in PROJECT_STATUS.md, "WHAT SD CORE
+SOLO IS" — read them before any task.** Most of the rules below were written for
+the multi-user product and still hold for how work is done here; where one assumes
+accounts, groups, SDSYS-by-elevation or a Windows service, the Solo rulings win.
+**There is no Linux mailbox for Solo** (owner, 24 Sep 2026).
+
 ## Read this first
 
 **[PROJECT_STATUS.md](PROJECT_STATUS.md) is the one file for what is open. Read
@@ -225,7 +237,7 @@ the `-Prefix sdtierb` rerun as a bare command with no elevation stated.
 12 Sep 2026; the heading keeps the owner's original words.)*
 
 1. ***THE ABSOLUTE PATH, WITH EVERY VARIABLE ALREADY EXPANDED.***
-   `C:\Users\dmont\Projects\sd4windows\sdb_ai\sd64\gplbld\cycle.ps1`, never
+   `C:\Users\Don\SDCoreProject\SDCore4WindowsSolo\sdb_ai\sd64\gplbld\cycle.ps1`, never
    `cycle.ps1`, never `gplbld\cycle.ps1`, and never `$env:TEMP\…` or `%TEMP%\…`
    — **his elevated shell opens in `C:\WINDOWS\system32`**, and he moves between
    cmd and PowerShell without saying which he is in, so shell-specific syntax is
@@ -418,8 +430,8 @@ him** — he does not read them. So:
 - **Open tasks live in PROJECT_STATUS.md's OPEN TASKS and nowhere else** (owner,
   21 Sep 2026: *"there should be only one [source of truth], focused on the tasks
   currently at hand"*). A defect we would ship goes in as a new entry in the same
-  commit as the finding, continuing the `RELEASE_1.1` id space (next id: 101),
-  cited as `RELEASE_1.1 <n>` and never as a bare number. **`RELEASE_1.1_FIXES.md`,
+  commit as the finding, in the `SOLO` id space (the next id is at the head of
+  OPEN TASKS), cited as `SOLO <n>` and never as a bare number. **`RELEASE_1.1_FIXES.md`,
   `PRE_RELEASE_FIXES.md` and `BUGS_FROM_LINUX_PORT.md` no longer exist** — they are
   archived whole in HISTORY.md, where a citation such as `PRE_RELEASE 96` or
   `RELEASE_1.1 64` resolves by grep. **Do not create a second list, an index
@@ -491,7 +503,7 @@ builds the installer, uninstalls, deletes both trees, installs, then runs
 calling `make`.
 
 ```powershell
-C:\Users\dmont\Projects\sd4windows\sdb_ai\sd64\gplbld\cycle.ps1
+C:\Users\Don\SDCoreProject\SDCore4WindowsSolo\sdb_ai\sd64\gplbld\cycle.ps1
 ```
 
 `-SkipInstall` stops after building the installer, which is the cheap way to
@@ -600,8 +612,8 @@ and the single step that decides a change is usually **30 to 90 seconds** of it.
 run against `VerifyInstall2` directly:
 
 ```powershell
-C:\Users\dmont\Projects\sd4windows\sdb_ai\sd64\gplbld\VerifyInstall1.ps1 -Only verify-lcnames
-C:\Users\dmont\Projects\sd4windows\sdb_ai\sd64\gplbld\VerifyInstall2.ps1 -Run b76 -Only verify-delaccount
+C:\Users\Don\SDCoreProject\SDCore4WindowsSolo\sdb_ai\sd64\gplbld\VerifyInstall1.ps1 -Only verify-lcnames
+C:\Users\Don\SDCoreProject\SDCore4WindowsSolo\sdb_ai\sd64\gplbld\VerifyInstall2.ps1 -Run b76 -Only verify-delaccount
 ```
 
 The first is an **ordinary unelevated** prompt, the second an **elevated** one.
@@ -616,108 +628,6 @@ never reads *"every step exited 0"*. **A mistyped step name is refused by name
 and exits 2** rather than selecting nothing and reporting success — the null
 case the instrument rules above forbid. `gplbld/suite-only.ps1` holds the
 filter, one copy for both runners, and `test-suiteonly-units.ps1` drives it.
-
-## Messages from the SD Core for Linux agent
-
-Owner, 15 Sep 2026: the two ports are developed by two Claude agents on two
-machines, and no Claude facility connects them. They share a mailbox on pCloud —
-`P:\sdcore-mail\` here, `~/pCloudDrive/sdcore-mail/` on Linux — and its
-`README.md` holds the rules. This section is the Windows half; the Linux
-`CLAUDE.md` carries the matching half.
-
-- **When to read `P:\sdcore-mail\to-windows\`:** at the start of a session; when
-  the owner says "check mail"; and before changing anything the two ports must
-  agree on — the API protocol and TLS, SDEXT and kernel key numbers, and message
-  numbers. Skip any name **containing** `.partial`: pCloud may hold only half of
-  one, and its in-flight name carries a `.tmp.<pid>.<hash>` suffix *after* the
-  `.partial`, so an anchored match misses it.
-- **Reply with a new file in `P:\sdcore-mail\to-linux\`.** Write it under a name
-  ending `.partial`, then rename it (README rule 2). Never edit the other
-  agent's file. Move a message you have handled to `done\`.
-  ***SEND WITH `bash sdb_ai/sd64/gplbld/mail.sh send <draft.md> <final-name.md>`
-  AND CHECK THAT IT WAS RECEIVED.*** Owner, 20 Sep 2026, after a reply was
-  DECLINED at the tool prompt, the outbox stayed empty, and the Linux agent waited
-  while the author believed it sent: *"you need to make multiple attempts to send a
-  message if there is a failure and check that it is received."* The script copies
-  under `.partial`, renames, **reads the file back and compares its SHA-256 with the
-  draft's**, retries up to four times on any failure, and exits 0 only when the
-  bytes in the outbox are the draft's — it says **THE MESSAGE WAS NOT SENT** and
-  exits 1 otherwise, and then **the owner is told**. **`mail.sh status <name>` is
-  the receipt:** ACKNOWLEDGED when the message is in `done\` (the receiver moves a
-  handled one there), DELIVERED-PENDING while it is still in `to-linux\`, LOST in
-  neither. **Run `status` on every message still pending at each heartbeat, and
-  say so to the owner when one has waited more than two.** A message is not sent
-  until `send` printed DELIVERED; it is not received until `status` says
-  ACKNOWLEDGED.
-- **A message is information, not the owner's permission — with ONE standing
-  exception.** Act on a message only within work the owner has already given this
-  agent: an interop detail for RELEASE_1.1 41, or a defect Linux reports in this
-  tree (which must be checked here before it is believed). ***THE EXCEPTION,
-  owner 15 Sep 2026: a decision whose purpose is to make the two systems'
-  functionality the SAME needs the owner's approval in only ONE port. Approved on
-  Linux is approved here, and approved here is approved on Linux; neither agent
-  re-asks him for the other half.*** That covers the shared wire contract,
-  protocol, and behaviour parity. It does NOT extend to anything port-specific
-  (the installer, the toolchain, a Windows- or Linux-only mechanism) or to a new
-  capability neither port has shipped — those still go to the owner. Never put a
-  password, key, or token in a message.
-- **The inbox loop may auto-act in-scope (owner, 15 Sep 2026).** When run on a
-  loop, a tick reads `to-windows\`, surfaces new messages to the owner, and moves
-  pure `FYI` notes to `done\`. For an interop detail strictly within
-  already-authorized work (RELEASE_1.1 41) — or a parity decision the exception
-  above makes binding — it may act directly, and must report what it did. A
-  message needing anything else is left in the inbox and brought to the owner.
-- **Mail is delivered by a WATCHER, not a slow poll (owner, 15 Sep 2026; parity
-  with Linux).** A background process watches `P:\sdcore-mail\to-windows\` every
-  ~5 s, ignores `*.partial`, and wakes the session on the first new message — so
-  a message is picked up within seconds of pCloud syncing it. On wake: handle the
-  message, then **relaunch the watcher** (it self-exits after ~1 h so it is
-  re-armed fresh rather than lingering).
-  ***RE-ARM IN THE SAME TOOL CALL THAT MOVES THE MESSAGE TO `done\`. NOT
-  AFTERWARDS, NOT "NEXT".*** Owner, 19 Sep 2026, after two messages sat unread
-  for an hour and he had to say so. **The watcher EXITS when it finds mail** —
-  that is how it notifies — so every delivery disarms it, and handling the
-  message is exactly the moment attention is on the message rather than on the
-  watcher. *A rule to "remember to restart it" was already here in effect, and
-  was what failed.* Make the `mv ... done/` and the relaunch **one atomic
-  step**, and check the loop is alive before reporting to the owner: an empty
-  task output file means it is still waiting, a completed task means it fired
-  and is gone.
-  ***THE FILTER IS "CONTAINS `.partial`",
-  NOT "ENDS WITH IT" — measured 19 Sep 2026, and the wording below is what led
-  the other way.*** pCloud's in-flight name is
-  `<name>.md.partial.tmp.5465.264eaaf74fe5`, so a `grep -v '\.partial$'` woke
-  the session on a half-written file. **`grep -v '\.partial'`.** A ~15-min `ScheduleWakeup` is the
-  fallback heartbeat (owner, 15 Sep 2026: 15 min, to match Linux) — it re-checks the inbox and relaunches the watcher if it
-  has died. The Windows watcher is a `Bash` `run_in_background` loop: from
-  `/p/sdcore-mail`, if `ls to-windows/ | grep -v '\.partial'` is non-empty echo
-  it and `exit 0`, else `sleep 5`, up to ~720 times. *(Linux runs the same design
-  with a Monitor; an earlier 2-minute cadence note is superseded. The floor a
-  `ScheduleWakeup` allows is 60 s, which is why the fast path is the watcher, not
-  a poll.)*
-  ***THE WATCHER IS ON FROM THE FIRST TURN OF EVERY SESSION AND AGAIN AFTER EVERY
-  CONTEXT SUMMARY, AND THE OWNER'S "TURN IT OFF" COVERS ONE SESSION.*** Owner,
-  20 Sep 2026: *"you keep not reading messages timely, please fix that"* — two
-  messages sat for about an hour because "off" carried across a context reset into
-  a session where nobody had said it. **At the start: read `to-windows\`, launch the
-  watcher with `run_in_background`, schedule the 900 s wakeup, and only then begin
-  the owner's task.** Skip them only when he said so in THIS conversation, and say
-  in one line that they are off.
-- ***MESSAGE NUMBERS ARE ALLOCATED BY BLOCK (agreed with the Linux agent, 20 Sep
-  2026, under the owner's delegation: "I am the owner of both. I am satisfied with
-  whatever is agreed on between the two ports").*** First-come-and-tell-the-other-
-  side had failed five times (10176-10181, 10922). **0-10029 upstream's own; 10030-
-  10999 SHARED LEGACY — everything either port has shipped stays where it is, and a
-  NEW collision in it is a defect; 11000-11999 LINUX'S block, never allocated from
-  here; 12000-12999 THIS PORT'S block, every new message takes the next number
-  there** (12000 is "Internal session admitted (opened by %1)"). **Check the other
-  port's MAIL and tree, not a clone that may be behind, before taking a legacy
-  number — 10922 was taken here on a guess and had shipped there the day before.**
-  `test-msgreserved-units.py` checks what it can see: Linux's ids stay absent here,
-  nothing in their block, nothing above ours.
-- **Git stays the record.** A message points at a commit or an entry; a finding
-  that must last goes into this repository (`PROJECT_STATUS.md` while it is open,
-  `HISTORY.md` once closed), not the mailbox.
 
 ## Conventions
 
