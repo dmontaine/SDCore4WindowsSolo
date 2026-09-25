@@ -158,9 +158,14 @@ begin
     ExpandConstant('{commonpf64}\WindowsPowerShell\Modules;{sys}\WindowsPowerShell\v1.0\Modules'));
 end;
 
+(* {sysnative}, NOT {sys}: Setup is a 32-bit program, and ShellExec does not
+   honour 64-bit install mode, so {sys} started the 32-bit PowerShell, which sees
+   System32 as SysWOW64 - the owner's first install (25 Sep 2026) reported
+   "sshd.exe: none found" and skipped sshd -t.  solo-machine.ps1 now refuses a
+   32-bit host rather than measure through the redirection. *)
 function PowerShellExe: String;
 begin
-  Result := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+  Result := ExpandConstant('{sysnative}\WindowsPowerShell\v1.0\powershell.exe');
 end;
 
 function SoloRoot: String;

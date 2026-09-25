@@ -90,7 +90,7 @@ $sdexe = Join-Path $AppDir 'usr\bin\sd.exe'
 $me = [Security.Principal.WindowsIdentity]::GetCurrent()
 $elev = (New-Object Security.Principal.WindowsPrincipal($me)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 Note ('=== solo-machine ' + $Action + ' ' + (Get-Date -Format s))
-Note ('this process : ' + $me.Name + '   elevated: ' + $elev)
+Note ('this process : ' + $me.Name + '   elevated: ' + $elev + '   64-bit: ' + [Environment]::Is64BitProcess)
 Note ('for user     : ' + $ForUser + $(if ($me.Name -ieq $ForUser) { '   (approved by the user)' } else { '   (approved by ' + $me.Name + ')' }))
 Note ('app dir      : ' + $AppDir)
 Note ('sd.exe       : ' + $sdexe + '   exists: ' + (Test-Path -LiteralPath $sdexe))
@@ -98,6 +98,9 @@ Note ('choices      : api=' + [bool]$Api + ' apinetwork=' + [bool]$ApiNetwork + 
 
 $refuse = @()
 if (-not $elev) { $refuse += 'not elevated' }
+# A 32-bit PowerShell sees C:\Windows\System32 as SysWOW64, so sshd.exe is
+# "not found" and sshd -t is skipped - the owner's first install, 25 Sep 2026.
+if (-not [Environment]::Is64BitProcess) { $refuse += 'a 32-bit PowerShell - System32 is redirected; start the 64-bit one' }
 if (-not $ForUser) { $refuse += 'no -ForUser' }
 if (-not $AppDir) { $refuse += 'no -AppDir' }
 if ($Action -ne 'Remove' -and -not (Test-Path -LiteralPath $sdexe)) { $refuse += 'no sd.exe to start' }
@@ -214,16 +217,24 @@ function Register-SoloTask {
     Start-Sleep -Seconds 1
     $info = Get-ScheduledTaskInfo -TaskName $TaskName
     Note ('  task state ' + $state + ', last result 0x' + ('{0:X}' -f $info.LastTaskResult) + ', last run ' + $info.LastRunTime)
-    $procs = @(Get-CimInstance Win32_Process -Filter "Name = 'sd.exe'" |
-               Where-Object { $_.ExecutablePath -and ($_.ExecutablePath -ieq $sdexe) })
+    # THE SERVER IS sdwind.exe (SDWIND_NAME, sddefs.h), NOT sd.exe.  The first
+    # owner's install (25 Sep 2026) looked for sd.exe here and reported FAIL
+    # over a server that was running - sdwind.exe, session 0, started by the
+    # task.  Every sd*.exe from this install is listed, so a wrong name shows.
+    $bin = Split-Path $sdexe
+    $procs = @(Get-CimInstance Win32_Process -Filter "Name LIKE 'sd%'" |
+               Where-Object { $_.ExecutablePath -and ((Split-Path $_.ExecutablePath) -ieq $bin) })
+    Note ('  processes from ' + $bin + ': ' + $procs.Count)
+    $mine = @()
     foreach ($p in $procs) {
         $o = Invoke-CimMethod -InputObject $p -MethodName GetOwner
-        Note ('  sd.exe pid ' + $p.ProcessId + ' session ' + $p.SessionId + ' owner ' + $o.Domain + '\' + $o.User + '   ' + $p.CommandLine)
+        $who = $o.Domain + '\' + $o.User
+        Note ('  ' + $p.Name + ' pid ' + $p.ProcessId + ' session ' + $p.SessionId + ' owner ' + $who)
+        if ($p.Name -ieq 'sdwind.exe' -and $who -ieq $ForUser) { $mine += $p }
     }
-    $mine = @($procs | Where-Object { $o = Invoke-CimMethod -InputObject $_ -MethodName GetOwner; ($o.Domain + '\' + $o.User) -ieq $ForUser })
     if ($info.LastTaskResult -ne 0) { Fail ('the task''s "sd -start" exited 0x' + ('{0:X}' -f $info.LastTaskResult)) }
-    elseif ($mine.Count -eq 0) { Fail 'the task ran and exited 0, but no sd.exe from this install is running as the user afterwards' }
-    else { Note ('  PASS  SD is running as ' + $ForUser + ', started by the task') }
+    elseif ($mine.Count -eq 0) { Fail 'the task ran and exited 0, but no sdwind.exe from this install is running as the user afterwards' }
+    else { Note ('  PASS  the SD server (sdwind.exe) is running as ' + $ForUser + ', session ' + $mine[0].SessionId) }
 }
 
 function Remove-SoloTask {

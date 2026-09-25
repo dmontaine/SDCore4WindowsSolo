@@ -53,9 +53,11 @@ OPEN TASKS wins.
 INSTALLED.*** SOLO 8's entry says what was measured and what was not.
 
 ***OWNER'S ORDER, 25 Sep 2026: "both, installer first".***
-- **FIRST: the owner runs the Solo installer** — double-click, as himself, NOT
+- **FIRST: the owner reruns the Solo installer** (installed once 16:06, see
+  SOLO 8; the installed SD was stopped by the agent to restage, and this run —
+  an upgrade — restarts it) — double-click, as himself, NOT
   "Run as administrator": `C:\Users\Don\SDCoreProject\SDCore4WindowsSolo\stage\sd-solo-setup-S1.1-0.exe`
-  (built 25 Sep 16:04 from a clean stage; rebuild with `stage.py --force
+  (built 25 Sep 16:11 from a clean stage; rebuild with `stage.py --force
   --bootstrap` then ISCC if the stage has moved). Then read
   `C:\Users\Don\SDCoreSolo\install-summary.log` (both helpers' full reports),
   and from an ordinary prompt `C:\Users\Don\SDCoreSolo\usr\bin\sd.exe` should land
@@ -351,12 +353,30 @@ folder) — both controls seen. `solo-setup.ps1` run natively, unelevated, on th
 stage: refuses with no password (exit 2); real run PASS in 2 s (account `don`,
 `$ADMIN`, `$GLOBAL`, marker consumed, SD stopped, password not in the report);
 then `sd ADMIN` with a wrong password REFUSED, with each stored one UNLOCKED.
-`solo-machine.ps1` run unelevated refuses (exit 2), no task made. **Not run:**
-anything elevated, the wizard, uninstall, upgrade.
+`solo-machine.ps1` run unelevated refuses (exit 2), no task made.
+***OWNER'S FIRST INSTALL, 25 Sep 2026 16:06 (`C:\Users\Don\SDCoreSolo\install-summary.log`):***
+solo-setup PASS (account `don`, `$ADMIN`); API rule `SD-API-In-TCP` open; ssh rule
+open; the `Match User "don"` block written, sshd Running/Automatic; task
+registered, result 0x0. **Two faults, both the installer's instruments:**
+(1) *"no sd.exe ... running"* was a FALSE FAIL — the server is **`sdwind.exe`**
+(`SDWIND_NAME`), and it WAS running, session 0, started 16:06:40 by the task,
+still up after the task ended. **So Task Scheduler does leave the daemon running
+after `sd -start` returns (SOLO 3's open question), measured.** The check now
+lists every `sd*.exe` from the install and passes on `sdwind.exe` as the user.
+(2) *"sshd.exe: none found"* — Setup is 32-bit and `ShellExec` does not honour
+64-bit mode, so `{sys}` started 32-bit PowerShell, which sees System32 as
+SysWOW64 (measured: 32-bit `Test-Path ...\System32\OpenSSH\sshd.exe` = False),
+so `sshd -t` was skipped. Now `{sysnative}`, and `solo-machine.ps1` refuses a
+32-bit host (seen). Rebuilt 16:11; not yet re-run.
+**Trap, found restaging after that install:** a running installed Solo makes
+`stage.py --bootstrap` fail — *"Semaphores are already present"* — the Win32
+semaphore names are machine-wide, not per tree (the shm segment is). Stop the
+installed SD first (`C:\Users\Don\SDCoreSolo\usr\bin\sd.exe -stop`, unelevated,
+works); the installer's upgrade path restarts it. Matters for SOLO 9.
 **Unmeasured and could be wrong:** that `ExtractTemporaryFile('ssh-firewall.ps1')`
-finds a file taken in by the wildcard `[Files]` entry; that Task Scheduler leaves
-the daemon running after `sd -start` returns (SOLO 3); that Win32-OpenSSH's
-`Match User` matches the lower-case name written (user@domain for a domain user).
+finds a file taken in by the wildcard `[Files]` entry (the first install's ssh
+scope step ran, so it probably does); that Win32-OpenSSH's `Match User` matches
+the lower-case name written (user@domain for a domain user); a reboot starting SD.
 **Still owed here:** the opt-in data removal at uninstall (5.9.1 — always kept
 now); ruling 13's deletion of `gpl.bp` source; dropping the multi-user scripts
 from `stage.py`'s ship list (shipped inert now); the API choice follows `sd.iss`
