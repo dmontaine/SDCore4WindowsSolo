@@ -49,19 +49,17 @@ or *"— PRE_RELEASE_FIXES.md"*; grep the number there.
 What it lists as owed is also an entry under OPEN TASKS — if the two disagree,
 OPEN TASKS wins.
 
-***HANDOFF 25 Sep 2026 (end of session, pushed at `358d23c`) — SOLO 2, 4, 5, 12
-AND 13 DONE; SOLO 3's token drop (ruling 16) WITNESSED ELEVATED.***
+***HANDOFF 25 Sep 2026 (later) — SOLO 8's installer BUILT AND COMPILED, NOT YET
+INSTALLED.*** SOLO 8's entry says what was measured and what was not.
 
 ***OWNER'S ORDER, 25 Sep 2026: "both, installer first".***
-- **FIRST: SOLO 8, the Solo installer** — a new small `sd-solo.iss`, per-user
-  (`PrivilegesRequired=lowest`, files to `%USERPROFILE%\SDCoreSolo` from
-  `<stage>\SDCoreSolo`), ONE `ShellExec('runas')` step for the machine-wide work
-  (S4U task `sd -start` at startup — it drops its admin token itself, ruling 16;
-  firewall; sshd_config per SOLO 7), then the unelevated account and password
-  steps (`solo_account`, `solo_password ADMIN` and, managed mode only, `GLOBAL`,
-  each via `sd -internal` with the `$internal` marker — SOLO 8's entry has the
-  details). Compile to scratch with ISCC (tooling below); the owner runs installs.
-  `probe-solo-installer.iss` + `probe-solo-elevated.ps1` are the working pattern.
+- **FIRST: the owner runs the Solo installer** — double-click, as himself, NOT
+  "Run as administrator": `C:\Users\Don\SDCoreProject\SDCore4WindowsSolo\stage\sd-solo-setup-S1.1-0.exe`
+  (built 25 Sep 15:41 from a clean stage; rebuild with `stage.py --force
+  --bootstrap` then ISCC if the stage has moved). Then read
+  `C:\Users\Don\SDCoreSolo\install-summary.log` (both helpers' full reports),
+  and from an ordinary prompt `C:\Users\Don\SDCoreSolo\usr\bin\sd.exe` should land
+  in account `don`. A reboot then tests the startup trigger (SOLO 3).
 - **THEN: the API design for SOLO 3's remainder + SOLO 6** — write it for the
   owner's approval BEFORE building: API sessions need no identity switch in Solo
   (the relay's S4U logon needs SYSTEM, which the daemon is not), and ruling 3's
@@ -212,8 +210,8 @@ conflicts with this section, this section wins.**
 
 New ids are **`SOLO <n>`**; the next is **SOLO 14** (SOLO 12, 13 closed 25 Sep, HISTORY.md). `RELEASE_1.1 <n>` and
 `PRE_RELEASE <n>` citations in source and in §5/§6 name multi-user entries —
-grep HISTORY.md, or `sd4windows`, for them. **Every entry below is a plan: none
-of it is built or measured yet**, and each names what would change it.
+grep HISTORY.md, or `sd4windows`, for them. **Each entry says which parts are
+built and measured; the rest is a plan**, and names what would change it.
 
 ### SOLO 3 · everything runs as the user
 
@@ -327,6 +325,38 @@ there. `install-ssh.ps1`, `remove-ssh.ps1`, `dism-capability.ps1` and the
 installer choice** (open to the network or not), independent of which server.
 
 ### SOLO 8 · the Solo installer and uninstaller
+
+**Built 25 Sep 2026, NOT YET RUN AS AN INSTALL:** `gplbld/sd-solo.iss` (per-user,
+AppId `{5E0C3A92-…}`, output `sd-solo-setup-S1.1-0.exe`), `solo-setup.ps1`
+(unelevated: `sd -start`, `solo_account`, `solo_password ADMIN`/`GLOBAL` with the
+passwords passed as env vars `SD_SOLO_ADMIN_PW`/`SD_SOLO_GLOBAL_PW` and written
+to sd's stdin, `sd -stop`), `solo-machine.ps1` (the one `runas`: S4U task
+`SD Core Solo` running `sd.exe -start` at startup, no time limit, started and
+checked for an sd.exe owned by the user; `api-firewall.ps1`; `ssh-firewall.ps1
+-Installed` per ruling 8; a marked `Match User` block with `ForceCommand` +
+`DisableForwarding` appended to `sshd_config`, `sshd -t` checked; `-Action
+Remove` at uninstall). Both in `stage.py`'s ship list. Upgrade = own uninstall
+key present: pages skipped, `upgrade.iss` included with `DataDir={app}`, only the
+task re-registered; a kept data tree without the key = reinstall, tasks asked,
+passwords not. Refuses beside multi-user SD Core. Pages: mode, admin password,
+global password (managed only); passwords limited to printable ASCII (PS 5.1
+cannot set the stdin encoding).
+**Measured 25 Sep:** ISCC 0 errors/0 warnings; the build REFUSES a stage holding
+`$cred\$ADMIN` (the probed stage) and one holding a `user_accounts` entry (dummy
+folder) — both controls seen. `solo-setup.ps1` run natively, unelevated, on the
+stage: refuses with no password (exit 2); real run PASS in 2 s (account `don`,
+`$ADMIN`, `$GLOBAL`, marker consumed, SD stopped, password not in the report);
+then `sd ADMIN` with a wrong password REFUSED, with each stored one UNLOCKED.
+`solo-machine.ps1` run unelevated refuses (exit 2), no task made. **Not run:**
+anything elevated, the wizard, uninstall, upgrade.
+**Unmeasured and could be wrong:** that `ExtractTemporaryFile('ssh-firewall.ps1')`
+finds a file taken in by the wildcard `[Files]` entry; that Task Scheduler leaves
+the daemon running after `sd -start` returns (SOLO 3); that Win32-OpenSSH's
+`Match User` matches the lower-case name written (user@domain for a domain user).
+**Still owed here:** the opt-in data removal at uninstall (5.9.1 — always kept
+now); ruling 13's deletion of `gpl.bp` source; dropping the multi-user scripts
+from `stage.py`'s ship list (shipped inert now); the API choice follows `sd.iss`
+(unticked = `sd-standalone.conf`, no listener) — owner may want otherwise.
 
 **The shape, established by SOLO 1 (HISTORY.md):** `PrivilegesRequired=lowest`
 ("Administrative install mode: No"), files into the user's profile, then ONE UAC

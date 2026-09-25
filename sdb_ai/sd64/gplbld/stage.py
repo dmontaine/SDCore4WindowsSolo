@@ -1571,7 +1571,12 @@ def main():
                    # It SHIPS, so assert-current watches it like the rest of
                    # these - do NOT add it to that script's $neverShipped list.
                    'reconcile-accounts.ps1',
-                   'sd-elevate.ps1', 'sd-elevate-helper.ps1'):
+                   'sd-elevate.ps1', 'sd-elevate-helper.ps1',
+                   # 25 Sep 26 - SOLO 8.  sd-solo.iss runs both from {app}:
+                   # solo-setup.ps1 unelevated (account, passwords),
+                   # solo-machine.ps1 through its one UAC prompt (startup task,
+                   # firewall, sshd_config) and again at uninstall.
+                   'solo-setup.ps1', 'solo-machine.ps1'):
         src = os.path.join(here, script)
         if not os.path.exists(src):
             raise SystemExit('missing %s - the installer needs it' % src)
