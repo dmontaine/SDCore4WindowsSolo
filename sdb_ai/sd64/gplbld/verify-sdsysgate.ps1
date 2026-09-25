@@ -1,0 +1,443 @@
+# verify-sdsysgate.ps1 - prove that SDSYS refuses a real non-administrator, and
+# that it is the IDENTITY test that refuses rather than a failed elevation.
+# PRE_RELEASE_FIXES 62, which is 56's remainder.
+#
+#   VerifyInstall2.ps1 -Run <token>           the only supported way to run it
+#
+# Exit 0 every decisive check passed, 1 a decisive check failed, 2 the test
+# could not be run.
+#
+# ***WHAT 62 IS.***  elevate('START') gates on Start-Process -Verb RunAs
+# succeeding and tests NOBODY'S identity.  That verb gives an administrator a
+# CONSENT prompt and a standard user a CREDENTIAL prompt - so a standard user
+# holding an administrator's password reached SDSYS, and @logname then recorded
+# the elevation against somebody who had not consented.  CPROC:2634 closed it
+# by testing K$OS.ADMINISTRATOR BEFORE the elevate call.  Nothing tested that.
+#
+# ***MATCHING sysmsg 10002 IS NOT A TEST OF IT, AND THIS IS THE WHOLE REASON
+# THE SCRIPT IS SHAPED THE WAY IT IS.***  CPROC prints 10002 on BOTH refusal
+# paths:
+#
+#     CPROC:2637  identity gate       audit 'reason=not an administrator'
+#                 (since RELEASE_1.1 45: one gate at CPROC:2774, audit
+#                  'reason=session did not start elevated' - see below)
+#     CPROC:2651  elevation failed    audit 'reason=elevation refused or unavailable'
+#
+# and for THIS script's subject the elevation would fail anyway: the account it
+# drives is deliberately NOT an administrator, so sshd hands it an ordinary
+# token, Start-Process -Verb RunAs would need a CREDENTIAL prompt, and an ssh
+# session has no interactive desktop to render one on.  A check that anchored on
+# 10002 would therefore pass with the identity gate DELETED - the "pattern
+# shared by the success and failure outputs" that CLAUDE.md calls a false
+# positive with a check's name on it.
+#
+# 05 Sep 26 - ***THE SENTENCE ABOVE USED TO BE WRITTEN AS A GENERAL ONE - "the
+# session is reached over ssh, which has NO INTERACTIVE DESKTOP, so UAC cannot
+# render and elevate('START') would fail there ANYWAY" - AND IN THAT FORM IT IS
+# FALSE.***  PRE_RELEASE_FIXES 167 measured the opposite for an ADMINISTRATOR:
+# sshd runs as LocalSystem and builds the logon token itself, so a member of
+# Administrators arrives over ssh ALREADY elevated, with an unfiltered token and
+# nobody asked to consent.  sd-elevate.ps1 short-circuits "exit 0" in that case
+# and never reaches Start-Process.
+#
+# ***IT IS NARROWED RATHER THAN DELETED, BECAUSE THE ARGUMENT DEPENDS ON IT.***
+# If the elevation could SUCCEED for this subject, then with the identity gate
+# deleted the session would reach SDSYS and print no 10002 at all - so the
+# 10002 anchor would catch the deleted gate rather than miss it, and the whole
+# reason for reading the audit instead would go away.  It holds because the
+# subject is a non-administrator, which this script chooses on purpose; it would
+# NOT hold for an administrator, and nothing here should be copied to one.
+#
+# ***SO THE DECISIVE READING IS THE AUDIT REASON, AND ONLY THAT.***  The two
+# paths differ nowhere else.  The gate's reason means the gate before the
+# elevate call fired; 'reason=elevation refused or unavailable' means execution
+# reached the elevate call, which is the defect this entry is about.  The
+# second is a DISQUALIFIER here, not a pass.
+#
+# 17 Sep 26 - THE GATE'S REASON IS 'session did not start elevated' SINCE
+# RELEASE_1.1 45, NOT 'not an administrator'.  45 made elevation the only door
+# to SDSYS and asks both halves - started elevated, SD administrator tier - as
+# one test with one reason (CPROC:2774).  Owner, 17 Sep 2026: the two are one
+# fact, because a Windows administrator never holds a standard-tier SD account
+# (5.22); so the subject here, a non-administrator, is correctly audited under
+# that reason and the product was not changed.  The old wording is now the
+# control that the regate took.
+#
+# ***WHICH IS WHY THIS RUNS ELEVATED AND LIVES IN VerifyInstall2.***  The audit
+# trail is locked to SYSTEM and Administrators by secure-audit.ps1 - measured
+# 29 Aug 2026, an unelevated read of C:\ProgramData\SD\sdsys\audit is
+# "Permission denied".  verify-cmdaudit.ps1 is in that runner for the same
+# reason and VerifyInstall2.ps1:350 says so in as many words.
+#
+# ***AND IT MAKES ITS OWN ACCOUNT RATHER THAN BORROWING ONE.***  VerifyInstall1
+# creates one non-administrator account for the UNELEVATED half and removes it
+# before handing over, so there is none left by the time this runner starts.
+# This runner is already elevated, so CREATE.ACCOUNT costs no extra UAC prompt.
+#
+# WHAT IT CANNOT DO, SAID OUT LOUD.  It cannot exercise the original hole.  That
+# needed a standard user at an INTERACTIVE DESKTOP typing an administrator's
+# password into a RunAs credential prompt, and no non-interactive test can
+# produce one - the same limit verify-notyet.ps1 records for step 9's password
+# prompt.  What it proves is the property that closed the hole: the identity
+# test is reached, it refuses, and the elevate call is never entered.
+#
+# THE PREFIX IS SINGLE-USE, like every other account-creating verifier here.
+# It comes from the -Run token (PRE_RELEASE 54's rule), and a spent one is
+# refused rather than reused, because an account left over from an earlier run
+# would be measured instead of a fresh one.
+
+[CmdletBinding()]
+param(
+    # NOT Mandatory, DELIBERATELY.  A Mandatory parameter with nothing to bind
+    # makes PowerShell's BINDER prompt, which inside a runner is a hang rather
+    # than an error - the trap that cost a run on 28 Aug 2026 and the reason
+    # verify-nocase.ps1's own parameters are declared this way.  The refusal
+    # below is the guard, and it must be reachable.
+    [string] $Prefix = ''
+)
+
+$ErrorActionPreference = 'Stop'
+
+. (Join-Path $PSScriptRoot 'sdtestuser.ps1')
+# The SDSYS seat (RELEASE_1.1 76) is loaded HERE, with the other module, and not beside
+# Invoke-SD further down: Assert-SdSeat is called well above that function, and a
+# script-scope call that precedes the dot-source dies with "is not recognized" - the
+# 20 Sep 2026 defect test-sdsysseat-units.ps1's section 7 exists to catch.  It did.
+. (Join-Path $PSScriptRoot 'sdsys-seat.ps1')
+
+$sdExe = Join-Path $env:ProgramFiles 'SD\usr\bin\sd.exe'
+$audit = Join-Path $env:ProgramData  'SD\sdsys\audit'
+
+# ------------------------------------------------------------- the reporter
+
+$results = New-Object System.Collections.ArrayList
+$fatal   = $false
+
+function Note($step, $expected, $got, $decisive) {
+    $pass = ($expected -eq $got)
+    $null = $results.Add([pscustomobject]@{
+        Check = $step; Expected = $expected; Observed = $got
+        Result = $(if ($pass) { 'PASS' } else { 'FAIL' })
+        Decisive = $(if ($decisive) { 'yes' } else { 'no' })
+    })
+    if ($decisive -and -not $pass) { $script:fatal = $true }
+}
+
+# ------------------------------------------------------------- preconditions
+
+if ($Prefix -eq '') {
+    Write-Output 'verify-sdsysgate: refusing - no -Prefix was given.'
+    Write-Output '  It names the throwaway account and must come from the run token, so a'
+    Write-Output '  second run on the same machine cannot silently measure the first run''s'
+    Write-Output '  leftover account.  Run it the supported way:'
+    Write-Output ''
+    Write-Output '      C:\Users\dmont\Projects\sd4windows\sdb_ai\sd64\gplbld\VerifyInstall1.ps1 -ThenElevated -Run <token>'
+    Write-Output ''
+    exit 2
+}
+
+$account = $Prefix.ToLower()
+
+$id = [Security.Principal.WindowsIdentity]::GetCurrent()
+$pr = New-Object Security.Principal.WindowsPrincipal($id)
+if (-not $pr.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Write-Output 'verify-sdsysgate: this needs an ELEVATED session and this one is not.'
+    Write-Output '  The audit trail is locked to SYSTEM and Administrators (secure-audit.ps1),'
+    Write-Output '  and the audit REASON is the only thing that tells the identity refusal'
+    Write-Output '  apart from a failed elevation - sysmsg 10002 is printed by both.'
+    Write-Output '  Run it from VerifyInstall2, or from an ELEVATED PowerShell.'
+    exit 2
+}
+
+& (Join-Path $PSScriptRoot 'assert-current.ps1') | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Write-Output 'verify-sdsysgate: the installed tree does not match source - run a cycle first.'
+    Write-Output '  This measures CPROC and LOGIN, which are BASIC: a stale install answers'
+    Write-Output '  for the code the change replaced.'
+    exit 2
+}
+
+# Prove the seat BEFORE the account is created: setup and teardown need it, and a run
+# that cannot reach SDSYS would otherwise stop at the first SD call looking like a
+# product failure.  Exits 2 by itself, having stopped any transcript.
+Assert-SdSeat -Label 'verify-sdsysgate'
+
+foreach ($p in @($sdExe, $audit)) {
+    if (-not (Test-Path -LiteralPath $p)) {
+        Write-Output ("verify-sdsysgate: {0} does not exist - nothing could be measured." -f $p)
+        exit 2
+    }
+}
+
+if ($null -ne (Get-LocalUser -Name $account -ErrorAction SilentlyContinue)) {
+    Write-Output ("verify-sdsysgate: refusing - the Windows account '{0}' already exists." -f $account)
+    Write-Output '  The prefix is single-use.  Measuring a leftover account would be measuring'
+    Write-Output '  the previous run, and it may not even be a non-administrator any more.'
+    Write-Output ("  Remove it, or use a fresh -Run token.")
+    exit 2
+}
+
+# ***ECHO THE REAL INPUTS, NOT THE INTENDED ONES.***  A probe whose arguments
+# were clobbered reported a pass on 23 Aug 2026 and the echoed line is what
+# caught it.
+Write-Output ("verify-sdsysgate: as {0}, ELEVATED" -f $id.Name)
+Write-Output ("  sd      {0}" -f $sdExe)
+Write-Output ("  audit   {0}" -f $audit)
+Write-Output ("  account {0}   (from -Prefix '{1}')" -f $account, $Prefix)
+Write-Output ''
+
+# ------------------------------------------------------------- SD, elevated
+
+# 20 Sep 26 - RELEASE_1.1 76, THE SDSYS SEAT (sdsys-seat.ps1; verify-createaccount
+# was the pilot).  THIS USED TO SEND "LOGTO SDSYS", WHICH IS REFUSED (10002) FROM ANY
+# SESSION THAT DID NOT START AS THE OS SDSYS ACCOUNT with an elevated, interactive
+# token (cproc:2789), so its setup and teardown go to a task inside SDSYS's own live
+# session and the text comes back through a file.  Assert-SdSeat below refuses out loud
+# when SDSYS is not signed in, before the account is created.  NOT WITNESSED: converted
+# unrun.
+#
+# ***ONLY THE SETUP AND TEARDOWN MOVED.  THE SUBJECT DID NOT.***  RELEASE_1.1 76's row
+# grouped this file with the privilege-subject ones, and it is the one file that carries
+# BOTH shapes: this Invoke-SD builds and removes the test account (a plain SDSYS call,
+# now the seat), while the line that IS the test - ssh in as a real non-administrator
+# and issue "LOGTO SDSYS" - goes through Invoke-SdAsTestUser and is a GATE that
+# must keep being refused.  It never touched this function and needs no -Internal.
+#
+# The empty-list guard is kept: a call with nothing to say would start a session,
+# measure nothing and look like a pass.  A call that hits the timeout THROWS ("the task
+# wrote no report within Ns") rather than returning what SD had printed - recorded in
+# RELEASE_1.1 76.  (sdsys-seat.ps1 is dot-sourced at the top of the file.)
+function Invoke-SD([string[]]$commands, [int]$TimeoutSec = 90) {
+    if ($null -eq $commands -or $commands.Count -eq 0) {
+        throw 'Invoke-SD: no commands given; that would start a session, measure nothing and look like a pass.'
+    }
+    return (Invoke-SdSeatText -Commands $commands -TimeoutSec $TimeoutSec)
+}
+
+# ------------------------------------------------------------- the account
+
+$password = New-SdTestPassword
+$created  = $false
+
+try {
+    Write-Output '=== 1. a real non-administrator account ==========================='
+
+    $mk  = New-SdTestUserScript -Name $account -Password $password
+    $out = Invoke-SD $mk
+    Write-Output '  --- CREATE.ACCOUNT said: ---'
+    Write-Output $out
+
+    # ***THE CONTROL IS WINDOWS, NOT SD's OWN WORDING.***  A verb that refused
+    # still echoes the account name, so reading the transcript for it is the
+    # false-positive shape CLAUDE.md names.  Get-LocalUser is independent of
+    # anything SD printed.
+    $lu = Get-LocalUser -Name $account -ErrorAction SilentlyContinue
+    $created = ($null -ne $lu)
+    Note 'the account exists in Windows' $true $created $true
+    if (-not $created) {
+        Write-Output 'verify-sdsysgate: the account was not created - nothing below could measure anything.'
+        exit 2
+    }
+
+    # AND IT MUST NOT BE AN ADMINISTRATOR, or the whole test is inverted: an
+    # administrator is SUPPOSED to be admitted, so a refusal would prove nothing
+    # and an admission would look like the defect.
+    $admins = @()
+    try {
+        $admins = @(Get-LocalGroupMember -Group 'Administrators' -ErrorAction Stop |
+                    ForEach-Object { ($_.Name -split '\\')[-1].ToLower() })
+    } catch {
+        Write-Output ('verify-sdsysgate: could not read the Administrators group - ' + $_.Exception.Message)
+        Write-Output '  That check is the one that makes a refusal meaningful, so this refuses too.'
+        exit 2
+    }
+    Note 'the Administrators group was readable' $true ($admins.Count -gt 0) $true
+    Note 'the account is NOT an administrator' $false ($admins -contains $account) $true
+    Write-Output ("  Administrators has {0} member(s); '{1}' among them: {2}" -f
+                  $admins.Count, $account, ($admins -contains $account))
+    Write-Output ''
+
+    # --------------------------------------------------------- the measurement
+
+    Write-Output '=== 2. the audit trail, before ===================================='
+    $before = ''
+    try { $before = [IO.File]::ReadAllText($audit) }
+    catch {
+        Write-Output ('verify-sdsysgate: the audit trail could not be read - ' + $_.Exception.Message)
+        exit 2
+    }
+    Write-Output ("  audit is {0} bytes before" -f $before.Length)
+    Write-Output ''
+
+    Write-Output '=== 3. the account tries both routes =============================='
+    Write-Output '  ssh in as a NON-administrator (LOGIN case 1 - the account s own), then LOGTO SDSYS.'
+
+    $r = $null
+    try {
+        $r = Invoke-SdAsTestUser -Name $account -Password $password `
+                 -Commands @('WHO', 'LOGTO SDSYS', 'WHO')
+    } catch {
+        Write-Output ("verify-sdsysgate: could not drive SD as {0} - {1}" -f $account, $_.Exception.Message)
+        exit 2
+    }
+    $text = ($r.Out | Out-String)
+
+    Write-Output ("  ssh exit {0}, {1} characters of output" -f $r.ExitCode, $text.Length)
+    if ($r.Err -ne '') {
+        Write-Output '  --- ssh stderr ---'
+        foreach ($l in ($r.Err -split "`n")) {
+            if ($l.Trim() -ne '') { Write-Output ('  | ' + $l.TrimEnd()) }
+        }
+    }
+    Write-Output '  --- the session said: ---'
+    Write-Output $text
+
+    # A SESSION THAT NEVER STARTED MUST NOT SCORE.  Over ssh the same silence
+    # has causes that are nothing to do with the gate - a refused password,
+    # sshd down, ForceCommand not starting SD - and every one of them would
+    # otherwise read as "SDSYS was not reached", which is the answer being
+    # looked for.
+    Note 'the session produced output' $true ($text.Trim().Length -gt 0) $true
+    if ($text.Trim().Length -eq 0) {
+        Write-Output 'verify-sdsysgate: the session said nothing - it never ran, so nothing was measured.'
+        exit 2
+    }
+
+    # ROUTE 1: LOGIN.  The account is where a NON-ADMINISTRATOR must land.
+    #
+    # 05 Sep 26 - THE REASON GIVEN HERE WAS FALSE.  PRE_RELEASE 167.  It said
+    # "An ssh session is never elevated, so LOGIN:568's case cannot be taken".
+    # An ssh session IS elevated for a member of Administrators - sshd runs as
+    # LocalSystem and builds an unfiltered token - and that case WAS taken,
+    # measured 5 Sep 2026.  This step passed anyway because the account it uses
+    # is not an administrator, which is the only reason the wrong reason never
+    # showed.  The right reason is the tier: an ordinary account cannot match
+    # LOGIN's administrator case whatever its token says.
+    #
+    # AN ADMINISTRATOR CANNOT REACH THIS STEP AT ALL NOW - LOGIN refuses the
+    # ssh session outright (PROJECT_STATUS.md 5.25).  verify-sshadmin.ps1 is
+    # the step that measures THAT; this one stays the non-administrator leg.
+    Note 'the session landed in the account (WHO names it)' $true `
+         ($text -match ('(?i)\b' + [regex]::Escape($account) + '\b')) $true
+
+    # 10002 IS RECORDED BUT IS NOT THE MEASUREMENT - see the header.  It is
+    # printed by the identity refusal AND by a failed elevation, so it is kept
+    # as evidence and scored as NOT decisive.
+    Note 'SD printed the SDSYS refusal (10002 - not decisive)' $true `
+         ($text -match 'restricted to privileged users') $false
+
+    Write-Output ''
+    Write-Output '=== 4. the audit trail, after - THE DECISIVE READING =============='
+    $after = ''
+    try { $after = [IO.File]::ReadAllText($audit) } catch { }
+    $tail = ''
+    if ($after.Length -gt $before.Length) { $tail = $after.Substring($before.Length) }
+    Write-Output ("  audit is {0} bytes after, {1} new" -f $after.Length, $tail.Length)
+
+    # ***THE NULL CASE FIRST.***  If the trail did not grow there is nothing to
+    # read, and every pattern below would report "absent" - which for two of
+    # them is the answer this script hopes to see.  A test that passes because
+    # it did nothing must fail.
+    Note 'the audit trail grew' $true ($tail.Length -gt 0) $true
+    if ($tail.Length -eq 0) {
+        Write-Output 'verify-sdsysgate: the audit trail did not grow - nothing was recorded, so nothing is proved.'
+    } else {
+        Write-Output '  --- new audit records ---'
+        foreach ($l in ($tail -split "`n")) {
+            if ($l.Trim() -ne '') { Write-Output ('  | ' + $l.TrimEnd()) }
+        }
+    }
+
+    # AND A CONTROL ON THE READER ITSELF: the session logged in, so the tail
+    # must carry a LOGIN record.  Without this, a tail full of something else
+    # entirely would still let the two tests below "pass" by absence.
+    Note 'the tail carries this session s LOGIN record' $true `
+         ($tail -match 'LOGIN account=') $true
+
+    # ***THE MEASUREMENT.***  Present = the gate BEFORE elevate('START') fired.
+    #
+    # 17 Sep 26 - RELEASE_1.1 45 folded the two halves of that gate - did the
+    # session start elevated, is @logname an SD administrator - into one test
+    # with one audit reason, 'session did not start elevated', and this row
+    # went red on b173 (the first full suite since 45) still anchored on the old
+    # 'not an administrator'.  Owner's ruling, 17 Sep 2026: the two halves are
+    # ONE FACT - "a windows administrator should never hold a standard tier sd
+    # account; if they are an administrator created by sd then they have an sd
+    # administrator account" (5.22) - so a non-administrator being audited under
+    # the one reason is correct, not a lost distinction, and the product is not
+    # changed.  What this row proves is unchanged: the refusal came from the
+    # gate that runs BEFORE the elevate call, and the disqualifier below still
+    # says the elevate call was never reached - which is the whole of 62.
+    #
+    # 22 Sep 26 - RELEASE_1.1 64 (18 Sep 2026) REPLACED 45's REASON IN TURN, and
+    # this row went red the same way b173 did: still anchored on 45's wording
+    # ('session did not start elevated') after 64 withdrew LOGTO SDSYS outright
+    # for every caller, elevated or not, and rewrote the refusal to
+    # 'SDSYS is not reachable by LOGTO' (cproc.bp:2749-2787).  64 also removed
+    # the elevate('START') call from this path entirely ("a UAC consent must not
+    # be drawn to reach a door that is shut") - so what this row proves has
+    # narrowed further: not "the identity gate fired rather than an elevation
+    # failure" (that second path no longer exists to fire), just that the
+    # refusal carries 64's current wording rather than a stale one.  Found on
+    # `-Run b223`, 22 Sep 2026 (VerifyInstall2, elevated) - the product refused
+    # correctly, the test's expected string had not been updated.  See
+    # HISTORY.md, 22 Sep 2026, and verify-elevdoor.ps1, which had the identical
+    # staleness.
+    Note 'refused at the door (reason=SDSYS is not reachable by LOGTO)' $true `
+         ($tail -match 'LOGTO REFUSED account=SDSYS reason=SDSYS is not reachable by LOGTO') $true
+    # CONTROL: not an older gate's reason - neither pre-45's nor 45's own -
+    # which would mean the withdrawal had not taken (verify-elevdoor.ps1 makes
+    # the same three-way check for an administrator).
+    Note 'and NOT an older-gate reason' $false `
+         ((($tail -match 'reason=not an administrator') -or
+           ($tail -match 'reason=session did not start elevated'))) $true
+
+    # ***THE DISQUALIFIER.***  Present = execution reached elevate('START'),
+    # which is the defect.  Over ssh that call fails for want of a desktop and
+    # prints the SAME 10002, so this is the only thing that tells them apart.
+    Note 'the elevate call was NEVER reached' $false `
+         ($tail -match 'reason=elevation refused or unavailable') $true
+
+    # AND NOTHING WAS GRANTED.
+    Note 'no elevation was granted' $false `
+         ($tail -match 'ELEVATION GRANTED account=SDSYS') $true
+
+} finally {
+    if ($created) {
+        Write-Output ''
+        Write-Output '=== 5. removing the account ======================================='
+        try {
+            $rmOut = Invoke-SD (Remove-SdTestUserScript -Name $account)
+            Write-Output '  --- DELETE.ACCOUNT said: ---'
+            Write-Output $rmOut
+        } catch {
+            Write-Output ('  DELETE.ACCOUNT failed - ' + $_.Exception.Message)
+        }
+        $still = Get-LocalUser -Name $account -ErrorAction SilentlyContinue
+        if ($null -ne $still) {
+            Write-Output ("  *** THE ACCOUNT '{0}' IS STILL THERE - remove it before the next run." -f $account)
+        } else {
+            Write-Output ("  '{0}' is gone." -f $account)
+        }
+    }
+}
+
+# ------------------------------------------------------------------ verdict
+
+Write-Output ''
+$results | Format-Table -AutoSize | Out-String | Write-Output
+
+$decisive = @($results | Where-Object { $_.Decisive -eq 'yes' })
+$failed   = @($decisive | Where-Object { $_.Result -eq 'FAIL' })
+Write-Output ("verify-sdsysgate: {0} decisive check(s), {1} failed." -f $decisive.Count, $failed.Count)
+
+# REFUSE A RUN THAT SCORED NOTHING.  An empty decisive list would print
+# "0 failed" and exit 0 - the suite row this project has already been given
+# once, on a suite that had never run a step.
+if ($decisive.Count -eq 0) {
+    Write-Output 'verify-sdsysgate: no decisive check ran - that is a broken test, not a pass.'
+    exit 2
+}
+
+if ($fatal) { exit 1 }
+exit 0

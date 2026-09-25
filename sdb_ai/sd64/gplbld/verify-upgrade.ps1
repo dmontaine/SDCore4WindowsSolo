@@ -1,0 +1,675 @@
+# verify-upgrade.ps1 - measure a DATA-TREE UPGRADE: install over the top.
+# PROJECT_STATUS.md "START HERE" item 3.
+#
+#   powershell -ExecutionPolicy Bypass -File verify-upgrade.ps1 -Snapshot     BEFORE the upgrade
+#   ... run the installer over the existing install, WITHOUT uninstalling ...
+#   powershell -ExecutionPolicy Bypass -File verify-upgrade.ps1 -Compare      AFTER it
+#
+# Exit 0 every check passed, 1 a check failed, 2 the test could not be run.
+#
+# WHY THIS EXISTS.  The upgrade path is the largest untested thing in the
+# project: every part of it is gated on DataTreeUpgrade, and every cycle this
+# machine has ever run was a FIRST install, so none of it has executed.  It
+# also cannot be tested by cycle.ps1 - that script deliberately uninstalls and
+# deletes both trees first, which is the opposite of what an upgrade does.
+#
+# ============================================================================
+# THE NULL CASE IS THE WHOLE DIFFICULTY, AND HASHES DO NOT SOLVE IT
+# ============================================================================
+#
+# The obvious test - "the preserved files are unchanged" - passes PERFECTLY on
+# an upgrade that never ran.  Nothing happened, so nothing changed, so every
+# preservation check is green.  That is a test that passes because it did
+# nothing, which CLAUDE.md's instrument rule says must fail.
+#
+# COMPARING CONTENT DOES NOT RESCUE IT EITHER.  An upgrade built from the same
+# source copies back byte-identical files, so "the replaced files changed"
+# is false on a legitimate upgrade.  Timestamps do not help: Inno gives a
+# copied file its SOURCE file's timestamp.
+#
+# ============================================================================
+# SO THE INSTRUMENT IS A PAIR OF PROBE FILES, AND THEY MUST DISAGREE
+# ============================================================================
+#
+# -Snapshot writes the same marker file into two directories:
+#
+#   sdsys\bp\$upgrade-probe     - bp is on SDSYS_PRESERVE.  SD ships nothing
+#                                 into it, so it is empty and a stray file
+#                                 there is harmless.  It MUST SURVIVE.
+#   sdsys\gcat\$upgrade-probe   - gcat is on the computed replace list, so
+#                                 upgrade.iss deletes the whole directory with
+#                                 Type: filesandordirs before [Files] copies it
+#                                 back.  It MUST BE GONE.
+#
+# NEITHER ALONE PROVES ANYTHING.  Both surviving means the installer never ran.
+# Both gone means it replaced something it was supposed to keep.  Only the
+# DISAGREEMENT is consistent with an upgrade that did what it says, and it
+# stays decisive even when every copied byte is identical.
+#
+# ============================================================================
+# THE RETIRED NAME IS FORCED, BECAUSE THIS MACHINE CANNOT REACH IT OTHERWISE
+# ============================================================================
+#
+# SDSYS_RETIRED deletes sdsys\changelog on upgrade.  It is DELETE-ONLY: a first
+# install never creates it, so on a machine that has only ever had first
+# installs the file is already absent and the check would pass having measured
+# nothing.  -Snapshot therefore CREATES it, with known content, putting the
+# tree into the state an upgrade-from-an-older-version would be in.  Forcing a
+# state to reach a branch is the technique verify-notyet.ps1 uses for the same
+# reason: the branch that matters most is otherwise the one never observed.
+#
+# 21 Sep 26 - THE SAME FOR sdsys\voc_template, which stopped shipping that day
+# (stage.py SDSYS_BUILD_SEED) and is on SDSYS_RETIRED so that an upgrade removes
+# the copy an earlier release installed.  An install made from the new stage.py
+# never has it, so -Snapshot plants one, with a probe file inside, when it is
+# absent; -Compare requires it gone.
+
+[CmdletBinding()]
+param(
+    [switch] $Snapshot,
+    [switch] $Compare,
+
+    # Where the snapshot is kept between the two runs.
+    #
+    # ***NOT %LOCALAPPDATA%, AND THAT IS MEASURED RATHER THAN PREFERRED.***
+    # -Snapshot and -Compare are often run by DIFFERENT processes, and one of
+    # them may be inside a packaged (MSIX) app - the agent's tooling is.  A
+    # packaged process has its %LOCALAPPDATA% WRITES redirected into
+    # ...\Packages\<pkg>\LocalCache\Local\, while READS of the same path fall
+    # through to the real location when nothing shadows them.  So a snapshot
+    # written by one lands somewhere the other cannot see, and -Compare reports
+    # "no snapshot" against a file that visibly exists.
+    #
+    # THAT COST A RUN ON 25 Aug 2026.  -Snapshot at 21:18 reported success and
+    # the file was readable back; -Compare from the owner's own elevated shell
+    # at 21:22:59 said the snapshot was not there.  Both were right.
+    # probe-redirection.ps1 settled it: a write to
+    # C:\Users\dmont\AppData\Local\SD-verify turned up under the package cache,
+    # while writes to C:\ProgramData\SD-verify and C:\Users\dmont\sdout did not.
+    #
+    # ProgramData is not redirected and this script already requires elevation,
+    # so it is writable and it is the same path for everybody.
+    [string] $StatePath = 'C:\ProgramData\SD-verify\upgrade-snapshot.json'
+)
+
+$ErrorActionPreference = 'Stop'
+
+if (-not ($Snapshot -xor $Compare)) {
+    Write-Output 'verify-upgrade: pass exactly one of -Snapshot or -Compare.'
+    Write-Output '  -Snapshot BEFORE installing over the top, -Compare after.'
+    exit 2
+}
+
+$mode = 'Compare'
+if ($Snapshot) { $mode = 'Snapshot' }
+
+$logDir = Join-Path $env:LOCALAPPDATA 'SD-verify'
+if (-not (Test-Path -LiteralPath $logDir)) { $null = New-Item -ItemType Directory -Path $logDir -Force }
+$logPath = Join-Path $logDir ('verify-upgrade-' + $mode.ToLower() + '-' +
+                              (Get-Date -Format 'yyyyMMdd-HHmmss') + '.log')
+try { Start-Transcript -Path $logPath -Force | Out-Null } catch { }
+Write-Output ("transcript: " + $logPath)
+
+# NO assert-current HERE, AND THAT IS DELIBERATE - it is the one verifier that
+# must not call it.  assert-current compares the INSTALL against SOURCE, and an
+# upgrade test needs the install to be the OLD build while source is the NEW
+# one; between -Snapshot and -Compare the tree is expected to be stale, and a
+# guard that refuses on that would make this script unable to run at all.
+# What replaces it: -Compare records the sd.exe hash on both sides and says
+# whether the binary moved, so the transcript states what was upgraded to what.
+Write-Output 'verify-upgrade: assert-current is deliberately NOT called - see the header.'
+
+$principal = New-Object Security.Principal.WindowsPrincipal(
+                 [Security.Principal.WindowsIdentity]::GetCurrent())
+if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Write-Output ''
+    Write-Output 'verify-upgrade: CANNOT RUN - not elevated.'
+    Write-Output '  sdsys\$cred is readable only by administrators, and the probe files'
+    Write-Output '  are written into a protected tree.'
+    try { Stop-Transcript | Out-Null } catch { }
+    exit 2
+}
+Write-Output ('elevated as: ' + [Security.Principal.WindowsIdentity]::GetCurrent().Name)
+
+$dataDir = Join-Path $env:ProgramData 'SD'
+$sdsys   = Join-Path $dataDir 'sdsys'
+$appDir  = Join-Path $env:ProgramFiles 'SD'
+$sdExe   = Join-Path $appDir 'usr\bin\sd.exe'
+
+$PROBE      = '$upgrade-probe'
+$PROBE_TEXT = 'verify-upgrade.ps1 probe - safe to delete'
+$probeKeep  = Join-Path $sdsys ('bp\'   + $PROBE)     # MUST survive
+$probeGone  = Join-Path $sdsys ('gcat\' + $PROBE)     # MUST be removed
+
+# stage.py SDSYS_PRESERVE, and the upgrade log's own "an upgrade PRESERVES" line.
+$PRESERVE = @('$cred', 'accounts', 'cat', 'os.users', 'os.users.dic',
+              'batch.jobs', 'batch.jobs.dic', 'prt', '$hold', 'bp', 'bp.out')
+
+# The computed replace list - the ship lists minus preserve.
+# 21 Sep 26 - voc_template is NOT here any more: it no longer ships, and the
+# upgrade REMOVES it (SDSYS_RETIRED) - see [S3] and [5] below.
+$REPLACE  = @('gpl.bp', 'syscom', 'newvoc', 'messages',
+              'sd.voclib', 'licence', 'contrib', 'gpl.bp.out', 'gcat',
+              'pcode.out', 'bin', 'terminfo', 'terminfo.src')
+
+# Named by NO ship list, and protected by that alone.  voc is a dynamic file
+# made by "sd -i" and declared nowhere; errlog is the log.  If the upgrade ever
+# reaches these, the default that protects them has stopped working.
+#
+# 30 Aug 26 - $standalone IS KEPT IN THIS LIST THOUGH THE MODE IS GONE.
+# PRE_RELEASE_FIXES 75 removed stand-alone installs and nothing writes or reads
+# the marker any more - but machines installed BEFORE today still carry the
+# file, and the property being tested is unchanged: an upgrade must not delete
+# something no ship list names.  A file that is now inert is still the clearest
+# possible case of that, so it goes on earning its place here.
+$UNNAMED  = @('voc', '$standalone', 'errlog')
+
+Write-Output ''
+Write-Output '=== what this run is measuring ==================================='
+Write-Output ("  mode      : " + $mode)
+Write-Output ("  data tree : " + $sdsys)
+Write-Output ("  app dir   : " + $appDir)
+Write-Output ("  state file: " + $StatePath)
+Write-Output ("  preserve  : " + $PRESERVE.Count + " names   replace: " + $REPLACE.Count +
+              " names   unnamed: " + $UNNAMED.Count)
+
+if (-not (Test-Path -LiteralPath $sdsys)) {
+    Write-Output ''
+    Write-Output ("verify-upgrade: CANNOT RUN - there is no data tree at " + $sdsys)
+    try { Stop-Transcript | Out-Null } catch { }
+    exit 2
+}
+
+# ---------------------------------------------------------------------------
+# Fingerprinting.  A directory's fingerprint is the sorted list of its files
+# with each file's length and SHA256, hashed again - so a change anywhere
+# inside moves it.  CreationTime is recorded separately because it is what
+# distinguishes "left alone" from "deleted and recreated with identical
+# contents", which is the case content hashing cannot see.
+# ---------------------------------------------------------------------------
+function Get-Fingerprint([string]$path) {
+    $r = [pscustomobject]@{
+        Exists = $false; Kind = 'absent'; Hash = ''; Count = 0
+        Created = ''; Readable = $true
+    }
+    if (-not (Test-Path -LiteralPath $path)) { return $r }
+    $r.Exists = $true
+    $item = Get-Item -LiteralPath $path -Force
+    $r.Created = $item.CreationTimeUtc.ToString('o')
+    if ($item.PSIsContainer) {
+        $r.Kind = 'dir'
+        try {
+            $files = @(Get-ChildItem -LiteralPath $path -Recurse -File -Force -ErrorAction Stop)
+        } catch {
+            $r.Readable = $false
+            return $r
+        }
+        $r.Count = $files.Count
+        $sb = New-Object System.Text.StringBuilder
+        foreach ($f in ($files | Sort-Object FullName)) {
+            $rel = $f.FullName.Substring($path.Length)
+            $h = ''
+            try { $h = (Get-FileHash -LiteralPath $f.FullName -Algorithm SHA256).Hash } catch { $h = 'UNREADABLE' }
+            $null = $sb.Append($rel).Append('|').Append($f.Length).Append('|').Append($h).Append("`n")
+        }
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($sb.ToString())
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        $r.Hash = ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-', '')
+        $sha.Dispose()
+    } else {
+        $r.Kind = 'file'
+        $r.Count = 1
+        try { $r.Hash = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash }
+        catch { $r.Readable = $false }
+    }
+    return $r
+}
+
+# EVERY LINE IN HERE IS Write-Host, NOT Write-Output, AND THAT IS LOAD-BEARING.
+# A PowerShell function returns everything on the output stream, so a single
+# Write-Output beside the return makes the caller's map an ARRAY of
+# [string, string, ..., hashtable].  Measured on the 21:14:34 run: the state
+# file came back with Preserve holding Count/Length/LongLength/Rank/SyncRoot -
+# System.Array's own members - and not one of the per-name rows printed.  It is
+# the trap Invoke-SD's comment above describes and verify-notyet.ps1 records as
+# "how a refusal came to exit 0 once already".
+function Snapshot-Names([string[]]$names) {
+    $out = @{}
+    foreach ($n in $names) {
+        $fp = Get-Fingerprint (Join-Path $sdsys $n)
+        $out[$n] = $fp
+        Write-Host ("    {0,-16} {1,-7} {2,4} item(s)  {3}  created {4}" -f
+            $n, $fp.Kind, $fp.Count,
+            $(if ($fp.Hash) { $fp.Hash.Substring(0, 16) } else { '-' }),
+            $(if ($fp.Created) { ([datetime]$fp.Created).ToString('dd MMM HH:mm:ss') } else { '-' }))
+    }
+    return $out
+}
+
+# AND THE CLASS-LEVEL GUARD, because renaming one call fixes one function.
+# A snapshot whose shape is wrong is worse than no snapshot: -Compare would run
+# against it and report on names it never actually recorded.  So the shape is
+# asserted before anything is written, and the run refuses if it is wrong.
+# Write-Host, NOT Write-Output - AND THE FIRST VERSION OF THIS GUARD GOT IT
+# WRONG, which is worth recording because it was the fix FOR that same trap.
+# Its Write-Output lines were consumed by the `if (-not (Assert-Map ...))` that
+# called it, so nothing printed and the return became [string, bool] - an array,
+# which `-not` reads as false, so the guard passed by accident on 21:16:59.
+# A guard that cannot report is not a guard.
+function Assert-Map($map, [string]$label, [int]$wanted) {
+    if ($map -isnot [hashtable]) {
+        Write-Host ("  REFUSING - " + $label + " came back as " +
+            $map.GetType().Name + ", not a hashtable.  Something wrote to the")
+        Write-Host '  output stream inside Snapshot-Names; see its comment.'
+        return $false
+    }
+    if ($map.Count -ne $wanted) {
+        Write-Host ("  REFUSING - " + $label + " holds " + $map.Count +
+                    " names, expected " + $wanted)
+        return $false
+    }
+    Write-Host ("  " + $label + ": " + $map.Count + " names recorded, shape OK")
+    return $true
+}
+
+# ===========================================================================
+if ($Snapshot) {
+# ===========================================================================
+
+    Write-Output ''
+    Write-Output '=== [S1] Fingerprinting the tree before the upgrade =============='
+    Write-Output '  PRESERVE - these must come back byte-identical:'
+    $sPreserve = Snapshot-Names $PRESERVE
+    Write-Output '  REPLACE - these are deleted and copied back:'
+    $sReplace  = Snapshot-Names $REPLACE
+    Write-Output '  UNNAMED - protected only by not being on any list:'
+    $sUnnamed  = Snapshot-Names $UNNAMED
+
+    Write-Output ''
+    Write-Output '  --- shape of what was recorded, checked before anything is written ---'
+    $shapeOk = $true
+    if (-not (Assert-Map $sPreserve 'Preserve' $PRESERVE.Count)) { $shapeOk = $false }
+    if (-not (Assert-Map $sReplace  'Replace'  $REPLACE.Count))  { $shapeOk = $false }
+    if (-not (Assert-Map $sUnnamed  'Unnamed'  $UNNAMED.Count))  { $shapeOk = $false }
+    if (-not $shapeOk) {
+        Write-Output ''
+        Write-Output 'verify-upgrade: CANNOT CONTINUE - the snapshot would be unusable.'
+        Write-Output '  Nothing was written and no probe was planted.'
+        try { Stop-Transcript | Out-Null } catch { }
+        exit 2
+    }
+
+    Write-Output ''
+    Write-Output '=== [S2] Planting the probe pair ================================='
+    # bp and gcat must both be there, or the probes cannot be planted and the
+    # whole instrument is absent.  Refuse rather than carry on.
+    foreach ($d in @('bp', 'gcat')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $sdsys $d))) {
+            Write-Output ("  CANNOT RUN - " + (Join-Path $sdsys $d) + " is not there,")
+            Write-Output '  so the probe pair cannot be planted and nothing below would be decisive.'
+            try { Stop-Transcript | Out-Null } catch { }
+            exit 2
+        }
+    }
+    Set-Content -LiteralPath $probeKeep -Value $PROBE_TEXT -Encoding ASCII
+    Set-Content -LiteralPath $probeGone -Value $PROBE_TEXT -Encoding ASCII
+    Write-Output ("  planted (must SURVIVE): " + $probeKeep)
+    Write-Output ("  planted (must be GONE): " + $probeGone)
+    Write-Output ("  both readable back: " +
+        ((Test-Path -LiteralPath $probeKeep) -and (Test-Path -LiteralPath $probeGone)))
+
+    # 21 Sep 26 - bp IS FINGERPRINTED AGAIN, NOW THE PROBE IS IN IT.  S1 recorded bp
+    # BEFORE the probe was planted, and -Compare fingerprints it AFTER the probe
+    # survived, so a preserved bp that held nothing else came back "changed" - the
+    # 21 Sep run scored 'preserved unchanged: bp' FAIL on the hash of a directory
+    # holding exactly the probe (reproduced with this file's own Get-Fingerprint:
+    # empty = E3B0..., probe only = BAC9...).  The survival of the probe is scored in
+    # [1]; this row has to compare like with like.  Created is re-read too, harmlessly:
+    # adding a file does not move a directory's creation time.
+    $sPreserve['bp'] = Get-Fingerprint (Join-Path $sdsys 'bp')
+    Write-Output ("  bp re-fingerprinted with the probe in it: " + $sPreserve['bp'].Hash.Substring(0, 16) +
+                  "  (" + $sPreserve['bp'].Count + " item(s))")
+
+    Write-Output ''
+    Write-Output '=== [S3] Forcing the retired name ==============================='
+    # See the header.  A first install never creates sdsys\changelog, so
+    # without this the retired-name delete would be measured against a file
+    # that was already absent.
+    $sdsysChangelog = Join-Path $sdsys 'changelog'
+    $hadIt = Test-Path -LiteralPath $sdsysChangelog
+    if ($hadIt) {
+        Write-Output ("  sdsys\changelog already present - left as it is: " + $sdsysChangelog)
+    } else {
+        Set-Content -LiteralPath $sdsysChangelog -Value `
+            'verify-upgrade.ps1 planted this to reach the SDSYS_RETIRED branch.' -Encoding ASCII
+        Write-Output ("  CREATED " + $sdsysChangelog + " to reach the retired-name branch")
+    }
+    $appChangelog = Join-Path $appDir 'changelog'
+    Write-Output ("  {app}\changelog present before: " + (Test-Path -LiteralPath $appChangelog))
+
+    # 21 Sep 26 - the second retired name, a DIRECTORY.  Planted with a file inside
+    # so the delete has something to remove, and so "gone" cannot mean "was empty".
+    $sdsysVocT = Join-Path $sdsys 'voc_template'
+    $hadVocT = Test-Path -LiteralPath $sdsysVocT
+    if ($hadVocT) {
+        Write-Output ("  sdsys\voc_template already present - left as it is: " + $sdsysVocT)
+    } else {
+        $null = New-Item -ItemType Directory -Path $sdsysVocT
+        Set-Content -LiteralPath (Join-Path $sdsysVocT 'probe') -Value `
+            'verify-upgrade.ps1 planted this to reach the SDSYS_RETIRED branch.' -Encoding ASCII
+        Write-Output ("  CREATED " + $sdsysVocT + " (with a probe file) to reach the retired-name branch")
+    }
+    Write-Output ("  sdsys\voc_template present before the upgrade: " + (Test-Path -LiteralPath $sdsysVocT))
+
+    $sdExeHash = ''
+    if (Test-Path -LiteralPath $sdExe) {
+        $sdExeHash = (Get-FileHash -LiteralPath $sdExe -Algorithm SHA256).Hash
+    }
+    Write-Output ("  sd.exe before: " + $(if ($sdExeHash) { $sdExeHash.Substring(0, 16) } else { 'ABSENT' }))
+
+    $state = [pscustomobject]@{
+        TakenAt        = (Get-Date).ToString('o')
+        Sdsys          = $sdsys
+        AppDir         = $appDir
+        SdExeHash      = $sdExeHash
+        InstalledAt    = (Get-Item -LiteralPath $dataDir).CreationTimeUtc.ToString('o')
+        Preserve       = $sPreserve
+        Replace        = $sReplace
+        Unnamed        = $sUnnamed
+        PlantedChangelog = (-not $hadIt)
+        PlantedVocTemplate = (-not $hadVocT)
+        AppChangelog   = (Test-Path -LiteralPath $appChangelog)
+    }
+    $stateDir = Split-Path -Parent $StatePath
+    if (-not (Test-Path -LiteralPath $stateDir)) {
+        $null = New-Item -ItemType Directory -Path $stateDir -Force
+    }
+    $state | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $StatePath -Encoding UTF8
+    # SAY WHAT LANDED, NOT WHAT WAS INTENDED.  A write that was redirected
+    # elsewhere still "succeeds" from in here; the length read back is the
+    # cheapest evidence that something is actually at that path.
+    if (Test-Path -LiteralPath $StatePath) {
+        Write-Output ("  read back: " + (Get-Item -LiteralPath $StatePath).Length + " bytes")
+    } else {
+        Write-Output '  WROTE IT AND IT IS NOT THERE - the path is being redirected.'
+        try { Stop-Transcript | Out-Null } catch { }
+        exit 2
+    }
+
+    Write-Output ''
+    Write-Output ("=== snapshot written to " + $StatePath)
+    Write-Output ''
+    Write-Output 'NEXT: install OVER this installation - do NOT uninstall, do NOT run'
+    Write-Output '  cycle.ps1, which deletes both trees.  Run the installer directly:'
+    Write-Output ''
+    # 21 Sep 26 - THESE TWO LINES NAMED ANOTHER MACHINE'S PATHS AND THE OLDEST
+    # INSTALLER (C:\Users\dmont\sdout\sd-setup-W1.0-0.exe) - on this machine that is a
+    # DOWNGRADE, since sdout still holds W1.0-0.  Both are computed now: the NEWEST
+    # sd-setup-*.exe in the caller's sdout, and this script's own full path.
+    $newest = Get-ChildItem -LiteralPath (Join-Path $env:USERPROFILE 'sdout') -Filter 'sd-setup-*.exe' `
+                  -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($newest) {
+        Write-Output ('    ' + $newest.FullName + '   (built ' + $newest.LastWriteTime.ToString('dd MMM HH:mm') + ')')
+    } else {
+        Write-Output ('    (no sd-setup-*.exe in ' + (Join-Path $env:USERPROFILE 'sdout') + ' - build one first)')
+    }
+    Write-Output ''
+    Write-Output 'THEN, from an ELEVATED PowerShell:'
+    Write-Output ''
+    Write-Output ('    powershell -ExecutionPolicy Bypass -File ' + $MyInvocation.MyCommand.Path + ' -Compare')
+    try { Stop-Transcript | Out-Null } catch { }
+    exit 0
+}
+
+# ===========================================================================
+# -Compare
+# ===========================================================================
+
+if (-not (Test-Path -LiteralPath $StatePath)) {
+    Write-Output ''
+    Write-Output ("verify-upgrade: CANNOT RUN - no snapshot at " + $StatePath)
+    Write-Output '  Run -Snapshot BEFORE the upgrade.  There is nothing to compare against.'
+    # AND SAY WHAT IS ACTUALLY THERE.  "Not found" on its own sent a reader
+    # hunting for a file that existed the whole time, in a redirected copy of
+    # the directory - see the note on $StatePath.  Listing the directory turns
+    # that into one glance.
+    $stateDir = Split-Path -Parent $StatePath
+    Write-Output ''
+    Write-Output ("  contents of " + $stateDir + ":")
+    if (Test-Path -LiteralPath $stateDir) {
+        $found = @(Get-ChildItem -LiteralPath $stateDir -ErrorAction SilentlyContinue)
+        if ($found.Count -eq 0) {
+            Write-Output '    (empty)'
+        } else {
+            foreach ($f in $found) { Write-Output ('    ' + $f.Name + '  ' + $f.Length + ' bytes') }
+        }
+    } else {
+        Write-Output '    the directory does not exist either'
+    }
+    try { Stop-Transcript | Out-Null } catch { }
+    exit 2
+}
+$state = Get-Content -LiteralPath $StatePath -Raw | ConvertFrom-Json
+Write-Output ("  snapshot taken at " + $state.TakenAt)
+
+# SAY WHERE THE SNAPSHOT CAME FROM WHEN IT DID NOT COME FROM HERE.  A state
+# file that was moved into place is a legitimate input - $StatePath is a
+# parameter for exactly that - but a transcript that only prints the path it
+# read makes a MOVED snapshot indistinguishable from one -Snapshot wrote
+# there.  -Snapshot never writes this field, so its presence is the whole
+# signal, and it is carried in the file rather than passed on the command line
+# so it cannot be left off by whoever runs -Compare.
+if ($state.PSObject.Properties.Name -contains 'Provenance') {
+    Write-Output ''
+    Write-Output '  *** THIS SNAPSHOT WAS NOT WRITTEN AT THE PATH IT WAS READ FROM ***'
+    Write-Output ('  ' + $state.Provenance)
+}
+
+$results = New-Object System.Collections.ArrayList
+$failed  = $false
+
+function Note($check, $expected, $got) {
+    $pass = ($expected -eq $got)
+    if (-not $pass) { $script:failed = $true }
+    $null = $results.Add([pscustomobject]@{
+        Check = $check; Expected = $expected; Observed = $got
+        Result = $(if ($pass) { 'PASS' } else { 'FAIL' })
+    })
+    Write-Output ("  [{0}] {1}: expected {2}, got {3}" -f
+        $(if ($pass) { 'PASS' } else { 'FAIL' }), $check, $expected, $got)
+}
+
+function Skip($check, $why) {
+    $null = $script:results.Add([pscustomobject]@{
+        Check = $check; Expected = '(not measurable here)'; Observed = $why
+        Result = 'SKIP'
+    })
+    Write-Output ("  [SKIP] {0}: {1}" -f $check, $why)
+}
+
+Write-Output ''
+Write-Output '=== [1] THE PROBE PAIR - did the upgrade actually run? ==========='
+# Read the header.  Neither probe alone proves anything; only the disagreement
+# is consistent with an upgrade that did what it says.
+$keepThere = Test-Path -LiteralPath $probeKeep
+$goneThere = Test-Path -LiteralPath $probeGone
+Write-Output ("  " + $probeKeep + " : " + $(if ($keepThere) { 'present' } else { 'GONE' }))
+Write-Output ("  " + $probeGone + " : " + $(if ($goneThere) { 'PRESENT' } else { 'gone' }))
+
+Note 'probe in a PRESERVED directory survived' $true  $keepThere
+Note 'probe in a REPLACED directory was removed' $false $goneThere
+
+if ($keepThere -and $goneThere) {
+    Write-Output ''
+    Write-Output '  *** BOTH PROBES SURVIVED.  The installer did not run, or did not'
+    Write-Output '  *** take the upgrade path.  EVERY PRESERVATION CHECK BELOW WOULD'
+    Write-Output '  *** PASS TRIVIALLY - do not read any of them as evidence.'
+}
+
+Write-Output ''
+Write-Output '=== [2] PRESERVED names must be byte-identical ==================='
+# AND THEIR CREATION TIME MUST NOT MOVE.  Get-Fingerprint records Created for
+# every name and until 26 Aug 2026 nothing ever read it back - the snapshot
+# carried the one measurement that separates "left alone" from "deleted and
+# recopied byte-identically", and -Compare scored on the hash alone.  Inno
+# gives a copied file its SOURCE file's timestamp, so a preserved directory
+# that was wrongly deleted and restored from the same build is byte-identical
+# and passes a hash check perfectly.  Its CREATION time is what gives it away.
+#
+# THIS DIRECTION IS SAFE TO SCORE HARD.  NTFS file-system tunneling can make a
+# deleted-and-recreated name keep its old creation time, which can only ever
+# HIDE a move - so a creation time that DID move is never a false alarm here.
+foreach ($n in $PRESERVE) {
+    $before = $state.Preserve.$n
+    $after  = Get-Fingerprint (Join-Path $sdsys $n)
+    if (-not $before.Readable -or -not $after.Readable) {
+        Skip ("preserved: " + $n) 'not readable even elevated, so no comparison was made'
+        continue
+    }
+    Note ("preserved unchanged: " + $n) $before.Hash $after.Hash
+    Note ("preserved not recreated: " + $n) $before.Created $after.Created
+}
+
+Write-Output ''
+Write-Output '=== [3] REPLACED names must all still be present ================='
+# Content is NOT compared: an upgrade from the same source copies back
+# identical bytes, so a difference is not expected and its absence proves
+# nothing.  What matters is that nothing was deleted and left uncopied - the
+# hollow pair stage.py refuses to emit.
+#
+# BOTH CHECKS IN HERE PASS TRIVIALLY ON AN UPGRADE THAT NEVER RAN, and that is
+# why the creation-time count below was added on 26 Aug 2026.  "It is present"
+# and "it is not empty" are both true of a tree nobody touched; only the probe
+# pair in [1] was carrying the whole weight of "did this actually happen".
+$movedCount = 0
+$sameCount  = 0
+foreach ($n in $REPLACE) {
+    $before = $state.Replace.$n
+    $after  = Get-Fingerprint (Join-Path $sdsys $n)
+    Note ("replaced present: " + $n) $true $after.Exists
+    if ($after.Exists -and $after.Kind -eq 'dir') {
+        Note ("replaced not empty: " + $n) $true ($after.Count -gt 0)
+    }
+    if ($before -and $before.Created -and $after.Created) {
+        if ($before.Created -ne $after.Created) { $movedCount++ } else { $sameCount++ }
+    }
+}
+
+Write-Output ''
+Write-Output ("  creation times: " + $movedCount + " of " + ($movedCount + $sameCount) +
+              " replaced names were RECREATED, " + $sameCount + " kept the old time")
+# PER-NAME THIS IS NOT SCORED, AND THE REASON IS NTFS FILE-SYSTEM TUNNELING:
+# a name deleted and recreated in the same parent within the tunnel window can
+# inherit its own former creation time, so one name that did not move is not
+# evidence of anything.  IN AGGREGATE IT IS DECISIVE - tunneling cannot hide
+# every name across an install that takes minutes, so ZERO of them moving means
+# nothing was replaced at all.  That is the null case, and it is scored.
+Note 'at least one replaced name was actually recreated' $true ($movedCount -gt 0)
+
+Write-Output ''
+Write-Output '=== [4] UNNAMED names are protected by not being on a list ======='
+foreach ($n in $UNNAMED) {
+    $before = $state.Unnamed.$n
+    $after  = Get-Fingerprint (Join-Path $sdsys $n)
+    if (-not $before.Exists) {
+        Skip ("unnamed: " + $n) 'was not there before the upgrade either'
+        continue
+    }
+    Note ("unnamed survived: " + $n) $true $after.Exists
+}
+
+Write-Output ''
+Write-Output '=== [5] The retired name ========================================='
+$sdsysChangelog = Join-Path $sdsys 'changelog'
+$appChangelog   = Join-Path $appDir 'changelog'
+Write-Output ("  sdsys\changelog : " + $(if (Test-Path -LiteralPath $sdsysChangelog) { 'PRESENT' } else { 'gone' }))
+Write-Output ("  {app}\changelog : " + $(if (Test-Path -LiteralPath $appChangelog) { 'present' } else { 'GONE' }))
+Note 'sdsys\changelog was removed' $false (Test-Path -LiteralPath $sdsysChangelog)
+Note '{app}\changelog is present'  $true  (Test-Path -LiteralPath $appChangelog)
+# 21 Sep 26 - the second retired name.  It was present before (installed, or planted
+# by -Snapshot), so "gone" here is the upgrade's own doing.
+$sdsysVocT = Join-Path $sdsys 'voc_template'
+Write-Output ("  sdsys\voc_template : " + $(if (Test-Path -LiteralPath $sdsysVocT) { 'PRESENT' } else { 'gone' }))
+Note 'sdsys\voc_template was removed' $false (Test-Path -LiteralPath $sdsysVocT)
+
+Write-Output ''
+Write-Output '=== [6] What was upgraded to what ================================'
+# assert-current is not called here (see the header), so the transcript has to
+# say for itself which binary was there before and which is there now.
+$after = ''
+if (Test-Path -LiteralPath $sdExe) { $after = (Get-FileHash -LiteralPath $sdExe -Algorithm SHA256).Hash }
+Write-Output ("  sd.exe before : " + $(if ($state.SdExeHash) { $state.SdExeHash } else { 'ABSENT' }))
+Write-Output ("  sd.exe after  : " + $(if ($after) { $after } else { 'ABSENT' }))
+Note 'sd.exe is present after the upgrade' $true ($after -ne '')
+if ($after -eq $state.SdExeHash) {
+    Write-Output '  the binary did not move - the upgrade was from the SAME build.'
+    Write-Output '  That is a valid upgrade test of the DATA tree; it is not a test'
+    Write-Output '  that a NEW binary lands.'
+}
+
+Write-Output ''
+Write-Output '=== summary ========================================================='
+# CHECK AND RESULT ONLY, AND THAT IS A FIX RATHER THAN A TRIM.  Format-Table
+# -AutoSize fits the console by TRUNCATING the last column, so on the 21:48:14
+# run every long row's Observed read "...e" or "...3" - a summary table whose
+# observed column is an ellipsis is not showing what it did.  The 64-character
+# hashes and ISO timestamps are already printed in full, per check, above; the
+# creation-time rows added the same day made it worse, so this is repairing
+# what that change broke.  Non-PASS rows are then printed in full underneath,
+# so nothing that needs reading can be the thing that got dropped.
+$results | Format-Table Check, Result -AutoSize | Out-String -Width 4096 | Write-Output
+$notPassed = @($results | Where-Object { $_.Result -ne 'PASS' })
+if ($notPassed.Count -gt 0) {
+    Write-Output '  rows that are not PASS, in full:'
+    foreach ($r in $notPassed) {
+        Write-Output ("    [{0}] {1}" -f $r.Result, $r.Check)
+        Write-Output ("        expected: " + $r.Expected)
+        Write-Output ("        observed: " + $r.Observed)
+    }
+    Write-Output ''
+}
+$passCount = @($results | Where-Object { $_.Result -eq 'PASS' }).Count
+$skipCount = @($results | Where-Object { $_.Result -eq 'SKIP' }).Count
+$failCount = @($results | Where-Object { $_.Result -eq 'FAIL' }).Count
+Write-Output ("{0} passed, {1} failed, {2} skipped, of {3} rows" -f
+    $passCount, $failCount, $skipCount, $results.Count)
+Write-Output ''
+if ($failed) {
+    Write-Output 'verify-upgrade: FAILED - read the rows above.'
+} else {
+    Write-Output 'verify-upgrade: PASSED - the upgrade replaced the shipped subset in'
+    Write-Output '  place, kept every preserved name byte-identical, left the unlisted'
+    Write-Output '  names alone, and removed the retired one.'
+    if ($skipCount -gt 0) {
+        Write-Output ''
+        Write-Output ("  BUT {0} CHECK(S) COULD NOT BE MADE and are NOT covered by that" -f $skipCount)
+        Write-Output '  sentence.  They are listed as SKIP above, with the reason.'
+    }
+}
+
+# The surviving probe is this script's litter and it goes.  The other one was
+# removed by the upgrade, which was the point of it.
+if (Test-Path -LiteralPath $probeKeep) {
+    Remove-Item -LiteralPath $probeKeep -Force -ErrorAction SilentlyContinue
+    Write-Output ''
+    Write-Output ("  cleanup: removed " + $probeKeep)
+}
+
+# 21 Sep 26 - AND EVERYTHING -Snapshot PLANTED THAT THE UPGRADE DID NOT REMOVE.  On a
+# real upgrade all of these are already gone and this prints nothing; after a Compare
+# with no installer between (a self-test of this script) or an upgrade that failed to
+# delete a retired name, the rows above have already SCORED that, so removing the
+# litter afterwards hides nothing and keeps a planted voc_template or changelog from
+# staying in the live tree.  Only what the snapshot itself planted is touched.
+foreach ($pl in @(
+        @{ Path = $probeGone;                       Flag = $true;                          What = 'the probe planted in gcat' },
+        @{ Path = (Join-Path $sdsys 'changelog');   Flag = [bool]$state.PlantedChangelog;  What = 'the planted sdsys\changelog' },
+        @{ Path = (Join-Path $sdsys 'voc_template'); Flag = [bool]$state.PlantedVocTemplate; What = 'the planted sdsys\voc_template' })) {
+    if ($pl.Flag -and (Test-Path -LiteralPath $pl.Path)) {
+        Remove-Item -LiteralPath $pl.Path -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Output ("  cleanup: removed " + $pl.What + " (" + $pl.Path + ") - still there after the upgrade; scored above")
+    }
+}
+
+try { Stop-Transcript | Out-Null } catch { }
+if ($failed) { exit 1 } else { exit 0 }

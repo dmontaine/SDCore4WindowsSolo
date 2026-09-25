@@ -1,0 +1,164 @@
+PROGRAM WRITE_INSTALL_DICTS
+$include keys.h
+*
+* PROGRAM WRITES FILE DEFINING DICTIONARY ITEMS
+*
+*
+* THIS IS THE PATH TO WHERE WE SAVED DATA FROM THE BUILD PROCESS AND THE FILE NAME WE WILL USE
+DATA_PATH =  @sdsys: "/gplbld/FILES_DICTS"
+*
+DESTINATION_PATH = @sdsys
+*
+CRT @(-1):
+
+CRT
+CRT '+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++'
+CRT ' PROGRAM TRANSFERS DICTIONARY ENTRIES CREATED VIA CREATE_INSTALL_DICT_FILE'
+CRT ' TO APPROPRIATE DICT FILE '
+CRT '+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++'
+CRT
+*
+*CRT 'OK':
+*INPUT OK
+*IF UPCASE(OK) # 'Y' THEN STOP 'Process Aborted'
+
+* 13 Aug 26 Windows port - was SYSTEM(27) # 0, ie "uid is not root".  There is
+*   no uid zero on Windows, so this always refused.  SYSTEM(1050) reports the
+*   same administrator flag as KERNEL(K$ADMINISTRATOR, -1) and, unlike KERNEL,
+*   is available to a program that is not $internal.
+IF NOT(SYSTEM(1050)) THEN
+      stop 'Command requires administrator privileges'
+END
+
+OPENPATH DATA_PATH TO DP.FILEVAR ELSE
+   CRT 'ERROR OPENING FILE: ':DATA_PATH
+   CRT 'PROCESS ABORTED'
+   STOP
+END
+
+SSELECT DP.FILEVAR TO 3
+READLIST IDS FROM 3 ELSE
+  CRT 'READLIST EMPTY, ABORT'
+  STOP
+END
+
+ID_CNT = DCOUNT(IDS,@FM)
+IF ID_CNT LE 0 THEN
+  CRT 'NO DIRECTORY RECORDS FOUND, ABORT'
+  STOP
+END
+
+OPEN_FILE_NAME = ''
+FILES.PROCESSED.LIST = ''
+* 14 Sep 26 - the ids already in the open dictionary; see where it is opened.
+OLD.IDS = ''
+U.OLD.IDS = ''
+N.OLD.IDS = 0
+NOCASE.DICT = @FALSE
+* Modified by Composer AI - 2026/06/10.
+* Track dictionary file handle open state for safe CLOSE.
+* (no flag previously)
+DICT.FILE.OPEN = @FALSE
+* --------------------
+
+FOR I = 1 TO ID_CNT
+
+  REC_ID = IDS<I>
+  NEW_FILE_NAME = FIELD(REC_ID,'^',1)
+  FILE_REC_NAME = FIELD(REC_ID,'^',2)
+
+  * Modified by Composer AI - 2026/06/10.
+  * Skip malformed transfer records.
+  IF NEW_FILE_NAME = '' OR FILE_REC_NAME = '' THEN CONTINUE
+  * --------------------
+  
+  IF NEW_FILE_NAME # OPEN_FILE_NAME THEN
+  
+* DICTIONARY ENTRIES FOR NEW FILE, OPEN IT
+    
+    * Modified by Composer AI - 2026/06/10.
+    * CLOSE only when a dictionary file is actually open.
+    * IF OPEN_FILE_NAME # '' THEN
+    *   CLOSE DICT.FILE.VAR
+    IF OPEN_FILE_NAME # '' AND DICT.FILE.OPEN THEN
+      CLOSE DICT.FILE.VAR
+      DICT.FILE.OPEN = @FALSE
+      * --------------------
+      *
+      *
+      FILES.PROCESSED.LIST<-1> = OPEN_FILE_NAME 
+    END
+      *
+      * OPEN FILE AND COPY  DICTIONARY ITEMS
+      *
+    OPEN_FILE_NAME = NEW_FILE_NAME 
+    OPENPATH  DESTINATION_PATH:@DS:OPEN_FILE_NAME TO DICT.FILE.VAR ELSE
+       CRT 'ERROR CANNOT OPEN: ' :DESTINATION_PATH:@DS:OPEN_FILE_NAME:', THIS SHOULD NOT HAPPEN!'
+       CRT 'Garbage in ':DESTINATION_PATH:'??'
+       OPEN_FILE_NAME = ''
+       DICT.FILE.OPEN = @FALSE
+       CONTINUE
+    END
+    DICT.FILE.OPEN = @TRUE
+
+    * 14 Sep 26 Windows port - RELEASE_1.1_FIXES.md 5, stage 2b.  THE SHIPPED
+    * IDS ARE LOWER CASE NOW, AND AN UPGRADED DICTIONARY STILL HOLDS THE OLD
+    * UPPER-CASE ONES.  This program merges record by record, so writing
+    * 'type' into a dictionary that holds 'TYPE' would leave both - the twin
+    * update.voc was changed to avoid for VOC in stage 1.  So the ids already
+    * in the dictionary are listed once, when it is opened, and each shipped
+    * record below replaces any of them that differs from it only in case.
+    * An id that matches in no case (an administrator's own item) is untouched.
+    OLD.IDS = ''
+    SELECT DICT.FILE.VAR TO 4
+    READLIST OLD.IDS FROM 4 ELSE OLD.IDS = ''
+    U.OLD.IDS = UPCASE(OLD.IDS)
+    N.OLD.IDS = DCOUNT(OLD.IDS, @FM)
+    * 14 Sep 26 - RELEASE_1.1 5 D2: whether this dictionary is case insensitive
+    * decides the order of the replace below.
+    NOCASE.DICT = FILEINFO(DICT.FILE.VAR, FL$NOCASE)
+  END
+    
+  CRT 'DICTIONARY: ':NEW_FILE_NAME:' ':FILE_REC_NAME 
+    
+  
+  READ DICT.REC FROM DP.FILEVAR, REC_ID ELSE
+    CRT 'CANNOT READ TRANSFER_FILE: ':REC_ID: ' - ABORT'
+    STOP
+  END
+    
+  * 14 Sep 26 - written first, then the old id deleted, as update.voc does:
+  * a failure between the two leaves a twin, never a missing item.
+  * 14 Sep 26 - BUT NOT ON A CASE-INSENSITIVE DICTIONARY (RELEASE_1.1 5 D2),
+  *   WHERE THAT ORDER DELETES THE ITEM.  There the old spelling IS the record:
+  *   the WRITE updates it in place, still stored under the old id, and the
+  *   DELETE then removes the only copy.  Measured 14 Sep 2026 on a scratch
+  *   NOCASE file: write TYPE, write type, delete TYPE - 0 records.  Reached
+  *   when this runs after the upgrade's NOCASE conversion, which is what the
+  *   installer tells an administrator to do when this step failed.  So on
+  *   such a file the old id is deleted FIRST and the shipped record written
+  *   after, which renames it; a failure between the two leaves the item
+  *   missing until upgrade-dicts runs again, which writes it back.  (update.voc
+  *   is not affected: its exact read hits the old record, so it deletes nothing.)
+  U.REC.NAME = UPCASE(FILE_REC_NAME)
+  IF NOT(NOCASE.DICT) THEN WRITE DICT.REC ON DICT.FILE.VAR, FILE_REC_NAME
+  FOR J = 1 TO N.OLD.IDS
+    IF U.OLD.IDS<J> = U.REC.NAME AND OLD.IDS<J> # FILE_REC_NAME THEN
+      DELETE DICT.FILE.VAR, OLD.IDS<J>
+      CRT 'REPLACED OLD ID: ':NEW_FILE_NAME:' ':OLD.IDS<J>:' BY ':FILE_REC_NAME
+    END
+  NEXT J
+  IF NOCASE.DICT THEN WRITE DICT.REC ON DICT.FILE.VAR, FILE_REC_NAME
+
+NEXT I
+
+* Modified by Composer AI - 2026/06/10.
+* Close the last open dictionary file on normal completion.
+IF DICT.FILE.OPEN THEN
+   CLOSE DICT.FILE.VAR
+   DICT.FILE.OPEN = @FALSE
+END
+* --------------------
+
+CRT 'COMPLETE'
+END

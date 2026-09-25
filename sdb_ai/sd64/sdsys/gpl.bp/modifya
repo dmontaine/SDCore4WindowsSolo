@@ -1,0 +1,875 @@
+* MODIFYA
+* MODIFY.ACCOUNT verb
+* Add / Delete user from group account
+* Copyright (c) String Database
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 3, or (at your option)
+* any later version.
+* 
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software Foundation,
+* Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+* 
+*
+* START-HISTORY:
+* 21 Sep 26 Windows port - RELEASE_1.1 64 leftover: route.apply's header still
+*   said tier.set needed it and that route.set refuses administrators (10083);
+*   both were deleted on 18 Sep.  Comment only, no code.
+*  1 Sep 26 Windows port - a suspend now prints 10159: all SD access is gone
+*   (local login, ssh, the API, LOGTO) and nothing on Windows changed.  The
+*   boundary is the half an administrator gets wrong - entry 20 got it wrong
+*   for months.  PRE_RELEASE_FIXES.md 111.
+* 31 Aug 26 Windows port - TWO "delete ... on error null" SITES TOOK THE
+*   ANSWER.  Both asserted the delete had happened with nothing reading
+*   status(): :1390 incremented voc.removed, which 10113 reports, and :1442
+*   printed 10115 "the record for %1 is removed".  A failed delete therefore
+*   left the account holding the higher tier's verb, or left the os.users
+*   grant in place, while the administrator was told otherwise.  New counter
+*   voc.failed and new message 10157; the os.users failure reuses 10104.
+*   PRE_RELEASE_FIXES.md 97, and 65's symptom by a second route.
+* 18 Sep 26 Windows port - THE PROMOTION REPORT IS GONE WITH THE TIERS.  Added
+*   29 Aug 2026 under PRE_RELEASE 57 (messages 10128 and 10129), it named the
+*   grants a tier change voided.  It can name none now: the tier ordering it
+*   measured is the first casualty of RELEASE_1.1 64, and every non-SDSYS
+*   account is one level.
+* 18 Sep 26 Windows port - RELEASE_1.1 64 SLICE 4.  THE ADMINISTRATOR REFUSALS
+*   IN route.set AND os.set ARE GONE WITH THE TIERS: a Windows administrator's
+*   SD account is an ordinary account and sets its routes and its OS.USERS
+*   fields like any other.  Messages 10083, 10106 and 10175 leave with them.
+* 18 Sep 26 Windows port - RELEASE_1.1 64 SLICE 3.  SUSPENDED MOVES TO ITS OWN
+*   FIELD AND THE TIER MACHINERY GOES.  ACC$SUSPENDED (field 5) holds
+*   'SUSPENDED' or ''; tier.set collapses to the equality guard, the
+*   self-suspend guard and one register write.  voc.delta, tier.rank,
+*   tier.layer, tier.build.rec, tier.add.one, tier.del.one, tier.os.write,
+*   tier.os.remove and the was.admin / need.access paths are deleted: there is
+*   no tier to move between and every account's VOC is the whole of NEWVOC,
+*   so a suspension changes nothing about the VOC.
+* 28 Aug 26 Windows port - the ADD and DELETE arms write a K$AUDIT record, as
+*   GRANT and REVOKE already did.  The same group edit through two verbs left
+*   a trail through only one of them.  PRE_RELEASE_FIXES.md 27.
+* 27 Aug 26 Windows port - THE TIER IS SETTABLE, AND SUSPENDED IS A FOURTH ONE.
+*   Owner, 27 Aug 2026: "an administrator account should be able to be
+*   downgraded to programmer or standard", and a fourth trust level "so that an
+*   account can be temporarily denied access".  STANDARD, PROGRAMMER,
+*   ADMINISTRATOR and SUSPENDED, in any direction and with no intermediate
+*   step.  tier.set, voc.delta and the five routines under them.
+*
+*   HIS FOUR RULINGS, EACH OF WHICH THE CODE WOULD OTHERWISE HAVE GUESSED:
+*     - SUSPENDED is a value of ACC$TIER, not a flag beside it; ACC$PRIOR.TIER
+*       (field 6) records what it displaced.  SYSCOM/KEYS.H.
+*     - A suspension is enforced at SD's doors and withdraws nothing on
+*       Windows - LOGIN, CPROC's logto.authorised, APISRVR's vb.account.
+*     - The VOC is rebuilt AT ONCE, not at the next login.  voc.delta.
+*     - A downgrade out of ADMINISTRATOR must NAME the remote access it is to
+*       have; nothing here picks for the caller.
+*
+*   AND TWO CONSEQUENCES HE DID NOT RULE ON, both marked at their sites: an
+*   elevated session can still LOGTO a suspended account (CPROC), and nobody
+*   may suspend the account they are signed in to or standing in (10112).
+* 27 Aug 26 Windows port - AN ADMINISTRATOR'S OPERATING-SYSTEM ACCESS CANNOT BE
+*   TURNED OFF.  Owner, 27 Aug 2026: "administrators have full access, there
+*   should be no way to turn it off."  os.set now carries route.set's guard -
+*   the same S-1-5-32-544 test, by SID - and its own message, 10106.  This
+*   REVERSES the entry below, which was committed earlier the same day and
+*   argued the opposite; the banner on os.set records the argument he overruled
+*   rather than deleting it.
+* 27 Aug 26 Windows port - "sh-on", "sh-off", "os-on" and "os-off" set this
+*   account's own Windows user's OS.USERS record - field 1 the SH verb, field 2
+*   OS.EXECUTE and the two screen editors.  Owner, 27 Aug 2026.  CREATE.ACCOUNT
+*   takes the two ON forms; the OFF forms only mean anything once an account
+*   exists, which is what this verb is for.  os.set.
+*
+*   THEY ARE FOUR SWITCHES OVER TWO FIELDS, not four names for one state as
+*   SSH/API/BOTH/NONE are, so "sh-off" leaves OS.EXECUTE alone.
+*
+*   [SUPERSEDED THE SAME DAY - see the entry above.  It read: "AN ADMINISTRATOR
+*   IS NOT REFUSED, WHICH IS THE OPPOSITE OF route.set and is deliberate: ssh
+*   and the API are a RULE for an administrator and cannot be removed (10083),
+*   while operating-system access is a DEFAULT that CREATE.ACCOUNT grants and
+*   this verb can take back."  The owner ruled it is a rule.]
+* 21 Aug 26 Windows port - SSH, API, BOTH and NONE replace the SSH / NO.SSH /
+*   API / NO.API pairs added earlier the same day.  Owner's decision: the
+*   keyword says what the access IS, not what to change, and the same four
+*   words are CREATE.ACCOUNT's.  Administrators are refused - they always have
+*   both - and a group account is refused, having no Windows user at all.
+* 21 Aug 26 Windows port - RDPACCOUNT and NO.RDPACCOUNT are gone; SSH, NO.SSH,
+*   API and NO.API replace them.  Owner's decision, 21 Aug 2026: Remote Desktop
+*   is out of this port's focus, and the rule it obstructed - nobody SD creates
+*   reaches the keyboard unless they are an administrator - now holds by
+*   construction.  See CREATEA's sdsshonly branch.
+* 20 Aug 26 Windows port - RDPACCOUNT and NO.RDPACCOUNT move an account in and
+*   out of sdsshonly, which is what decides whether it may sign in to Windows.
+*   PROJECT_STATUS.md section 8.  Nothing is recorded in ACCOUNTS: the group
+*   membership IS the property.
+* 19 Aug 26 Windows port - SDSYS accounts is lower case on disk.  5.12 (a).
+* 29 Aug 26 Windows port - the ADD arm takes the tier ordering, because it
+*                      makes the identical group change GRANT does and would
+*                      otherwise be the way round the rule.  DELETE is not
+*                      guarded: taking access away is always allowed.
+*                      PRE_RELEASE_FIXES 57
+* 30 Aug 26 Windows port - the os.users write falls back to the ELEVATED HELPER
+*                      and is then READ BACK, the same shape CRED_SET took the
+*                      same day.  os.users is read-only to sdusers, so the write
+*                      was refused for a session that reached SDSYS by LOGTO
+*                      from an unelevated start.  PRE_RELEASE_FIXES 68
+* rev 0.9.0 Jan 25 mab initial release
+* END-HISTORY
+*
+* START-DESCRIPTION:
+* MODIFY.ACCOUNT account <ADD/DELETE> user.name
+* MODIFY.ACCOUNT account SSH               - ssh only
+* MODIFY.ACCOUNT account API               - the API only
+* MODIFY.ACCOUNT account BOTH              - ssh and the API
+* MODIFY.ACCOUNT account NONE              - neither
+* MODIFY.ACCOUNT account SH-ON | SH-OFF    - the SH verb and "!"
+* MODIFY.ACCOUNT account OS-ON | OS-OFF    - OS.EXECUTE and the screen editors
+* MODIFY.ACCOUNT account SUSPENDED | UNSUSPENDED
+*
+* 18 Sep 26 Windows port - RELEASE_1.1 64.  THE TIERS ARE GONE, AND THESE ARE
+*   THE TWO STATE FORMS THAT REMAIN.  SUSPENDED writes SUSPENDED to
+*   ACC$SUSPENDED (field 5) and UNSUSPENDED clears it; nothing else in the
+*   account moves either way - no Windows membership, no os.users record, no
+*   VOC change, because every account's VOC is the whole of NEWVOC whatever the
+*   field says.
+*
+* SUSPENDED DENIES ACCESS AND CHANGES NOTHING ELSE.  No Windows group
+*   membership moves and the VOC is left exactly as it is, which is what makes
+*   lifting one free.  Three doors refuse a suspended account: LOGIN, CPROC's
+*   logto.authorised and APISRVR's vb.account.
+*
+* THE KEYWORD IS ABSOLUTE.  It says what the account's remote access is, and
+* whatever it does not name is withdrawn - so API takes ssh away.  The same
+* four words are CREATE.ACCOUNT's, so access is said one way whether an account
+* is being made or changed.
+*
+* A GROUP ACCOUNT IS REFUSED (10087).  A group account has no Windows user to
+* put in a group; it is reached with LOGTO.
+*
+* THE ADMINISTRATOR REFUSALS ARE GONE, 18 Sep 26 - RELEASE_1.1 64.  The tiers
+* are removed, so a Windows administrator's SD account is an ordinary account
+* and sets its routes and its OS.USERS fields like any other; the only limit
+* on what it can do is the one Windows imposes.  The 21 Aug / 27 Aug rules and
+* the 18 Sep 58/62 posture this description used to record died with the tier
+* that made the account an administrator.
+*
+* THE FOUR OS FORMS REFUSE A GROUP ACCOUNT (10105).  They are four switches
+* over two fields rather than four names for one state, so SH-OFF leaves
+* OS.EXECUTE alone.
+*
+* THE TWO REMOTE ROUTES, AND THERE IS NO THIRD.  The console and Remote Desktop
+* are denied to every account SD creates - sdsshonly, applied by CREATE.ACCOUNT
+* and enforced by gplbld/deny-logon.ps1 - and no verb here lifts that.  An
+* administrator reaches the keyboard because Windows already calls them one,
+* not because SD granted it.
+*
+* EACH IS ONE GROUP MEMBERSHIP AND NOTHING IS WRITTEN TO ACCOUNTS.  sdssh is
+* what sshd's AllowGroups names; sdapi is what APISRVR tests after the SCRAM
+* proof succeeds.  A mirrored field could only ever disagree with the thing
+* that actually decides - the reasoning that deleted ACC$USERS on 15 Aug.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+program $modify.account
+$catalog $MODIFYA
+
+$include keys.h
+$include int$keys.h
+$include parser.h
+$include err.h
+* 
+deffun is_grp_member(user,group) calling '!is_grp_member'
+deffun os_group(action,group,member) calling '!os_group'
+deffun is_group(group) calling '!is_group'
+deffun valid_os_name(name) calling '!valid_os_name'
+deffun ps_script(script) calling '!ps_script'
+
+   prompt ''
+
+   if not(kernel(K$ADMINISTRATOR, -1)) then
+      stop sysmsg(2001)  ;* Command requires administrator privileges
+   end     
+
+   parser = "!PARSER"
+
+* 18 Sep 26 Windows port - RELEASE_1.1 64.  WHAT REMAINS OF THE OLD BCOMP
+*   BLOCK, after the tier machinery it existed for went with the tiers.
+*   want.tier is the one state word the caller named - SUSPENDED or
+*   UNSUSPENDED - and the route.* trio serve route.set, which is untouched.
+   want.tier          = ''
+   route.failed       = @false
+   route.same         = @false
+   route.stat         = 0
+
+   @system.return.code = -ER$ARGS     ;* Preset for argument errors
+   
+   openpath @sdsys:@ds:'accounts' to acc.f else
+      @system.return.code = -status()
+      stop sysmsg(6000) ;* Cannot open ACCOUNTS file in SDSYS account
+   end
+
+   call @parser(PARSER$RESET, 0, @sentence, 0)
+   
+   call @parser(PARSER$GET.TOKEN, token.type, token, keyword) ;* Verb modify.Account
+
+   * Get next token, account name
+   call @parser(PARSER$GET.TOKEN, token.type, acc.name, keyword)
+   if token.type = PARSER$END then
+      crt 'Command Syntax:  MODIFY.ACCOUNT <account> ADD | DELETE <username>'
+      crt '                  MODIFY.ACCOUNT <account> SSH | API | BOTH | NONE'
+      crt '                  MODIFY.ACCOUNT <account> SH-ON | SH-OFF'
+      crt '                  MODIFY.ACCOUNT <account> OS-ON | OS-OFF'
+      crt '                  MODIFY.ACCOUNT <account> SUSPENDED | UNSUSPENDED'
+      stop
+   end
+   *
+   acc.name = upcase(acc.name)   ;* account names are always upper case
+* 22 Sep 26 Windows port - RELEASE_1.1 101.  SAY WHY, INSTEAD OF "Account name is
+*   invalid".  Owner, 22 Sep 2026: "the modify.account verb should not accept api
+*   or ssh commands for the sdsys account - remote access is always off."  The
+*   REFUSAL IS UNCHANGED and still comes before the register is read; only the
+*   message changes, because 2202 told somebody typing MODIFY.ACCOUNT SDSYS SSH
+*   that they had got the NAME wrong, which is the one thing they had right.
+*
+*   IT COVERS EVERY ACTION, NOT JUST THE TWO HE NAMED, and that is deliberate:
+*   the refusal is reached before the action token is parsed, so there is no
+*   action to name here, and SDSYS is outside this verb's reach for all of them.
+   if acc.name = 'SDSYS' then
+      stop sysmsg(12001) ;* Remote access is never available to SDSYS
+   end
+   *
+   read acc.rec from acc.f, acc.name else      
+      stop sysmsg(6003) ;* Account name is invalid
+   end
+   
+   group.name = acc.rec<ACC$GROUP>   ;* get associated group
+   
+   if is_group(group.name) then
+      * Get next token, ADD or DELETE
+      call @parser(PARSER$GET.TOKEN, token.type, action, keyword)
+
+* 21 Aug 26 Windows port - SSH, API, BOTH and NONE.  Owner's decision, 21 Aug
+*   2026, replacing the SSH / NO.SSH / API / NO.API pairs of earlier the same
+*   day.  Four actions in the slot ADD and DELETE occupy:
+*
+*     MODIFY.ACCOUNT <account> SSH    ssh only
+*     MODIFY.ACCOUNT <account> API    the API only
+*     MODIFY.ACCOUNT <account> BOTH   both
+*     MODIFY.ACCOUNT <account> NONE   neither
+*
+*   THE KEYWORD SAYS WHAT THE ACCESS IS, NOT WHAT TO CHANGE, and that is the
+*   whole difference from the pairs it replaces.  "API" used to mean "add the
+*   API to whatever it already had"; it now means "the API and nothing else",
+*   so it WITHDRAWS ssh.  The same four words are CREATE.ACCOUNT's, so an
+*   account's access is said the same way whether it is being made or changed.
+*
+*   WHICH IS WHY THE MESSAGE STATES THE WHOLE RESULTING STATE rather than what
+*   moved.  Someone who types API meaning BOTH has just taken ssh away, and a
+*   message reading "may now use the API" would not tell them - it is true and
+*   it is the wrong half.  10076-10079 each name both routes.
+*
+*   They take NO user name - they act on the account's OWN Windows user - so
+*   they are handled before the ADD/DELETE test rather than inside it, which
+*   would demand one.
+*
+*   THE PROPERTY IS GROUP MEMBERSHIP AND NOTHING ELSE.  Nothing is written to
+*   ACCOUNTS - owner's decision, 20 Aug 2026, kept - so there is no record that
+*   could disagree with the group.
+*
+*   WRAPPED ROUND THE ADD/DELETE BLOCK RATHER THAN FOLDED INTO IT.  That block
+*   is working code with four message paths in it; turning its "if ADD or
+*   DELETE" into arms of a case statement would rewrite all of it to add
+*   actions that share none of it.  One "if not(route.done)" leaves it
+*   untouched.
+      route.done = @true
+      want.ssh = @false
+      want.api = @false
+      begin case
+         case upcase(action) = 'SSH'
+            want.ssh = @true
+            gosub route.set
+         case upcase(action) = 'API'
+            want.api = @true
+            gosub route.set
+         case upcase(action) = 'BOTH'
+            want.ssh = @true
+            want.api = @true
+            gosub route.set
+         case upcase(action) = 'NONE'
+            gosub route.set
+
+* 27 Aug 26 Windows port - OPERATING-SYSTEM ACCESS, BOTH WAYS ROUND.  Owner,
+*   27 Aug 2026: "sh-on and sh-off", "os-on and os-off".  CREATE.ACCOUNT takes
+*   the two ON forms; the OFF forms are only meaningful once an account exists,
+*   which is what this verb is for.
+*
+*   FOUR KEYWORDS OVER TWO FIELDS, NOT AN ABSOLUTE STATE.  SSH/API/BOTH/NONE
+*   above name what the access IS and each one sets both groups; these are two
+*   independent switches, so "sh-off" says nothing about OS.EXECUTE and leaves
+*   it alone.  That is why os.set takes a field number rather than a pair of
+*   wants.
+         case upcase(action) = 'SH-ON'
+            os.field = 1
+            os.want  = @true
+            gosub os.set
+         case upcase(action) = 'SH-OFF'
+            os.field = 1
+            os.want  = @false
+            gosub os.set
+         case upcase(action) = 'OS-ON'
+            os.field = 2
+            os.want  = @true
+            gosub os.set
+         case upcase(action) = 'OS-OFF'
+            os.field = 2
+            os.want  = @false
+            gosub os.set
+
+* 27 Aug 26 Windows port - owner, 27 Aug 2026: a fourth state, SUSPENDED, "so
+*   that an account can be temporarily denied access".  RELEASE_1.1 64 keeps
+*   it and removes the tiers it sat beside.
+* 18 Sep 26 Windows port - RELEASE_1.1 64.  THE THREE TIER KEYWORDS ARE GONE,
+*   AND THEY ARE DELETED RATHER THAN REFUSED BECAUSE OF THE RDPACCOUNT
+*   PRECEDENT ABOVE.  A caller who still types standard, programmer or
+*   administrator falls to `case 1` - the same unrecognised-token answer any
+*   other dead keyword gets - which is the owner's ruling (a syntax error)
+*   arrived at by the mechanism already in this file rather than by a new
+*   refusal branch.  CREATE.ACCOUNT refuses its two outright because there the
+*   keyword also had side effects (make.admin); here it had none.
+*
+*   WHAT IS LEFT IS WHAT THE DECISION LEAVES.  An account has ONE level, so
+*   there is no tier to move it to and no direction to move in; SUSPENDED is
+*   the only state change this verb still performs, and it keeps its name
+*   because it IS a state rather than a rank.
+         case upcase(action) = 'SUSPENDED'
+            want.tier = 'SUSPENDED'
+            gosub tier.set
+
+*        18 Sep 26 Windows port - RELEASE_1.1 64.  UNSUSPENDED IS NEW, AND IT IS
+*        NOT A CONVENIENCE - WITHOUT IT SUSPEND BECOMES A ONE-WAY DOOR.
+*        Until this change the ONLY way to lift a suspension was to name a
+*        tier: "naming a tier on a suspended account lifts the suspension into
+*        that tier", written directly above.  Refusing the three tier keywords
+*        removes that route, so the lift needs a name of its own, and the
+*        owner's ruling is to keep suspend AND unsuspend.
+*
+*        IT CLEARS THE FIELD RATHER THAN SETS A LEVEL, now that suspension has
+*        its own field (ACC$SUSPENDED).  want.tier carries the keyword so the
+*        messages can say what was asked for; tier.set writes ''.
+         case upcase(action) = 'UNSUSPENDED'
+            want.tier = 'UNSUSPENDED'
+            gosub tier.set
+
+         case 1
+            route.done = @false
+      end case
+
+      if not(route.done) then
+      if (upcase(action) = 'ADD') or (upcase(action) = 'DELETE') then
+      *  valid action
+      *   Get next token, user name
+         call @parser(PARSER$GET.TOKEN, token.type, user.name, keyword) 
+         if token.type = PARSER$END then
+            stop sysmsg(10016)  ;* Missing User Name
+         end
+         
+         if (upcase(action) = 'ADD') then
+
+* 29 Aug 26 Windows port - THE TIER ORDERING APPLIES HERE TOO.  Owner's rule,
+*   29 Aug 2026, PRE_RELEASE_FIXES 57: a grant may go down or sideways, never
+*   up.  This arm makes the identical os_group('ADDMEM', ...) call GRANT makes,
+*   which is exactly why PRE_RELEASE 27 had to give it the same audit record.
+*
+*   RELEASE_1.1 64, 18 Sep 2026 - THE REFUSAL THAT USED TO STAND HERE IS GONE
+*   WITH THE TIERS.  There is no ordering left for two verbs to disagree about.
+*
+*   DELETE IS NOT GUARDED AND NEVER WAS: taking access away is always allowed,
+*   and refusing a revoke would strand exactly the memberships that want
+*   removing.
+
+            * Add user to group
+            * does user belong to sdusers?
+            if is_grp_member(user.name,'sdusers') then
+            * this user looks legit, add to group
+            * first check to see if user is already a member of the group
+               if is_grp_member(user.name,group.name) THEN
+                  crt sysmsg(10017,user.name,group.name)  ;* %1 is already a member of group %2
+               end else
+                  * Modified by Composer AI - 2026/06/10.
+                  * Use shared !valid_os_name before os.execute (phase 2).
+                  * if convert(os.name.chars, '', user.name) # '' ...
+                  if not(valid_os_name(user.name)) or not(valid_os_name(group.name)) then
+                     crt sysmsg(10019,user.name,group.name,2) ;* Unable to add user %1 to group %s status: %2
+                  end else
+* 14 Aug 26 Windows port - was: os.execute "sudo usermod -aG ..."
+                  stat = os_group("ADDMEM", group.name, user.name)
+                  * --------------------
+                  if stat = 0 then
+* 28 Aug 26 Windows port - AUDIT IT, the way GRANTA:208 does.  This arm makes
+* the identical os_group('ADDMEM', ...) call that GRANT makes and wrote
+* nothing, so who may enter an account could be changed by two verbs and only
+* one of them left a trail.  AFTER the edit and inside "stat = 0", so it
+* records what happened rather than what was attempted.  The verb is named in
+* the text because the two routes are otherwise indistinguishable in the audit
+* file.  The identity is stamped by audit_message() in k_error.c and is not
+* passed from here, so a caller cannot forge it.  PRE_RELEASE_FIXES.md 27.
+                     void kernel(K$AUDIT, 'MODIFY.ACCOUNT ADD account=' : acc.name : ' to=' : user.name)
+                     crt sysmsg(10018,user.name,group.name)  ;* %1 added to group %2
+                  end else
+                     crt sysmsg(10019,user.name,group.name,stat) ;* Unable to add user %1 to group %s status: %2
+                  end
+                  end
+               end 
+            end else
+               crt user.name
+               crt sysmsg(10020,user.name) ;* %1 is not a member of sdusers, not allowed
+            end 
+         
+         end else
+            * already tested action, must be delete
+            if is_grp_member(user.name,group.name) THEN
+               * Modified by Composer AI - 2026/06/10.
+               * Use shared !valid_os_name before os.execute (phase 2).
+               if not(valid_os_name(user.name)) or not(valid_os_name(group.name)) then
+                  crt sysmsg(10022,user.name,group.name,2) ;* Unable to remove user %1 from group %s status: %2
+               end else
+* 14 Aug 26 Windows port - was: os.execute "sudo deluser ..."
+               stat = os_group("DELMEM", group.name, user.name)
+               * --------------------
+                  if stat = 0 then
+* 28 Aug 26 Windows port - and the DELETE arm, for the reason given at the ADD
+* one above.  GRANTA:233 is the model.  PRE_RELEASE_FIXES.md 27.
+                     void kernel(K$AUDIT, 'MODIFY.ACCOUNT DELETE account=' : acc.name : ' from=' : user.name)
+                     crt sysmsg(10021,user.name,group.name) ;*  %1 removed from group %2
+                  end else
+                     crt sysmsg(10022,user.name,group.name,stat) ;* Unable to remove user %1 from group %s status: %2
+                  end
+               end
+            end else
+               crt sysmsg(10023,user.name,group.name) ;* %1 is not a member of  %2
+            end 
+          
+         end
+         
+         
+      end else
+         crt 'MODIFY.ACCOUNT Action Must Be ADD, DELETE, SSH, API, BOTH, NONE,'
+         crt '   SH-ON, SH-OFF, OS-ON, OS-OFF, SUSPENDED or UNSUSPENDED'
+      end
+      end       ;* not(route.done)
+
+   end else
+     crt sysmsg(10024,group.name) ;* %1 is not a valid Windows group
+   end
+   goto program.end
+
+* ======================================================================
+* The account's OWN Windows user.
+*
+* 20 Aug 26 Windows port - DERIVED FROM ACC$GROUP, NOT FROM THE RECORD ID.
+*   CREATE.ACCOUNT downcases the user name (CREATEA) and writes the ACCOUNTS
+*   record under the UPPER case name, so downcase(acc.name) would usually be
+*   right - but "usually" is doing real work there and this decides whether
+*   somebody can log in.  ACC$GROUP is "sdu_":acc.uname, written by
+*   CREATE.ACCOUNT from the user name itself, so taking the name back out of it
+*   is a reversal of what was actually recorded rather than a guess at it.
+*
+*   AND THE RESULT IS CHECKED AGAINST sdusers before anything acts on it, with
+*   the same test the ADD path above already uses.  That is what rejects a
+*   GROUP-type account: its ACC$GROUP is a name the caller supplied, not
+*   "sdu_"-anything, so the name that comes out is not an SD user and the
+*   check refuses it.  A GROUP account has no single Windows user for this to
+*   mean anything about.
+account.user:
+   acc.user = ''
+   if group.name[1,4] = 'sdu_' then acc.user = group.name[5,999]
+   if acc.user = '' then
+      crt sysmsg(10020,acc.name) ;* %1 is not a member of sdusers, not allowed
+      user.ok = @false
+      return
+   end
+   user.ok = is_grp_member(acc.user,'sdusers')
+   if not(user.ok) then
+      crt sysmsg(10020,acc.user) ;* %1 is not a member of sdusers, not allowed
+   end
+   return
+
+* ======================================================================
+* SSH / API / BOTH / NONE - set this account's remote access to exactly what
+* was asked for, by making its own Windows user's membership of sdssh and
+* sdapi match want.ssh and want.api.
+*
+* 21 Aug 26 Windows port - ONE ROUTINE, AND IT IS ABSOLUTE.  It replaced
+*   route.add and route.remove, which each moved ONE group in ONE direction and
+*   between them needed eight message numbers.  The keyword now says what the
+*   access IS, so there is one operation - make the world match - and it is
+*   idempotent by construction rather than by asking first.
+*
+*   IT REPORTS THE RESULTING STATE, NOT THE TRANSITION, for the reason given at
+*   the case statement above: with an absolute keyword the interesting fact is
+*   what the account can do now, and half of that may be something the caller
+*   did not realise they were withdrawing.
+*
+*   "NOTHING CHANGED" IS STILL SAID SEPARATELY (10080).  Reporting the state
+*   alone would leave a caller unable to tell a no-op from a change, and this
+*   is a verb people run twice when they are not sure it took.
+*
+*   THE ADMINISTRATOR REFUSAL IS GONE, 18 Sep 26 - RELEASE_1.1 64.  The tiers
+*   are removed, so a Windows administrator's SD account is an ordinary
+*   account: it sets its routes like any other, and the only limit on what it
+*   can do is the one Windows imposes.  What the 21 Aug / 27 Aug / 5 Sep /
+*   18 Sep 58-62 refusals guarded no longer exists to guard.
+*
+*   NO sdsshonly GUARD, for the reason the routines this replaced gave: that
+*   group carries SeDenyInteractiveLogonRight and no verb in this program
+*   touches it.  sdssh cannot lock an administrator out of ssh either, because
+*   allow-ssh-groups.ps1 names the Administrators group in AllowGroups in its
+*   own right.  If a future route ever writes to sdsshonly, the guard returns.
+*
+*   THE WITHDRAWAL IS IMMEDIATE AND THE GRANT MAY NOT BE.  sshd re-reads its
+*   AllowGroups per connection and APISRVR asks the SAM per login, so neither
+*   consults a token; but a Windows access token fixes group membership at
+*   sign-in, so an account GRANTED a route mid-session may still need to sign
+*   out and back in before anything token-based agrees.
+route.set:
+   * A GROUP ACCOUNT HAS NO REMOTE ROUTE TO SET.  It has no Windows user at all
+   * - CREATE.ACCOUNT's GROUP arm makes an sdg_ group and reaches neither
+   * create_user() nor set_passwd() - and it is reached with LOGTO or an F
+   * pointer.  Said plainly here, because account.user below would otherwise
+   * answer "is not a member of sdusers", which is true and explains nothing.
+   if group.name[1,4] = 'sdg_' then
+      @system.return.code = -ER$FAILED
+      crt sysmsg(10087, acc.name) ;* %1 is a group account and has no remote access
+      return
+   end
+
+   gosub account.user
+   if not(user.ok) then return
+
+   gosub route.apply
+
+   if route.failed then
+      @system.return.code = -ER$FAILED
+      crt sysmsg(10081, acc.user, route.stat) ;* Unable to change remote access
+      return
+   end
+
+   if route.same then
+      crt sysmsg(10080, acc.user) ;* %1 already had that access; nothing changed
+      return
+   end
+
+   gosub say.access
+   return
+
+* ======================================================================
+* route.apply  -  make acc.user's sdssh and sdapi membership match want.ssh and
+* want.api.  Sets route.failed, route.same and route.stat; prints nothing.
+*
+* 27 Aug 26 Windows port - SPLIT OUT OF route.set, unchanged, because tier.set
+* needed the same three group moves without route.set's guards.
+* 21 Sep 26 Windows port - RELEASE_1.1 64: THE REASON FOR THE SPLIT IS GONE.
+* tier.set no longer moves groups (it only suspends and unsuspends) and the
+* administrator refusal (10083) was deleted, so route.set is this routine's only
+* caller.  It stays separate because it prints nothing.
+*
+* IT PRINTS NOTHING, which is what keeps it apart from route.set: route.set
+* reports the resulting state, and this only moves the memberships.
+route.apply:
+   route.failed = @false
+   route.same   = @false
+   route.stat   = 0
+
+   if not(valid_os_name(acc.user)) then
+      route.failed = @true
+      route.stat = 2
+      return
+   end
+
+   has.ssh = is_grp_member(acc.user, 'sdssh')
+   has.api = is_grp_member(acc.user, 'sdapi')
+
+   if (has.ssh = want.ssh) and (has.api = want.api) then
+      route.same = @true
+      return
+   end
+
+   if has.ssh # want.ssh then
+      if want.ssh then
+         route.stat = os_group("ADDMEM", 'sdssh', acc.user)
+      end else
+         route.stat = os_group("DELMEM", 'sdssh', acc.user)
+      end
+   end
+
+   * The API half runs only if the ssh half succeeded.  A failure part way
+   * leaves the account in a state neither the caller nor this message
+   * describes, so it is reported with the status and NOT summarised as though
+   * it had worked.
+   if route.stat = 0 then
+      if has.api # want.api then
+         if want.api then
+            route.stat = os_group("ADDMEM", 'sdapi', acc.user)
+         end else
+            route.stat = os_group("DELMEM", 'sdapi', acc.user)
+         end
+      end
+   end
+
+   if route.stat # 0 then route.failed = @true
+   return
+
+* ======================================================================
+* SH-ON / SH-OFF / OS-ON / OS-OFF - set ONE field of this account's own
+* Windows user's OS.USERS record to yes or no.
+*
+* 27 Aug 26 Windows port - owner, 27 Aug 2026.  os.field is 1 for SH - the SH
+* verb and "!" at the prompt, read by CPROC - and 2 for OS.EX, read by
+* op_sh.c's os_permitted() for OS.EXECUTE and by EDIT's check.permitted for the
+* two screen editors.
+*
+* ***THE ADMINISTRATOR REFUSAL IS GONE WITH THE TIERS, 18 Sep 26 - RELEASE_1.1
+* 64.***  A Windows administrator's SD account is an ordinary account: it can
+* turn its own operating-system access on and off like any other, and the only
+* limit on what it can do is the one Windows imposes.  The 27 Aug rule this
+* banner records - that none of the three routes could be taken away from an
+* administrator - died with the tier that made the account an administrator.
+*
+* A MISSING RECORD READS AS "no" IN BOTH FIELDS, exactly as both gates read it,
+* so turning something off that was never on is "nothing changed" and writes
+* nothing.  The only way to get a record that says no twice is to have had one
+* say yes, which is a fact worth keeping rather than tidying away.
+*
+* READU AND RELEASE, because two administrators editing OS.USERS at once is
+* rare and silent corruption of a permission list is not a thing to leave to
+* chance.  The no-op path releases without writing.
+os.set:
+   if group.name[1,4] = 'sdg_' then
+      @system.return.code = -ER$FAILED
+      crt sysmsg(10105, acc.name) ;* %1 is a group account and has no Windows user
+      return
+   end
+
+   gosub account.user
+   if not(user.ok) then return
+
+   openpath @sdsys : @ds : 'os.users' to osu.f else
+      @system.return.code = -ER$FAILED
+      crt sysmsg(10104, acc.user) ;* Unable to change operating-system access
+      return
+   end
+
+   readu osu.rec from osu.f, acc.user else osu.rec = ''
+
+   os.was = (upcase(trim(osu.rec<os.field>, ' ', 'B')) = 'YES')
+   if os.was = os.want then
+      release osu.f, acc.user
+      close osu.f
+      crt sysmsg(10080, acc.user) ;* %1 already had that access; nothing changed
+      return
+   end
+
+   os.new = 'no'
+   if os.want then os.new = 'yes'
+   osu.rec<os.field> = os.new
+
+*  BOTH FIELDS ARE REWRITTEN, in the two spellings this program uses, so a
+*  record hand-edited to "YES" or "Yes" or "y" comes out of here saying what
+*  the gates will actually read.  The gates fold case and compare to "yes"; a
+*  record that says "y" has always meant no and would otherwise keep looking
+*  as though it meant something.
+   osu.sh = 'no'
+   osu.ex = 'no'
+   if upcase(trim(osu.rec<1>, ' ', 'B')) = 'YES' then osu.sh = 'yes'
+   if upcase(trim(osu.rec<2>, ' ', 'B')) = 'YES' then osu.ex = 'yes'
+   osu.rec = osu.sh
+   osu.rec<2> = osu.ex
+
+   osu.ok = @true
+   write osu.rec to osu.f, acc.user on error osu.ok = @false
+   close osu.f
+
+* 30 Aug 26 Windows port - AND THE SAME FALLBACK CRED_SET HAS.  PRE_RELEASE 68.
+*
+*   os.users is READ-ONLY to sdusers - secure-osusers.ps1 grants (OI)(CI)(RX) -
+*   so this write is refused by Windows for a session that reached SDSYS with
+*   LOGTO from an unelevated start, however administrator SD believes it is
+*   after CPROC:2769.  Same cause as the $cred write, same route out: ps_script
+*   hands the work to the elevated helper when K$ADMINISTRATOR is set
+*   (PS_SCRIPT:166) and falls back to os.execute when it is not, so an ordinary
+*   caller behaves exactly as before.  The long version of the reasoning is in
+*   CRED_SET, including why CRLF and why ASCII are both measured facts.
+*
+*   AFTER close, DELIBERATELY.  The readu above holds an update lock and close
+*   releases it; letting an outside process write the file while SD holds a lock
+*   on the record would be a lock SD believes in and Windows knows nothing about.
+   if not(osu.ok) then
+      osu.path = kernel(K$WINPATH, @sdsys : @ds : 'os.users' : @ds : acc.user)
+      if osu.path # '' then
+         q = char(39)
+         ps =       '$p = ' : q : osu.path : q
+         ps := @fm : '$l = @(' : q : osu.sh : q : ',' : q : osu.ex : q : ')'
+         ps := @fm : '$nl = [char]13 + [char]10'
+         ps := @fm : 'try {'
+         ps := @fm : '  [System.IO.File]::WriteAllText($p, ($l -join $nl) + $nl,'
+         ps := @fm : '     [System.Text.Encoding]::ASCII)'
+         ps := @fm : '} catch { exit 1 }'
+         ps := @fm : 'exit 0'
+
+         if ps_script(ps) = 0 then osu.ok = @true
+      end
+   end
+
+*  READ BACK BEFORE REPORTING, for CRED_SET's reason: the elevated path runs a
+*  script whose exit code says the FILE was written and nothing about whether SD
+*  can read it back, and this file is the whole of the OS.EXECUTE gate.
+   if osu.ok then
+      osu.ok = @false
+      openpath @sdsys : @ds : 'os.users' to osu.chk then
+         read osu.back from osu.chk, acc.user then
+            if upcase(trim(osu.back<1>, ' ', 'B')) = upcase(osu.sh) then
+               if upcase(trim(osu.back<2>, ' ', 'B')) = upcase(osu.ex) then
+                  osu.ok = @true
+               end
+            end
+         end
+         close osu.chk
+      end
+   end
+
+   if not(osu.ok) then
+      @system.return.code = -ER$FAILED
+      crt sysmsg(10104, acc.user)
+      return
+   end
+
+   crt sysmsg(10102, acc.user, osu.sh, osu.ex) ;* os.users: %1 has SH %2, OS.EXECUTE %3
+   return
+
+* ======================================================================
+* SUSPENDED / UNSUSPENDED - set the account's suspension state.
+*
+* 18 Sep 26 Windows port - RELEASE_1.1 64.  THIS IS ALL THAT IS LEFT OF THE OLD
+*   tier.set, and it is all a suspension ever needed.  The tier machinery it
+*   used to carry - Windows membership moves, the route and os.users blocks,
+*   voc.delta and field 6 - went with the tiers; SYSCOM/KEYS.H says why field
+*   6 is gone.  A suspension changes nothing on Windows and nothing in the
+*   VOC, so the state write below is the whole operation.
+*
+* THE ORDER OF WORK IS CHOSEN FOR WHAT A FAILURE LEAVES BEHIND.  Every step
+*   before the register write is a read, and the write is one field, so a run
+*   that dies part way leaves the register saying the OLD state and re-running
+*   the same command converges.
+*
+* NOTHING IS WITHDRAWN ON WINDOWS FOR A SUSPENSION, which is the owner's
+*   ruling and is what makes lifting one free.  The stated cost is in LOGIN
+*   beside the refusal: the ssh connection is still accepted and SD refuses
+*   the login, rather than sshd refusing the connection.
+tier.set:
+   old.state = upcase(trim(acc.rec<ACC$SUSPENDED>, ' ', 'B'))
+   new.state = ''
+   if want.tier = 'SUSPENDED' then new.state = 'SUSPENDED'
+
+*  THE EQUALITY GUARD.  "suspended" on a suspended account and "unsuspended"
+*  on any other both land here, so a no-op writes nothing and reports 10110.
+   if old.state = new.state then
+      crt sysmsg(10110, acc.name, want.tier) ;* %1 is already %2; nothing changed
+      return
+   end
+
+*  DO NOT LET SOMEBODY SUSPEND THEIR WAY OUT OF THE BUILDING.  Both names are
+*  tested because they can differ: @logname is the account you log in to and
+*  the one this would lock, @who is the account you are standing in after a
+*  LOGTO.  Suspending either from inside it leaves a session that works until
+*  it ends and then cannot be re-established, and the only way back is
+*  "sd -internal", which is undocumented and elevated.
+   if want.tier = 'SUSPENDED' then
+      if (acc.name = upcase(@logname)) or (acc.name = upcase(@who)) then
+         @system.return.code = -ER$FAILED
+         crt sysmsg(10112) ;* You cannot suspend your own account or the one you are standing in
+         return
+      end
+   end
+
+*  ---- The register, last.  Readu, because two administrators editing one
+*  ---- account at once is rare and silently lost state is not a thing to
+*  ---- leave to chance.
+   readu tier.rec.new from acc.f, acc.name else tier.rec.new = acc.rec
+
+   tier.rec.new<ACC$SUSPENDED> = new.state
+
+   tier.written = @true
+   write tier.rec.new to acc.f, acc.name on error tier.written = @false
+
+   if not(tier.written) then
+      release acc.f, acc.name
+      @system.return.code = -ER$FAILED
+      crt sysmsg(10114, acc.name) ;* Unable to change the state of %1
+      return
+   end
+
+   crt sysmsg(10109, acc.name, want.tier) ;* Account %1 is now %2
+
+*  1 Sep 26 Windows port - SUSPENDED SAYS WHAT IT DID *AND WHAT IT DID NOT DO*.
+*  PRE_RELEASE_FIXES.md 111, owner's ruling 1 Sep 2026: "suspend an account and
+*  all sd access is unavailable - nothing happens at the windows level is
+*  correct - a message to the administrator to that effect might be good."
+*
+*  THE BOUNDARY IS EXACTLY THE THING PEOPLE GET WRONG.  Entry 20 stood for
+*  months on the assumption that an account losing SD access must also lose its
+*  Windows administrator rights.  If it read that way to the people who wrote
+*  it, it reads that way to an administrator suspending somebody in a hurry.
+*
+*  EVERY CLAIM IN 10159 IS FROM THE CODE, not from the name of the state.  All
+*  SD access goes: LOGIN covers local login AND ssh, since both arrive through
+*  LOGIN; APISRVR covers the API; CPROC covers LOGTO.  Nothing on Windows
+*  changes - entry 20's ruling, and it is correct.  The message must not imply
+*  otherwise.
+*
+*  SUSPENDED ONLY.  Unsuspending obviously lifts access; there is nothing to
+*  explain.
+   if want.tier = 'SUSPENDED' then
+      crt sysmsg(10159, acc.name)
+      * what suspending took, what it left alone, and what lifts it
+   end
+
+   return
+
+* ======================================================================
+* Say what the account can reach now.  Shared with nothing today, but the same
+* four messages are CREATE.ACCOUNT's, which is the point of them.
+say.access:
+   begin case
+      case want.ssh and want.api
+         crt sysmsg(10078, acc.user) ;* may sign in over ssh and use the API
+      case want.ssh
+         crt sysmsg(10076, acc.user) ;* ssh, and may not use the API
+      case want.api
+         crt sysmsg(10077, acc.user) ;* the API, and may not sign in over ssh
+      case 1
+         crt sysmsg(10079, acc.user) ;* no remote access at all
+   end case
+
+*  PRE_RELEASE_FIXES 125: warn (non-prohibitively) when the access just set has
+*  no active transport on this machine - the same heads-up create.account gives,
+*  from the shared shape.  The grant persists and activates when the transport
+*  comes on, so this is not a refusal.  Native checks only, no PowerShell probe.
+   if want.ssh and not(ospath('C:\WINDOWS\System32\OpenSSH\sshd.exe', OS$EXISTS)) then
+      crt sysmsg(10161, acc.user)  ;* set up for ssh, but no ssh server yet
+   end
+   if want.api and (config('APIPORT') + 0) <= 0 then
+      crt sysmsg(10162, acc.user)  ;* set up for the API, but no listener yet
+   end
+   return
+
+program.end:
+   END

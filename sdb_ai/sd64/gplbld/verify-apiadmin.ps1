@@ -1,0 +1,899 @@
+<#
+.SYNOPSIS
+    Does a REMOTE API session hold privileges an ordinary SD user does not?
+
+.DESCRIPTION
+    PROJECT_STATUS.md section 8.  APISRVR asserts in two places that an API
+    session "cannot have" elevation - at its K$ADMINISTRATOR note (:459) and
+    again where it refuses SDSYS (:489) - and the account gating there is
+    reasoned on that basis.
+
+    THE CLAIM LOOKS FALSE ON WINDOWS.  sdwind runs as a service
+    (SERVICE_START_NAME LocalSystem) and accept_api_session() fork()s and
+    exec()s "sd -n -q", so the session inherits LOCALSYSTEM'S TOKEN rather than
+    the client's.  Measured from outside on 20 Aug 2026: the forked sd.exe's
+    owner is unreadable to an unelevated query, exactly as sdwind's is, while
+    an ordinary interactive sd.exe reads back as the user.
+
+    WHAT THAT LEAVES OPEN, and what this measures: whether the SD session can
+    USE it.  $cred is granted to SYSTEM and Administrators and nothing else
+    (gplbld/secure-cred.ps1), so if a remote client can WRITE it, a remote
+    client can reset anybody's password - and the port is reachable from
+    another machine over "ssh -L", which is the route administrators are not
+    supposed to have.
+
+    THE ASSERTION IS THAT IT CANNOT.  A pass means the exposure is not there;
+    a FAIL is the finding, not a broken test.  Read the summary accordingly.
+
+    WHY AN ORDINARY ACCOUNT.  There are no tiers since RELEASE_1.1 64: every
+    account is created with the full VOC that the PROGRAMMER tier used to get,
+    "basic", "ed" and "run" included, so the probe can be compiled and run in
+    it.  It holds none of the administration verbs, so anything it reaches, it
+    reaches through the session's OS token rather than through SD granting it.
+
+    THE CONTROL IS THE LOCAL RUN, and without it this proves nothing.  The
+    SAME compiled program is run from a local elevated session, which MUST
+    report the store open and writable.  A probe that answered "no" whatever
+    happened would otherwise pass every assertion below while measuring
+    nothing.
+
+    IT CHANGES THE INSTALLED SYSTEM AND PUTS IT BACK: a throwaway Windows and
+    SD account, an sd.conf APIPORT line, and two SD restarts.  The account is
+    removed in a finally block, and what could not be removed is named.
+
+    21 AUG 2026 - AND IT NOW MEASURES THE sdapi GATE ON THE WAY PAST.
+    CREATE.ACCOUNT no longer joins sdapi, so step 7a connects with a valid
+    credential and NO permission and must be REFUSED; 7b grants it with
+    MODIFY.ACCOUNT ... API and 7c is the original measurement.  That was not
+    an addition for its own sake - without the grant this script could no
+    longer connect at all - but the refusal leg is what turns a necessary fix
+    into evidence, and it is deliberately taken with NO SD restart between,
+    because APISRVR asks the SAM per login rather than reading a cached list.
+
+.PARAMETER Prefix
+    Name for the throwaway Windows and SD account.  Lower case, and one that
+    does not exist - CREATE.ACCOUNT refuses a name it has seen.
+
+.PARAMETER Port
+    Loopback port the API listener uses.  4243 is the shipped default.
+
+.PARAMETER NoFixture
+    22 Sep 26 - RELEASE_1.1 76's owed falsification check.  Skips planting
+    os.users\SDSYS for step 5's local OS.EXECUTE control, so that leg runs
+    against the tree's real, unplanted state instead.  The header comment at
+    $osUsersDir says what this is expected to show (the control refused, for
+    a MODEL reason - os_permitted() falling through to a record that is not
+    there) - that reasoning was READ FROM SOURCE, NOT RUN, when it was
+    written, and this flag is what runs it.  The assertion this changes is
+    reported under a DIFFERENTLY NAMED check ('falsification: ...'), not a
+    flipped expected value on the existing one - entry 64 forbids flipping
+    a check's own expected value in place, and a falsification run is a
+    different claim in any case.  A run with this flag is not a substitute
+    for the ordinary witnessed run; do both.
+
+.EXAMPLE
+    C:\Users\dmont\Projects\sd4windows\sdb_ai\sd64\gplbld\verify-apiadmin.ps1 -Prefix sdapia1
+.EXAMPLE
+    C:\Users\dmont\Projects\sd4windows\sdb_ai\sd64\gplbld\verify-apiadmin.ps1 -Prefix sdapia1 -NoFixture
+#>
+
+# Exit 0 every decisive check passed, 1 a decisive check failed, 2 the test
+# could not be run.
+#
+# 03 Sep 26 - THAT SENTENCE IS NEW HERE, AND THE THIRD CODE HAD NEVER BEEN
+# USED.  PRE_RELEASE_FIXES.md 151.  Twelve other verifiers state this
+# convention in their own headers; the six API ones stated nothing and left
+# every precondition refusal through Fail() at exit 1 - which in a suite
+# summary is indistinguishable from a check that ran and failed.  See Refuse().
+
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $true)] [string] $Prefix,
+    [int] $Port = 4243,
+    [switch] $NoFixture
+)
+
+$ErrorActionPreference = 'Stop'
+
+$Gplbld  = Split-Path -Parent $MyInvocation.MyCommand.Path
+$Sd64    = Split-Path -Parent $Gplbld
+$SvcName = 'SD'
+$conf    = Join-Path $env:ProgramData 'SD\sd.conf'
+$backup  = $conf + '.before-apiadmin'
+$cred    = Join-Path $env:ProgramData 'SD\sdsys\$cred'
+
+$logDir = Join-Path $env:LOCALAPPDATA 'SD-verify'
+if (-not (Test-Path -LiteralPath $logDir)) { $null = New-Item -ItemType Directory -Path $logDir -Force }
+$log = Join-Path $logDir ('verify-apiadmin-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.log')
+try { Start-Transcript -Path $log -Force | Out-Null } catch { }
+Write-Host "transcript: $log"
+
+$results = New-Object System.Collections.ArrayList
+$failed  = $false
+
+function Note($check, $expected, $got) {
+    $pass = ($expected -eq $got)
+    if (-not $pass) { $script:failed = $true }
+    $null = $results.Add([pscustomobject]@{ Check = $check; Expected = $expected; Observed = $got })
+    Write-Host ("  [{0}] {1}: expected {2}, got {3}" -f
+        $(if ($pass) { 'PASS' } else { 'FAIL' }), $check, $expected, $got)
+}
+
+# 21 Aug 26 - A THIRD OUTCOME, AND IT EXISTS TO STOP A VACUOUS PASS.
+#
+# Once OS.EXECUTE is gated for network sessions, the probe can no longer ASK
+# what the session is running as - the os.execute that would have printed
+# WHOAMI is refused, so the marker is absent.  Fed to Note() that reads as
+# "not SYSTEM" and PASSES, on a session that is still running as LocalSystem
+# and has merely lost the ability to say so.
+#
+# THAT IS THE SAME FAULT AS THE ONE FOUND ON 21 Aug IN THIS FILE - a check
+# that cannot fail is not a check - so it gets a state of its own rather than
+# a comment asking the reader to remember.  N/A does NOT set $failed and does
+# NOT count as a pass; the summary counts it separately.
+function Skip($check, $why) {
+    $null = $results.Add([pscustomobject]@{ Check = $check; Expected = 'n/a'; Observed = $why })
+    Write-Host ("  [N/A ] {0}: {1}" -f $check, $why) -ForegroundColor Yellow
+}
+
+function Fail($msg) {
+    Write-Host ''
+    Write-Host "STOPPED: $msg" -ForegroundColor Red
+    try { Stop-Transcript | Out-Null } catch { }
+    exit 1
+}
+
+# 03 Sep 26 - PRE_RELEASE_FIXES.md 151.  A PRECONDITION REFUSAL IS NOT A FAILED
+# CHECK, and until now both left through Fail() at exit 1.  Run b106 showed six
+# API verifiers "exit 1" in a block, which reads as "the API is broken" - and
+# NOT ONE OF THEM HAD MEASURED ANYTHING.  All six had refused on
+# assert-current because a source file was written while the run was in flight.
+#
+# IT DOWNGRADES TO 1 IF A DECISIVE CHECK HAS ALREADY FAILED, and that is the
+# half that is easy to get wrong.  Several stop-sites below sit immediately
+# after a Note() that has already recorded a [FAIL] - there the fixture step IS
+# a decisive check - and exiting 2 there would file a real failure under "could
+# not run", which is the more dangerous direction of the two.  So the helper
+# asks the run's own state rather than trusting the call site to be a
+# precondition.
+function Refuse($msg) {
+    if ($script:failed) {
+        Fail ($msg + '  (a decisive check had already FAILED, so this is exit 1, not 2)')
+    }
+    Write-Host ''
+    Write-Host "COULD NOT RUN: $msg" -ForegroundColor Yellow
+    try { Stop-Transcript | Out-Null } catch { }
+    exit 2
+}
+
+function Step($n, $msg) { Write-Host ''; Write-Host "== [$n] $msg" -ForegroundColor Cyan }
+
+# 21 Sep 26 - RELEASE_1.1 76, THE SDSYS SEAT (sdsys-seat.ps1).  THE "LOGTO SDSYS"
+# PREFIX THIS USED TO SEND IS REFUSED (10002) FROM ANY SESSION THAT DID NOT START AS
+# THE OS SDSYS ACCOUNT with an elevated, interactive token (cproc:2789), and an
+# elevated Don is not one.  So the commands go to a task inside SDSYS's own live
+# session and the text comes back through a file.  The TERM line the old helper sent
+# after every LOGTO (LOGIN re-inits terminal geometry on each account switch,
+# LOGIN:201-209) is added by the seat (Expand-SeatCommands).  A seat that did not
+# run THROWS rather than returning ''.  SDSYS must be signed in: `query session`
+# shows its row.
+#
+# TWO DOORS.  Invoke-SDSys is a plain seat call.  Invoke-SDIn moves into a PERSONAL
+# account with LOGTO, which a plain session is refused, so it uses the seat's
+# -Internal door - the same choice verify-catgate makes per call.  Invoke-SDIn
+# REFUSES 'SDSYS': asking it for SDSYS would be the old prefix by another name, and
+# test-logtoreaim-units.ps1 would (rightly) count it as a driver again.
+#
+# NOT WITNESSED: converted unattended on 21 Sep 2026.  Its first run is the owner's,
+# elevated, with SDSYS signed in - read the FIRST red as a finding about the seat or
+# the door before reverting anything.
+. (Join-Path $Gplbld 'sdsys-seat.ps1')
+
+function Invoke-SDIn([string]$account, [string[]]$commands) {
+    if ($account -ieq 'SDSYS') {
+        throw "Invoke-SDIn is for a PERSONAL account; use Invoke-SDSys for SDSYS (a LOGTO into it is refused)"
+    }
+    $text = Invoke-SdSeatText -Commands (@("LOGTO $account") + $commands) -TimeoutSec 180 -Internal
+    return ($text -replace ([char]27 + '\[[0-9]*[A-Za-z]'), '')
+}
+
+function Invoke-SDSys([string[]]$commands) {
+    return (Invoke-SdSeatText -Commands $commands -TimeoutSec 180)
+}
+
+function Stop-SD {
+    if (Get-Service -Name $SvcName -ErrorAction SilentlyContinue) {
+        & "$env:SystemRoot\System32\sc.exe" stop $SvcName | Out-Null
+    }
+    $deadline = (Get-Date).AddSeconds(45)
+    while ((Get-Process -Name sdwind, sd -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) {
+        Start-Sleep -Milliseconds 500
+    }
+    return -not [bool](Get-Process -Name sdwind, sd -ErrorAction SilentlyContinue)
+}
+
+function Start-SD {
+    & "$env:SystemRoot\System32\sc.exe" start $SvcName | Out-Null
+    $deadline = (Get-Date).AddSeconds(45)
+    while (-not (Get-Process -Name sdwind -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) {
+        Start-Sleep -Milliseconds 500
+    }
+    return [bool](Get-Process -Name sdwind -ErrorAction SilentlyContinue)
+}
+
+# SD RETURNS CAPTURED OUTPUT AS A DYNAMIC ARRAY, NOT AS TEXT WITH NEWLINES.
+# "execute cmnd capturing response" joins the lines with FIELD MARKS (char
+# 254), so everything the probe printed arrives as ONE physical line:
+#
+#   PROBE.ACCOUNT=SDAPIA1<fm>PROBE.CRED.OPEN=YES<fm>PROBE.CRED.WRITE=YES<fm>...
+#
+# 20 Aug 26 - THE FIRST VERSION OF THIS ANCHORED ON ^ AND CAPTURED \S*, AND
+# BOTH HALVES WERE WRONG ON THAT INPUT.  A field mark is not whitespace, so
+# the first marker swallowed the whole reply; and with no line starts after
+# it, every later marker read as ABSENT - which the verdict then reported as a
+# missing answer rather than the answer.  Three checks failed and the finding
+# was sitting inside the text of the first one.  The local leg parsed cleanly
+# because a local session's output really does have newlines, so the defect
+# appeared only on the leg that mattered.
+function Convert-ProbeText([string]$text) {
+    # Marks are 252-255.  The probe prints ASCII only, so nothing legitimate
+    # is in that range and turning them all into newlines is safe.  A run that
+    # arrived already decoded to U+FFFD is handled too.
+    # \u escapes rather than the literal characters: this file must not depend
+    # on being read back in the same encoding it was written in.
+    return ($text -replace '[\u00FC-\u00FF\uFFFD]', "`n")
+}
+
+# Pull one PROBE.<name>= marker out of a captured run.  Returns '' if absent,
+# which is distinguishable from 'NO' and is meant to be - a missing marker
+# means the probe did not get that far, not that the answer was no.
+#
+# DELIMITER-AGNOSTIC ON PURPOSE: no ^ anchor, and the value is bounded to the
+# characters the probe actually emits rather than to "not whitespace".  That
+# holds whatever SD puts between the lines.
+function Get-Marker([string]$text, [string]$name) {
+    $m = [regex]::Match($text, ('PROBE\.' + [regex]::Escape($name) + '=([A-Za-z0-9_.\\-]*)'))
+    if ($m.Success) { return $m.Groups[1].Value }
+    return ''
+}
+
+# ---------------------------------------------------------------------------
+$id = [Security.Principal.WindowsIdentity]::GetCurrent()
+if (-not (New-Object Security.Principal.WindowsPrincipal($id)).IsInRole(
+        [Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Refuse 'Run this from an ELEVATED PowerShell - it creates an account, edits the installed sd.conf and restarts SD.'
+}
+
+Step 0 'Checking the installed tree matches source'
+& (Join-Path $Gplbld 'assert-current.ps1')
+if ($LASTEXITCODE -ne 0) { Refuse 'assert-current refuses - run gplbld/cycle.ps1 first.' }
+
+if ($Prefix -notmatch '^[a-z][a-z0-9_]*$') {
+    Refuse "-Prefix is '$Prefix'.  Lower case letters, digits and underscore only, starting with a letter."
+}
+if (Get-LocalUser -Name $Prefix -ErrorAction SilentlyContinue) {
+    Refuse "$Prefix already exists as a Windows account.  Use a -Prefix that does not."
+}
+if (Test-Path -LiteralPath (Join-Path $env:ProgramData ('SD\sdsys\accounts\' + $Prefix.ToUpper()))) {
+    Refuse ($Prefix.ToUpper() + ' is still in the ACCOUNTS register from an earlier run.  Use a fresh -Prefix.')
+}
+
+$bash = 'C:\msys64\usr\bin\bash.exe'
+if (-not (Test-Path -LiteralPath $bash)) { Refuse "MSYS2 bash not found at $bash" }
+
+# 21 Sep 26 - RELEASE_1.1 76.  PROVE BOTH SEAT DOORS BEFORE ANYTHING IS CREATED, so a
+# missing SDSYS session is exit 2 ("could not run"), not a thrown error at the first SD
+# call that reads as a product failure.  Plain first, then -Internal (the door
+# Invoke-SDIn uses).  See sdsys-seat.ps1.
+Assert-SdSeat -Label 'verify-apiadmin'
+Assert-SdSeat -Label 'verify-apiadmin' -Internal
+
+# THE LOCAL OS.EXECUTE CONTROL NEEDS A TEMPORARY os.users\SDSYS RECORD, AND THIS SCRIPT
+# MUST NOT OVERWRITE SOMEBODY ELSE'S.  Read from source, NOT RUN: the seat's LOGTO into
+# the throwaway account clears USR_ADMIN (cproc calls kernel(K$ADMINISTRATOR, 0);
+# op_kernel.c:587-592, honoured only for a $internal program), so os_permitted() falls
+# through to os.users\<login name> = os.users\SDSYS, and the live os.users held ZERO
+# records on 21 Sep 2026 - so without a record the control's OS.EXECUTE is refused and
+# its row ("the probe CAN see OS.EXECUTE run") FAILS for a reason that is the fixture's,
+# not the product's.  Owner approved planting it for that one leg (21 Sep 2026); it is
+# planted immediately before the local run and removed immediately after, with a
+# `finally` backstop below.  A record that is already there is refused, not reused.
+$osUsersDir = Join-Path $env:ProgramData 'SD\sdsys\os.users'
+if (Test-Path -LiteralPath (Join-Path $osUsersDir 'SDSYS')) {
+    Refuse "os.users\SDSYS already exists - a run or a person left it.  Remove it or read it first; this script will not overwrite a permission record."
+}
+$plantedOsUsers = $false
+
+$restoreNeeded = $false
+$madeAccount   = $false
+$pw            = ''
+
+try {
+    # -----------------------------------------------------------------------
+    Step 1 "Creating the throwaway account $Prefix (an ordinary account, not an administrator)"
+
+    # Two passwords, and they are not the same thing - verify-apiport.ps1 says
+    # why at length.  $winPw is the WINDOWS account's and only travels down the
+    # pipe into SD; $pw is the SD credential and is the only one the API sees.
+    # The SD one is kept alphanumeric because it is passed through "bash -lc".
+    Add-Type -AssemblyName System.Web
+    # 20 Sep 26 - RELEASE_1.1 83: SD's pw_complex (RELEASE_1.1 75) needs lower, upper,
+    # digit AND symbol, and a bare GeneratePassword(24, 6) lacks a digit 5.7 % of the
+    # time (measured, 20,000 samples) - SD then re-prompts, eats the next piped line
+    # and spins at EOF: the run HANGS.  'aA1!' guarantees all four classes.
+    $winPw = [System.Web.Security.Membership]::GeneratePassword(24, 6) + 'aA1!'
+
+    # NONE, AND IT HAS TO BE NONE.  Phase 2 made the access keyword compulsory
+    # and this call site was first given API, which would have destroyed step
+    # 7a: that step connects with a valid credential and asserts the API
+    # REFUSES the account for want of sdapi membership, and an account created
+    # with API is in sdapi from the moment it exists.  The keyword each site
+    # wants is the one its own test needs, and what this test needs is an
+    # account that can reach nothing until 7b grants it.  It uses no ssh
+    # either - every probe here goes over the API - so NONE rather than SSH.
+    # 19 Sep 26 - RELEASE_1.1 64: PROGRAMMER is REFUSED at create time now
+    # (createa's keyword case, sysmsg 2018 - the whole command stops and no
+    # account is made), so the access keyword is the whole of the line.
+    $out = Invoke-SDSys @("CREATE.ACCOUNT USER $Prefix NONE", $winPw, $winPw)
+    $accRec = Join-Path $env:ProgramData ('SD\sdsys\accounts\' + $Prefix.ToUpper())
+    $made = Test-Path -LiteralPath $accRec
+    Note 'accounts record created' $true $made
+    if (-not $made) { Write-Host $out; Refuse 'CREATE.ACCOUNT did not register the account.' }
+    $madeAccount = $true
+
+    # -----------------------------------------------------------------------
+    Step 2 'Setting its SD credential'
+
+    $bytes = New-Object byte[] 18
+    ([Security.Cryptography.RandomNumberGenerator]::Create()).GetBytes($bytes)
+    # 20 Sep 26 - RELEASE_1.1 83: base64 alphanumerics + 'aA1' has NO SYMBOL, which SD's
+    # pw_complex (RELEASE_1.1 75) refuses EVERY time - MODIFY.PASSWORD re-prompts and the
+    # run hangs.  The comment above says this password is kept alphanumeric because it
+    # goes through "bash -lc"; that predates the symbol rule.  '-' is the one symbol
+    # safe through bash -lc, cmd and the askpass helper, and it is not first.
+    $pw = ([Convert]::ToBase64String($bytes) -replace '[^A-Za-z0-9]', '') + '-aA1'
+
+    $out = Invoke-SDSys @(("MODIFY.PASSWORD " + $Prefix.ToUpper()), $pw, $pw)
+    # 21 Sep 26 - SET_ACC_PASSWORD prints "Password accepted." now; it used to name the
+    # account ("Password set for account X"), and this anchor went stale with it.
+    $set = ($out -match 'Password accepted\.')
+    Note 'credential set' $true $set
+    if (-not $set) { Write-Host $out; Refuse 'MODIFY.PASSWORD did not report success.' }
+
+    # -----------------------------------------------------------------------
+    Step 3 'The premise: what the ACL on $cred actually says'
+
+    # ASSERTED RATHER THAN ASSUMED.  Everything below is about a file this
+    # script believes is locked to SYSTEM and Administrators.  If the ACL has
+    # drifted, the API result would be unremarkable and would still "fail".
+    $acl = (& icacls.exe $cred) -join "`n"
+    Write-Host $acl
+    $grantsSystem = ($acl -match 'NT AUTHORITY\\SYSTEM')
+    $grantsAdmins = ($acl -match 'BUILTIN\\Administrators')
+    $grantsUsers  = ($acl -match 'sdusers')
+    Note '$cred grants SYSTEM'          $true  $grantsSystem
+    Note '$cred grants Administrators'  $true  $grantsAdmins
+    Note '$cred grants sdusers NOTHING' $false $grantsUsers
+
+    # -----------------------------------------------------------------------
+    Step 4 'Compiling the probe into the account'
+
+    $acctDir = Join-Path $env:ProgramData ('SD\user_accounts\' + $Prefix)
+    $bpDir   = Join-Path $acctDir 'bp'
+    if (-not (Test-Path -LiteralPath $bpDir)) {
+        Refuse "No bp directory at $bpDir - CREATE.ACCOUNT's layout has changed."
+    }
+    # 21 Aug 26 - TWO PROBES NOW, AND THE SPLIT IS NOT COSMETIC.  The os.execute
+    # leg ABORTS when it is refused, and an abort DISCARDS the output an API
+    # session has captured - so while the two lived in one program, every run
+    # where the gate worked came back holding the refusal message and NOT ONE
+    # of the $cred markers the program had already printed.  That scored two
+    # FAILs which were absence of data rather than measurement.  Measured
+    # 21 Aug 2026; apiadminprobe.sb's tail comment has the detail.
+    #
+    # APIADMINPROBE IS ABORT-FREE BY CONSTRUCTION and carries the measurements
+    # that must come back.  APIOSEXECPROBE is the one allowed to die.
+    Copy-Item -LiteralPath (Join-Path $Gplbld 'apiadminprobe.sb') `
+              -Destination (Join-Path $bpDir 'APIADMINPROBE') -Force
+    Copy-Item -LiteralPath (Join-Path $Gplbld 'apiosexecprobe.sb') `
+              -Destination (Join-Path $bpDir 'APIOSEXECPROBE') -Force
+
+    # ***ANCHOR ON THE SUCCESS WORDING, NOT ON THE ARGUMENTS PASSED IN.***
+    # PRE_RELEASE 105.  The old check was the two probe NAMES plus a
+    # disqualifier, and BOTH NAMES ARE PRINTED ON THE FAILURE PATH TOO:
+    # sysmsg 2812 "Compiling %1 %2" prints them BEFORE bcomp is called, and
+    # sysmsg 2612 "Compilation error in %1" prints them when it fails.  So the
+    # names proved the compile was ATTEMPTED and never that it worked, leaving
+    # -notmatch as the only term doing work - and a check made of disqualifiers
+    # passes whenever the thing it disqualifies was never printed.  A compile
+    # that never reached BCOMP:1540 scored TRUE.
+    #
+    # The positive half of the SAME message is the anchor, and it already
+    # exists: BCOMP:1540 is "if not(is.ctype) then display sysmsg(2995, errors)"
+    # - "%1 error(s)" - printed once per record on both paths, so requiring one
+    # "0 error(s)" PER PROBE fails a run that printed no count at all.  That is
+    # the null case the instrument rules demand.
+    #
+    # The count is derived from $probes rather than typed, so adding a probe
+    # cannot leave the expectation behind.  "\b0" cannot match the "0" inside
+    # "10 error(s)" - there is no word boundary between two digits - so the
+    # positive and negative terms cannot both be satisfied by one line.
+    $probes   = @('APIADMINPROBE', 'APIOSEXECPROBE')
+    $out      = Invoke-SDIn $Prefix.ToUpper() @($probes | ForEach-Object { "BASIC BP $_" })
+    Write-Host $out
+    $okCount  = ([regex]::Matches($out, '\b0 error\(s\)')).Count
+    $errSeen  = ($out -match '[1-9][0-9]* error')
+    $compiled = ($okCount -eq $probes.Count) -and (-not $errSeen)
+    Write-Host ("    compile: {0} of {1} probe(s) said '0 error(s)'; an error count was {2}" -f
+                $okCount, $probes.Count, $(if ($errSeen) { 'SEEN' } else { 'absent' }))
+    Note 'probe compiled' $true $compiled
+    if (-not $compiled) { Refuse 'A probe did not compile - the output above says why.' }
+
+    # -----------------------------------------------------------------------
+    Step 5 'CONTROL: the same probe from a LOCAL ELEVATED session'
+
+    # WITHOUT THIS THE TEST IS VACUOUS.  This session genuinely is elevated, so
+    # it MUST reach the store.  A probe that answered "no" whatever happened
+    # would pass every assertion in step 7 while measuring nothing at all.
+    $localOut = Invoke-SDIn $Prefix.ToUpper() @('RUN BP APIADMINPROBE')
+    Write-Host $localOut
+
+    # Separate run, because this one may abort - see the note in step 4.
+    #
+    # 21 Sep 26 - RELEASE_1.1 76: PLANTED IMMEDIATELY BEFORE AND REMOVED IMMEDIATELY
+    # AFTER (see the note at $osUsersDir).  Printed either way, so a record left
+    # behind is visible in the run's own output.
+    if ($NoFixture) {
+        Write-Host '   -NoFixture: os.users\SDSYS deliberately NOT planted for this run.' -ForegroundColor Yellow
+        Note 'falsification: os.users\SDSYS left unplanted, by request' $true $true
+        $localOsOut = Invoke-SDIn $Prefix.ToUpper() @('RUN BP APIOSEXECPROBE')
+    } else {
+        $plant = Set-SeatOsUsersRecord -OsUsersDir $osUsersDir -Account 'SDSYS'
+        Write-Host ("   os.users\SDSYS planted for the local OS.EXECUTE control: ok={0} {1}" -f $plant.Ok, $plant.Why)
+        Note 'fixture: os.users\SDSYS planted' $true $plant.Ok
+        if (-not $plant.Ok) { Refuse ('could not plant os.users\SDSYS: ' + $plant.Why) }
+        $plantedOsUsers = $true
+        try {
+            $localOsOut = Invoke-SDIn $Prefix.ToUpper() @('RUN BP APIOSEXECPROBE')
+        }
+        finally {
+            $unplant = Remove-SeatOsUsersRecord -OsUsersDir $osUsersDir -Account 'SDSYS'
+            Write-Host ("   os.users\SDSYS removed: ok={0} {1}" -f $unplant.Ok, $unplant.Why)
+            if ($unplant.Ok) { $plantedOsUsers = $false }
+        }
+        Note 'fixture: os.users\SDSYS removed after the control' $true (-not $plantedOsUsers)
+    }
+    Write-Host $localOsOut
+
+    $localAcct  = Get-Marker $localOut 'ACCOUNT'
+    $localOpen  = Get-Marker $localOut 'CRED.OPEN'
+    $localWrite = Get-Marker $localOut 'CRED.WRITE'
+    Write-Host "   local: account=$localAcct open=$localOpen write=$localWrite"
+
+    Note 'control: probe ran locally'            $true  ($localOut -match 'PROBE\.DONE')
+    Note 'control: elevated session OPENS $cred' 'YES'  $localOpen
+    Note 'control: elevated session WRITES $cred' 'YES' $localWrite
+
+    # -----------------------------------------------------------------------
+    Step 6 "Enabling APIPORT=$Port and restarting SD"
+
+    Copy-Item -LiteralPath $conf -Destination $backup -Force
+    $restoreNeeded = $true
+    $lines = @(Get-Content -LiteralPath $conf) | Where-Object { $_ -notmatch '^\s*APIPORT\s*=' }
+    $lines += ('APIPORT=' + $Port)
+    Set-Content -LiteralPath $conf -Value $lines -Encoding Ascii
+
+    # read_config() runs only when the shared segment is CREATED, so it has to
+    # be a restart rather than a reload.
+    if (-not (Stop-SD))  { Refuse 'SD would not stop - close any open session and try again.' }
+    if (-not (Start-SD)) { Refuse 'SD would not start again.  Read the SD error log.' }
+    Start-Sleep -Seconds 2
+
+    # 21 Aug 26 - THE ADDRESS IS NO LONGER PART OF THIS CHECK.  Same stale
+    # assertion as verify-peerlog.ps1 step 3 and the same cause: Phase 1 moved
+    # sdwind's bind to INADDR_ANY, netstat prints 0.0.0.0:<port>, and a match on
+    # a literal 127.0.0.1 could not pass.  IT COST MORE HERE - the Fail below
+    # aborted before step 7, which is the containment-gate measurement this
+    # whole script exists for, so a run that proved nothing looked like a run
+    # that found something.  Measured 21 Aug 13:20, exit 1 on step 6.
+    #
+    # A 0.0.0.0 listener serves loopback, so the probe connection below is
+    # unaffected.  Where the socket is bound is verify-apiport.ps1's assertion.
+    $listen = @(netstat -an | Select-String 'LISTENING' |
+                Where-Object { $_ -match (':' + $Port + '\s') })
+    Note 'a listener on the port' $true ($listen.Count -gt 0)
+    foreach ($l in $listen) { Write-Host ('   ' + $l.ToString().Trim()) }
+    if ($listen.Count -eq 0) { Refuse "Nothing is listening on port $Port." }
+
+    # -----------------------------------------------------------------------
+    # C:\a\b -> /c/a/b
+    $msys = '/' + $Sd64.Substring(0, 1).ToLower() + ($Sd64.Substring(2) -replace '\\', '/')
+    $cmdFor = {
+        param([string]$apiCmd)
+        "cd '$msys' && make check-api-admin APIHOST=127.0.0.1 APIPORT=$Port " +
+        "APIUSER=$Prefix APIPASS='$pw' APIACCT=" + $Prefix.ToUpper() +
+        " APICMD='$apiCmd'"
+    }
+    $cmd = & $cmdFor 'RUN BP APIADMINPROBE'
+
+    # 21 Aug 26 - THE PROBE RUN IS A FUNCTION NOW because it is made TWICE:
+    # once before this account is granted the API and once after.  Two copies
+    # of the stderr handling below is two places to get it wrong.
+    #
+    # 2>&1 ON A NATIVE COMMAND UNDER $ErrorActionPreference='Stop' IS THE TRAP
+    # THIS PROJECT HAS ALREADY BEEN BITTEN BY TWICE - secure-account-dirs.ps1:95
+    # and verify-catgate.ps1:395.  PowerShell 5.1 wraps each stderr line in a
+    # NativeCommandError and TERMINATES, and make writes to stderr routinely.
+    # Without this the script would die at the one step it exists to perform,
+    # and a run that never reached the verdict reads like a passing one.
+    function Invoke-ApiProbe {
+        # 21 Aug 26 - takes the command now, because the os.execute leg is a
+        # SECOND run against the same session settings.  Defaulted, so the two
+        # existing callers in step 7a and 7b are unchanged.
+        param([string]$RunCmd = $cmd)
+        $prevEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $t = (& $bash -lc $RunCmd 2>&1 | Out-String)
+            $rc = $LASTEXITCODE
+        } finally { $ErrorActionPreference = $prevEap }
+        # Field marks turned back into newlines BEFORE anything reads it, so
+        # the transcript is legible and every marker sits on a line of its own.
+        # The run that found this printed the probe's whole reply as one line
+        # and the answer was easy to miss inside it.
+        return @{ Text = (Convert-ProbeText $t); Rc = $rc }
+    }
+
+    # -----------------------------------------------------------------------
+    Step '7a' 'THE NEW GATE: no sdapi membership, so the API must REFUSE this account'
+
+    # 21 Aug 26 - CREATE.ACCOUNT no longer joins sdapi (owner's decision,
+    # 21 Aug 2026), so the account made in step 1 has a valid credential and no
+    # permission to use it.  APISRVR tests sdapi AFTER the SCRAM proof
+    # succeeds, so this is an AUTHORISATION refusal on a correct password - not
+    # a bad-password path, and not the same code.
+    #
+    # THIS LEG IS WHAT MAKES THE GRANT BELOW MEAN ANYTHING.  Without it, the
+    # measurement in 7c would pass just as well if the gate did not exist, and
+    # so would a run where MODIFY.PASSWORD had silently failed.
+    $r = Invoke-ApiProbe
+    Write-Host $r.Text
+    $preConnect = Get-Marker $r.Text 'CONNECT'
+    Note 'API REFUSES an account not in sdapi' $false ($preConnect -eq 'YES')
+
+    # -----------------------------------------------------------------------
+    Step '7b' "Granting it: MODIFY.ACCOUNT $($Prefix.ToUpper()) API"
+
+    $out = Invoke-SDSys @(("MODIFY.ACCOUNT " + $Prefix.ToUpper() + " API"))
+    $inApi = [bool](Get-LocalGroupMember -Group 'sdapi' -ErrorAction SilentlyContinue |
+                    Where-Object { $_.Name -like ("*\" + $Prefix) })
+    Note 'MODIFY.ACCOUNT ... API put it in sdapi' $true $inApi
+    if (-not $inApi) { Write-Host $out; Refuse 'the account was not granted the API - nothing below can be measured.' }
+
+    # NO SD RESTART, AND THAT IS AN ASSERTION RATHER THAN A SAVING.  APISRVR
+    # asks the SAM per login through is_grp_member, so a grant is live for the
+    # next connection.  If this leg ever needs a restart to pass, the gate has
+    # been moved to something cached and the "immediate withdrawal" claim in
+    # MODIFYA is no longer true.
+
+    # -----------------------------------------------------------------------
+    Step '7c' 'THE MEASUREMENT: the same probe down a REMOTE API connection'
+
+    $r = Invoke-ApiProbe
+    $apiOut = $r.Text
+    $apiRc  = $r.Rc
+    Write-Host $apiOut
+
+    # 21 Aug 26 - THE SECOND API RUN, and it is allowed to come back with
+    # nothing but an abort.  Everything the verdict depends on has already been
+    # collected by the run above, which cannot abort.
+    $apiOsOut = (Invoke-ApiProbe (& $cmdFor 'RUN BP APIOSEXECPROBE')).Text
+    Write-Host $apiOsOut
+
+    $apiConnect = Get-Marker $apiOut 'CONNECT'
+    $apiAcct    = Get-Marker $apiOut 'ACCOUNT'
+    $apiOpen    = Get-Marker $apiOut 'CRED.OPEN'
+    $apiWrite   = Get-Marker $apiOut 'CRED.WRITE'
+    Write-Host "   api:   connect=$apiConnect account=$apiAcct open=$apiOpen write=$apiWrite (exit $apiRc)"
+
+    Note 'API session connected' 'YES' $apiConnect
+    if ($apiConnect -ne 'YES') { Refuse 'The API session did not connect - nothing below was measured.' }
+
+    # We are where we think we are.  Without this, a probe that ran in some
+    # other account would be read as a result about this one.
+    Note 'API session is in the test account' $Prefix.ToUpper() $apiAcct
+    Note 'API session ran the probe' $true ($apiOut -match 'PROBE\.DONE')
+
+    # -----------------------------------------------------------------------
+    Step 8 'The verdict'
+
+    # THESE TWO ARE THE POINT.  A FAIL HERE IS A FINDING, NOT A BROKEN TEST:
+    # it means a remote API client, holding nothing but an ordinary account's
+    # credential, can read and rewrite the credential store - and the port is
+    # reachable from another machine with "ssh -L", which is the route
+    # administrators are deliberately not given.
+    Note 'API session CANNOT open $cred'  'NO' $apiOpen
+
+    # 21 Aug 26 - THE WRITE IS ENTAILED BY THE OPEN, AND READING ITS ABSENCE AS
+    # A FAILURE WAS WRONG.  apiadminprobe.sb only attempts the write inside
+    # "if cred.open then" - there is no file variable to write through
+    # otherwise - so a refused OPEN means PROBE.CRED.WRITE is never printed.
+    # Measured on sdapia6: open came back "NO status 3035" and this line read a
+    # blank and scored FAIL on the run where the gate had just worked.
+    #
+    # A REFUSED OPEN IS THE STRONGER RESULT, NOT A MISSING ONE.  You cannot
+    # write a file you could not open, so the assertion is satisfied - but it
+    # is satisfied for a DIFFERENT REASON than "the write was refused", and the
+    # transcript says which, because collapsing the two would hide the day the
+    # open starts succeeding again.
+    if ($apiOpen -eq 'NO') {
+        Write-Host '   (the write was never attempted: the open was refused, which subsumes it)'
+        Note 'API session CANNOT write $cred' 'NO' 'NO'
+    } else {
+        Note 'API session CANNOT write $cred' 'NO' $apiWrite
+    }
+
+    # 20 Aug 26 - AND WHAT THE SESSION SAYS IT IS, FROM INSIDE.  Everything
+    # above infers the identity from OUTSIDE the process, by reading the owner
+    # of the forked sd.exe.  This is SD's own session answering.
+    #
+    # IT ALSO TESTS os_permitted() (op_sh.c), which returns TRUE on USR_ADMIN -
+    # and kernel.c:195 seeds USR_ADMIN from IsElevated() with no test of
+    # connection type.  If OS.EXECUTE runs here at all, that gate is open to
+    # every API client.
+    $apiWho    = Get-Marker $apiOsOut   'WHOAMI'
+    $localWho  = Get-Marker $localOsOut 'WHOAMI'
+    Write-Host "   whoami - local: '$localWho'   api: '$apiWho'"
+
+    # 21 Aug 26 - THIS PATTERN WAS ^nt_authority_+system$ AND IT DID NOT MATCH
+    # WHAT THE PROBE PRINTS.  The probe flattened space but not BACKSLASH, so
+    # the marker arrived as "nt_authority\system" - and this check reported
+    # "API session is NOT running as SYSTEM" as a PASS on the very run where
+    # the session had just said it was.  A FALSE PASS on the most important
+    # check in this file.  The probe now flattens the backslash too
+    # (apiadminprobe.sb), and this pattern no longer depends on which
+    # separators it happened to catch: anything non-alphanumeric between the
+    # three words counts.  Two independent changes for one fault, deliberately
+    # - the check must not be able to go blind again if the probe is reworded.
+    $apiIsSystem = ($apiWho -match '(?i)^nt[^a-z0-9]*authority[^a-z0-9]*system$')
+
+    # 21 Aug 26 - AND IT IS ONLY A CHECK WHILE THE PROBE CAN STILL ASK.
+    #
+    # This question is answered by running "whoami" INSIDE the session.  Once
+    # the containment gate refuses OS.EXECUTE to a network session - which is
+    # the very thing the next check asserts - no marker comes back, $apiWho is
+    # empty, and this would report "NOT running as SYSTEM ... PASS" on a
+    # session that is still LocalSystem and has only lost the ability to say
+    # so.  A false pass on the most important line in the file, for the second
+    # time and by a different route.
+    #
+    # WHAT IS ACTUALLY TRUE AFTER THE GATE: the session STILL RUNS AS
+    # LocalSystem.  sdwind fork()s it and it inherits the service token; that
+    # is unchanged and needs the CreateProcessAsUser work to fix.  What changed
+    # is that it can no longer reach the operating system with it.  Recording
+    # N/A here keeps those two facts apart.
+    if ($apiWho -eq '') {
+        Skip 'API session is NOT running as SYSTEM' `
+             'OS.EXECUTE was refused, so the probe could not ask - the session may still BE SYSTEM'
+    } else {
+        Note 'API session is NOT running as SYSTEM' $false $apiIsSystem
+    }
+
+    # 21 Aug 26 - AND WHETHER OS.EXECUTE RAN AT ALL, which is section 8 item 5
+    # measured rather than read.  WHOAMI is printed only if os.execute
+    # RETURNED; a refusal aborts the program at that line, so the marker is
+    # absent.  PROBE.DONE is printed BEFORE the attempt, so its presence
+    # separates "refused" from "never got there".
+    $apiRanOsExec   = ($apiWho   -ne '')
+    $localRanOsExec = ($localWho -ne '')
+
+    # 21 Aug 26 - AND WHETHER THE ATTEMPT WAS MADE AT ALL, WHICH IS WHAT MAKES
+    # THE NEXT CHECK A CHECK.  "CANNOT run OS.EXECUTE" is read off the ABSENCE
+    # of WHOAMI, and an absent marker is equally consistent with the probe
+    # never having started - a compile that failed, a connection that dropped,
+    # a name that no longer resolves.  That is the same vacuous-pass shape as
+    # the SYSTEM line below, so it gets the same treatment rather than a
+    # comment: PROBE.OSEXEC.TRIED is printed BEFORE the attempt, so its
+    # presence is the difference between "refused" and "never got there".
+    # 21 Aug 26 - AND THE REFUSAL MESSAGE IS THE EVIDENCE, NOT THE MARKER.
+    #
+    # PROBE.OSEXEC.TRIED is printed BEFORE the attempt, which was supposed to
+    # separate "refused" from "never got there".  It does on the local leg and
+    # it CANNOT on the API leg: the refusal aborts the program, an abort
+    # discards the captured buffer, and the marker goes with it.  So the check
+    # that asked for it could never pass over the API while the gate worked -
+    # a check that cannot pass is as useless as one that cannot fail, and it
+    # scored FAIL on sdapia6 for that reason.
+    #
+    # WHAT DOES COME BACK IS SD'S OWN REFUSAL, and it is better evidence than
+    # the marker ever was, because it NAMES THE ACCOUNT AND THE PROGRAM:
+    #
+    #   000000D3: sdapia6 is not permitted to use OS.EXECUTE at line 26 of
+    #   /cygdrive/c/.../sdapia6/BP.OUT/APIOSEXECPROBE
+    #
+    # ASSERT ON SOMETHING THAT MUST BE PRESENT.  That is the lesson from all
+    # four instrument faults in this file: an absent marker is not an answer.
+    $refusedRx = [regex]::Escape($Prefix) + ' is not permitted to use OS\.EXECUTE'
+    $apiRefusedOsExec   = ($apiOsOut   -match $refusedRx) -and ($apiOsOut   -match 'APIOSEXECPROBE')
+    # The local leg is refused under whatever Windows account is running this,
+    # so it is matched on the message rather than on a name.
+    $localRefusedOsExec = ($localOsOut -match 'not permitted to use OS\.EXECUTE')
+
+    # Reached the attempt: either it said so, or it was refused AT it.
+    $apiTriedOsExec   = ($apiOsOut   -match 'PROBE\.OSEXEC\.TRIED') -or $apiRefusedOsExec
+    $localTriedOsExec = ($localOsOut -match 'PROBE\.OSEXEC\.TRIED') -or $localRefusedOsExec
+
+    Note 'the OS.EXECUTE probe reached the attempt, API'   $true $apiTriedOsExec
+    Note 'the OS.EXECUTE probe reached the attempt, local' $true $localTriedOsExec
+
+    # THE POSITIVE FORM OF THE HEADLINE, and the one to read: SD refused THIS
+    # account BY NAME, in THIS program.  Nothing about it is inferred from an
+    # absence.
+    Note 'API session was refused OS.EXECUTE by name' $true $apiRefusedOsExec
+
+    # A FAIL HERE IS THE FINDING, like the two $cred lines above: os_permitted()
+    # returns TRUE on USR_ADMIN and kernel.c:195 seeds USR_ADMIN from
+    # IsElevated() with no test of connection type.
+    #
+    # ONLY MEANINGFUL IF THE ATTEMPT WAS MADE - see the two lines above.
+    if ($apiTriedOsExec) {
+        Note 'API session CANNOT run OS.EXECUTE' $false $apiRanOsExec
+    } else {
+        Skip 'API session CANNOT run OS.EXECUTE' `
+             'the probe never reached the attempt, so a refusal cannot be distinguished from a no-show'
+    }
+
+    # 29 Aug 26 - THIS ROW CHANGED POLARITY ON THE OWNER'S RULING, AND THE ROW
+    # IT REPLACES IS THE PART TO READ FIRST.  It used to assert that a LOCAL
+    # ELEVATED session in the SAME account was REFUSED, and it named the
+    # inversion that made the API finding sharp: "same account, same program,
+    # and the remote client is the one that gets the operating system".  It
+    # starts in SDSYS with USR_ADMIN set and gives the flag up on the way out
+    # (CPROC, "administrator rights belong to SDSYS"), so os_permitted() used
+    # to say no by the time it reached the probe.
+    #
+    # THAT INVERSION IS GONE, AND IT WENT DELIBERATELY - PRE_RELEASE 64.
+    # PRE_RELEASE 2 restored os.sh/os.exec to CREATEA's ADMINISTRATOR arm
+    # (CREATEA:1613), so the person running this suite is listed in os.users.
+    # THAT LOOKUP IS KEYED ON THE PERSON AND A LOGTO DOES NOT CHANGE IT
+    # (op_sh.c:167), so the local session now falls through USR_ADMIN into the
+    # file and keeps OS.EXECUTE into whatever account it moves to.  The owner
+    # was shown the leak and the session-flag alternative and ruled twice that
+    # the rights stay as they are - 29 Aug on entry 2, and again when this row
+    # raised it as entry 64.  SO THIS ASSERTS THE RULED BEHAVIOUR.
+    #
+    # IT IS NOT A FLIPPED EXPECTED VALUE, WHICH ENTRY 64 FORBIDS.  The check is
+    # a different claim with a different name, and it now does the job the row
+    # above was missing: THE POSITIVE CONTROL.  "API session CANNOT run
+    # OS.EXECUTE" is read off a REFUSAL, and a refusal is only evidence if this
+    # probe could have seen a success - while BOTH legs were refused, nothing
+    # in the run ever demonstrated that it could, so that row could pass with a
+    # blind probe.  This leg is the demonstration: same program, same probe,
+    # permitted route, and OS.EXECUTE RUNS.  A FAIL here disqualifies the row
+    # above rather than standing on its own.
+    if ($NoFixture) {
+        # THE FALSIFICATION CHECK.  See $NoFixture's help text and the header
+        # comment at $osUsersDir.  A DIFFERENT NAME from the check below, not
+        # its expected value flipped in place (entry 64).  PASS here (refused)
+        # confirms the fixture is doing real work; a FAIL (ran anyway) means
+        # USR_ADMIN, or something else, survives the seat's LOGTO under
+        # -Internal and the fixture is unneeded - read it as a finding about
+        # the seat or the -Internal door, not as licence to just delete the
+        # fixture (see PROJECT_STATUS.md entry 76).
+        if ($localTriedOsExec) {
+            Note 'falsification: WITHOUT the fixture, the control is refused' $true (-not $localRanOsExec)
+        } else {
+            Skip 'falsification: WITHOUT the fixture, the control is refused' `
+                 'the probe never reached the attempt'
+        }
+    } elseif ($localTriedOsExec) {
+        Note 'control: the probe CAN see OS.EXECUTE run (local, listed administrator)' $true $localRanOsExec
+    } else {
+        Skip 'control: the probe CAN see OS.EXECUTE run (local, listed administrator)' `
+             'the probe never reached the attempt'
+    }
+
+    # 21 Aug 26 - GATED ON "IT RAN" RATHER THAN ON "IT SAID SYSTEM".  The two
+    # are different failures and the first is the one that matters: OS.EXECUTE
+    # reaching the operating system at all from a network session is the hole,
+    # whatever identity it reports.  Gating on $apiIsSystem meant that when the
+    # pattern above went blind, this block stayed silent on the run that
+    # measured the thing it exists to announce.
+    if ($apiRanOsExec) {
+        Write-Host ''
+        Write-Host 'FINDING: OS.EXECUTE RAN in a remote API session.' -ForegroundColor Red
+        Write-Host ("It reported its identity as: " + $apiWho) -ForegroundColor Red
+        Write-Host 'op_sh.c os_permitted() returns TRUE on USR_ADMIN, and kernel.c:195' -ForegroundColor Red
+        Write-Host 'seeds USR_ADMIN from IsElevated() with no test of connection type.' -ForegroundColor Red
+        # 29 Aug 26 - STILL CORRECT AND NOW RARE, WHICH IS WHY IT SAYS SO.  The
+        # control above expects the local leg to RUN, so this arm no longer
+        # fires on an ordinary run.  It is kept because the inversion it names
+        # is a real and much worse state than the API finding alone: if the
+        # local leg is ever refused while the API leg runs, the remote client
+        # has something the operator at the keyboard does not, and that is
+        # worth printing in full whatever the ruling on os.users says.
+        if (-not $localRanOsExec) {
+            Write-Host '' -ForegroundColor Red
+            Write-Host 'AND THE INVERSION IS THE SHARP PART: the LOCAL ELEVATED control,' -ForegroundColor Red
+            Write-Host 'running the SAME program in the SAME account, was REFUSED.  It gives' -ForegroundColor Red
+            Write-Host 'up USR_ADMIN on the way out of SDSYS (CPROC); the API session never' -ForegroundColor Red
+            Write-Host 'leaves, so it keeps it.  The remote client gets the operating system' -ForegroundColor Red
+            Write-Host 'and the administrator at the keyboard does not.' -ForegroundColor Red
+        }
+    }
+
+    if ($apiOpen -eq 'YES' -or $apiWrite -eq 'YES') {
+        Write-Host ''
+        Write-Host 'FINDING: the API session reached a file locked to SYSTEM and Administrators.' -ForegroundColor Red
+        Write-Host 'The local control shows the probe reports YES only when it genuinely can,' -ForegroundColor Red
+        Write-Host 'so this is the session token, not the probe.  APISRVR:459 and :489 assume' -ForegroundColor Red
+        Write-Host 'the opposite and the account gating there is reasoned on that assumption.' -ForegroundColor Red
+    }
+}
+finally {
+    Write-Host ''
+    Write-Host '== [restore] Undoing everything this run created' -ForegroundColor Cyan
+
+    if ($restoreNeeded -and (Test-Path -LiteralPath $backup)) {
+        Copy-Item -LiteralPath $backup -Destination $conf -Force
+        Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue
+        Write-Host '   sd.conf restored'
+        if (Stop-SD) { $null = Start-SD }
+    }
+
+    # 21 Sep 26 - RELEASE_1.1 76: THE BACKSTOP for the os.users\SDSYS record planted for
+    # the local control.  Removed only if it is the one this run wrote (the helper
+    # refuses to touch any other) and said so out loud, because a permission record
+    # left on the list that grants shells is worse than a name in a register.
+    if ($plantedOsUsers) {
+        $r = Remove-SeatOsUsersRecord -OsUsersDir $osUsersDir -Account 'SDSYS'
+        Write-Host ("   backstop: os.users\SDSYS removed: ok={0} {1}" -f $r.Ok, $r.Why) -ForegroundColor Yellow
+    }
+
+    # The probe writes a namespaced record and deletes it again, but a run that
+    # died between the two would leave it.  Named rather than silently left.
+    if (Test-Path -LiteralPath (Join-Path $cred '$$apiadminprobe')) {
+        Remove-Item -LiteralPath (Join-Path $cred '$$apiadminprobe') -Force -ErrorAction SilentlyContinue
+        Write-Host '   removed a leftover $$apiadminprobe record from $cred'
+    }
+
+    if ($madeAccount) {
+        # 21 Aug 26 - OUT OF sdapi FIRST, AND BEFORE DELETE.ACCOUNT RATHER THAN
+        # RELYING ON IT.  Removing the Windows user takes its group memberships
+        # with it, so this is redundant on the happy path - but DELETE.ACCOUNT
+        # is exactly the step that sometimes does not finish (the block below
+        # exists for that), and an account left behind holding an API grant is
+        # the one piece of litter from this script that would be a permission
+        # rather than a name in a register.
+        foreach ($g in @('sdapi', 'sdssh')) {
+            try {
+                if (Get-LocalGroupMember -Group $g -Member $Prefix -ErrorAction SilentlyContinue) {
+                    Remove-LocalGroupMember -Group $g -Member $Prefix -ErrorAction Stop
+                    Write-Host "   took $Prefix out of $g"
+                }
+            } catch { }
+        }
+
+        try {
+            $out = Invoke-SDSys @("DELETE.ACCOUNT $Prefix", 'Y', 'Y')
+            Write-Host $out
+        } catch { Write-Host "   DELETE.ACCOUNT threw: $_" }
+
+        $stillReg = Test-Path -LiteralPath (Join-Path $env:ProgramData ('SD\sdsys\accounts\' + $Prefix.ToUpper()))
+        $stillWin = [bool](Get-LocalUser -Name $Prefix -ErrorAction SilentlyContinue)
+        if ($stillReg -or $stillWin) {
+            Write-Host "   NOT fully removed - register:$stillReg windows:$stillWin" -ForegroundColor Yellow
+            Write-Host "   Remove by hand before reusing -Prefix $Prefix." -ForegroundColor Yellow
+        } else {
+            Write-Host '   throwaway account removed'
+        }
+    }
+}
+
+Write-Host ''
+$results | Format-Table -AutoSize
+$pass  = @($results | Where-Object { $_.Expected -eq $_.Observed }).Count
+$total = $results.Count
+Write-Host ("verify-apiadmin: {0}/{1}" -f $pass, $total) -ForegroundColor $(if ($failed) { 'Red' } else { 'Green' })
+try { Stop-Transcript | Out-Null } catch { }
+exit $(if ($failed) { 1 } else { 0 })

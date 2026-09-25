@@ -1,0 +1,131 @@
+* PS_SCRIPT(script)
+* Run a PowerShell script that carries a secret, without putting it on a
+* command line.  Returns the script's exit status, or -1 if it could not be
+* run at all.
+* Copyright (c) String Database
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 3, or (at your option)
+* any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software Foundation,
+* Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+*
+* START-HISTORY:
+* 19 Aug 26 Windows port - the script directory is SDSYS pstmp, lower case on
+*           disk; sd.iss hands secure-psdir.ps1 the same name.  5.12 (a).
+* 14 Aug 26 Windows port - written for the OS account commands
+* 16 Aug 26 Windows port - an elevated session sends the script to its helper
+* 16 Aug 26 Windows port - scripts go in SDSYS\PSTMP, not the account
+*                      directory, where every SD user could read the password
+*                      in a !set_passwd script and rewrite any script before
+*                      the elevated helper ran it
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*    rc = !ps_script(script)
+*
+*    script - PowerShell text.  Lines are field marks.
+*
+*    WHY THIS EXISTS.  Creating a Windows account needs a password, and the
+*    obvious "net user <name> <password> /add" puts that password in a process
+*    command line, where any local user can read it through Task Manager,
+*    Get-CimInstance Win32_Process or ETW.  PROJECT_STATUS.md section 8
+*    rejected exactly that pattern for batch login and the same reasoning
+*    applies here.  Decision from the repository owner, 14 Aug 2026: write the
+*    script to a file instead, run it, delete it.
+*
+*    IT GOES IN SDSYS\PSTMP, AND THE PARAGRAPH THAT USED TO BE HERE WAS
+*    WRONG - corrected 16 Aug 2026, having been believed since 14 Aug.  It
+*    said the script was safe in the account directory because the installer
+*    breaks inheritance on C:\ProgramData\SD and "grants narrowly", so the
+*    file was "protected by work already done, with no icacls call of its
+*    own".  The grant is narrow against the WORLD and not against SD's own
+*    users: it is sdusers:(OI)(CI)(M), inherited by every file underneath, so
+*    each script was readable AND WRITABLE by every other SD user.  Reading it
+*    yields !set_passwd's new password in clear; rewriting it between this
+*    write and the helper's execution gets arbitrary content run with full
+*    privilege.  The second is a local privilege escalation and is the reason
+*    for the change.
+*
+*    PSTMP is created by the installer through gplbld/secure-psdir.ps1, whose
+*    header carries the ACL and why it has the shape it does.  In short: SD
+*    users may create files there and nothing more, CREATOR OWNER gives each
+*    script to the session that wrote it, and Administrators keep full control
+*    so the elevated helper can read what it is told to run.  This routine
+*    FAILS CLOSED if the directory is absent rather than falling back to the
+*    account directory.
+*
+*    A FULL WINDOWS PATHNAME, which is now possible and was not on 14 Aug.
+*    The paragraph replaced here explained a relative name as a way round
+*    BASIC being unable to make one, OS$FULLPATH returning POSIX.  @sdsys is a
+*    Windows pathname already - sd.conf carries SDSYS=C:\ProgramData\SD\sdsys,
+*    and @ds is the backslash - so @sdsys:@ds:'PSTMP':@ds:id is a name both
+*    PowerShell and the helper open as it stands, from any working directory.
+*
+*    Invoke-Expression rather than "& .\script.ps1", for two reasons measured
+*    on 14 Aug 2026: the ampersand form does not propagate the script's exit
+*    status - a script ending "exit 7" gave 1 - and running a .ps1 file is
+*    subject to the execution policy, while running text is not.  So this
+*    needs no -ExecutionPolicy Bypass anywhere.
+*
+*    THE FILE IS DELETED WHETHER THE SCRIPT SUCCEEDED OR NOT.  If SD dies
+*    between the write and the delete, a script holding a password is left in
+*    SDSYS\PSTMP; it is named $PS.TMP.<user number> so it is recognisable, and
+*    the directory's ACL is what protects it in the meantime - it is readable
+*    only by the user who wrote it and by administrators.  secure-psdir.ps1
+*    clears the directory on every install for the same reason.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+function ps_script(script)
+$catalog !ps_script
+
+* int$keys.h is GONE with the body: K$ADMINISTRATOR was its only use here and
+* that test now lives in PS_SCRIPTO.  Checked rather than assumed - the symbol
+* appears nowhere else in this file.
+
+* 31 Aug 26 Windows port - THE BODY THAT WAS HERE NOW LIVES IN PS_SCRIPTO, AND
+*   THIS IS A WRAPPER.  PRE_RELEASE_FIXES 90.  Nothing about what this function
+*   does has changed: same one argument, same return, same status(), same
+*   silence.  What moved is where the code is, so that the reporting form -
+*   !ps_script_out, which brings the script's OUTPUT back as well - shares this
+*   logic instead of holding a second copy of the PSTMP rules.  A second copy is
+*   exactly the thing that rots, and the rules it would copy are the ones that
+*   keep a password out of another user's reach.
+*
+*   THE SECURITY REASONING IS STILL ABOVE, in this file's START-DESCRIPTION,
+*   because this is the function everything calls and the header is where
+*   anybody looks.  The implementation comments went with the implementation.
+deffun ps_script_out(script, want.out) calling '!ps_script_out'
+
+*  FALSE, ALWAYS, AND THAT IS THE POINT OF THE SPLIT.  !create_user,
+*  !set_passwd and !os_group all arrive here, and showing helper output
+*  unconditionally would put the internals of account creation on screen during
+*  an install.  Every existing caller keeps the silence it was written for; only
+*  the four reporting verbs ask for output, and they call !ps_script_out direct.
+*
+*  FIELD 1 IS THE VALUE THIS HAS ALWAYS RETURNED.  PS_SCRIPTO returns
+*  rc : @fm : text; the text is empty here because want.out is false.
+*
+*  ON status(): PS_SCRIPTO sets it exactly where this used to - 0 normally, 1
+*  when the script could not be written at all - but whether it survives the
+*  return through this wrapper is NOT asserted, because nothing depends on it:
+*  checked 31 Aug 2026, NO CALLER of ps_script reads status() afterwards, in
+*  any of the fourteen.  They all test the returned rc.  If one ever needs it,
+*  measure it before relying on it rather than trusting this line.
+   return field(ps_script_out(script, @false), @fm, 1)
+end
+
+* END-CODE

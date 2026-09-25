@@ -1,0 +1,200 @@
+* SET_PASSWD(USERNAME)
+* set os user password
+* Copyright (c) String Database
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 3, or (at your option)
+* any later version.
+* 
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software Foundation,
+* Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+* 
+*
+* START-HISTORY:
+* 14 Sep 26 Windows port - comment only: LOGIN no longer sets PT$INVERT.
+* 28 Aug 26 Windows port - the same prompt now also writes SD's own credential
+*           through !CRED_SET, so an account is usable over the API as well as
+*           ssh the moment it is created.  New status 6.  Owner's ruling on
+*           PRE_RELEASE_FIXES.md 42
+* 14 Aug 26 Windows port - prompt inside SD and set the password through
+*           Set-LocalUser, replacing the interactive passwd(1)
+* rev 0.9.0 Jan 25 mab initial commit
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*    x = !set_passwd(username)
+*
+*    set os user password
+*
+*    This function sets the STATUS() value to 0 if successful and returns true
+*    Otherwise sets status to the os status and returns false
+*
+*    THE PASSWORD IS PROMPTED FOR HERE, not by the operating system.  On
+*    Linux this ran "passwd <user>", which does its own prompting on the
+*    terminal; Windows has no equivalent that can be driven that way, so SD
+*    asks, confirms, and hands the answer to Set-LocalUser.
+*
+*    Case inversion is turned off around the reads and restored afterwards.
+*    PT$INVERT (set by LOGIN until 14 Sep 2026, and still by PTERM CASE
+*    INVERT) silently swaps the case of everything typed - a
+*    password entered as hunter2 arrives as HUNTER2, verifies by hand and
+*    fails at login with nothing visibly wrong.  See PROJECT_STATUS.md
+*    section 6; this is the same guard logto.step.up uses.
+*
+*    The password never reaches a command line.  !ps_script writes the script
+*    to a file inside the SDSYS directory, which inherits the restricted ACL,
+*    runs it and deletes it.  Decision from the repository owner, 14 Aug 2026.
+*
+*    The account is enabled once the password is set, since CREATE_USER makes
+*    it disabled.
+*
+* status values
+*   0 success
+*   1 the password could not be set
+*   2 the name is not a valid OS user name
+*   3 no password entered, or the two did not match
+*   5 access denied: SD is not running elevated
+*   6 the Windows password was set, but SD's own credential could not be
+*     written - the account would be reachable over ssh and refused by the API
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+function set_passwd(username)
+$catalog !set_passwd
+
+deffun valid_os_name(name) calling '!valid_os_name'
+deffun ps_script(script) calling '!ps_script'
+* 19 Sep 26 Windows port - RELEASE_1.1 75's rule, shared with the Linux port.
+deffun pw_complex(pw) calling '!pw_complex'
+
+$include int$keys.h
+
+pass_set = @false
+set.status 0
+*
+* Modified by Composer AI - 2026/06/10.
+* Use shared !valid_os_name before OS.EXECUTE (phase 2).
+* os.name.chars = '...'
+* if username = '' or convert(os.name.chars, '', username) # '' or len(username) > 32 then
+if not(valid_os_name(username)) then
+   set.status 2
+   return pass_set
+end
+* --------------------
+
+* 14 Aug 26 Windows port - was: OS.EXECUTE "sudo passwd " : username
+*   Ask here rather than letting the OS ask.  PT$INVERT off around the reads.
+   was.inverted = pterm(PT$INVERT, @false)
+
+   display 'New Windows password for ' : username : ': ' :
+   input pw1 HIDDEN
+   display
+
+   display 'Repeat password: ' :
+   input pw2 HIDDEN
+   display
+
+   void pterm(PT$INVERT, was.inverted)
+
+   if pw1 = '' or pw1 # pw2 then
+      set.status 3
+      return pass_set
+   end
+
+* 19 Sep 26 Windows port - RELEASE_1.1 75.  SD'S OWN RULE, CHECKED BEFORE THE
+*   PASSWORD GOES ANYWHERE.  Owner's ruling, taken on the Linux side and
+*   binding in both ports: SD requires a complex password "even if the OS does
+*   not", for SDSYS and for every other account.
+*
+*   STATUS 7 RATHER THAN REUSING 1.  Status 1 means WINDOWS refused it, and
+*   the caller already tells the two apart for a reason recorded at
+*   createa:813 - a mistyped pair is fixed by retyping, a refusal never is.
+*   "SD refused it" is a third thing again: retyping the SAME password will
+*   not help, but a DIFFERENT one will, and only a distinct status can say so.
+*
+*   AFTER THE MATCH TEST, DELIBERATELY.  This prompt has no retry loop of its
+*   own - the caller owns that - so the order only decides which reason is
+*   reported when a password is both mistyped and weak, and "they did not
+*   match" is the one the typist can act on without knowing the rule.
+   if not(pw_complex(pw1)) then
+      pw1 = '' ; pw2 = ''
+      set.status 7
+      return pass_set
+   end
+
+*  A password is arbitrary text and must not be interpolated.  PowerShell
+*  expands $name and backticks inside DOUBLE quotes, so a password containing
+*  $env:USERNAME would be substituted rather than set, and one containing a
+*  double quote would end the string and change the script.  Inside SINGLE
+*  quotes nothing is special; the only character needing care is the
+*  apostrophe itself, which PowerShell escapes by doubling.
+   q = char(39)
+   safe.pw = change(pw1, q, q:q)
+
+   ps = 'if (-not (New-Object Security.Principal.WindowsPrincipal('
+   ps := '[Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole('
+   ps := '[Security.Principal.WindowsBuiltInRole]::Administrator)) { exit 5 }'
+   ps := @fm : 'try {'
+   ps := @fm : '  $p = ConvertTo-SecureString -String ' : q : safe.pw : q : ' -AsPlainText -Force'
+   ps := @fm : '  Set-LocalUser -Name ' : q : username : q : ' -Password $p -ErrorAction Stop'
+   ps := @fm : '  Enable-LocalUser -Name ' : q : username : q : ' -ErrorAction Stop'
+   ps := @fm : '} catch { exit 1 }'
+   ps := @fm : 'exit 0'
+
+   stat = ps_script(ps)
+   safe.pw = '' ; ps = ''
+
+* 28 Aug 26 Windows port - SET SD'S OWN CREDENTIAL FROM THE SAME PROMPT.
+*   Owner's ruling, 28 Aug 2026, on PRE_RELEASE_FIXES.md 42.  Setting the
+*   Windows password left $cred empty, so CREATE.ACCOUNT printed 10078 - "SD
+*   routes for %1: ssh and the API" - over an account the API could not
+*   authenticate.  sshd checks the WINDOWS password; the API does SCRAM
+*   against $cred, and only MODIFY.PASSWORD ever wrote one.
+*
+*   MEASURED 28 Aug 2026 on sddr1a, which was in sdapi, sdssh AND sdusers -
+*   route granted, credential absent - and the refusal names nothing, because
+*   APISRVR:507 answers 10003 for "no such account" and "not granted" too.
+*   The account had to be repaired with MODIFY.PASSWORD before the API door
+*   could be measured at all.
+*
+*   THIS FILE'S CALLER ALREADY BELIEVED IT.  CREATEA:537 says an account whose
+*   user has no password has "no $cred, which under the SCRAM login is an
+*   account nothing can ever connect to" - true of the intent, false of the
+*   code, until now.
+*
+*   ONE PROMPT SETS BOTH.  They remain separate credentials in separate stores;
+*   this gives them the same value, which is what an administrator typing "the
+*   password for this account" means.  MODIFY.PASSWORD still changes the SD one
+*   on its own, and is still the only way to make them differ.
+*
+*   ORDER MATTERS: Windows first, then $cred.  A $cred written for an account
+*   whose Windows user was refused would be a credential for a login that
+*   cannot happen.  pw1 is therefore cleared BELOW this block rather than with
+*   safe.pw above it.
+   if stat = 0 then
+      cred.ok = @false
+      call !CRED_SET(username, pw1, cred.ok)
+      if not(cred.ok) then stat = 6
+   end
+
+   pw1 = '' ; pw2 = ''
+
+if stat = 0 then
+  pass_set = @TRUE 
+end else
+  set.status stat
+end
+
+return pass_set
+end

@@ -1,0 +1,268 @@
+* CONFIG
+* CONFIG verb
+* Copyright (c) 2007 Ladybridge Systems, All Rights Reserved
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 3, or (at your option)
+* any later version.
+* 
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software Foundation,
+* Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+* 
+* 
+* START-HISTORY:
+* 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
+* rev 0.9.0 Jan 25 mab add CREATUSR config parameter
+* 16 Aug 26 Windows port - CREATUSR is no longer reported.  op_config() has
+*           no branch for it, so printing it would show a blank line and set
+*           status to ER_NOT_FOUND.
+* 17 Aug 26 Windows port - APIPORT reported, for the API listener.
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*    CONFIG                 Report settings
+*    CONFIG LPTR            Report settings on default printer
+*    CONFIG param value     Set param to value
+*    CONFIG GPL             Display GPL
+
+* Config data dynamic array:
+*   1  Licence number
+*   2  Max users
+*   3  Expiry date, zero if none
+*   4  Evaluation copy? (Boolean)
+*   5  Site text
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+program config
+$internal
+$catalog $config
+
+$include syscom.h
+$include int$keys.h
+$include err.h
+$include parser.h
+
+
+   @system.return.code = -ER$ARGS      ;* Preset for command format errors
+
+   lptr = @false
+
+   call @parser(parser$reset, 0, @sentence, 0)
+   call @parser(parser$get.token, token.type, token, keyword)  ;* Verb
+
+   call @parser(parser$get.token, token.type, param, keyword)
+
+   begin case
+      case upcase(param) = 'GPL' 		; gosub show.gpl
+      case upcase(param) = 'CONTRIB' 	; gosub show.contrib
+      case token.type = PARSER$END 		; gosub report.params
+      case keyword = KW$LPTR       		; gosub print.params
+      case 1 							; gosub set.param
+   end case
+
+   @system.return.code = 0
+
+   return
+
+* ======================================================================
+
+print.params:
+   lptr = @true
+
+report.params:
+   if lptr then printer on
+
+   print sysmsg(3061, system(1012))        ;* Version number xx
+
+!!CONFIG!!
+* NOTE to dev: config names are capped at 8 char!
+ * 20240219 mab mods to handle AF_UNIX sockets, security mode 
+   print 'APILOGIN  '        : config('APILOGIN')
+* 17 Aug 26 Windows port - APIPORT.  Printed even when zero, unlike PORTMAP
+* below, because zero is the answer to "is the API listening?" and a line that
+* vanishes when the feature is off is the one a reader most needs to see.
+   print 'APIPORT   '        : config('APIPORT')
+   print 'CMDSTACK  '        : config('CMDSTACK')
+   n = config('CODEPAGE') ; if n then print 'CODEPAGE  '        : n
+   print 'DEADLOCK  '        : config('DEADLOCK')
+   n = config('DEBUG') ; if n then print 'DEBUG     '        : n
+   print 'DUMPDIR   '        : config('DUMPDIR')
+   print 'ERRLOG    '        : config('ERRLOG') : ' kb'
+   print 'EXCLREM   '        : config('EXCLREM')
+   n = config('FDS') ; if n < 32767 then print 'FDS  '        : n
+   print 'FILERULE  '        : config('FILERULE')
+   print 'FLTDIFF   '        : config('FLTDIFF')
+   print 'FSYNC     '        : config('FSYNC')
+   print 'GDI       '        : config('GDI')
+* 20240219 mab create-account based on type (user / group / other)      
+   print 'GRPDIR    '        : config('GRPDIR')
+   print 'GRPSIZE   '        : config('GRPSIZE')
+   print 'INTPREC   '        : config('INTPREC')
+   print 'JNLMODE   '        : config('JNLMODE')
+   print 'JNLDIR    '        : config('JNLDIR')
+   print 'LPTRHIGH  '        : config('LPTRHIGH')
+   print 'LPTRWIDE  '        : config('LPTRWIDE')
+   print 'MAXCALL   '        : config('MAXCALL')
+   print 'MAXIDLEN  '        : config('MAXIDLEN')
+   print 'MUSTLOCK  '        : config('MUSTLOCK')
+   print 'NETFILES  '        : config('NETFILES')
+   print 'NUMFILES  '        : config('NUMFILES')
+   print 'NUMLOCKS  '        : config('NUMLOCKS')
+   print 'NUMUSERS  '        : config('NUMUSERS')
+   n = config('OBJECTS')
+   print 'OBJECTS   '        : if n then n else '0  [':sysmsg(3067):']'
+   n = config('OBJMEM')
+   print 'OBJMEM    '        : if n then n : ' kb' else '0  [':sysmsg(3067):']'
+   print 'PDUMP     '        : config('PDUMP')
+   s = config('PORTMAP') ; if s # '' then print 'PORTMAP   '        : s
+   
+   print 'RECCACHE  '        : config('RECCACHE')
+   print 'RINGWAIT  '        : config('RINGWAIT')
+   print 'SAFEDIR   '        : config('SAFEDIR')
+   print 'SDCLIENT  '        : config('SDCLIENT')
+	print 'SH        '        : config('SH')
+	print 'SH1       '        : config('SH1')
+   print 'SORTMEM   '        : config('SORTMEM') : ' kb'
+   print 'SORTMRG   '        : config('SORTMRG')
+   print 'SORTWORK  '        : config('SORTWORK')
+	print 'SPOOLER   '        : config('SPOOLER')
+   print 'STARTUP   '        : config('STARTUP')
+   print 'TEMPDIR   '        : config('TEMPDIR')
+   print 'TERMINFO  '        : config('TERMINFO')
+* 20240219 mab create-account based on type (user / group / other)      
+   print 'USRDIR    '        : config('USRDIR')
+   print 'YEARBASE  '        : config('YEARBASE')
+   print
+
+   if lptr then printer off
+
+   return
+
+* ======================================================================
+
+* 26 Aug 26 Windows port - BOTH OF THESE READ A VOC RECORD NOW, AND NEITHER
+*   SHELLS OUT.  Owner's ruling: the text CONFIG shows should be internal to SD
+*   rather than a file it reaches out to.
+*
+*   WHAT THEY USED TO BE:  execute "!less " : @sdsys:@ds:'licence'
+*
+*   THAT FAILED TWICE OVER ON WINDOWS and either half alone was enough.
+*   There is no "less" on a Windows machine and the install ships none - so
+*   the pager was never going to run.  And "!" is CPROC's shell escape, gated
+*   on OS.USERS field 1 (op_sh.c os_permitted), so an ordinary user was
+*   refused before that even mattered - with a message about the operating
+*   system shell, naming neither CONFIG nor the licence.  Displaying a licence
+*   must not require shell permission.
+*
+*   THE RECORDS ARE IN SDSYS's OWN VOC AND NOT IN NEWVOC.  voc_template is
+*   the administrative superset that becomes SDSYS's VOC; newvoc is what
+*   CREATEA copies into every account.  The licence is 44 KB, so in newvoc it
+*   would land in every account's VOC and be copied again by every
+*   UPDATE.ACCOUNTS.  gplbld/mkvocdoc.py generates both records FROM the files
+*   that still ship in the data tree, so the two cannot drift; --check asserts
+*   it.
+*
+*   THE FILES STILL SHIP, and that is not redundancy: SD is GPL-3,
+*   sdsys/licence is the only copy of the licence in the distribution, and
+*   sd.iss has no LicenseFile - so a GPL program with no readable licence for
+*   anyone who has not started SD is what deleting it would produce.
+
+show.contrib:
+   * added contributor display (dsm) 2024-01-22
+   doc.name = '$contrib'
+   gosub show.doc
+return
+
+show.gpl:
+   doc.name = '$licence'
+   gosub show.doc
+return
+
+* ----------------------------------------------------------------------
+* show.doc  -  print an X-type record from SDSYS's VOC, a field to a line.
+*
+* SDSYS's VOC RATHER THAN THIS ACCOUNT'S, so there is one copy on the system
+* and it is reachable from wherever CONFIG was typed.  The same @sdsys route
+* LOGIN uses for batch.jobs.
+*
+* PAGINATION IS SD's OWN.  Turning it on for the duration is what replaces the
+* pager, and it is put back afterwards whichever way this leaves - a verb that
+* silently changed the session's paging would be a worse bug than the one
+* being fixed.
+* ----------------------------------------------------------------------
+
+show.doc:
+   openpath @sdsys : @ds : 'voc' to sdsys.voc else
+      display 'Cannot open the SDSYS VOC, so ' : doc.name : ' cannot be shown.'
+      return
+   end
+
+   read doc.rec from sdsys.voc, doc.name else
+      close sdsys.voc
+      display doc.name : ' is not in the SDSYS VOC.'
+      return
+   end
+   close sdsys.voc
+
+   doc.lines = dcount(doc.rec, @fm)
+   if doc.lines < 2 then
+      display doc.name : ' holds no text.'
+      return
+   end
+
+*  THE SAME PAGINATION IDIOM CPROC USES (CPROC:525), not SETPU: SETPU takes a
+*  numeric PU$ key and a unit number and is for print units, while pagination
+*  is a kernel setting.  Read it, turn it on, put it back.
+   pagination.state = kernel(K$PAGINATE, -1)
+   i = kernel(K$PAGINATE, @true)
+
+   crt @(-1) :
+*  Field 1 is the record type, X.  The text starts at field 2.
+   for doc.i = 2 to doc.lines
+      print doc.rec<doc.i>
+   next doc.i
+
+   i = kernel(K$PAGINATE, pagination.state)
+return
+
+* ======================================================================
+
+set.param:
+   param = upcase(param)
+
+   call @parser(parser$get.token, token.type, value, keyword)
+   if token.type = PARSER$END then
+      stop sysmsg(3068)    ;* New parameter value required
+   end
+
+   call @parser(parser$get.token, token.type, token, keyword)
+   if token.type # PARSER$END then
+      stop sysmsg(2018, token)    ;* Unexpected token (xx)
+   end
+
+   if not(pconfig(param, value)) then
+      begin case
+         case status() = 1
+            stop sysmsg(3069)    ;* Not a recognised private configuration parameter name
+
+         case status() = 2
+            stop sysmsg(3070)    ;* Invalid value for this parameter
+      end case
+   end
+
+   return
+end
+
+
+* END-CODE

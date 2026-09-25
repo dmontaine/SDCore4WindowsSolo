@@ -1,0 +1,570 @@
+* DELETEF
+* DELETE.FILE verb
+* Copyright (c) 2006 Ladybridge Systems, All Rights Reserved
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 3, or (at your option)
+* any later version.
+* 
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software Foundation,
+* Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+* 
+* 
+* START-HISTORY:
+* 13 Sep 26 Windows port - RELEASE_1.1_FIXES.md 33, owner's ruling: Enter at
+*            "Use active select list" (2050) means N, and "Delete all data
+*            components of multifile" (6133) gains C to cancel, which is also
+*            what Enter does - neither Y nor N left the file alone.
+* 13 Sep 26 Windows port - the VOC lookup tries the name in lower case, silently,
+*            before the upper-case fallback and its 6131 prompt.  CREATE.FILE
+*            stores a new file's id in lower case since RELEASE_1.1 5 phase (a),
+*            so "DELETE.FILE ZZX" on a file created as ZZX found nothing and
+*            stopped (RELEASE_1.1_FIXES.md 27).
+*  1 Sep 26 Windows port - the 31 Aug fix below reported a failure on the
+*            ORDINARY path: FL$AKPATH comes back non-empty for a file that
+*            never had an index, so the delete failed because there was
+*            nothing there and "nothing to delete" was reported as "could not
+*            delete" - and @system.return.code was set on a delete that had
+*            fully succeeded.  Both sites now test OS$EXISTS first, so 2636 is
+*            reported only when the directory IS there and the delete still
+*            fails (PRE_RELEASE_FIXES.md 113).  MKINDX:355 was checked at the
+*            same time and does NOT carry this: it is guarded by
+*            "if ak.path.created".
+* 31 Aug 26 Windows port - a relocated alternate-key index directory is no
+*            longer orphaned in silence: both "dummy = ospath(akpath,
+*            OS$DELETE)" sites now take the answer and report a failure with
+*            sysmsg 2636, the message MKINDX:355 already uses for the same
+*            call (PRE_RELEASE_FIXES.md 104, UPSTREAM 34).
+* 28 Aug 26 Windows port - NO.QUERY is honoured by check.sdsys.file instead of
+*            prompting into a pipe (PRE_RELEASE_FIXES.md 14, UPSTREAM 23), and
+*            the DATA and DICT path comparisons are case-insensitive so a name
+*            typed in lower case stops producing two spurious prompts
+*            (PRE_RELEASE_FIXES.md 26, UPSTREAM 27).  New message 10117.
+* 19 Aug 26 Windows port - the F/Q file-pointer VOC ids are lower case:
+*            voc, newvoc, accounts, messages, syscom, qfile, dict.dict, md,
+*            sd.accounts, os.users.  PROJECT_STATUS.md 5.12 (b).
+* 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+* DELETE.FILE { DICT | DATA } voc.name { FORCE } { NO.QUERY }
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+program $DELETE.FILE
+$catalog $DELETEF
+
+$include int$keys.h
+$include parser.h
+$include syscom keys.h
+$include syscom err.h
+
+$define max.name.len 12
+
+   parser = "!PARSER"
+
+   @system.return.code = -ER$ARGS      ;* Preset for argument errors
+
+* 20240121 mab use @VM not hard coded hex fd 
+* 19 Aug 26 Windows port - THIS STAYS UPPER CASE, and the VOC id moving to 'voc'
+*   on 19 Aug does not change that.  The guard below is
+*   "locate upcase(file.name) in banned.files", which upcases only the LEFT
+*   side, so the list itself has to be upper or nothing ever matches it and
+*   DELETE.FILE voc would take the account's VOC with it.  PROJECT_STATUS.md
+*   5.12 (b).
+   banned.files = 'VOC':@VM:'$ACC'
+   no.query = @false
+
+   * Open VOC here rather than using @VOC so that it will be closed on
+   * exit avoiding the need for explicit releases on locks in error paths.
+
+   open 'voc' to voc.f else stop sysmsg(2026) ;* Cannot open VOC
+
+   prompt ''
+
+   delete.dict = @true
+   delete.data = @true
+   file.name = ''
+   component = ''
+   deleting.multifile.element = @false   ;* 0483
+   force = @false
+
+   call @parser(PARSER$RESET, 0, @sentence, 0)
+   call @parser(PARSER$GET.TOKEN, token.type, token, keyword) ;* Verb
+
+   call @parser(PARSER$MFILE, token.type, token, keyword)
+   begin case
+      case keyword = KW$DATA
+         delete.dict = @false
+         call @parser(PARSER$MFILE, token.type, token, keyword)
+
+      case keyword = KW$DICT
+         delete.data = @false
+         call @parser(PARSER$MFILE, token.type, token, keyword)
+   end case
+
+   loop
+   while token.type # PARSER$END
+      begin case
+         case keyword = KW$NO.QUERY
+            no.query = @true
+
+         case keyword = KW$FORCE
+            force = @true
+
+         case 1
+            if len(file.name) then
+               stop sysmsg(2018, token) ;* Unexpected token (xx)
+            end
+
+            file.name = field(token, ',', 1)
+            component = field(token, ',', 2)
+      end case
+
+      call @parser(PARSER$GET.TOKEN, token.type, token, keyword)
+   repeat   
+
+
+   if file.name = '' then       ;* Delete from select list?
+      if not(selectinfo(0, sl$active)) then
+         stop sysmsg(2102) ;* File name required
+      end
+
+      readnext file.name then
+         if not(no.query) and not(option(OPT.NO.SEL.LIST.QUERY)) then
+            loop
+               display sysmsg(2050, file.name) :  ;* Use active select list (First item 'xx')?
+               input yn
+               yn = upcase(yn[1,1])
+* 13 Sep 26 Windows port - RELEASE_1.1_FIXES.md 33, owner's ruling.  ENTER MEANS
+*   N, as it now does in all six users of message 2050 (CD, COPY, CT, DELETE, ED
+*   and this).  All six were read on 11 Sep 26: each requires Y to proceed and
+*   sends N to a stop that changes nothing, so N is the safe answer everywhere.
+*   Until today it was left hanging at end of input because changing what six
+*   verbs do on Enter was the owner's call, and he has made it.
+*
+*   SD Core for Linux left its copy alone on a premise that does not hold in
+*   this tree - "2050's other five consumers treat anything but N as yes"; all
+*   five loop until Y.  Recorded because the two ports now differ here.
+               if yn = '' then yn = 'N'
+            until yn = 'Y' or yn = 'N'
+            repeat
+            if yn = "N" then
+               clearselect       ;* Remove list as we have taken one item
+               stop
+            end
+         end
+
+         @system.return.code = 0
+
+         loop
+            component = ''
+            deleting.multifile.element = @false
+            gosub delete.file
+            readnext file.name else exit
+         repeat
+      end
+   end else                                  ;* File name provided
+      @system.return.code = 0
+      gosub delete.file
+   end
+
+   if @system.return.code then stop
+
+   return
+
+
+*=============================================================================
+* DELETE.FILE  -  Do the actual delete
+
+delete.file:
+    * Check that VOC entry exists for this name
+
+    readu voc.rec from voc.f, file.name else
+      release voc.f, file.name
+
+* 13 Sep 26 Windows port - RELEASE_1.1_FIXES.md 27.  AS TYPED, THEN LOWER, THEN
+*   UPPER - the fold every other lookup already has (PROJECT_STATUS.md 5.12).
+*   This one was missed because it is a READU of the VOC record rather than an
+*   OPEN, so _VOC_REF's fold never reached it.  It did not matter while
+*   CREATE.FILE stored ids in upper case; since RELEASE_1.1 5 phase (a) stores
+*   them in lower case, "DELETE.FILE ZZX" for a file created as ZZX printed 6130
+*   and stopped.
+*
+*   THE LOWER TIER IS SILENT AND THE UPPER TIER STILL ASKS, DELIBERATELY.  Lower
+*   is where CREATE.FILE now puts a new id, so finding it there is the name the
+*   caller meant - exactly the case that was found silently, as an exact match,
+*   before phase (a), and callers that name a file in upper case (scripts
+*   included, which cannot answer 6131) keep that behaviour.  The upper tier is
+*   upstream's "did you mean" for an old upper-case record typed in lower case,
+*   and is unchanged.  A name already in lower case reads the same id twice and
+*   falls through, so nothing changes for it.
+      readu voc.rec from voc.f, downcase(file.name) then
+         file.name = downcase(file.name)
+      end else
+         release voc.f, downcase(file.name)
+         display sysmsg(6130, file.name) ;* No VOC record found for xx
+         file.name = upcase(file.name)
+         readu voc.rec from voc.f, file.name then
+            if upcase(voc.rec[1,1]) = "F" then
+               loop
+                  display sysmsg(6131, file.name) :  ;* Use file 'xx'?
+                  input yn
+                  yn = upcase(yn[1,1])
+* 11 Sep 26 Windows port - RELEASE_1.1_FIXES.md 6.  Same shape and same fix as
+*   the DATA prompt below; N is safe here because only Y branches to the
+*   delete, so an empty answer falls through to ER$STOPPED and nothing goes.
+                  if yn = '' then yn = 'N'
+               until yn = 'Y' or yn = 'N'
+               repeat
+               if yn = "Y" then goto delete.upcased.file
+            end
+         end
+
+         @system.return.code = -ER$STOPPED
+         return
+      end
+   end
+
+   if upcase(voc.rec[1,1]) # "F" then
+      @system.return.code = -ER$VNF
+      stop sysmsg(2015, file.name) ;* VOC record xx is not a file
+   end
+
+delete.upcased.file:
+
+* 18 Aug 26 Windows port - UPCASE BOTH SIDES, PROJECT_STATUS.md 5.12 (b).
+*   file.name arrives here as the user TYPED it whenever the exact read at the
+*   top of delete.file succeeded - the upcase() above is only in the else
+*   branch.  banned.files is upper case, so a lower-case VOC id would walk
+*   straight past this guard and take the account's VOC with it.
+   locate upcase(file.name) in banned.files<1,1> setting pos then
+      @system.return.code = -ER$VNF
+      stop sysmsg(6132, file.name) ;* Cannot delete system file xx
+   end
+
+   dummy = ospath("", os$flush.cache)
+
+   if delete.data then
+      if component = '' then
+         data.pathnames = voc.rec<2>
+         if dcount(data.pathnames, @vm) > 1 then
+            loop
+               display sysmsg(6133) :  ;* Delete all data components of multifile?
+               input yn
+               yn = upcase(yn)
+* 13 Sep 26 Windows port - RELEASE_1.1_FIXES.md 33, owner's ruling: "add a cancel
+*   answer".  N IS NOT THE SAFE ANSWER HERE - it goes to delete.dict, which
+*   still deletes the dictionary - so neither Y nor N leaves the file alone, and
+*   Enter could not simply mean N as it does at every other prompt in this file.
+*   C cancels: nothing is deleted, the VOC record is released untouched, and the
+*   status is ER$STOPPED, as when the 6131 question is declined.  Enter means C.
+*   Y and N keep exactly their old meaning.  Before this the loop re-asked for
+*   ever at end of input.  SD Core for Linux left its copy hanging.
+               if yn = '' then yn = 'C'
+               if yn[1,1] = 'C' then
+                  release voc.f, file.name
+                  @system.return.code = -ER$STOPPED
+                  return
+               end
+            until yn = 'Y'
+               if yn = 'N' then goto delete.dict
+            repeat
+         end
+         pos = 1
+      end else
+         locate component in voc.rec<4,1> setting pos else
+            u.voc.rec = upcase(voc.rec)
+            locate upcase(component) in u.voc.rec<4,1> setting pos else
+               stop sysmsg(6134) ;* Multifile component not found
+            end
+         end
+         data.pathnames = voc.rec<2,pos>
+         deleting.multifile.element = @true   ;* 0483
+       end
+
+      if len(data.pathnames) then  ;* Multivalued if deleting all of multifile
+         loop
+            remove data.path from data.pathnames setting more
+            if upcase(data.path[1,6]) = '@SDSYS' then
+               part = 'data'
+               gosub check.sdsys.file
+               if skip.part then
+                  del voc.rec<2,pos>
+                  del voc.rec<4,pos>
+* 11 Sep 26 Windows port - RELEASE_1.1_FIXES.md 15.  "continue" DOES NOT TEST
+*   "while more" HERE, AND THIS FILE ALREADY SAYS SO FORTY LINES BELOW.  The
+*   20240121 note at the DATA prompt reads "using continue here will create
+*   endless loop 'while more' is not tested.  I know an ugly goto", and the
+*   line under it is "if yn = 'N' then goto more_test".  The same "continue"
+*   was then used up here.
+*
+*   WHAT IT DID.  The body restarted without reaching more_test, so on a
+*   single-valued data.pathnames the next "remove" came off an exhausted array:
+*   data.path = '', which is not @SDSYS, so it fell through to the prompt and
+*   asked "OK to delete DATA portion '' (y/<n>)?" - a question about nothing.
+*
+*   ***AND IT ASKED IT UNDER NO.QUERY***, which is the part that matters.
+*   check.sdsys.file's NO.QUERY branch (28 Aug 26, PRE_RELEASE_FIXES 14) exists
+*   precisely so this path does not stop on a question nobody is there to
+*   answer, and sets skip.part to say so - and one line later the extra
+*   iteration asked one anyway.  Down a pipe that prompt EATS THE FOLLOWING
+*   COMMAND as its answer, which is the failure 14 was filed for.  Seen in
+*   verify-vocverbs entry 14 on b136: the test's second "N" reached the VOC as
+*   "N is not in your VOC".
+*
+*   It terminated only because 'N' leads to the goto below; it was never an
+*   endless loop, just a wrong one.
+                  goto more_test
+               end
+               data.path = @sdsys:data.path[7,9999]
+            end
+
+            default.path = file.name
+
+* 28 Aug 26 Windows port - COMPARE THE TWO PATHS WITHOUT CASE.  CREATEF
+* upper-cases the name before storing it in the VOC; file.name is whatever the
+* caller typed, and is only upcased on the fallback path at :157 where the
+* record was NOT found as typed.  So on the ordinary path the two differ
+* whenever the verb was typed in lower case, and the "OK to delete DATA
+* portion" prompt fired for a file that is exactly where it should be.
+* ***THE LOWER-CASE HOUSE STYLE IS WHAT MAKES THIS OURS TO WORRY ABOUT*** -
+* step 7.8 made lower case the way commands are written here and the
+* documentation teaches it, so upstream's convention hides the same code.
+* PRE_RELEASE_FIXES.md 26, UPSTREAM_FIXES.md 27.
+
+            if upcase(data.path) # upcase(default.path) then
+               if not(force) then
+                  loop
+                     display sysmsg(6135, data.path) :  ;* OK to delete DATA portion 'xx'?
+                     input yn
+                     yn = upcase(yn[1,1])
+* 11 Sep 26 Windows port - RELEASE_1.1_FIXES.md 6.  ENTER TAKES THE DEFAULT,
+*   AND WITHOUT THIS THE LOOP NEVER ENDS.  Owner's rule, 30 Aug 2026: "scripts
+*   need to indicate which is the default using <y>/n or y/<n>" - DELACC:279
+*   is the same fix on the same shape.
+*
+*   PRE_RELEASE_FIXES 79 inventoried the prompts BY THEIR "Y/N" TEXT, and 6135
+*   has none, so this one and its DICT twin at :382 were not in the list.
+*
+*   THE CONSEQUENCE IS WORSE THAN A MISSING DEFAULT.  At end of input "input"
+*   yields '', which is neither Y nor N, so the until never fires and the
+*   question is re-asked for ever with nothing to stop it - SD Core for Linux
+*   measured 98.9 MB of it in 40 seconds down a pipe.  N is also the safe
+*   default here: it deletes nothing.
+                     if yn = '' then yn = 'N'
+                  until yn = 'Y' or yn = 'N'
+                  repeat
+* 20240121 mab using continue here will create endless loop "while more" is not tested. I know an ugly goto                 
+*                  if yn = "N" then continue
+                   if yn = "N" then goto more_test
+               end  
+            end
+
+            * Check for relocated indices
+
+            openpath data.path to data.f then
+               akpath = fileinfo(data.f, FL$AKPATH)
+               close data.f
+            end else akpath = ''
+
+            if ospath(data.path, OS$OPEN) then
+               stop sysmsg(6198, data.path) ;* Cannot delete file - Data part %1 is open
+            end
+
+            if ospath(data.path, OS$DELETE) then
+*              Take the answer.  This was "dummy = ospath(...)", which threw
+*              away the only report that the relocated index directory had not
+*              gone, leaving it orphaned silently (PRE_RELEASE_FIXES.md 104,
+*              UPSTREAM 34).  MKINDX:355 already tests the same call and
+*              reports it with the same message; the portions below report a
+*              failed delete with @system.return.code, and this now does both.
+*
+*              ***AND OS$EXISTS IS TESTED FIRST, BECAUSE THE LINE ABOVE IS NOT
+*              A TEST FOR "THERE IS AN INDEX".***  FL$AKPATH answers with the
+*              path an index WOULD live at, and it is non-empty for an ordinary
+*              file that never had one - so without this, every such delete
+*              printed 2636 and set an error return code on a success.  1 Sep
+*              2026, PRE_RELEASE_FIXES.md 113: measured with DELETE.FILE on two
+*              directory files that had no index, both of which reported
+*              failure, while the one file that DID have a built index reported
+*              none.  "Absent" and "refused" are different answers, which is
+*              the other half of taking one.
+               if akpath # '' then
+                  if ospath(akpath, OS$EXISTS) then
+                     if not(ospath(akpath, OS$DELETE)) then
+                        display sysmsg(2636) ;* Failed to delete index directory
+                        @system.return.code = -status()
+                     end
+                  end
+               end
+
+               display sysmsg(6136, data.path) ;* DATA portion 'xx' deleted
+
+               if voc.rec<4> # '' then  ;* It is a multifile
+                  parent.dir = field(data.path, @ds, 1, dcount(data.path, @ds)-1)
+                  if dir(parent.dir) = '' then
+                     * The directory is now empty. Delete it.
+
+                     if ospath(parent.dir, OS$DELETE) then
+                        display sysmsg(6137, parent.dir) ;* Multifile directory 'xx' deleted
+                     end
+                  end
+               end
+
+               del voc.rec<2,pos>
+               del voc.rec<4,pos>
+            end else
+               display sysmsg(6138, data.path) ;* Error deleting DATA portion 'xx'
+               @system.return.code = -status()
+            end
+* 20240121 mab endless loop goto label
+more_test: * 			
+         while more
+         repeat
+      end else
+         display sysmsg(6139) ;* DATA part of file does not exist
+      end
+   end
+
+delete.dict:
+
+   if delete.dict and not(deleting.multifile.element) then  ;* 0483
+      dict.path = voc.rec<3>
+
+      if len(dict.path) then
+         if upcase(dict.path[1,6]) = '@SDSYS' then
+            part = 'dictionary'
+            gosub check.sdsys.file
+            if skip.part then
+               voc.rec<3> = ""
+               goto write.voc
+            end
+           dict.path= @sdsys:dict.path[7,9999]
+         end
+
+         default.path = file.name : ".DIC"
+
+* 28 Aug 26 Windows port - and the DICT half of the same comparison, for the
+* reason given at the DATA one above.  PRE_RELEASE_FIXES.md 26.
+
+         if upcase(dict.path) # upcase(default.path) then
+            if not(force) then
+               loop
+                  display sysmsg(6140, dict.path) : ;* OK to delete DICT portion 'xx'?
+                  input yn
+                  yn = upcase(yn[1,1])
+* 11 Sep 26 Windows port - RELEASE_1.1_FIXES.md 6.  The DICT twin of the DATA
+*   prompt above; the reasoning is there and is not repeated.
+                  if yn = '' then yn = 'N'
+               until yn = 'Y' or yn = 'N'
+               repeat
+               if yn = "N" then goto write.voc
+            end  
+         end
+
+         * Check for relocated indices
+
+         openpath dict.path to dict.f then
+            akpath = fileinfo(dict.f, FL$AKPATH)
+            close dict.f
+         end else akpath = ''
+
+         if ospath(dict.path, OS$OPEN) then
+            stop sysmsg(6199, dict.path) ;* Cannot delete file - Dictionary part %1 is open
+         end
+
+         if ospath(dict.path, OS$DELETE) then
+*           The DICT half of the same fix - see the DATA portion above
+*           (PRE_RELEASE_FIXES.md 104, UPSTREAM 34), including the OS$EXISTS
+*           guard and why FL$AKPATH being non-empty does not mean an index
+*           directory is there (PRE_RELEASE_FIXES.md 113).
+            if akpath # '' then
+               if ospath(akpath, OS$EXISTS) then
+                  if not(ospath(akpath, OS$DELETE)) then
+                     display sysmsg(2636) ;* Failed to delete index directory
+                     @system.return.code = -status()
+                  end
+               end
+            end
+
+            voc.rec<3> = ""
+            display sysmsg(6141, dict.path) ;* DICT portion 'xx' deleted
+         end else
+            display sysmsg(6142, dict.path) ;* Error deleting DICT portion 'xx'
+            @system.return.code = -status()
+         end
+      end else
+         display sysmsg(6143) ;* DICT part of file does not exist
+      end
+   end
+
+write.voc:
+   * Write VOC entry
+
+   if (voc.rec<2> # "") or (voc.rec<3> # "") then
+      write voc.rec to voc.f,file.name
+   end else
+      delete voc.f, file.name
+      display sysmsg(6144, file.name) ;* VOC entry 'xx' deleted
+   end
+
+   return
+
+* ======================================================================
+
+check.sdsys.file:
+
+* 28 Aug 26 Windows port - NO.QUERY TAKES THE SAFE BRANCH INSTEAD OF ASKING.
+* This routine prompted unconditionally, so "delete.file zzak force no.query"
+* stopped dead on a question nobody was there to answer.  Down a pipe it is
+* worse than a hang: the prompt EATS THE FOLLOWING COMMANDS as answers, and
+* the session that found this had to be killed, leaving a user-table slot that
+* needed an elevated "sd -cleanup" to clear.  Anything that drives SD without
+* a terminal is exposed - a build script, a test harness, the verify suite.
+*
+* THE BRANCH TAKEN IS THE CONSERVATIVE ONE, WHICH IS 'N' AND NOT 'Y'.  It
+* deletes the VOC reference and leaves the file in the system account alone,
+* because NO.QUERY says "do not ask me", not "assume yes to a question about
+* other accounts' data".  6145's own wording is what the two answers mean.
+* AND IT SAYS SO RATHER THAN GOING QUIET - a caller who wanted the file gone
+* needs to know it is still there.  PRE_RELEASE_FIXES.md 14, UPSTREAM_FIXES.md
+* 23.
+
+   if no.query then
+      display sysmsg(6145, part) ;* Warning re part in SDSYS account
+      display sysmsg(10117, part) ;* NO.QUERY: VOC reference deleted, file kept
+      skip.part = @true
+      return
+   end
+
+   display sysmsg(6145, part) ;* Warning re part in SDSYS account
+   loop
+      display sysmsg(6146) :  ;* Delete the file from the system account (y/<n>)?
+      input yn
+      yn = upcase(yn[1,1])
+* 30 Aug 26 Windows port - Enter takes the default the prompt advertises, N.
+*   Owner's rule, 30 Aug 2026, "<y>/n or y/<n>".  PRE_RELEASE_FIXES 79.
+      if yn = '' then yn = 'N'
+   until yn = 'Y' or yn = 'N'
+   repeat
+   
+   skip.part = (yn = 'N')
+   return
+
+   * Avoid compiler warnings
+   dummy = dummy
+end
+
+* END-CODE
