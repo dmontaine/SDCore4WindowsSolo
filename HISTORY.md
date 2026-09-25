@@ -36852,3 +36852,33 @@ Both cuts were made by a script, announced first as too large for the editor, an
 no BOM, no CR, no mojibake, and every byte outside the cut identical to `e311adc`.
 
 ====
+
+## SOLO 1 — the three foundations, spiked (24 Sep 2026)
+
+**DONE; each held as far as one machine could test it.** Probes are in `gplbld`
+(`probe-solo-*`), kept as the working pattern for SOLO 3 and 8.
+
+- **(a) Running as the user with nobody signed in** — `probe-solo-s4u.ps1`.
+  **Unelevated, Windows refuses to register an S4U task at all** ("Access is denied",
+  with the at-startup trigger and without one), so it must ride the installer's elevated
+  step. Registered elevated and started on demand: `ace\Don`, session 0, BATCH logon,
+  `USERPROFILE C:\Users\Don`, wrote in the profile, listened and answered on loopback,
+  result 0, task removed. It ran `powershell.exe` (imports USER32), so the relay's
+  `0xC0000142` trap (`sdtlsrelay.c:104-118`) does not bite a task's logon. It also
+  reported `admin role: True` under `-RunLevel Limited` — carried to SOLO 3 as an owner
+  decision.
+- **(b) Checking the user's own Windows password, unelevated** —
+  `probe-solo-logonuser.ps1`, owner's ordinary prompt, local account: a random wrong
+  password refused 1326 (the control), the real one accepted by `LogonUserW` type 3 in
+  2 ms with the user's own SID. The password is typed into the probe, never printed or
+  stored. Microsoft/PIN accounts carried to SOLO 6.
+- **(c) A per-user installer with one UAC prompt** — `probe-solo-installer.iss` +
+  `probe-solo-elevated.ps1`. Setup log: "Administrative install mode: No", the installer
+  ran as `ace\Don` with admin=0, files landed in the profile; one `ShellExec('runas')`
+  step registered the S4U task for the user (passed in, not read from the elevated
+  context), which answered as `ace\Don` in session 0; a disabled firewall rule was made
+  and removed; `sshd_config` found; nothing left behind. Dry-run control: the elevated
+  step run WITHOUT elevation refused and said so. The over-the-shoulder case carried to
+  SOLO 8.
+
+====

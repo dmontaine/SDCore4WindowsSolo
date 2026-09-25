@@ -49,12 +49,13 @@ or *"— PRE_RELEASE_FIXES.md"*; grep the number there.
 What it lists as owed is also an entry under OPEN TASKS — if the two disagree,
 OPEN TASKS wins.
 
-***24 Sep 2026 — SD CORE SOLO STARTED. Phase 0 (this file, CLAUDE.md) done; nothing
-converted yet.*** The multi-user CURRENT PICKUP, OPEN TASKS and DEFERRED sections
-that stood here are archived by reference: `git show e311adc:PROJECT_STATUS.md`
-(lines 46-913), and `sd4windows` keeps them live. **Start with SOLO 1** — its three
-spikes decide the shape of SOLO 3, 6 and 8, so nothing in those should be built
-before it reports.
+***24 Sep 2026 — SOLO 1 DONE: all three foundations held as far as one machine
+could test them*** (HISTORY.md). Their leftovers are now in SOLO 3 (real boot,
+signed-out remote reach, and the **owner's pending decision on the unfiltered
+administrator token**), SOLO 6 (Microsoft/PIN accounts) and SOLO 8 (the
+over-the-shoulder case). **Next: SOLO 2** (paths, name, version) — it touches the
+most files and every later task builds on it. The multi-user CURRENT PICKUP and
+OPEN TASKS are `git show e311adc:PROJECT_STATUS.md` lines 46-913.
 
 ---
 
@@ -124,27 +125,6 @@ New ids are **`SOLO <n>`**; the next is **SOLO 12**. `RELEASE_1.1 <n>` and
 grep HISTORY.md, or `sd4windows`, for them. **Every entry below is a plan: none
 of it is built or measured yet**, and each names what would change it.
 
-### SOLO 1 · the three unverified foundations — spike them first
-
-Each is small, and each one failing changes a later task's design:
-
-- **(a) Signed-out remote access (ruling 2).** Can the daemon and TLS relay run
-  **as the user** from boot, with nobody signed in, and serve API and ssh sessions?
-  Candidates: a scheduled task at startup with an S4U principal ("do not store
-  password"); a service running as the user (stores the Windows password, and
-  breaks when it changes). **Caution already in the tree**: `sdtlsrelay.c:111`
-  notes a limit on a fresh S4U logon session in session 0 — read it first.
-  *If only the stored-password route works, the owner decides.*
-- **(b) `LogonUserW` on the user's own password from an unelevated process**
-  (ruling 3), including a user who signs in to Windows with a **Microsoft
-  account** or a **PIN** — such a user may not know a usable password, which also
-  touches ssh.
-- **(c) A per-user installer (`PrivilegesRequired=lowest`) raising ONE UAC prompt**
-  for the machine-wide pieces only — the `sshd_config` edit (ruling 5), the
-  firewall rules, the boot-time task — and landing in the right profile. **Trap to
-  test, not assume:** an installer elevated by a DIFFERENT administrator
-  ("over the shoulder") resolves the profile folders to that administrator's.
-
 ### SOLO 2 · relocatable paths, product name and version
 
 Everything under `%USERPROFILE%\SDCoreSolo` (ruling 1). The config location stops
@@ -159,9 +139,24 @@ program names ("one copy per computer" assumes it, nothing enforces it).
 ### SOLO 3 · everything runs as the user
 
 Retire `sdsvc.exe`, the S4U path and the `sdrelay` account; the daemon, the relay
-and every session run under the user's own token, started as SOLO 1(a) decides.
-The API handover (`apisrvr` → `K$HANDOFF` → relay) should then need no identity
-switch at all.
+and every session run under the user's own token. The API handover (`apisrvr` →
+`K$HANDOFF` → relay) should then need no identity switch at all.
+
+**How it starts, established by SOLO 1 (HISTORY.md, 24 Sep 2026):** a scheduled
+task, **S4U principal = the user, at-startup trigger, registered by the
+installer's one elevated step** — an unelevated user cannot register one ("Access
+is denied"). Started, it runs as the user in session 0 (BATCH logon), with the
+user's real profile, and can listen and answer; USER32 loads there.
+**Owed here, measured once with the real daemon:** the trigger firing at a real
+boot, and an API and an ssh session reaching it **from another machine with
+nobody signed in** (ruling 2).
+**Owner's decision, not yet taken:** such a task reported `admin role: True` under
+`-RunLevel Limited`, so for a user who is a Windows administrator the daemon — and
+every remote session it serves — would appear to hold the UNFILTERED administrator
+token: remote `SH` would administer the machine, with only the Windows password.
+Fits "no additional security" (ruling), but it is a choice to make knowingly. *Not
+read directly: the probe's integrity line came back empty (`WindowsIdentity.Groups`
+omits `S-1-16-*`); a token-integrity read should confirm it first.*
 
 ### SOLO 4 · one account
 
@@ -191,9 +186,13 @@ mode (b) (a command to set the global password), and can (b) go back?
 
 ### SOLO 6 · API authentication (rulings 3 and 4)
 
-- **The user:** Windows password inside TLS 1.3, checked by `LogonUserW` per login
-  (SOLO 1(b)). A new login mode in `sdclilib` (Windows) and in the Linux client
-  library.
+- **The user:** Windows password inside TLS 1.3, checked by `LogonUserW` per login.
+  A new login mode in `sdclilib` (Windows) and in the Linux client library.
+  **Established by SOLO 1 (HISTORY.md):** from an UNELEVATED process, `LogonUserW`
+  type 3 (NETWORK) refused a wrong password with 1326 and accepted the user's own in
+  2 ms, returning the user's SID — for a **local** account. **Owed:** the same
+  probe (`gplbld/probe-solo-logonuser.ps1`) on a **Microsoft-linked** and a
+  **PIN-only** account, which may have no password the user knows.
 - **The master server:** the global password over the existing SCRAM exchange.
 - **Dependency outside this repo:** what the master Linux server actually does to
   a client — data transfer, which admin tasks — is not specified anywhere yet; it
@@ -217,6 +216,15 @@ there. `install-ssh.ps1`, `remove-ssh.ps1`, `dism-capability.ps1` and the
 installer choice** (open to the network or not), independent of which server.
 
 ### SOLO 8 · the Solo installer and uninstaller
+
+**The shape, established by SOLO 1 (HISTORY.md):** `PrivilegesRequired=lowest`
+("Administrative install mode: No"), files into the user's profile, then ONE UAC
+prompt via `ShellExec('runas', ...)` for the machine-wide step — which registered
+the S4U task, made and removed a firewall rule and read `sshd_config`. **The user
+is passed to the elevated step, not read there** (`probe-solo-installer.iss`,
+`probe-solo-elevated.ps1` are the working pattern). **Owed:** the over-the-shoulder
+case — a STANDARD user, a different administrator approving — which needs a
+standard account to test on.
 
 A new, small `sd-solo.iss`, reusing pieces rather than cutting down `sd.iss`:
 `install-summary.log`, `UseWindowsPowerShellModules` (the PowerShell 7 fix), the
