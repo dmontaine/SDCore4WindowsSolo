@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 25 Sep 26 SD Core Solo - SOLO 5: a direct write, delete or clear of a VOC
+ *           from a non-$internal program needs ADMIN (voc_write_refused)
  *  4 Sep 26 Windows port - dir_read() added, the read half the directory code
  *           never had: dir_write() has always been callable but the only
  *           reader was read_record(), which takes its arguments off the VM's
@@ -117,6 +119,44 @@ Private void read_record(bool matread);
 Private bool valid_id(char *id, int16_t id_len);
 
 /* ======================================================================
+   voc_write_refused()  -  Is this a direct edit of a VOC without ADMIN?
+
+   25 Sep 26 SD Core Solo - SOLO 5, owner's rulings 12 and 14.  Editing the
+   VOC needs the administrator password - ADMIN, which sets USR_ADMIN.  The
+   scope is DIRECT edits only (owner, 25 Sep 2026): a user's own program
+   writing, deleting or clearing VOC records.  The records SD writes itself as
+   a side effect of ordinary commands - CREATE.FILE's F-record, a saved
+   sentence, $command.stack - come from $internal programs, so HDR_INTERNAL
+   lets them through.  ED, COPY, DELETE and the full-screen editors are
+   $internal too, and so check for themselves in BASIC.
+
+   A VOC is recognised by name: a dynamic file whose last path component is
+   "voc".  The caller's program flags are read BEFORE any k_recurse(), since
+   the recursive pcode is itself $internal (see op_writev()).            */
+
+Private bool voc_write_refused(FILE_VAR *fvar) {
+  char *path;
+  char *p;
+
+  if ((fvar == NULL) || (fvar->type != DYNAMIC_FILE))
+    return FALSE;
+  if (process.program.flags & HDR_INTERNAL)
+    return FALSE;
+  if (my_uptr->flags & USR_ADMIN)
+    return FALSE;
+
+  /* The file table is shared memory, hence volatile; the name cannot change
+     while this session holds the file open, so reading it plainly is safe. */
+  path = (char *)FPtr(fvar->file_id)->pathname;
+  p = strrchr(path, '/');
+  if ((p == NULL) || (strrchr(path, '\\') > p))
+    p = strrchr(path, '\\');
+  p = (p == NULL) ? path : p + 1;
+
+  return (stricmp(p, "voc") == 0);
+}
+
+/* ======================================================================
    op_clrfile()  -  Clear File                                            */
 
 void op_clrfile() {
@@ -163,6 +203,9 @@ void op_clrfile() {
 
   if (fvar->flags & FV_RDONLY)
     k_error(sysmsg(1403));
+
+  if (voc_write_refused(fvar)) /* 25 Sep 26 SD Core Solo - SOLO 5, ruling 14 */
+    k_error(sysmsg(12008));
 
   {
     /* Get exclusive access to the file_lock entry in the file table. Because
@@ -341,6 +384,11 @@ void op_delete() {
   if (fvar->flags & FV_RDONLY) {
     process.status = -ER_RDONLY;
     log_permissions_error(fvar);
+    goto exit_op_delete;
+  }
+
+  if (voc_write_refused(fvar)) { /* 25 Sep 26 SD Core Solo - SOLO 5, ruling 14 */
+    process.status = -ER_PERM;
     goto exit_op_delete;
   }
 
@@ -787,6 +835,11 @@ void op_write() {
     goto exit_op_write;
   }
 
+  if (voc_write_refused(fvar)) { /* 25 Sep 26 SD Core Solo - SOLO 5, ruling 14 */
+    process.status = -ER_PERM;
+    goto exit_op_write;
+  }
+
   memcpy(lock_id, id, id_len);
 
   if (pcfg.must_lock || (txn_id != 0)) {
@@ -925,12 +978,31 @@ void op_writev() {
 
   process.status = 0;
 
+  /* 25 Sep 26 SD Core Solo - SOLO 5, ruling 14.  Tested HERE, not left to
+     op_write(): the recursive pcode below is $internal, so by the time it
+     writes, the caller's program flags are gone.  A refusal drops the four
+     operands and reports like any failed WRITEV.                          */
+  {
+    DESCRIPTOR *wv_fvar = e_stack - 3;
+    k_get_file(wv_fvar);
+    if (voc_write_refused(wv_fvar->data.fvar)) {
+      process.status = -ER_PERM;
+      k_dismiss();
+      k_dismiss();
+      k_dismiss();
+      k_dismiss();
+      goto exit_op_writev;
+    }
+  }
+
   /* Push lock flag onto e-stack; zero for WRITEV, non-zero for WRITEVU */
 
   InitDescr(e_stack, INTEGER);
   (e_stack++)->data.value = op_flags & P_ULOCK;
 
   k_recurse(pcode_writev, 5); /* Execute recursive code */
+
+exit_op_writev:
 
   /* Set status code on stack */
 

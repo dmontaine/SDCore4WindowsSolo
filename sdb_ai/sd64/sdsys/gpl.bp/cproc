@@ -3378,6 +3378,14 @@ int.update.accounts:
 *   SET_ACC_PASSWORD's parser: a second word here is far likelier to be a
 *   mistake than a keyword, and quietly ignoring it would run the INTERACTIVE
 *   form while the caller believed it had asked for the other one.
+*  25 Sep 26 SD Core Solo (SOLO 5) - IT REWRITES THE VOC, so it is behind the
+*  administrator gate (rulings 12 and 14).  The installer's upgrade step runs
+*  it in an internal session, which holds the flag already.
+   if not(kernel(K$ADMINISTRATOR, -1)) then
+      display sysmsg(2001) ;* Command requires administrator privileges
+      @system.return.code = -ER$PERM
+      return
+   end
    call @parser(PARSER$GET.TOKEN, token.type, token, keyword)
    upd.mode = 2
    begin case

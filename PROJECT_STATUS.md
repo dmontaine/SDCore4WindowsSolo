@@ -49,8 +49,8 @@ or *"— PRE_RELEASE_FIXES.md"*; grep the number there.
 What it lists as owed is also an entry under OPEN TASKS — if the two disagree,
 OPEN TASKS wins.
 
-***HANDOFF 25 Sep 2026 — SOLO 2, 4 AND 12 DONE AND WITNESSED (HISTORY.md).
-Next: SOLO 5 (needs ruling 14's scope answered).***
+***HANDOFF 25 Sep 2026 — SOLO 2, 4, 5 AND 12 DONE AND WITNESSED (HISTORY.md).
+Next: SOLO 3 (needs the owner's token decision) or SOLO 8 (the installer).***
 
 **Start here:**
 1. **The agent can now cycle the tree itself, unelevated**: from MSYS2 bash in
@@ -60,7 +60,7 @@ Next: SOLO 5 (needs ruling 14's scope answered).***
    21 Sep's).
 2. **Notes left in `sd4windows` and `SDCore4Linux`** (owner pushed them, 25 Sep):
    SOLO 12's defects exist in both trees.
-3. **Rulings 12-14 (25 Sep) define SOLO 5**; ruling 14's scope is an open question.
+3. **Rulings 10-15 (25 Sep)** are in "WHAT SD CORE SOLO IS".
 4. **One owner decision is open** (SOLO 3): remote sessions may carry an
    administrator user's UNFILTERED token.
 
@@ -153,10 +153,14 @@ its own beyond that account's. **Assume one copy per computer.** Product name
     on again only by an upgrade's installer for its own steps. (Declined for
     now: moving install-only code out of `sd.exe` into a separate tool.)
 14. **(25 Sep 2026) Editing the VOC is gated by the same password as the admin
-    verbs** (ruling 12). *Open, for the owner at SOLO 5:* SD writes VOC records
-    as a side effect of ordinary work (`CREATE.FILE` adds an F-record, `.S`
-    saves a sentence, `$command.stack`); whether those count as "editing the
-    VOC" or only direct writes (`ED VOC`, a program's `WRITE` to VOC) do.
+    verbs** (ruling 12). **Scope (owner, 25 Sep 2026): DIRECT edits only** —
+    `ED VOC`, a user program's `WRITE`/`DELETE` to VOC, `COPY` into VOC. Records
+    SD writes as a side effect of ordinary commands (`CREATE.FILE`'s F-record, a
+    saved sentence, `$command.stack`) are NOT gated. (Declined: every VOC write.)
+15. **(25 Sep 2026) The mode is fixed at install.** Standalone (a) or managed (b)
+    is chosen by the installer; changing it means reinstalling (an upgrade keeps
+    the data). No verb sets or clears the global password. (Declined: switching
+    both ways behind the gate; (a)→(b) only.)
 
 **What this retires, found in the 24 Sep review** — the multi-user model is in every
 layer: `sdsvc.exe` running the daemon as `LocalSystem`; API sessions proved by SCRAM
@@ -206,26 +210,6 @@ the user; note that CPROC's `SH` passes C's `HDR_INTERNAL` test regardless, so a
 API session's `SH` is not stopped by that exception. `win32relay.c` still builds
 its own multi-user security descriptor; `win32sem.c` now grants SYSTEM + the user.
 
-### SOLO 5 · the two modes and the admin gate (rulings 4 and 6)
-
-**Also ruling 14: writes to the VOC are behind the same gate** (scope open there).
-The admin commands that survive SOLO 4 go into the user's VOC, **gated per ruling
-12** (install-set admin password; in (b) that OR the global password). **Proposed
-mechanism, cheap because it reuses what exists:** ~25 BASIC programs already test
-one flag, `K$ADMINISTRATOR`, today seeded from Windows elevation (`kernel.c:299`).
-- **Both modes:** the seed is FALSE (no elevation meaning at all); a new `ADMIN`
-  verb asks for a password and, if it matches, sets the flag for the session.
-- **Mode (a):** only the admin password set at install matches.
-- **Mode (b):** the admin password OR the global password; an API login with the
-  global password lands with the flag set. Both stored as SCRAM verifiers in
-  `$cred` under reserved names, so the Linux master's EXISTING client should
-  authenticate unchanged (to verify, SOLO 6).
-*Would be falsified if* a maintenance verb needs the flag inside a session that
-cannot prompt (a hidden installer session) — `sd -internal` already bypasses by
-being internal; check each verb's gate before relying on it.
-**Open, for the owner when it comes up:** can a mode-(a) install later become
-mode (b) (a command to set the global password), and can (b) go back?
-
 ### SOLO 6 · API authentication (rulings 3 and 4)
 
 - **The user:** Windows password inside TLS 1.3, checked by `LogonUserW` per login.
@@ -236,6 +220,10 @@ mode (b) (a command to set the global password), and can (b) go back?
   probe (`gplbld/probe-solo-logonuser.ps1`) on a **Microsoft-linked** and a
   **PIN-only** account, which may have no password the user knows.
 - **The master server:** the global password over the existing SCRAM exchange.
+  **From SOLO 5:** it is stored by `!CRED_SET` as `$cred/$GLOBAL` (the admin one as
+  `$ADMIN`), the same SCRAM record an API login reads; an API login with it should
+  land with `K$ADMINISTRATOR` set, the way `ADMIN` does (`gpl.bp/admin`). How the
+  master names that record in its login is this task's to design.
 - **Dependency outside this repo:** what the master Linux server actually does to
   a client — data transfer, which admin tasks — is not specified anywhere yet; it
   needs the owner and the Linux side. There is no mailbox for Solo (owner, 24 Sep
@@ -283,6 +271,10 @@ From SOLO 4: the account is made by `sd -internal RUN gpl.bp solo_account <user>
 after writing the one-shot `sdsys\$internal` marker (`internal-marker.ps1`);
 success line `SOLO ACCOUNT READY <name> <path>`; re-runnable. Nothing needs
 elevation except SOLO 3's task registration and SOLO 7's sshd_config/firewall.
+From SOLO 5: the installer asks for the administrator password and, in managed
+mode only, the global one (ruling 15: the mode is fixed here), and sets each with
+`sd -internal RUN gpl.bp solo_password ADMIN|GLOBAL`, the password on sd's
+STANDARD INPUT, never the command line; success line `SOLO PASSWORD SET <which>`.
 Solo should refuse to install beside a multi-user SD Core (shared pipe and
 program names; shm segments are per-tree now).
 **From SOLO 4:** retire the multi-user scripts with `sd.iss` — `attach-account`,

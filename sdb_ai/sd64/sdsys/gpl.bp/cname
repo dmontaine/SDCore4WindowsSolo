@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 25 Sep 26 SD Core Solo - SOLO 5: renaming records in a VOC needs ADMIN
+*           (ruling 14, !voc_guard).
 * 14 Sep 26 Windows port - RELEASE_1.1 5 stage 2a: the dictionary's @ID record
 *           is updated whether it is @ID or @id.
 * 14 Sep 26 Windows port - RELEASE_1.1 5.  Renaming a file: the old name folds,
@@ -62,6 +64,8 @@ $include keys.h
 $include int$keys.h
 $include parser.h
 $include dictdict.h
+
+deffun voc_guard(f) calling '!voc_guard'
 
 
    parser = "!PARSER"
@@ -309,6 +313,14 @@ rename.records:
    if fileinfo(file, FL$READONLY) then
       @system.return.code = -ER$RDONLY
       stop sysmsg(1431) ;* File is read-only
+   end
+
+*  25 Sep 26 SD Core Solo - SOLO 5, ruling 14: renaming records IN the VOC is
+*  a direct edit of it.  (Renaming a FILE, above, moves its VOC entry as a
+*  side effect of the command, like CREATE.FILE, and is not gated.)
+   if not(voc_guard(file)) then
+      @system.return.code = -ER$PERM
+      stop
    end
 
    if token.type = PARSER$END then stop sysmsg(2109) ;* Record name required

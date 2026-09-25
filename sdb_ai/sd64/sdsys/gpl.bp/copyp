@@ -18,6 +18,8 @@
 * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 * 
 * START-HISTORY:
+* 25 Sep 26 SD Core Solo - SOLO 5: copying into, or (D) out of, a VOC needs
+*           ADMIN (ruling 14, !voc_guard).
 * 20240710 Prior history suppressed
 * END-HISTORY
 *
@@ -53,6 +55,8 @@ $catalogue $copyp
 $include keys.h
 $include err.h
 $include parser.h
+
+deffun voc_guard(f) calling '!voc_guard'
 
    prompt ''
 
@@ -317,10 +321,18 @@ copy.item:
       end
    end
 
+   if not(voc_guard(t.file)) then        ;* 25 Sep 26 SOLO 5, ruling 14
+      release t.file, to.id
+      stop
+   end
    write item on t.file, to.id
    records.copied += 1
 
    if dflag then
+      if not(voc_guard(f.file)) then     ;* 25 Sep 26 SOLO 5, ruling 14
+         release f.file, id
+         stop
+      end
       delete f.file, id
       if not(iflag) then
          print sysmsg(3525, id, trimf(from.file.dict.flag : ' ' : from.file), 

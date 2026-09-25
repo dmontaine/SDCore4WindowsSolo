@@ -227,6 +227,159 @@ def solo4(sdexe, sdsys, env, fails):
         'not permitted' not in out.lower()
     verdict('SH runs for the user', ok, "want a line '42'")
 
+    solo5(sdexe, sdsys, env, acct, run, lines, verdict, refused)
+
+
+def sd_input(sdexe, env, args, text, marker_dir):
+    """bootstrap.sd() with chosen INPUT - the password legs need to type one.
+    Same shape: output to a file (a pipe would block on sdwind), the one-shot
+    marker for an internal session, raw output printed.  The password itself
+    is never printed: only the command line is."""
+    import tempfile
+    import time
+    cmd = [sdexe] + args
+    print('    $ ' + ' '.join(cmd) + '   [input: %d line(s), not shown]'
+          % text.count('\n'))
+    marker = None
+    if args and args[0].lower() == '-internal':
+        marker = os.path.join(marker_dir, '$internal')
+        with open(marker, 'w', encoding='ascii', newline='\n') as mf:
+            mf.write('probe-solo-stage pid=%d %s\n'
+                     % (os.getpid(), time.strftime('%Y-%m-%dT%H:%M:%S')))
+    try:
+        with tempfile.TemporaryFile() as tf:
+            subprocess.run(cmd, env=env, input=text.encode('latin-1'),
+                           stdout=tf, stderr=subprocess.STDOUT)
+            tf.seek(0)
+            out = tf.read().decode('latin-1').replace('\r', '')
+    finally:
+        if marker and os.path.exists(marker):
+            os.remove(marker)
+    for line in out.splitlines():
+        print('      | ' + line)
+    return out
+
+
+def solo5(sdexe, sdsys, env, acct, run, lines, verdict, refused):
+    """SOLO 5's legs (25 Sep 2026): the install-set administrator password,
+    ADMIN, and ruling 14's gate on DIRECT VOC edits - with CREATE.FILE as the
+    control that a side-effect VOC write is NOT gated."""
+    print('\n== SOLO 5 legs')
+    pw = 'Probe-Admin-7'          # a test tree's password, set and used here only
+    msg_locked = 'The VOC can only be changed after ADMIN'
+    msg_unlocked = 'Administrator commands unlocked for this session'
+    msg_wrong = 'Wrong password - administrator commands stay locked'
+    msg_priv = 'Command requires administrator privileges'
+    accdir = os.path.join(os.path.dirname(sdsys), 'user_accounts', acct)
+
+    # 1. The installer's step: set the administrator password.
+    print('\nsession (password): the installer sets $ADMIN')
+    out = sd_input(sdexe, env, ['-internal', 'RUN', 'gpl.bp', 'solo_password',
+                                'ADMIN'], pw + '\n', sdsys)
+    verdict('solo_password stores the admin password',
+            'solo password set admin' in lines(out) and pw.lower() not in out.lower(),
+            "want the line 'SOLO PASSWORD SET ADMIN', and the password not echoed")
+    verdict('the credential record exists',
+            os.path.isfile(os.path.join(sdsys, '$cred', '$ADMIN')),
+            'want sdsys/$cred/$ADMIN on disk')
+
+    # 2. A deliberate VOC rewrite without ADMIN: UPDATE.ACCOUNTS.
+    out = run('update.accounts', ['UPDATE.ACCOUNTS'], False)
+    verdict('UPDATE.ACCOUNTS needs ADMIN', msg_priv.lower() in out.lower()
+            and 'copying records from newvoc' not in out.lower(),
+            'want %r and no copy' % msg_priv)
+
+    # 3. A verb editing the VOC by name without ADMIN: COPY into VOC.
+    out = run('copy', ['COPY', 'FROM', 'VOC', 'TO', 'VOC', 'listu,zzp5copy'], False)
+    verdict('COPY into the VOC needs ADMIN', msg_locked.lower() in out.lower(),
+            'want %r' % msg_locked)
+
+    # 4. CONTROL: CREATE.FILE writes a VOC F-record as a side effect and is
+    #    NOT gated (ruling 14's scope).  Without this, a gate that refused every
+    #    VOC write would pass every leg above.
+    out = run('create.file', ['CREATE.FILE', 'zzp5file'], False)
+    ok = any(l.startswith('created data part as') for l in lines(out)) and \
+        msg_locked.lower() not in out.lower()
+    verdict('CONTROL: CREATE.FILE still adds its VOC pointer without ADMIN', ok,
+            "want a line 'Created DATA part as ...'")
+
+    # 5. One session: a user program's own VOC write is refused, a wrong password
+    #    leaves it refused, the right one lets it through, ADMIN OFF locks again.
+    src = '\n'.join([
+        'open "VOC" to v else stop "PROBE5 NO VOC"',
+        'r = "LEG.A"',
+        'write "X" to v, "zzp5a" on error r := " REFUSED"',
+        'crt r',
+        'data "not-the-password"',
+        'execute "ADMIN" capturing o',
+        # EVERY captured line: field 1 is the prompt, the verdict is after it
+        # (the first run printed o<1> alone and saw only the prompt).
+        'crt "LEG.B " : change(o, @fm, " | ")',
+        'data "%s"' % pw,
+        'execute "ADMIN" capturing o',
+        'crt "LEG.C " : change(o, @fm, " | ")',
+        'r = "LEG.D"',
+        'write "X" to v, "zzp5d" on error r := " REFUSED"',
+        'crt r',
+        'execute "ADMIN OFF" capturing o',
+        'r = "LEG.E"',
+        'write "X" to v, "zzp5e" on error r := " REFUSED"',
+        'crt r',
+        'end', ''])
+    bp = os.path.join(accdir, 'bp')
+    with open(os.path.join(bp, 'probe5'), 'w', encoding='ascii', newline='\n') as f:
+        f.write(src)
+    out = run('compile', ['BASIC', 'bp', 'probe5'], False)
+    verdict('the test program compiles', '0 error(s)' in lines(out),
+            "want '0 error(s)'")
+    out = run('session', ['RUN', 'bp', 'probe5'], False)
+    L = lines(out)
+    verdict('A: a program cannot write the VOC without ADMIN',
+            'leg.a refused' in L, "want 'LEG.A REFUSED'")
+    verdict('B: a wrong password is refused',
+            any(l.startswith('leg.b ') and msg_wrong.lower() in l for l in L),
+            'want LEG.B carrying %r' % msg_wrong)
+    verdict('C: the right password unlocks',
+            any(l.startswith('leg.c ') and msg_unlocked.lower() in l for l in L),
+            'want LEG.C carrying %r' % msg_unlocked)
+    verdict('D: after ADMIN the program can write the VOC',
+            'leg.d' in L and 'leg.d refused' not in L, "want 'LEG.D' alone")
+    verdict('E: after ADMIN OFF it is refused again',
+            'leg.e refused' in L, "want 'LEG.E REFUSED'")
+
+    # 6. Managed mode (b): the GLOBAL password is the other key (ruling 12).
+    #    Set it as the installer would, then unlock with it - and, as the
+    #    control, the admin password must still work beside it.
+    gpw = 'Probe-Global-9'
+    print('\nsession (global): the installer sets $GLOBAL (managed mode)')
+    out = sd_input(sdexe, env, ['-internal', 'RUN', 'gpl.bp', 'solo_password',
+                                'GLOBAL'], gpw + '\n', sdsys)
+    verdict('solo_password stores the global password',
+            'solo password set global' in lines(out),
+            "want the line 'SOLO PASSWORD SET GLOBAL'")
+    src = '\n'.join([
+        'data "%s"' % gpw,
+        'execute "ADMIN" capturing o',
+        'crt "LEG.F " : change(o, @fm, " | ")',
+        'execute "ADMIN OFF" capturing o',
+        'data "%s"' % pw,
+        'execute "ADMIN" capturing o',
+        'crt "LEG.G " : change(o, @fm, " | ")',
+        'end', ''])
+    with open(os.path.join(bp, 'probe5b'), 'w', encoding='ascii', newline='\n') as f:
+        f.write(src)
+    out = run('compile', ['BASIC', 'bp', 'probe5b'], False)
+    verdict('the second test program compiles', '0 error(s)' in lines(out),
+            "want '0 error(s)'")
+    out = run('session', ['RUN', 'bp', 'probe5b'], False)
+    L = lines(out)
+    verdict('F: the global password unlocks (managed mode)',
+            any(l.startswith('leg.f ') and msg_unlocked.lower() in l for l in L),
+            'want LEG.F carrying %r' % msg_unlocked)
+    verdict('G: the admin password still unlocks beside it',
+            any(l.startswith('leg.g ') and msg_unlocked.lower() in l for l in L),
+            'want LEG.G carrying %r' % msg_unlocked)
+
 
 if __name__ == '__main__':
     sys.exit(main())

@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 25 Sep 26 SD Core Solo - SOLO 5: deleting VOC records needs ADMIN (ruling
+*           14, !voc_guard).
 * 13 Sep 26 Windows port - Enter at "Use active select list" (2050) means N
 *            (RELEASE_1.1_FIXES.md 33, owner's ruling).
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
@@ -44,6 +46,8 @@ $include parser.h
 $include syscom err.h
 $include syscom keys.h
 $include int$keys.h
+
+deffun voc_guard(f) calling '!voc_guard'
 
 
    parser = "!PARSER"
@@ -155,6 +159,10 @@ $include int$keys.h
             repeat
          end
 
+         if not(voc_guard(file)) then     ;* 25 Sep 26 SOLO 5, ruling 14
+            @system.return.code = -ER$PERM
+            stop
+         end
          select file to 11
          loop
             readnext record.name from 11 else exit
@@ -180,6 +188,11 @@ delete.record:
       display sysmsg(2107) ;* Null record name ignored
    end else
       readvu dummy from file,record.name,0 then
+         if not(voc_guard(file)) then     ;* 25 Sep 26 SOLO 5, ruling 14
+            release file, record.name
+            @system.return.code = -ER$PERM
+            stop
+         end
          record.count += 1
          delete file, record.name
          on error

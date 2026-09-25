@@ -36966,3 +36966,31 @@ scratchpad stage (~120-char root): `RUN gpl.bp write_install_dicts` printed
   owner-pushed notes in both repos, `8135df26` and `2b1a9ef`.
 
 ====
+
+## SOLO 5 — the administrator password and the VOC gate (25 Sep 2026)
+
+**DONE AND WITNESSED UNELEVATED, by the agent** (`probe-solo-stage.py`, 23/23, raw
+output read). Owner's rulings 12, 14 (direct VOC edits only) and 15 (mode fixed at
+install).
+- **`ADMIN` / `ADMIN OFF`** (`gpl.bp/admin`, `$internal`, in `newvoc`): asks for the
+  password (HIDDEN), checks `$cred/$ADMIN` then `$cred/$GLOBAL` with `!CRED_VERIFY`
+  (constant time), and sets `K$ADMINISTRATOR` for the session. Messages 12002-12008.
+  Every attempt audited; the password never shown or logged.
+- **`gpl.bp/solo_password ADMIN|GLOBAL`** — install-only, internal; password on
+  stdin; `!CRED_SET`. The presence of `$GLOBAL` IS managed mode — no other flag.
+- **Ruling 14 in C** (`op_dio3.c` `voc_write_refused()`): a write, delete or clear
+  of a dynamic file named `voc`, from a non-`$internal` program without ADMIN, is
+  refused (`ER_PERM`; `CLEARFILE` aborts with 12008). `op_writev` tests BEFORE its
+  `$internal` pcode recursion. **In BASIC** (`!voc_guard`, which looks at the opened
+  file, so Q-pointers count): ED (save, unload, delete), EDIT, COPY, COPYP, DELETE,
+  CLEAR.FILE, CNAME's record rename. DELETE.FILE already refuses VOC outright.
+  `UPDATE.ACCOUNTS` needs ADMIN. Side-effect writes (CREATE.FILE, saved sentences,
+  `$command.stack`) come from `$internal` programs and are not gated.
+- **Witnessed:** `$ADMIN` stored and not echoed; UPDATE.ACCOUNTS and COPY-to-VOC
+  refused; **control** CREATE.FILE still writes its pointer; in ONE session a
+  program's VOC write refused → wrong password refused → right one unlocks → write
+  succeeds → ADMIN OFF → refused again; `$GLOBAL` unlocks, `$ADMIN` still does.
+  First run's B/C "failed" on the test program printing only the prompt line.
+- Left: the installer's prompts (SOLO 8); API login with `$GLOBAL` (SOLO 6).
+
+====
