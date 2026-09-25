@@ -204,6 +204,13 @@ token: remote `SH` would administer the machine, with only the Windows password.
 Fits "no additional security" (ruling), but it is a choice to make knowingly. *Not
 read directly: the probe's integrity line came back empty (`WindowsIdentity.Groups`
 omits `S-1-16-*`); a token-integrity read should confirm it first.*
+**The read (25 Sep 2026): `gplbld/probe-solo-token.ps1`, owner, ELEVATED** — S4U
+task as the user at `-RunLevel Limited` and `Highest`, each running
+`whoami /all /fo list`; prints integrity, how `BUILTIN\Administrators` is held,
+privilege counts, `SeDebugPrivilege`, and the elevated caller for contrast. Its
+parser was run (lifted by AST) on the agent's real unelevated `whoami` output:
+Medium, Administrators deny-only, 1/4 privileges — so it reads the format. Result
+owed.
 **From SOLO 4:** `op_sh.c` `os_user_permitted()` still refuses a SOCKET session
 (the multi-user API token worry) — lift it once API sessions are shown to run as
 the user; note that CPROC's `SH` passes C's `HDR_INTERNAL` test regardless, so an
