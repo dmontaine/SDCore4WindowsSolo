@@ -49,13 +49,33 @@ or *"— PRE_RELEASE_FIXES.md"*; grep the number there.
 What it lists as owed is also an entry under OPEN TASKS — if the two disagree,
 OPEN TASKS wins.
 
-***24 Sep 2026 — SOLO 1 DONE: all three foundations held as far as one machine
-could test them*** (HISTORY.md). Their leftovers are now in SOLO 3 (real boot,
-signed-out remote reach, and the **owner's pending decision on the unfiltered
-administrator token**), SOLO 6 (Microsoft/PIN accounts) and SOLO 8 (the
-over-the-shoulder case). **Next: SOLO 2** (paths, name, version) — it touches the
-most files and every later task builds on it. The multi-user CURRENT PICKUP and
-OPEN TASKS are `git show e311adc:PROJECT_STATUS.md` lines 46-913.
+***HANDOFF 24 Sep 2026, end of session — SOLO 1 DONE (`7ef82a8`, HISTORY.md); no
+Solo code written yet. Next: SOLO 2.***
+
+**Start here:**
+1. **SOLO 2** — paths, name, version. It touches the most files and every later task
+   builds on it. Its entry lists the sites.
+2. **One owner decision is open** (SOLO 3): remote sessions may carry an
+   administrator user's UNFILTERED token. Does not block SOLO 2.
+
+**State of this machine, measured at handoff:**
+- **No SD of any kind is installed.** `C:\ProgramData\SD`, `C:\Program Files\SD` and
+  the SD service are gone (not by this session). So `test-sysmsg-units.ps1` reports
+  NO TREE — expected; free tier otherwise 53 pass / 0 fail.
+- ***`cycle.ps1` STILL BUILDS AND INSTALLS THE MULTI-USER SD CORE*** (`sd.iss`,
+  `C:\Program Files\SD`, the service, SDSYS). **Do not run it expecting Solo** — it
+  would put the old product back. It becomes Solo's cycle in SOLO 2/8/9.
+- The spike leftovers are removed; the five `probe-solo-*` files in `gplbld` are
+  the working pattern for SOLO 3 and 8.
+
+**Tooling:** ISCC is a per-user install at
+`C:\Users\Don\AppData\Local\Programs\Inno Setup 6\ISCC.exe` — compile a spike to
+scratch with `/O`. The owner's shells: elevated opens in `C:\WINDOWS\system32`; he
+runs unelevated probes from an ordinary prompt when asked. **No Linux mailbox for
+Solo** (owner) — the copied memory note says so too.
+
+The multi-user CURRENT PICKUP and OPEN TASKS are `git show e311adc:PROJECT_STATUS.md`
+lines 46-913; `sd4windows` keeps them live.
 
 ---
 
