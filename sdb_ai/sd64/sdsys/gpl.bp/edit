@@ -15,6 +15,8 @@
 * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 *
 * START-HISTORY:
+* 25 Sep 26 SD Core Solo - the bundled editor is found from @sdsys's parent,
+*           not C:\Program Files\SD (SOLO 2).
 * 03 Sep 26 Windows port - PRE_RELEASE_FIXES 66.  find.editor now tries the
 *           bundled editor beside sd.exe (fixed at C:\Program Files\SD\usr\bin)
 *           before the PATH lookup, so the verb runs the version SD ships.
@@ -691,7 +693,12 @@ find.editor:
 *  Forward slashes: PowerShell accepts them, they are SD's own path convention
 *  (see the note at the foot of this program), and they keep a backslash out of
 *  a BASIC string literal.
-   bundled = 'C:/Program Files/SD/usr/bin/' : editor.exe
+*  25 Sep 26 SD Core Solo - the folder is no longer fixed: the programs are in
+*  <home>\usr\bin and SDSYS is <home>\sdsys (gplsrc/inipath.c), so the editor
+*  is found from @sdsys's parent.
+   home = convert(char(92), '/', @sdsys)
+   home = home[1, index(home, '/', count(home, '/')) - 1]
+   bundled = home : '/usr/bin/' : editor.exe
    probe  = "$b = '" : bundled : "'; "
    probe := 'if (Test-Path -LiteralPath $b) { $b } else { '
    probe := '$c = Get-Command -Name ' : editor.exe

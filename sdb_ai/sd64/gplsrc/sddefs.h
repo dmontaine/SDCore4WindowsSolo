@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 25 Sep 26 SD Core Solo - SD_CONFIG_DEFAULT removed; see inipath.c
  * 05 Sep 26 Windows port - SD_INTERACTIVE_GID.  PRE_RELEASE_FIXES.md 167: the
  *           administrator seed now also requires a session with a desktop, so
  *           that ssh cannot reach SDSYS.  See the comment at the definition.
@@ -307,11 +308,14 @@
  *
  * The client library is a separate toolchain and does not include this header
  * (PROJECT_STATUS.md 5.2 - do not let the client's headers displace the
- * server's), so it carries its own copy of these two values.  If you change
- * them here, change gplsrc/sdclilib/sdclilib.c to match.
+ * server's), so it carries its own copy of this value.  If you change it
+ * here, change gplsrc/sdclilib/sdclilib.c to match.
+ *
+ * 25 Sep 26 SD Core Solo - SD_CONFIG_DEFAULT is gone.  With the variable unset
+ * the file is sd.conf in the installation's own folder, found at run time
+ * (inipath.c), so no machine path is compiled in.
  */
 #define SD_CONFIG_ENV     "SD_CONFIG"
-#define SD_CONFIG_DEFAULT "C:\\ProgramData\\SD\\sd.conf"
 #define MAX_ID_LEN 255          /* Increasing requires major file changes */
 #define MAX_CALL_NAME_LEN 63    /* Cannot exceed MAX_ID_LEN */
 #define MAX_TRIGGER_NAME_LEN 32 /* Increasing would alter file header */

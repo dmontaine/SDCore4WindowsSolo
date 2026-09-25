@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 25 Sep 26 SD Core Solo - --version names SD Core Solo (SOLO 2)
  * 14 Sep 26 Windows port - program names are canonical LOWER case: the
  *           bootstrap processor is $bbproc and load_pcode() looks for lower-
  *           case pcode names.  RELEASE_1.1_FIXES.md 5, stage 3a.
@@ -551,7 +552,7 @@ Private bool comlin(int argc, char *argv[]) {
             goto help;
           } else if (!stricmp(argv[arg], "--VERSION")) {
 /* rev 0.9.1 Mar 25 return to single rev track */            
-            printf("String Database (sd) Version %s %s\n", SD_REV_STAMP, BUILD_TARGET);
+            printf("SD Core Solo (sd) Version %s %s\n", SD_REV_STAMP, BUILD_TARGET);
             exit(0);
           } else
             goto unrecognised;
