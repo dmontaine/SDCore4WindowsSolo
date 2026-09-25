@@ -1,0 +1,908 @@
+<#
+.SYNOPSIS
+    Run one whole test cycle: stop SD, stage, build the installer, uninstall,
+    delete both trees, install.
+
+.DESCRIPTION
+    ONE ELEVATED POWERSHELL COMMAND FOR THE WHOLE CYCLE.  Owner's instruction,
+    17 Aug 2026: the cycle had grown to four commands across three shells, and
+    it used to be PowerShell and fewer steps.  Every step below was already
+    written down in CLAUDE.md and PROJECT_STATUS.md; this only puts them behind
+    one call so that none of them can be skipped, reordered, or run from the
+    wrong directory.
+
+    IT EXISTS BECAUSE THE HAND-RUN SEQUENCE FAILED TWICE IN ONE ATTEMPT, both
+    times on something the script can simply not get wrong:
+
+      * The SD SERVICE WAS STILL RUNNING.  The staged etc/fstab points /dev/shm
+        at the LIVE tree, so the bootstrap's "sd -start" collided with the live
+        server and pass 1 produced nothing.  The staged tree was left in the
+        seed state - gcat 4 entries, $BCOMP 70,697, $CPROC 0 bytes - which is
+        exactly the state that shipped a catalogue-less install on 16 Aug.
+      * ISCC WAS RUN FROM C:\WINDOWS\system32, where "gplbld\sd.iss" does not
+        resolve.  It answered "The system cannot find the path specified",
+        which does not name the file it could not find.
+
+    WHAT IT DELIBERATELY DOES NOT DO: reuse an existing install, skip the
+    delete, or install over the top.  CLAUDE.md: a test cycle begins with a
+    fresh install, never a reinstall, because the installer never overwrites an
+    existing C:\ProgramData\SD\sdsys.
+
+.PARAMETER Stage
+    Staging tree.  Rebuilt from scratch; --force is always passed.
+
+.PARAMETER Out
+    Where ISCC writes the installer.
+
+.PARAMETER SkipInstall
+    Stop after building the installer.  The old tree is left alone - nothing is
+    uninstalled and nothing is deleted - so this is the safe way to check that
+    a change compiles without spending an install.
+
+.NOTES
+    THERE IS NO -Silent.  It was removed 23 Aug 2026 on the owner's ruling:
+    "unattended deployment is not supported in sd - install can only happen at
+    the keyboard or in a remoted session."  sd.iss refuses a silent install
+    outright, so there is nothing here to pass one.
+
+    It had been added 17 Aug 2026 with this script and was never part of
+    anybody's pattern.  Its single use, by a session that wanted a cycle
+    nobody had to watch, produced an install with no password on any account
+    and cost two sessions to diagnose.  A cycle needs a person; that is now
+    true of the tooling and not only of the convention.
+
+.EXAMPLE
+    C:\Users\dmont\Projects\sd4windows\sdb_ai\sd64\gplbld\cycle.ps1
+#>
+
+[CmdletBinding()]
+param(
+    [string] $Stage = (Join-Path $env:USERPROFILE 'stagetest'),
+    [string] $Out   = (Join-Path $env:USERPROFILE 'sdout'),
+    [switch] $SkipInstall
+)
+
+$ErrorActionPreference = 'Stop'
+
+# 5 Sep 26 - $Stage AND $Out WERE TYPED AS C:\Users\dmont, WHICH IS THIS
+# MACHINE'S ACCOUNT NAME, NOT THE SECOND COMPUTER'S.  $env:USERNAME is already
+# "don" here while $env:USERPROFILE is still "C:\Users\dmont" - the account was
+# renamed and the profile folder kept its old name - so typing "don" into the
+# default above would be exactly as wrong as "dmont".  $env:USERPROFILE is the
+# only thing that resolves on both machines; it was measured to survive a
+# [CmdletBinding()] param default under both "& cycle.ps1" and
+# "powershell -ExecutionPolicy Bypass -File cycle.ps1", unlike $PSScriptRoot.
+
+# 17 Aug 26 - A TRANSCRIPT, for the same reason verify-tiers.ps1 has one: this
+# runs elevated, which usually means a window nobody is going to copy back, and
+# a cycle that failed at step 3 looks exactly like one that failed at step 7
+# once the window has gone.  Start-Transcript flushes as it goes, so the file is
+# readable even on the Fail paths below, which exit without stopping it.
+#
+# NOT UNDER C:\ProgramData\SD, WHICH STEP 6 DELETES.  The first version of this
+# put it there and the transcript would have erased itself half way through its
+# own run.  LOCALAPPDATA is the same directory whether or not the shell is
+# elevated - elevation does not change which user this is - so an unelevated
+# session afterwards can find what an elevated one wrote.
+$logDir = Join-Path $env:LOCALAPPDATA 'SD-verify'
+if (-not (Test-Path -LiteralPath $logDir)) { $null = New-Item -ItemType Directory -Path $logDir -Force }
+$script:CycleLog = Join-Path $logDir ('cycle-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.log')
+# 24 Aug 26 - CLOSE ANY TRANSCRIPT THIS WINDOW ALREADY HAS OPEN, FIRST.
+# PowerShell 5.1 keeps a transcript ACTIVE until it is stopped or the session
+# ends, and supports several at once - every active one receives every line.
+# So a run in a window where an earlier run left one open writes into BOTH.
+#
+# MEASURED 24 Aug 2026, twice.  After the 15:13:25 cycle,
+# cycle-20260824-133558.log held two complete cycles.  Then at 15:53, one
+# verify-tierapi run appended itself to cycle-20260824-133558.log,
+# cycle-20260824-151325.log AND verify-tiers-20260824-134341.log - three logs
+# from earlier runs, all still open in that window, all growing at once.
+#
+# Stopping the stale ones here is what bounds it: at most one transcript is
+# active, and it is this run's.  Stop-Transcript throws when none is running,
+# which is the loop's exit condition and is not an error.
+$stale = 0
+while ($true) {
+    try { Stop-Transcript -ErrorAction Stop | Out-Null; $stale++ } catch { break }
+}
+if ($stale -gt 0) {
+    Write-Host ("closed $stale transcript(s) this window had left open")
+}
+try { Start-Transcript -Path $script:CycleLog -Force | Out-Null } catch { }
+Write-Host "transcript: $script:CycleLog"
+
+# 24 Aug 26 - A SECOND CYCLE IN THE SAME WINDOW LOSES ITS NATIVE OUTPUT, AND
+# UNTIL NOW IT LOST IT SILENTLY.  This is NOT the bleed the block above fixes -
+# that one is cured, and this run's guard reports 0 stale transcripts.  It is a
+# separate PowerShell 5.1 behaviour: after repeated Start/Stop-Transcript in one
+# session, transcription stops capturing the output of NATIVE programs while
+# continuing to capture PowerShell's own streams.
+#
+# MEASURED 24 Aug 2026, three consecutive runs in one elevated window:
+#
+#   17:59:51   614,422 bytes   190 compile lines   ISCC output present
+#   18:02:52    34,813 bytes   146 compile lines   ISCC output gone
+#   18:18:03     1,933 bytes     0 compile lines   ISCC output gone
+#
+# The last log holds NO native output at all - no compiles, no ISCC, no
+# installer - while all 19 Write-Host lines survived.  A cycle that FAILED to
+# compile in that state would leave no evidence anywhere.
+#
+# ***IT WARNS RATHER THAN REFUSES, DELIBERATELY.*** The run itself is sound -
+# every check this script makes is its own Write-Host, and step 3's structural
+# counts would still catch a missing object.  What is lost is the ability to
+# read WHY afterwards, so blocking the owner's cycle over it would cost more
+# than it saves.  Said TWICE, because a warning six minutes before the end
+# scrolls away: here, and again beside the final verdict.
+#
+# 2 Sep 26 - THE FLAG BELOW DOES NOT PREDICT THE LOSS.  It was wrong in BOTH
+# directions on the same day, measured on two logs an hour apart:
+#
+#   cycle-20260902-170323.log  flag SET, warning printed  3,670 Compressing
+#                              lines, first is ProgramFiles\adopt-account.ps1
+#                              - COMPLETE
+#   cycle-20260902-174446.log  fresh window, no warning   1,881 Compressing
+#                              lines, first is sdsys\messages\6059 - ISCC's
+#                              banner and ~1,789 lines LOST from the FRONT
+#
+# So a fresh window is not safe and a reused one is not doomed; PowerShell 5.1
+# drops native output under a fast producer whatever this flag says.  The
+# warning is kept because it is free and sometimes right, but it is NOT the
+# evidence that a log is whole - PRE_RELEASE 137, which carries what it cost:
+# 866 message paths in the log against 1,974 staged files read as "message
+# 10165 never went into the installer", and it took the INSTALLER SIZE (4,959,678
+# against the previous build's 4,957,848 - it GREW) to prove otherwise.
+if ($global:SdCycleHasRunInThisWindow) {
+    $script:TranscriptDegraded = $true
+    Write-Host ''
+    Write-Host 'WARNING: THIS WINDOW HAS ALREADY RUN A CYCLE.' -ForegroundColor Yellow
+    Write-Host '  PowerShell 5.1 stops transcribing NATIVE-command output after repeated' -ForegroundColor Yellow
+    Write-Host '  Start/Stop-Transcript in one session, so the compile output, the ISCC' -ForegroundColor Yellow
+    Write-Host '  output and the installer output may be MISSING from the log above.' -ForegroundColor Yellow
+    Write-Host '  The run is still sound - every check below is PowerShell output - but if' -ForegroundColor Yellow
+    Write-Host '  it fails you will not be able to read why.' -ForegroundColor Yellow
+    Write-Host '  CLOSE THIS WINDOW and run the cycle from a fresh elevated one.' -ForegroundColor Yellow
+    Write-Host ''
+} else {
+    $script:TranscriptDegraded = $false
+    # NOT A CLEAN BILL OF HEALTH.  A fresh window lost 1,789 lines on
+    # 2 Sep 2026; see the measurement above and PRE_RELEASE 137.
+}
+$global:SdCycleHasRunInThisWindow = $true
+
+# 24 Aug 26 - STOP THE TRANSCRIPT ON EVERY EXIT PATH.  PowerShell 5.1 keeps a
+# transcript ACTIVE until it is stopped or the whole session ends, and it
+# supports SEVERAL AT ONCE - every active one receives every line.  So running
+# this script a second time in the SAME elevated window left the first run's
+# log open, and it went on recording the second run.
+#
+# MEASURED 24 Aug 2026, and it had already corrupted the record: after the
+# 15:13:25 cycle, cycle-20260824-133558.log - the log for the 13:36:51 install
+# that PROJECT_STATUS cites - held TWO "CYCLE COMPLETE" lines and two step-1
+# banners, and verify-tiers-20260824-134341.log had an entire cycle appended
+# after its own output.  Neither carried a "transcript end" marker, because
+# neither was ever stopped.
+#
+# WHY IT SURVIVED THIS LONG: a run launched as its own process
+# (powershell -ExecutionPolicy Bypass -File ...) closes the file when the process exits, so the log is
+# clean and carries its end marker.  The bleed only appears when the documented
+# usage is followed literally - typing the script path at an already-open
+# elevated prompt - which is the usage this script is written for.
+function StopCycleTranscript {
+    try { Stop-Transcript | Out-Null } catch { }
+}
+
+# gplbld\ -> sd64\.  Every path below is absolute and derived from this script's
+# own location, which is the whole point: the hand-run sequence broke on a
+# relative path resolved against C:\WINDOWS\system32.
+$Gplbld  = Split-Path -Parent $MyInvocation.MyCommand.Path
+$Sd64    = Split-Path -Parent $Gplbld
+$Iss     = Join-Path $Gplbld 'sd.iss'
+
+# 03 Sep 26 - PRE_RELEASE 137.  $TranscriptDegraded above guesses from "has this
+# window run a cycle"; this MEASURES the log, by counting the Compressing lines
+# it actually received against the payload files stage.py actually wrote.  It
+# lives in its own file with its own units test because the verdict logic is
+# where the mistakes are, and a unit test can drive it against real logs on
+# disk - which is the only way to test it here at all, since PowerShell 5.1
+# only transcribes native output when there is a real console to scrape.
+. (Join-Path $Gplbld 'transcript-whole.ps1')
+
+# Reads the transcript this run is still writing.  Start-Transcript flushes as
+# it goes (see the note at the top), so the file is readable while open - probed
+# 3 Sep 2026.  WARNS, never fails: the build was decided by ISCC's exit code
+# long before this, and what is at stake is only whether the log can be read.
+function ReportTranscriptWholeness {
+    $res = Get-TranscriptWholeness -TranscriptPath $script:CycleLog -StagePath $Stage
+    $null = Write-TranscriptWholeness -Result $res
+}
+# ISCC: THE DEFAULT PATH FIRST, THEN THE REGISTRY.  23 Aug 2026 - this was a
+# bare hardcoded path until setup-devbox.ps1's first real run reported Inno
+# installed and ISCC not present at it.  The default is still tried first, so
+# on a machine where it is in the usual place this resolves to exactly the
+# string that used to be here and nothing about a cycle changes.  The fallback
+# reads what Inno's own installer wrote, which covers a per-user winget
+# install or a non-default location.  setup-devbox.ps1's Resolve-Iscc is the
+# same lookup and says why in more detail.
+$Iscc    = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+if (-not (Test-Path -LiteralPath $Iscc)) {
+    # HKCU AND LOCALAPPDATA ARE NOT PADDING - the first clean-VM run, 23 Aug
+    # 2026, got a PER-USER Inno install at
+    # %LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe.  A per-user install writes
+    # its uninstall key under HKCU, not HKLM, so an HKLM-only lookup would have
+    # missed it and this script would have reported ISCC missing on a machine
+    # that has it.  That is also what setup-devbox.ps1's message promises, so
+    # the two must agree or the promise is false.
+    foreach ($k in @(
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1',
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1',
+        'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1',
+        'HKCU:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1')) {
+        try {
+            $loc = (Get-ItemProperty -LiteralPath $k -ErrorAction Stop).InstallLocation
+        } catch { continue }
+        if ([string]::IsNullOrWhiteSpace($loc)) { continue }
+        $cand = Join-Path $loc 'ISCC.exe'
+        if (Test-Path -LiteralPath $cand) { $Iscc = $cand; break }
+    }
+}
+if (-not (Test-Path -LiteralPath $Iscc)) {
+    # Last resort, and the one that actually caught the VM: a per-user install
+    # whose registry key is missing or unreadable still puts ISCC here.
+    $userIscc = Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe'
+    if (Test-Path -LiteralPath $userIscc) { $Iscc = $userIscc }
+}
+$Bash    = 'C:\msys64\usr\bin\bash.exe'
+$SvcName = 'SD'
+$PfTree  = 'C:\Program Files\SD'
+$PdTree  = 'C:\ProgramData\SD'
+
+function Step($n, $msg) { Write-Host ""; Write-Host "== [$n] $msg" -ForegroundColor Cyan }
+function Fail($msg) {
+    Write-Host ""
+    Write-Host "CYCLE STOPPED: $msg" -ForegroundColor Red
+
+    # SAY WHEN SD IS LEFT DOWN.  Step 1 stops the service and nothing restarts
+    # it on the way out, so a cycle that aborts at step 4 - as the 19 Aug 2026
+    # sd.iss run did - leaves the machine with no SD and no indication of it.
+    # It is NOT restarted here: a re-run stops it again immediately, and
+    # starting a server against a half-staged tree is worse than leaving it
+    # down.  The point is that it should never be a surprise.
+    $svc = Get-Service -Name $SvcName -ErrorAction SilentlyContinue
+    if ($svc -and $svc.Status -ne 'Running') {
+        Write-Host ""
+        Write-Host ("SD IS STOPPED - step 1 stopped it and this run did not get far enough to " +
+                    "reinstall.  Both trees are untouched until step 6.") -ForegroundColor Yellow
+        Write-Host "  Re-run this script when the fault is fixed, or start it now with:  sc.exe start $SvcName" -ForegroundColor Yellow
+    }
+
+    StopCycleTranscript
+    exit 1
+}
+
+# ---------------------------------------------------------------------------
+# Convert a Windows path to the /c/... form MSYS2 wants.  Passing a backslash
+# path through bash -lc gets it eaten as escapes.
+function ToMsys([string] $p) {
+    $p = $p -replace '\\', '/'
+    if ($p -match '^([A-Za-z]):(.*)$') { return "/$($Matches[1].ToLower())$($Matches[2])" }
+    return $p
+}
+
+# ---------------------------------------------------------------------------
+# ELEVATION.  bootstrap.py checks this too and says so clearly, but by then the
+# seed phase has already rewritten the staging tree, so checking here saves the
+# tree as well as the time.
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
+        ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Fail "this needs an ELEVATED PowerShell.  Right-click, Run as administrator."
+}
+
+foreach ($p in @($Iscc, $Bash, $Iss)) {
+    if (-not (Test-Path -LiteralPath $p)) { Fail "not found: $p" }
+}
+
+# BOTH DIRECTORIES ARE PINNED ABSOLUTE HERE, and this is the second guard on the
+# same fault.  A relative path in either is resolved against the shell's cwd,
+# which for an elevated window is C:\WINDOWS\system32 - so the failure mode is
+# not "it did not work" but "it worked somewhere you will not look".
+foreach ($n in 'Stage', 'Out') {
+    $v = (Get-Variable -Name $n).Value
+    if (-not [System.IO.Path]::IsPathRooted($v)) {
+        Fail "-$n must be an absolute path, and '$v' is not."
+    }
+    Set-Variable -Name $n -Value ([System.IO.Path]::GetFullPath($v))
+}
+
+# LINT sd.iss BEFORE ANYTHING EXPENSIVE, AND BEFORE THE SERVICE GOES.  ISPP
+# treats a line whose first non-blank character is "#" as a preprocessor
+# directive, so a Pascal character constant wrapped onto its own line - the
+# "#13#10#13#10 +" idiom in the message strings - is read as a directive and
+# ISCC answers "Unknown preprocessor directive" without saying why.
+#
+# THE RULE WAS ALREADY WRITTEN DOWN, at sd.iss's InitializeWizard comment, AND
+# IT STILL BIT: the account-ACL message added on 19 Aug 2026 wrapped one, ~480
+# lines away from the note, and cost a cycle that had already stopped the
+# service, staged and bootstrapped before ISCC ever saw the file.  A comment
+# that far from the code being written is not a guard.  This is.
+$issDirectives = @('define', 'undef', 'include', 'if', 'ifdef', 'ifndef',
+                   'ifexist', 'ifnexist', 'elif', 'else', 'endif', 'for',
+                   'sub', 'endsub', 'expr', 'insert', 'append', 'emit',
+                   'error', 'pragma', 'file', 'x', 'dim', 'redim')
+$issBad = @(Get-Content -LiteralPath $Iss | ForEach-Object { $_ } |
+            Select-String -Pattern '^\s*#\s*(\w*)' |
+            Where-Object { $issDirectives -notcontains $_.Matches[0].Groups[1].Value.ToLower() })
+if ($issBad.Count -gt 0) {
+    foreach ($b in $issBad) {
+        Write-Host ("   sd.iss:{0}: {1}" -f $b.LineNumber, $b.Line.Trim()) -ForegroundColor Red
+    }
+    Fail ("sd.iss has {0} line(s) starting with '#' that ISPP will read as a preprocessor " -f $issBad.Count +
+          "directive.  Move the constant to the END of the previous line, as every other #13#10 in that file is.")
+}
+
+# 04 Sep 26 - AND THE SAME TRAP WITH A BRACKET, WHICH COST A CYCLE THE SAME WAY.
+# PRE_RELEASE_FIXES 70.  ISCC reads a line whose first non-blank character is
+# "[" as a SECTION TAG, and it does so INSIDE a brace comment - the section scan
+# runs before Pascal comments are considered at all.  So a wrapped sentence
+# about a VOC record "marked [locked]" aborts the compile with "Invalid section
+# tag", at step 4, after the service has been stopped and the tree staged.
+#
+# ***IT HAPPENED TWICE IN ONE HOUR, AND THE SECOND TIME IS WHY THIS EXISTS.***
+# The fix for the first reworded the sentence and REWRAPPED it so the marker
+# began the same line number again.  The error message is identical, line
+# number included, so it reads as "my edit did not apply" rather than as a
+# second instance - and the second cycle died exactly where the first did.
+#
+# THE WHITELIST IS THE ELEVEN REAL SECTIONS, and it is deliberately a list
+# rather than a shape test: "a bare [Word] on its own line" would also accept a
+# misspelled section, which ISCC rejects with this very message.  A new section
+# added to sd.iss belongs here, and the failure is loud.
+$issSections = @('Setup', 'Languages', 'Messages', 'Tasks', 'Files', 'Dirs',
+                 'Icons', 'Run', 'UninstallRun', 'Code', 'Registry',
+                 'InstallDelete', 'UninstallDelete', 'Components', 'Types',
+                 'CustomMessages', 'INI', 'LangOptions', 'UninstallRegistry')
+$issTags = @(Get-Content -LiteralPath $Iss |
+             Select-String -Pattern '^\s*\[([A-Za-z]*)\]?' |
+             Where-Object { $issSections -notcontains $_.Matches[0].Groups[1].Value })
+if ($issTags.Count -gt 0) {
+    foreach ($b in $issTags) {
+        Write-Host ("   sd.iss:{0}: {1}" -f $b.LineNumber, $b.Line.Trim()) -ForegroundColor Red
+    }
+    Fail ("sd.iss has {0} line(s) starting with '[' that ISCC will read as a section tag " -f $issTags.Count +
+          "and refuse.  Rewrap the sentence so the bracket is not the first thing on the line - " +
+          "check the LINE, not the line number, because a rewrap can reproduce both.")
+}
+
+# ---------------------------------------------------------------------------
+# 03 Sep 26 - STEP 0, THE C.  Owner's instruction, 3 Sep 2026: "seems like there
+# should be one script that can do all three, compile c if necessary, compile
+# basic if necessary and run the installer if necessary."
+#
+# TWO OF THE THREE WERE ALREADY HERE and only the C was missing: step 2's
+# "stage.py --bootstrap" IS the BASIC compile - gpl.bp.out from SECOND.COMPILE,
+# gcat, pcode.out, which is the pages of "0 error(s)" further down this log -
+# and steps 4 to 7 build and run the installer.  THE INSTALL STAYS
+# UNCONDITIONAL, which was the owner's other ruling the same day: a test cycle
+# begins with a FRESH install (CLAUDE.md), and cycling deliberately to clear
+# per-account state a suite dirtied is a real use that a "skip if current"
+# would take away.
+#
+# ***"IF NECESSARY" IS NOT WHAT make MEANS BY IT, AND THAT IS THE WHOLE REASON
+# THIS IS MORE THAN A CALL TO make.***  make relinks only what changed, while
+# assert-current compares source against the OLDEST binary in bin\ - so editing
+# one C file and running "make sd" leaves the tree STALE and the guard refusing,
+# with a fresh installer already built.  That cost two of the three cycles on
+# 3 Sep 2026 and it is written up under PROJECT_STATUS "110 AND 111".  So when
+# this fires it DELETES the binaries and relinks all of them, which is the only
+# thing that satisfies the guard.
+#
+# IT ASKS THE QUESTION WITH THE GUARD'S OWN CODE.  gplbld/stale-binaries.ps1 is
+# assert-current's check A2, lifted into a file both use, so a cycle that
+# thought the C was current while assert-current thought otherwise is not
+# expressible.  gplbld/test-stalebin-units.ps1 drives it.
+#
+# BUILDING ELEVATED IS SAFE, MEASURED RATHER THAN ASSUMED (3 Sep 2026): this
+# script requires an elevated window, so the build runs elevated too, and the
+# question is whether it strands object files an ordinary build could not then
+# overwrite.  HKLM\SYSTEM\CurrentControlSet\Control\Lsa\nodefaultadminowner is
+# unset, whose default is 1 - "object creator" - so an elevated process creates
+# files owned by the user, exactly as an unelevated one does.  bin\sd.exe and
+# gplobj\ are owned by the invoking user today and stay that way.
+Step 0 "Building the C, if source has moved past bin\"
+
+. (Join-Path $Gplbld 'stale-binaries.ps1')
+$binState = Get-BinaryStaleness $Sd64
+
+if (-not $binState.ok) {
+    # bin\ is empty on a fresh clone, and that is not a fault - it is the one
+    # case where the build is simply required.  stage.py would refuse at step 2
+    # with "run make sd first"; doing it here means the clone just works.
+    Write-Host ("   $($binState.reason)")
+    Write-Host "   building all of it"
+    $mustBuild = $true
+} elseif ($binState.stale) {
+    Write-Host ("   {0} source file(s) newer than bin\{1} ({2}):" -f
+                $binState.uncompiled.Count, $binState.oldest.Name,
+                $binState.oldest.LastWriteTime.ToString('dd MMM HH:mm:ss'))
+    $binState.uncompiled | Select-Object -First 10 | ForEach-Object {
+        Write-Host ("       {0}  {1}" -f $_.LastWriteTime.ToString('dd MMM HH:mm:ss'),
+                    $_.FullName.Substring($Sd64.Length + 1))
+    }
+    $mustBuild = $true
+} else {
+    # Rule 1 of the instrument section: say what was measured, not just the
+    # conclusion.  A silent skip here is indistinguishable from a step that
+    # did not run.
+    Write-Host ("   bin\ built {0}, no source newer - nothing to compile" -f
+                $binState.oldest.LastWriteTime.ToString('dd MMM HH:mm:ss'))
+    $mustBuild = $false
+}
+
+if ($mustBuild) {
+    # DELETE FIRST, SO EVERY BINARY GETS A FRESH MTIME.  See the header: a
+    # partial relink leaves the oldest binary older than the edit and the guard
+    # still refusing.  Only the .exe and .dll files the guard actually compares
+    # are removed - a kept sd.exe.installed-backup-<date> is not one of them,
+    # and neither is libsdclilib.dll.a, which is rebuilt with the DLL anyway.
+    foreach ($b in $binState.binaries) {
+        Remove-Item -LiteralPath $b.FullName -Force -ErrorAction SilentlyContinue
+    }
+    $gone = @($binState.binaries | Where-Object { -not (Test-Path -LiteralPath $_.FullName) })
+    Write-Host ("   removed {0} of {1} binary/ies for a full relink" -f
+                $gone.Count, $binState.binaries.Count)
+
+    # THROUGH THE MSYS2 LOGIN SHELL, AND WITH THE cd, which is not optional: a
+    # login shell starts in /home/<user>, where "make sd" reports "No rule to
+    # make target 'sd'" and reads like a broken Makefile rather than a wrong
+    # directory.  Paid for on 3 Sep 2026.
+    $mk = "cd '$(ToMsys $Sd64)' && make sd"
+    Write-Host "   $Bash -lc ""$mk"""
+    & $Bash -lc $mk
+    if ($LASTEXITCODE -ne 0) { Fail "make sd exited $LASTEXITCODE - nothing else has run." }
+
+    # AND ASK THE GUARD AGAIN RATHER THAN TRUSTING THE EXIT CODE.  "make sd"
+    # exits 0 having relinked only what it thought needed relinking, which is
+    # exactly the case this step exists for.  A cycle that carried on here would
+    # build an installer nobody can measure afterwards.
+    $binState = Get-BinaryStaleness $Sd64
+    if (-not $binState.ok)   { Fail ("after make sd: " + $binState.reason) }
+    if ($binState.stale) {
+        Fail ("make sd exited 0 but {0} source file(s) are STILL newer than bin\{1} - assert-current would refuse after the install, so this stops now." -f
+              $binState.uncompiled.Count, $binState.oldest.Name)
+    }
+    Write-Host ("   built: bin\ now {0}, no source newer" -f
+                $binState.oldest.LastWriteTime.ToString('dd MMM HH:mm:ss'))
+}
+
+# ---------------------------------------------------------------------------
+Step 1 "Stopping SD"
+
+# THE STEP THE HAND-RUN CYCLE MISSED.  Stop-Service returns before the SCM has
+# finished and before sdwind has gone, so the wait is on the PROCESS, which is
+# what actually holds the shared segment and /dev/shm.
+if (Get-Service -Name $SvcName -ErrorAction SilentlyContinue) {
+    & "$env:SystemRoot\System32\sc.exe" stop $SvcName | Out-Null
+}
+
+$deadline = (Get-Date).AddSeconds(45)
+while ((Get-Process -Name sdwind, sd -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) {
+    Start-Sleep -Milliseconds 500
+}
+
+# 21 Aug 26 - AND THEN ASK SD ITSELF, because stopping the SERVICE does not
+# always take the DAEMON with it.  Measured 21 Aug 2026, 17:05: sc.exe stop
+# returned, the service went to Stopped, and sdwind(15956) - started at 16:25:45
+# by verify-apiadmin's "sc.exe start SD" - was still there 45 seconds later with
+# its parent gone.  The cycle failed at step 1 and cost a run.
+#
+# sdsvc.c ALREADY DOES THIS on its own stop path (run_sd("-stop") at :433, :467
+# and :482), so this is not a second mechanism - it is the same call, made again
+# from outside, for the case where the service exited without its daemon
+# following.  A daemon whose parent has gone is nobody's child and the SCM has
+# nothing left to stop.
+#
+# STILL NOT A KILL.  "sd -stop" refuses while users are logged in, which is
+# exactly the protection the comment below describes: it ends an idle daemon and
+# leaves somebody's live session alone.  Only if it declines do we fail.
+$stopSaidOk = $false
+if (Get-Process -Name sdwind, sd -ErrorAction SilentlyContinue) {
+    $sdExe = Join-Path $PfTree 'usr\bin\sd.exe'
+    if (Test-Path -LiteralPath $sdExe) {
+        Write-Host '   service stopped but a daemon is still up - asking sd -stop'
+        $stopOut = (& $sdExe -stop 2>&1 | Out-String)
+        $stopOut -split "`r?`n" | Where-Object { $_.Trim() } | ForEach-Object { Write-Host "     $_" }
+        $stopSaidOk = ($stopOut -match 'has been shut down')
+        $deadline = (Get-Date).AddSeconds(20)
+        while ((Get-Process -Name sdwind, sd -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) {
+            Start-Sleep -Milliseconds 500
+        }
+    }
+}
+
+$left = Get-Process -Name sdwind, sd -ErrorAction SilentlyContinue
+if ($left) {
+    # Named, not killed.  A surviving sd is somebody's session, and ending it
+    # from here would take their work with it.
+    #
+    # THE TWO CASES READ DIFFERENTLY, and telling them apart is the whole point
+    # of saying which processes are left: an "sd" is a SESSION and somebody has
+    # to close it, an "sdwind" alone is a DAEMON that has just refused both the
+    # service and "sd -stop", which means it believes somebody is still logged
+    # in to it.
+    $names = @($left | ForEach-Object { $_.Name } | Sort-Object -Unique)
+    $advice = if ($names -contains 'sd') {
+        'Close any SD session and run this again.'
+    } elseif ($stopSaidOk) {
+        # 21 Aug 26 - THE CASE THAT COST TWO RUNS, and it needs naming because
+        # every ordinary reading of it is wrong.  "sd -stop" REPORTED SUCCESS -
+        # "SD (64 Bit) has been shut down" - and the daemon was still there.
+        #
+        # It happens when there is MORE THAN ONE sdwind.  Measured 21 Aug: a
+        # second daemon started at 16:30:55 outside the service and logged "API
+        # listener not started: cannot bind port 4243", because the one from
+        # 16:25:45 already had it.  "sd -stop" reaches whichever daemon owns the
+        # shared segment it finds, stops that one, and says so - truthfully -
+        # while the older one keeps running with the port and a segment nothing
+        # can now reach.
+        #
+        # ENDING IT IS SAFE AND IS THE ONLY RECOVERY.  It is a DAEMON, not
+        # somebody's session - the test above has already established no "sd"
+        # process exists - and it has been asked to stop and did not.  The
+        # script still will not do it: an automatic kill here is exactly the
+        # thing the "named, not killed" rule exists to prevent, and a daemon
+        # that ignores a successful shutdown is worth a human look.
+        'BUT "sd -stop" REPORTED SUCCESS, so this daemon is orphaned from the shared ' +
+        'segment - there was probably a second sdwind. It is not a session and nothing ' +
+        'else will end it:' + "`n" +
+        # PARENTHESISED, because -join binds LOOSER than +: without them
+        # "'a' + $x -join ',' + 'b'" parses as "('a' + $x) -join (',' + 'b')"
+        # and the advice line comes out as nonsense at the moment it is needed.
+        '      Stop-Process -Id ' + (($left | ForEach-Object { $_.Id }) -join ',') + ' -Force'
+    } else {
+        'No SD session is running, so the daemon is refusing for another reason - ' +
+        'check for an API session, then "sd -stop" by hand.'
+    }
+    Fail ("SD is still running after 45s: " +
+          (($left | ForEach-Object { "$($_.Name)($($_.Id))" }) -join ', ') +
+          "`n  " + $advice)
+}
+Write-Host "   SD is stopped"
+
+# ---------------------------------------------------------------------------
+Step 2 "Staging and bootstrapping into $Stage"
+
+# Through an MSYS2 LOGIN shell.  A non-login shell has no usable Windows TMP,
+# and stage.py must be run by the MSYS2 (Cygwin) python - bootstrap.py's
+# is_elevated() asks getgroups(), which a native Windows python cannot answer.
+#
+# Output goes to the console, NOT to a pipe or a redirect file, and this is not
+# a style choice: "sd -start" forks sdwind, which inherits whatever handles it
+# is given and holds them for life.  Start-Process -Wait -RedirectStandardOutput
+# never returns from it - PROJECT_STATUS.md section 6, and it cost a session.
+$cmd = "cd '$(ToMsys $Sd64)' && python3 gplbld/stage.py --stage '$(ToMsys $Stage)' --force --bootstrap"
+& $Bash -lc $cmd
+if ($LASTEXITCODE -ne 0) { Fail "stage.py exited $LASTEXITCODE - the staged tree is not usable" }
+
+# ---------------------------------------------------------------------------
+Step 3 "Checking the staged tree is whole"
+
+# stage.py refuses a half-bootstrapped tree itself (check_bootstrap_complete).
+# This is the same test again, and it is not redundant: it is what stands
+# between a silent bootstrap failure and an installer built from the wreckage,
+# which is exactly what happened on 16 Aug 2026.  assert-current.ps1 CANNOT
+# cover this - it compares an install against SOURCE, and gcat is a build
+# product with no source counterpart.
+# EVERY LOCAL HERE IS PREFIXED, and that is a scar rather than a style.  This
+# block first used $out for the GPL.BP.OUT count, and PowerShell variable names
+# are CASE-INSENSITIVE, so it silently overwrote the $Out PARAMETER with the
+# number 193.  ISCC was then handed "/O193" and wrote the installer into a
+# relative "193\" directory under whatever the shell's cwd happened to be -
+# C:\WINDOWS\system32.  The check below caught it, but as "no sd-setup-*.exe is
+# in 193", which names the symptom and not the cause.
+$Sdsys = Join-Path $Stage 'ProgramData\sdsys'
+function CountIn($sub) {
+    $d = Join-Path $Sdsys $sub
+    if (Test-Path -LiteralPath $d) { (Get-ChildItem -LiteralPath $d -File -ErrorAction SilentlyContinue).Count } else { -1 }
+}
+$nGcat   = CountIn 'gcat'
+$nOut    = CountIn 'gpl.bp.out'
+# 19 Aug 26 - THE TERMINFO DATABASE, and it is counted RECURSIVELY because it is
+# sharded a level deep: sdtermlb.c:166 opens <sysdir>\terminfo\<first letter>\<name>,
+# so CountIn would report 0 for a perfectly good one.  Without it, no terminal
+# type resolves - "Unrecognised terminal name" for vt100 and everything else -
+# and NOTHING ELSE WOULD SAY SO: it is not tracked (it is "make terminfo"
+# output), stage.py only checks that the DIRECTORY exists, and sd.iss copies the
+# staged tree with a wildcard.  So an sdtic that failed half way, or a stale
+# terminfo/ left by an interrupted build, ships silently and the first anyone
+# hears of it is a user whose terminal does not work.
+$nTinfo  = $(
+    $d = Join-Path $Sdsys 'terminfo'
+    if (Test-Path -LiteralPath $d) {
+        (Get-ChildItem -LiteralPath $d -Recurse -File -ErrorAction SilentlyContinue).Count
+    } else { -1 })
+# 14 Sep 26 - $cproc and $bcomp, lower case (RELEASE_1.1 5 stage 3a).  Test-Path
+# matches either spelling on NTFS, so these read the size, not the case.
+$szCproc = if (Test-Path -LiteralPath (Join-Path $Sdsys 'gcat\$cproc')) {
+               (Get-Item -LiteralPath (Join-Path $Sdsys 'gcat\$cproc')).Length } else { -1 }
+$szBcomp = if (Test-Path -LiteralPath (Join-Path $Sdsys 'gcat\$bcomp')) {
+               (Get-Item -LiteralPath (Join-Path $Sdsys 'gcat\$bcomp')).Length } else { -1 }
+
+# 18 Aug 26 - 129/190, NOT 132/193.  Removing SDNet took three programs with it
+# (commit c893308), so the old figures have read three high since the 17:21
+# cycle.  The thresholds below did not move and did not need to: they are set
+# far enough back to catch a bootstrap that failed, not to police a count.
+Write-Host ("   gcat {0} (want ~129)   gpl.bp.out {1} (want ~190)   terminfo {2} (want ~100)" -f $nGcat, $nOut, $nTinfo)
+Write-Host ("   `$cproc {0} bytes (want >0)   `$bcomp {1} (want ~88,000 - under 80,000 is bbcmp.py's seed, ~70,900)" -f $szCproc, $szBcomp)
+
+$faults = @()
+if ($szCproc -le 0)   { $faults += '$CPROC is the 0-byte placeholder - the bootstrap never reached the last step' }
+if ($nGcat   -lt 100) { $faults += "gcat holds $nGcat entries" }
+if ($nOut    -lt 150) { $faults += "gpl.bp.out holds $nOut objects" }
+if ($nTinfo  -lt 50)  { $faults += "terminfo holds $nTinfo entries - run 'make terminfo'; no terminal type would resolve" }
+# 14 Sep 26 - A THRESHOLD, NOT AN EXACT SIZE, AND THE EXACT SIZE HAD ALREADY GONE
+# BLIND.  This was "-eq 70697".  Measured this day by compiling HEAD's BCOMP with
+# HEAD's bbcmp.py in a scratch tree (3e237f6): the seed was 70,828 bytes, and
+# after stage 3a's BCOMP edits 70,881 - so every BCOMP edit since the constant
+# was written moved the seed off it, and a bootstrap that never replaced the
+# seed compiler would have passed this check.  BCOMP's own object is ~88,000
+# (88,179 on the b158 install); the gap is 17,000 bytes either way.
+if ($szBcomp -ge 0 -and $szBcomp -lt 80000) { $faults += "`$bcomp is $szBcomp bytes - bbcmp.py's seed, not BCOMP's own object" }
+if (-not (Test-Path -LiteralPath (Join-Path $Sdsys 'voc'))) { $faults += "voc is absent - 'sd -i' did not complete" }
+if ($faults) { Fail ("the staged tree is not whole:`n  - " + ($faults -join "`n  - ")) }
+Write-Host "   staged tree is whole"
+
+# ---------------------------------------------------------------------------
+Step 4 "Building the installer"
+
+if (-not (Test-Path -LiteralPath $Out)) { New-Item -ItemType Directory -Path $Out | Out-Null }
+# STAMPED BEFORE ISCC RUNS, so the freshness test below compares against a time
+# this run owns rather than against "recently".
+$isccStart = Get-Date
+& $Iscc "/DStage=$Stage" "/O$Out" $Iss
+if ($LASTEXITCODE -ne 0) { Fail "ISCC exited $LASTEXITCODE" }
+
+$setup = Get-ChildItem -LiteralPath $Out -Filter 'sd-setup-*.exe' |
+         Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if (-not $setup) { Fail "ISCC reported success but no sd-setup-*.exe is in $Out" }
+# 2 Sep 26 - REFUSE THE NULL CASE.  The line above takes the NEWEST installer in
+# $Out, which on an ISCC that exited 0 without writing anything is the PREVIOUS
+# cycle's binary - and every step after this one, plus the copy to the guest,
+# would then be measuring a build nobody made.  Nothing here noticed; the size
+# and stamp were printed and read as this run's.
+if ($setup.LastWriteTime -lt $isccStart) {
+    Fail ("ISCC exited 0 but the newest installer in $Out predates this run: " +
+          "$($setup.Name) written $($setup.LastWriteTime), ISCC started $isccStart.  " +
+          "Nothing was built - this is an earlier cycle's binary.")
+}
+Write-Host ("   {0}, {1:N0} bytes, {2}" -f $setup.Name, $setup.Length, $setup.LastWriteTime)
+
+if ($SkipInstall) {
+    Write-Host ""
+    # PRE_RELEASE 137.  -SkipInstall exists to find out whether a change
+    # COMPILES, so this path is the one where somebody reads the log for an
+    # error message - and the front is exactly where a compile error lands.
+    ReportTranscriptWholeness
+    Write-Host ""
+    Write-Host "-SkipInstall: stopping here.  The installed tree is untouched and STALE." -ForegroundColor Yellow
+    StopCycleTranscript
+    exit 0
+}
+
+# ---------------------------------------------------------------------------
+Step 5 "Uninstalling"
+
+# AN UNINSTALLER FIX CANNOT BE VERIFIED IN THE CYCLE THAT SHIPS IT.
+# unins000.exe is generated at INSTALL time, so this runs the PREVIOUS
+# install's code.  PROJECT_STATUS.md header, item 1.
+$unins = Join-Path $PfTree 'unins000.exe'
+if (Test-Path -LiteralPath $unins) {
+    # Inno's uninstaller copies itself and returns immediately, so waiting on
+    # the process we launched proves nothing.  Wait for the TREE to go.
+    #
+    # Not piped to Out-Null, for the reason given at step 2: a pipe is a handle
+    # the spawned copy inherits, and PowerShell then waits on a stream rather
+    # than on the work.
+    & $unins /VERYSILENT
+    $deadline = (Get-Date).AddSeconds(120)
+    while ((Test-Path -LiteralPath $PfTree) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+    Write-Host ("   uninstaller ran; $PfTree {0}" -f $(if (Test-Path -LiteralPath $PfTree) { 'still present' } else { 'gone' }))
+} else {
+    Write-Host "   nothing installed at $PfTree"
+}
+
+# ---------------------------------------------------------------------------
+Step 6 "Deleting BOTH trees"
+
+# NOT OPTIONAL AND NOT A TIDY-UP.  The installer deliberately never overwrites
+# an existing C:\ProgramData\SD\sdsys, so leaving it means the next install
+# silently keeps the tree that first created it - and every measurement taken
+# afterwards describes THAT build.  CLAUDE.md, and the four-fault run in
+# HISTORY.md.
+foreach ($t in @($PfTree, $PdTree)) {
+    if (Test-Path -LiteralPath $t) {
+        Remove-Item -LiteralPath $t -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if (Test-Path -LiteralPath $t) {
+        Fail "could not delete $t - something still has a handle on it.  Close any SD session or Explorer window and run this again."
+    }
+    Write-Host "   $t gone"
+}
+
+# ---------------------------------------------------------------------------
+Step 7 "Installing"
+
+# 23 Aug 26 - NO SILENT SWITCH, and sd.iss would refuse one anyway.  The wizard
+# runs, a person answers it, and the install ends by collecting a password.
+$installArgs = @()
+
+# 17 Aug 26 - Start-Process -Wait, NOT "& $setup".  THE CALL OPERATOR DOES NOT
+# WAIT FOR A GUI-SUBSYSTEM PROCESS, and Setup.exe is one - PE subsystem 2,
+# measured on sd-setup-1.0-2.exe rather than assumed.  So the deadline below
+# used to start when the WIZARD OPENED instead of when it was dismissed, and
+# five minutes of somebody reading the wizard was indistinguishable from an
+# install that never ran.
+#
+# It cost exactly that on the cycle of 13:30:47: step 8 stopped with "no
+# C:\ProgramData\SD\sdsys\gcat after the install - it did not complete", the
+# install then finished normally at 13:43, and the tree was whole - gcat 132,
+# GPL.BP.OUT 193, and a file-by-file comparison against the stage came back
+# empty.  A FALSE FAILURE HERE IS AS EXPENSIVE AS A FALSE PASS: it reads as the
+# broken-bootstrap install of 16 Aug, which is the one thing this script exists
+# to catch, and the natural response is to spend another cycle.
+#
+# And it is aimed at the default: non-silent is deliberate, because the wizard
+# pages are part of what a cycle shows (PROJECT_STATUS.md 7 step 3), so the
+# longer the operator does what the default asks of them, the likelier the
+# failure.
+#
+# THE COUNT DEADLINE BELOW IS KEPT AS THE BACKSTOP, not replaced.  If Inno ever
+# does respawn itself for elevation this returns early again, and the tree
+# stays what decides - the same rule adopt-account.ps1 follows.
+if ($installArgs.Count -gt 0) {
+    Start-Process -FilePath $setup.FullName -ArgumentList $installArgs -Wait
+} else {
+    Start-Process -FilePath $setup.FullName -Wait
+}
+
+# THE WAIT IS FOR THE TREE TO MATCH THE STAGE, NOT FOR ONE FILE TO EXIST.  This
+# waited for gcat\$CPROC and then counted immediately, and $CPROC is nowhere near
+# the last thing written: the first run of this script reported
+# "GPL.BP.OUT 5" on an install that was fine and finished with 193.  A number
+# read off a half-copied tree is the exact failure mode step 3 exists to catch,
+# and here it was being printed as the result.
+#
+# So it waits until the installed counts REACH the staged ones - which are known,
+# having just been measured - and only then reports.  A tree that never gets
+# there is a real fault and says so, instead of being reported as a small number
+# nobody can interpret.  This still judges on the TREE rather than on Setup's
+# exit status - the same rule adopt-account.ps1 follows - even now that the
+# wait above means the wizard has actually closed by the time it starts.
+$igcatDir = Join-Path $PdTree 'sdsys\gcat'
+$ioutDir  = Join-Path $PdTree 'sdsys\gpl.bp.out'
+function InstalledCount($d) {
+    if (Test-Path -LiteralPath $d) { (Get-ChildItem -LiteralPath $d -File -ErrorAction SilentlyContinue).Count } else { 0 }
+}
+
+$deadline = (Get-Date).AddSeconds(300)
+while ((Get-Date) -lt $deadline) {
+    if (((InstalledCount $igcatDir) -ge $nGcat) -and ((InstalledCount $ioutDir) -ge $nOut)) { break }
+    Start-Sleep -Seconds 1
+}
+
+# One more pass: the counts can reach target while the last file is still being
+# written, and a settled tree costs two seconds to confirm.
+$before = -1
+$deadline = (Get-Date).AddSeconds(60)
+while ((Get-Date) -lt $deadline) {
+    $now = (InstalledCount $igcatDir) + (InstalledCount $ioutDir)
+    if ($now -eq $before) { break }
+    $before = $now
+    Start-Sleep -Seconds 2
+}
+
+# ---------------------------------------------------------------------------
+Step 8 "What was installed"
+
+if (-not (Test-Path -LiteralPath $igcatDir)) {
+    Fail "no $igcatDir after the install - it did not complete"
+}
+
+$iGcat = InstalledCount $igcatDir
+$iOut  = InstalledCount $ioutDir
+Write-Host ("   gcat {0} (staged {1})   GPL.BP.OUT {2} (staged {3})" -f $iGcat, $nGcat, $iOut, $nOut)
+$b = Get-Item -LiteralPath (Join-Path $igcatDir '$BCOMP') -ErrorAction SilentlyContinue
+if ($b) { Write-Host ("   `$BCOMP {0:N0} bytes" -f $b.Length) }
+
+# Reported against the stage rather than against a remembered constant, so this
+# stays true when the counts legitimately change.
+if (($iGcat -lt $nGcat) -or ($iOut -lt $nOut)) {
+    Fail ("the install is SHORT of the staged tree - gcat {0}/{1}, GPL.BP.OUT {2}/{3}.`n" +
+          "  Nothing measured on this tree means anything." -f $iGcat, $nGcat, $iOut, $nOut)
+}
+
+# ---------------------------------------------------------------------------
+# Step 9 - DID ANYBODY GET A PASSWORD?
+#
+# ADDED 23 Aug 2026, after this cost two sessions: a -Silent install skipped the
+# finishing step, which was where the password was taken, and the tree then
+# looked complete with no credential anywhere - handed over as an unexplained
+# hang.
+#
+# ***18 SEP 2026, RELEASE_1.1 64 - REWRITTEN: THE STEP IT WATCHED FOR NO LONGER
+# EXISTS, AND NEITHER DOES THE STATE IT WARNED ABOUT.***  No install collects an
+# SD password now.  The one account is SDSYS, it signs in with its WINDOWS
+# password (asked for, since the same day, by finish-install.ps1's window), and
+# the SD credential register is EMPTY on a fresh install BY DESIGN - this cycle
+# printed exactly that.  What the count still tells a reader is which of the two
+# states an installation is in, so it is kept and the message corrected rather
+# than the check deleted.  The -Silent half is unreachable besides: sd.iss
+# refuses to install silently at all, by the gate added at InitializeSetup the
+# same day this note was written.
+#
+# ***AND ONE CLAUSE OF THE OLD WARNING WAS FALSE WHEN IT WAS WRITTEN.***  It said
+# an ELEVATED session running "sd <command>" at a console stops at the credential
+# prompt and blocks for ever.  It does not: login:1082 tests `batch.command = ''`
+# before calling require.credential, so A COMMAND LINE IS BATCH AND DOES NOT
+# PROMPT - section 7 step 9's ruling, which is the same ruling that broke the old
+# password step.  The prompt belongs to an elevated INTERACTIVE session, and that
+# is the state the message below now names.
+#
+# ***21 SEP 2026, RELEASE_1.1 96 - THE FIRST SENTENCE OF THE NOTE ABOVE HAS BEEN
+# FALSE SINCE 70.***  70 restored the attached account's password step:
+# finish-install.ps1 asks for that account's SD password, so a normal install
+# leaves ONE register entry and a count of 0 means that step set none.  The
+# message below says so; the note above is kept as the record of the 18 Sep state.
+#
+# READ, NOT INFERRED.  The count comes off the register itself; this script is
+# already elevated, which is what makes $cred readable at all - it is SYSTEM and
+# Administrators only.
+Write-Host ""
+$credDir = Join-Path $env:ProgramData 'SD\sdsys\$cred'
+$nCred   = 0
+try   { $nCred = @(Get-ChildItem -LiteralPath $credDir -File -Force -ErrorAction Stop).Count }
+catch { $nCred = -1 }
+
+if ($nCred -eq 0) {
+    Write-Host "NO SD ACCOUNT HAS A PASSWORD - the SD credential register is empty." -ForegroundColor Yellow
+    Write-Host "  The installer's finish page asks for the attached account's SD password (RELEASE_1.1 70)," -ForegroundColor Yellow
+    Write-Host "  so a normal install leaves one entry; an empty register means that step set none." -ForegroundColor Yellow
+    Write-Host "  Until an account sets one, an ELEVATED INTERACTIVE 'sd' asks (login:1082)." -ForegroundColor Yellow
+    Write-Host "  A command line is batch and does not prompt, so the verify suite is not stalled." -ForegroundColor Yellow
+} elseif ($nCred -lt 0) {
+    Write-Host "Could not read $credDir - cannot say whether any account has a password." -ForegroundColor Yellow
+} else {
+    Write-Host "   credential register: $nCred account(s) with a password"
+}
+
+Write-Host ""
+
+# SAID A SECOND TIME, BESIDE THE VERDICT.  The warning at the top of the run is
+# six minutes and several thousand lines away by now, and the end of the log is
+# what anybody actually reads - which is how this defect went unnoticed in the
+# first place.
+if ($script:TranscriptDegraded) {
+    Write-Host 'NOTE: this window had already run a cycle, so the compile, ISCC and' -ForegroundColor Yellow
+    Write-Host '  installer output are MISSING from this transcript.  The checks below are' -ForegroundColor Yellow
+    Write-Host '  PowerShell output and did record.  Use a fresh elevated window next time.' -ForegroundColor Yellow
+    Write-Host ""
+}
+
+# PRE_RELEASE 137, AND IT IS DELIBERATELY BESIDE THE FLAG ABOVE RATHER THAN
+# INSTEAD OF IT.  The flag says what this window did; this says what the LOG
+# got, and on 2 Sep 2026 they disagreed in both directions on the same day - a
+# flagged window produced a complete log and a fresh one lost 1,789 lines.
+# Printed here because the end of the log is what anybody actually reads.
+ReportTranscriptWholeness
+Write-Host ""
+
+& (Join-Path $Gplbld 'assert-current.ps1')
+if ($LASTEXITCODE -eq 0) {
+    Write-Host ""
+    Write-Host "CYCLE COMPLETE - the install matches source.  Measure now, and stop measuring at the next source change." -ForegroundColor Green
+    StopCycleTranscript
+} else {
+    Write-Host ""
+    Write-Host "INSTALLED, BUT assert-current REFUSES - read what it listed above before believing any measurement." -ForegroundColor Yellow
+    StopCycleTranscript
+    exit 1
+}

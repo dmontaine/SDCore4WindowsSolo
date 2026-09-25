@@ -1,0 +1,699 @@
+# check-install.ps1 - tell the person who just installed SD whether it worked.
+#
+#   powershell -ExecutionPolicy Bypass -File check-install.ps1            run the checks
+#   powershell -ExecutionPolicy Bypass -File check-install.ps1 -Brief     one line per check, no preamble
+#
+# Exit 0 nothing is wrong, 1 something is.  A check that cannot be answered YET
+# is not something being wrong - see THREE OUTCOMES below.
+#
+# THIS IS NOT THE DEVELOPMENT SUITE AND CANNOT BECOME IT.  VerifyInstall1.ps1
+# and its sixteen verifiers answer "does every behaviour still hold, on a tree
+# that still matches the source it was built from".  Two things stop that
+# question being asked on a user's machine, and neither is a packaging problem:
+#
+#   1. assert-current.ps1 compares the install against the SOURCE TREE, which a
+#      user does not have, and 21 of the 24 verifiers refuse to run without it.
+#   2. The suite is DESTRUCTIVE.  It creates and deletes Windows accounts,
+#      rewrites user-rights policy, restarts the SD service and edits
+#      sshd_config.  None of that belongs on somebody's working install.
+#
+# So this asks a smaller and different question - DID THIS INSTALL, ON THIS
+# MACHINE, PRODUCE A WORKING SD - and it asks it by READING ONLY.  It creates
+# nothing, deletes nothing, starts and stops nothing, and changes no setting.
+# Run it as often as you like.
+#
+# THE ONE FAILURE IT EXISTS TO CATCH, because it has happened: on 16 Aug 2026 an
+# install shipped with an EMPTY CATALOGUE.  Every file was present, the service
+# ran, and nothing worked, because the bootstrap had not compiled the BASIC
+# programs into gcat.  cycle.ps1 steps 3 and 8 count that tree for developers.
+# Nothing counted it on a user's machine until this file.
+#
+# THREE OUTCOMES, AND THE THIRD IS WHY THIS SCRIPT IS SHAPED THE WAY IT IS.
+#
+#   [ok]      the check passed.
+#   [PROBLEM] something is actually wrong.  Exit code 1.
+#   [not yet] the check could not be answered on THIS logon, and that is
+#             expected and harmless.
+#
+# The third exists because of a real Windows behaviour the installer already
+# warns about twice: the installer adds you to the "sdusers" group, and WINDOWS
+# FIXES GROUP MEMBERSHIP IN YOUR ACCESS TOKEN WHEN YOU SIGN IN.  A membership
+# granted after that point is invisible until you sign out and back in.  The
+# data tree grants SYSTEM, Administrators and sdusers, so on the logon that ran
+# the installer this script CANNOT READ THE DATABASE, however healthy it is.
+#
+# A CHECK THAT REPORTED THAT AS A FAILURE WOULD BE WORSE THAN NO CHECK AT ALL.
+# It would tell somebody their brand new install was broken, at the exact moment
+# they have least reason to doubt it, for a reason that fixes itself.  So the
+# membership is read TWO WAYS - from the group itself, and from this process's
+# token - and the two together say which case it is:
+#
+#   in the group, not in the token  ->  [not yet], sign out and back in
+#   not in the group at all         ->  [PROBLEM], the installer did not add you
+#
+# Inno runs a "postinstall" entry as "Run as: Original user", so the token this
+# sees is the ordinary one and the case above is the NORMAL one at install time,
+# not the exception.
+#
+# IT IS ALSO WHY THIS DOES NOT ELEVATE.  Elevating would let it read the tree
+# and answer everything at once - and it would then be answering as
+# Administrators rather than as the user, so a genuine "this user cannot reach
+# their own database" would pass.  The whole question is whether THIS PERSON can
+# use SD.  Asking it with somebody else's token is not a shortcut, it is a
+# different question.  Same reasoning as verify-credacl.ps1 refusing elevation.
+
+[CmdletBinding()]
+param(
+    # One line per check and no explanation.  For somebody re-running it who has
+    # already read the preamble once.
+    [switch] $Brief,
+
+    # 22 Aug 26 - SKIP THE "shall I?" PROMPT.  Anything that is not a person
+    # needs this: Read-Host in a non-interactive host does not wait, it THROWS,
+    # so the absence of somebody to answer is caught and named rather than left
+    # as a stack trace.  Same reasoning and same switch name as VerifyInstall1.
+    [switch] $Yes,
+
+    # 22 Aug 26 - do not wait for a keypress at the end.  For anything that
+    # is not a person sitting in front of the window.
+    [switch] $NoPause
+)
+
+$ErrorActionPreference = 'Stop'
+
+# ---------------------------------------------------------------------------
+# WHERE THINGS ARE.  These are constants and not guesses: the install location
+# stopped being a choice on 22 Aug 2026 (sd.iss, DisableDirPage/UsePreviousAppDir)
+# and the data tree never was one - DataDir is #defined as {commonappdata}\SD.
+$AppDir  = Join-Path $env:ProgramFiles 'SD'
+$DataDir = Join-Path $env:ProgramData  'SD'
+$SdExe   = Join-Path $AppDir 'usr\bin\sd.exe'
+$SysDir  = Join-Path $DataDir 'sdsys'
+$GcatDir = Join-Path $SysDir  'gcat'
+
+$script:problems = 0
+$script:notyet   = 0
+
+# ---------------------------------------------------------------------------
+# IS THIS AN ELEVATED WINDOW?  It changes what the answers MEAN, so it has to be
+# known before any of them are printed.
+#
+# The data tree grants SYSTEM, Administrators and sdusers.  An elevated token
+# carries Administrators, so it can read the database WHETHER OR NOT the person
+# is in sdusers - and this script would then report the database healthy for
+# somebody whose ordinary sign-in cannot open it at all.  THAT IS A FALSE PASS
+# ON THE ONLY QUESTION THIS SCRIPT ASKS.
+#
+# IT DOES NOT REFUSE, THOUGH, AND THE DIFFERENCE FROM verify-credacl.ps1 IS
+# DELIBERATE.  That is a developer's verifier and refusing is right for it: a
+# wrong answer there corrupts a measurement.  This is a tool a worried user
+# runs, and somebody who right-clicks "Run as administrator" - which is exactly
+# what a worried person does - must not be met with a blank refusal that
+# teaches them nothing.  So it runs, and it says what the answer is worth.
+$script:elevated = ([Security.Principal.WindowsPrincipal] `
+    [Security.Principal.WindowsIdentity]::GetCurrent()
+    ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+
+function Ok      ($m) { Write-Host ('[ok]      ' + $m) -ForegroundColor Green }
+function Problem ($m) { $script:problems++; Write-Host ('[PROBLEM] ' + $m) -ForegroundColor Red }
+function NotYet  ($m) { $script:notyet++;   Write-Host ('[not yet] ' + $m) -ForegroundColor Yellow }
+
+# TEST-PATH THROWS ON AN ACL DENIAL RATHER THAN RETURNING $false, and this
+# script sets $ErrorActionPreference = 'Stop' - so on the ONE token this file
+# exists to reassure, a token that does not carry sdusers yet, it ABORTED with
+# "Access is denied" instead of reporting anything at all.
+#
+# Found 22 Aug 2026 by gplbld\verify-notyet.ps1, which is the first thing ever
+# to run this script against a genuinely stale token.  Every previous proof of
+# the [not yet] path was made on a token that already had the group, so nothing
+# had ever reached these lines without the rights to read the tree.  The very
+# first user to run the Start Menu shortcut before signing out would have met a
+# crash where the whole design promises reassurance.
+#
+# THREE ANSWERS, NOT TWO, for the same reason this script has three outcomes:
+# "cannot see it" is not "it is not there".  Answering a denial with $false -
+# which is what -ErrorAction SilentlyContinue would do - would report a present
+# and healthy database as MISSING, which is worse than the crash it replaced.
+function Test-PathState([string] $path) {
+    try {
+        if (Test-Path -LiteralPath $path) { return 'present' }
+        return 'missing'
+    } catch {
+        return 'unreadable'
+    }
+}
+function Info    ($m) { if (-not $Brief) { Write-Host ('          ' + $m) -ForegroundColor DarkGray } }
+function Section ($m) { Write-Host ''; Write-Host $m -ForegroundColor Cyan }
+
+# 22 Aug 26 - SAY WHEN IT IS OVER, AND CLOSE ON A KEYPRESS.  Owner's
+# instruction, twice.  The window has to outlive the checks - a check nobody
+# can read is not a check, which is the third fault that killed the old SDSYS
+# password step - but the first way of doing that, -NoExit, left a LIVE
+# POWERSHELL PROMPT with nothing saying the work was over and no way out but
+# typing "exit" at a prompt nobody had asked for.
+#
+# ON EVERY ENDING, not only the good one, because "is it finished?" is the same
+# question whichever answer it reached - and it is loudest on the path that
+# found a problem, where a reader is most likely to sit and wait for something
+# more to happen.
+#
+# DEFINED HERE, WITH THE OTHER HELPERS, rather than beside the summary it is
+# used by.  PowerShell binds a function when execution reaches it, and the
+# refusal path exits long before the summary - so a definition further down
+# would have been an unrecognised command on the one path a user takes by
+# choosing not to run anything.
+# $Ran is false on the one path where nothing was checked, because the user said
+# no.  "Test completed" would not be true there, and a closing line that
+# overstates what happened is the same class of thing as the summary that told
+# somebody to sign out when that could not help them.
+# 22 Aug 26 - WHERE TO FIND IT, IN ONE PLACE.  Owner: the elevated banner said
+# to "run this again ... from an ordinary window" and named neither what "this"
+# is nor where to get it.  That banner is now the MOST READ text in the file -
+# the install-time run is launched by the finishing step, which must be
+# elevated, so it fires on every fresh install.
+#
+# FOUR PLACES SAID SOME OF THIS AND NO TWO SAID THE SAME AMOUNT, which is how
+# one of them ended up saying none of it.  They all call this now, so the
+# Start Menu wording and the path cannot drift apart again.
+#
+# THE PATH IS BUILT FROM $AppDir rather than written out, so it stays true if
+# this is ever run from somewhere other than the install.
+function Rerun {
+    Write-Host '  Start Menu  ->  SD  ->  Check the SD installation'
+    Write-Host 'or:'
+    Write-Host ('  powershell -ExecutionPolicy Bypass -File "' + (Join-Path $AppDir 'check-install.ps1') + '"')
+}
+
+function Finish([bool] $Ran = $true) {
+    Write-Host ''
+    if ($Ran) {
+        Write-Host 'Test completed.' -ForegroundColor Cyan
+    } else {
+        Write-Host 'Nothing was checked.' -ForegroundColor Cyan
+    }
+
+    # 22 Aug 26 - A KEYPRESS CLOSES IT, rather than a prompt the user must type
+    # "exit" at.  Owner's instruction.  The window used to be held open with
+    # -NoExit, which leaves a LIVE POWERSHELL PROMPT sitting there - so the
+    # window stayed, which was the point, but getting rid of it meant knowing to
+    # type a command at a prompt nobody asked for.  Waiting for a key does the
+    # same job and ends by itself.
+    #
+    # -NoExit IS GONE FROM BOTH LAUNCH SITES to match: the installer's finishing
+    # step and the Start Menu shortcut.  If either kept it, this pause would be
+    # followed by the very prompt it exists to avoid.
+    #
+    # IT MUST NOT HANG SOMETHING THAT IS NOT A PERSON.  ReadKey throws in a host
+    # with no console - which is what -Yes callers generally are - so the throw
+    # is caught and skipped rather than left to become a stack trace at the end
+    # of an otherwise successful run.  -NoPause is the explicit way to ask for
+    # the same thing.
+    # 06 Sep 26 - IS ANOTHER SCREEN COMING?  A successful check on a sign-in
+    # that does not yet carry sdusers ends with Show-SdGroupNotice above, on a
+    # cleared screen - so this pause is NOT the last thing the user sees and
+    # must not say it is.  The four conditions are each load-bearing:
+    #   problems -eq 0   clearing over a fault report would delete it, and
+    #                    signing out cannot cure a fault anyway
+    #   -not InToken     a membership already active needs no instruction, and
+    #                    a false one is how a true one stops being read
+    #   NoPause / redirected
+    #                    -Yes callers, the cycle and verify-notyet: clearing a
+    #                    redirected host writes escape codes into a log, so
+    #                    they keep exactly today's ending
+    #
+    # IT ASKS Get-SdUsersState ITSELF rather than reading $sdUsers, because the
+    # declined path calls Finish before line 327 computes it.  The call creates
+    # nothing and starts nothing, so asking twice beats an ordering dependency
+    # between two call sites that are 300 lines apart.
+    $state  = Get-SdUsersState
+    $notify = ($script:problems -eq 0) -and (-not $state.InToken) -and
+              (-not $NoPause) -and (-not [Console]::IsInputRedirected) -and
+              (-not [Console]::IsOutputRedirected)
+
+    if ((-not $NoPause) -and (-not [Console]::IsInputRedirected)) {
+    # THE GUARD IS IsInputRedirected, NOT A try/catch - MEASURED 22 Aug 2026.
+    # The first version wrapped ReadKey in try/catch on the assumption it would
+    # THROW in a host with no console, the way Read-Host does.  IT DOES NOT: it
+    # BLOCKS, for ever.  A background job left to run with no -NoPause hung until
+    # it was killed, which is the unbounded-wait fault PROJECT_STATUS section 8
+    # records costing three runs.
+    # [Console]::IsInputRedirected is false only for a REAL console, which is
+    # exactly when a keypress can arrive.  The try/catch stays as a backstop for
+    # a host that refuses the call outright, but it is no longer the guard.
+        if ($notify) {
+            Write-Host 'Press any key to continue.' -ForegroundColor Cyan
+        } else {
+            Write-Host 'Press any key to close this window.' -ForegroundColor Cyan
+        }
+        try   { $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown') }
+        catch { }
+    }
+
+    if ($notify) { Show-SdGroupNotice -State $state }
+    Write-Host ''
+}
+
+# ---------------------------------------------------------------------------
+# IS THIS USER IN sdusers, AND DOES THIS TOKEN KNOW IT?  Two questions, and the
+# whole [not yet] path depends on telling them apart.
+function Get-SdUsersState {
+    $inGroup = $null      # $true, $false, or $null meaning "could not read"
+    try {
+        $me = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+        $members = @(Get-LocalGroupMember -Group 'sdusers' -ErrorAction Stop)
+        $inGroup = [bool](@($members | Where-Object { $_.SID.Value -eq $me }).Count)
+    } catch {
+        # Get-LocalGroupMember can fail on a machine where the group does not
+        # exist, and it can fail for reasons of its own.  Not knowing is a third
+        # answer and is reported as such rather than guessed either way.
+        $inGroup = $null
+    }
+
+    # THE TOKEN, which is the half that lags.  Translate() is wrapped because a
+    # token can carry SIDs that no longer resolve to a name, and one of those
+    # must not take the whole check down.
+    $inToken = $false
+    foreach ($g in [Security.Principal.WindowsIdentity]::GetCurrent().Groups) {
+        try {
+            if ($g.Translate([Security.Principal.NTAccount]).Value -match '\\sdusers$') { $inToken = $true }
+        } catch { }
+    }
+    return [pscustomobject]@{ InGroup = $inGroup; InToken = $inToken }
+}
+
+# ---------------------------------------------------------------------------
+function Show-SdGroupNotice {
+    <#  THE LAST THING ON SCREEN IS THE ONE INSTRUCTION THE USER MUST ACT ON.
+        Owner, 6 Sep 2026: "we need to do more than bury the instructions in
+        dialogs that many users will not read."  The wizard says it twice and
+        the documentation four times, and a person who has just typed two
+        passwords has read past all of them.  So a successful check ends on a
+        CLEARED screen with this and nothing else, and waits there.
+
+        IT IS CONDITIONAL ON THE TOKEN, NOT ON THE INSTALL, and Finish() decides
+        - see $notify there.  Get-SdUsersState already separates "you are in
+        sdusers" from "this sign-in knows it", and only the second is what makes
+        SD work.  Somebody reinstalling with an active membership must not be
+        told to sign out: a false instruction is how a true one stops being
+        read, which is the fault the [not yet] summary at the foot of this file
+        was already fixed for once.
+
+        AND IT NEVER CLEARS OVER A PROBLEM REPORT.  $notify requires
+        $script:problems to be 0, because clearing the screen would delete the
+        fault the user has to act on, and signing out cannot cure it anyway.  #>
+    param([Parameter(Mandatory = $true)] $State)
+
+    Clear-Host
+
+    # The subtitle is conditional because the CLAIM is.  "It is not active" is
+    # measured when InGroup is known; InGroup is $null when the group could not
+    # be read at all, and a banner asserting it anyway would be stating some-
+    # thing nothing measured.
+    $subtitle = if ($null -eq $State.InGroup) {
+        '  Your group membership may not be active in this sign-in yet.'
+    } else {
+        '  Your group membership is not active in this sign-in yet.'
+    }
+
+    Write-Host ''
+    Write-Host '============================================================' -ForegroundColor Yellow
+    Write-Host '  SIGN OUT OR RESTART NOW' -ForegroundColor Yellow
+    Write-Host $subtitle -ForegroundColor Yellow
+    Write-Host '============================================================' -ForegroundColor Yellow
+    Write-Host ''
+    # 20 Sep 26, LATER - THE ACTION AND NOTHING ELSE (owner: dialogs deal only with
+    # the installing task; warnings and caveats go in the installer documentation).
+    # The "why" (Windows applies a new group only at sign-in) and the two symptoms a
+    # person sees if they do not sign out ("sd is not recognized", "cannot open its
+    # files") are in SDCoreWindowsDocs, GettingStarted/01-installation.md.
+    if ($null -eq $State.InGroup) {
+        Write-Host 'This check could not read the "sdusers" group.  Sign out and back in.'
+    } else {
+        Write-Host 'Sign out and back in (or restart) before using SD Core.'
+    }
+    Write-Host ''
+    Write-Host 'Afterwards, run  Start Menu  ->  SD  ->  Check the SD installation'
+    Write-Host ''
+
+    # The window closes when this returns, so it waits here rather than at the
+    # pause before it.  IsInputRedirected is the guard for the same measured
+    # reason as Finish()'s: ReadKey BLOCKS rather than throwing with no console.
+    if (-not [Console]::IsInputRedirected) {
+        Write-Host 'Press any key to close this window.' -ForegroundColor Cyan
+        try   { $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown') }
+        catch { }
+    }
+    Write-Host ''
+}
+
+# ---------------------------------------------------------------------------
+if (-not $Brief) {
+    Write-Host ''
+    Write-Host 'Checking your SD installation' -ForegroundColor White
+    Write-Host '============================='
+    Write-Host ''
+    # 22 Aug 26 - IT NO LONGER CLAIMS THE INSTALL HAS FINISHED.  Owner: "the
+    # install doesn't actually finish until you close the post install script
+    # window, so ... 'The install has finished' is not correct."  Right, and it
+    # was wrong twice over: this window is reached THROUGH the installer's own
+    # finishing step, and the password step that ran a moment ago in this same
+    # window is part of setting SD up, not something after it.
+    #
+    # WHAT IS TRUE IS THE REASSURING HALF ANYWAY - the files are on disk and
+    # nothing here writes - so saying that instead costs nothing and does not
+    # have to be taken back.
+    # 20 Sep 26 - ONE PARAGRAPH, where it was a five-item list and three
+    # reassurances (owner: "too verbose").  It keeps the two facts a person needs
+    # before answering the question below: it only reads, and it can be run again.
+    Write-Host 'This only reads; it changes nothing.'
+    Write-Host ''
+}
+
+# 22 Aug 26 - AND IT ASKS, EVEN THOUGH THE TICKBOX ALREADY DID.  Owner, 22 Aug:
+# "there was no explanation of the post install validation process and no option
+# for the user to refuse it."  The installer's tickbox is a refusal, but it is
+# one line on a page somebody is clicking Finish on, so in practice it is not a
+# decision anybody makes.  This is the one that is hard to miss, and it costs a
+# keystroke to say no.
+if (-not $Yes) {
+    $answer = $null
+    # 06 Sep 26 - THE DEFAULT IS IN THE PROMPT.  Owner: "the y/n prompt to run
+    # the post install test does not indicate the default".  Anything that is
+    # not y or yes is a no - including a bare Enter, which is what most people
+    # press - so the prompt now says which one it is taking.  The angle brackets
+    # are the owner's notation, 6 Sep 2026.
+    try   { $answer = Read-Host 'Run the checks now? (y/<n>)' }
+    catch {
+        Write-Host ''
+        Write-Host 'Nothing is available to answer that question, so nothing was run.'
+        Write-Host 'Pass -Yes to run the checks without asking.'
+        Write-Host ''
+        exit 2
+    }
+    if ($answer -notmatch '^(y|yes)$') {
+        # 21 Sep 26 - THE "YOU CAN RUN IT WHENEVER YOU WANT IT" BLOCK (the
+        # Start Menu / powershell -File how-to) IS GONE - owner's instruction.
+        # It also duplicated Finish($false)'s own "Nothing was checked.": this
+        # branch said it once here and Finish said it again a moment later.
+        # Removing the block removed the duplicate along with it.
+        Finish $false
+        exit 0
+    }
+}
+
+if ($script:elevated) {
+    Write-Host ''
+    Write-Host 'This window has administrator rights.  To test your own sign-in, run the' -ForegroundColor Yellow
+    Write-Host 'check again from an ORDINARY window:' -ForegroundColor Yellow
+    Rerun
+}
+
+$sdUsers = Get-SdUsersState
+
+# --- 1. the programs -------------------------------------------------------
+Section 'The program files'
+
+if (Test-Path -LiteralPath $SdExe) {
+    Ok ('SD is installed in ' + $AppDir)
+} else {
+    Problem ('SD is not where it should be - expected ' + $SdExe)
+    Info 'Nothing else below will mean much.  Try installing again.'
+}
+
+# 02 Sep 26 - CAN YOU TYPE "sd"?  PRE_RELEASE_FIXES 141.  This script had
+# nothing to say about PATH at all, so the reader whose shell answers "sd is
+# not recognized" ran it and was told about a group membership instead - a
+# different message with a different cause, and the same cure, which is what
+# kept it hidden.
+#
+# IT IS THE SAME TWO-QUESTION SHAPE AS sdusers BELOW, and deliberately so: the
+# MACHINE environment is where the installer wrote it, this PROCESS's PATH is
+# what lags, and only the two together say which case a reader is in.  Reading
+# the registry rather than [Environment]::GetEnvironmentVariable(...,'Machine')
+# is not worth it - that call reads the same value and needs no path literal.
+#
+# NOT A [PROBLEM] WHEN IT IS ABSENT ENTIRELY.  "Add SD Core to the system PATH"
+# is an OPTIONAL task on the wizard (sd.iss "addtopath"), so a reader who
+# cleared it has an install that is working as they asked for.
+$binDir = Join-Path $AppDir 'usr\bin'
+$machinePath = ''
+try { $machinePath = [string][Environment]::GetEnvironmentVariable('Path', 'Machine') } catch { }
+$onMachine = @($machinePath -split ';' | ForEach-Object { $_.TrimEnd('\') }) -contains $binDir.TrimEnd('\')
+$onProcess = @($env:Path -split ';' | ForEach-Object { $_.TrimEnd('\') }) -contains $binDir.TrimEnd('\')
+
+if ($onMachine -and $onProcess) {
+    Ok 'You can run SD Core by typing "sd" - it is on this window''s PATH.'
+} elseif ($onMachine) {
+    NotYet 'SD Core is on the system PATH, but this window does not have it yet.'
+    Info 'Open a new window.'
+} else {
+    Info 'SD Core is not on the system PATH, so "sd" will not be found by name.'
+    Info ('Run it by its full path - ' + $SdExe + ' - or install again and tick')
+    Info 'the PATH option.'
+}
+
+# --- 2. the service --------------------------------------------------------
+Section 'The SD service'
+
+$svc = Get-Service -Name 'SD' -ErrorAction SilentlyContinue
+if ($null -eq $svc) {
+    Problem 'The SD service was not installed.'
+    Info 'SD runs as a Windows service.  Without it nobody can connect.'
+} elseif ($svc.Status -eq 'Running') {
+    Ok 'The SD service is running.'
+} else {
+    Problem ('The SD service is installed but is ' + $svc.Status + '.')
+    Info 'Start it from Services, or restart the machine.'
+}
+
+# --- 3. your access to the database ----------------------------------------
+Section 'Your access to the database'
+
+if ($sdUsers.InGroup -eq $false) {
+    Problem 'You are not a member of the "sdusers" group.'
+    Info 'An administrator can add you with:   net localgroup sdusers "<your user name>" /add'
+} elseif ($null -eq $sdUsers.InGroup) {
+    NotYet 'Could not read the "sdusers" group to check your membership.'
+} elseif (-not $sdUsers.InToken) {
+    NotYet 'You are in the "sdusers" group, but this sign-in does not have it yet.'
+    Info 'Sign out and back in, then run this again.'
+} else {
+    Ok 'You are in the "sdusers" group and this sign-in has it.'
+}
+
+# --- 4. the database itself ------------------------------------------------
+# THE CHECK THIS FILE EXISTS FOR.  A tree that is present but has an empty
+# catalogue is the 16 Aug 2026 failure, and it looks completely healthy from
+# the outside.
+Section 'The database'
+
+$sysState = Test-PathState $SysDir
+if ($sysState -eq 'missing') {
+    Problem ('The database is missing - expected ' + $SysDir)
+} elseif ($sysState -eq 'unreadable') {
+    # Present, but not to this token.  Which of the two answers is right depends
+    # on the same membership section 3 has already reported, so it is read from
+    # there rather than guessed at again.
+    if ($sdUsers.InToken) {
+        Problem ('The database is there but could not be read: ' + $SysDir)
+        Info 'This sign-in carries the "sdusers" group, so it should be able to.'
+    } else {
+        NotYet 'The database could not be read on this sign-in.'
+        Info 'Sign out and back in, then run this again.'
+    }
+} else {
+    Ok ('The database is in ' + $DataDir)
+
+    # Reading gcat needs the tree ACL, which needs sdusers IN THE TOKEN.  So a
+    # failure here is only meaningful once section 3 said the token has it;
+    # before that, "cannot read" is the expected answer and not a fault.
+    $count = $null
+    try {
+        $count = @(Get-ChildItem -LiteralPath $GcatDir -File -ErrorAction Stop).Count
+    } catch {
+        $count = $null
+    }
+
+    if ($null -ne $count) {
+        # The number is a floor, not the exact shipped count: the catalogue
+        # grows as accounts compile their own programs, and a check that
+        # demanded an exact figure would start failing on a machine that was
+        # simply being used.  What distinguishes a good install from the broken
+        # one is 100-odd entries against nearly none.
+        if ($count -ge 100) {
+            Ok ("SD's program catalogue is present (" + $count + ' entries).')
+            # SAY WHOSE RIGHTS ANSWERED IT.  Read under elevation this line is
+            # about the ADMINISTRATOR token, and the reader has every reason to
+            # take it as being about themselves.  The banner at the top says so
+            # once; this says it where the misreading would actually happen.
+            if ($script:elevated -and -not $sdUsers.InToken) {
+                Info 'Read using administrator rights - this does not show that your'
+                Info 'ordinary sign-in can open the database.'
+            }
+        } else {
+            Problem ("SD's program catalogue has only " + $count + ' entries and should have over 100.')
+            Info 'The install did not finish building SD, so almost nothing will work.'
+            Info 'Please report this - it is an installer fault.'
+        }
+    } elseif ($sdUsers.InToken) {
+        Problem 'Could not read the program catalogue, and this sign-in should be able to.'
+        Info ('Expected to read ' + $GcatDir)
+    } elseif ($sdUsers.InGroup -eq $false) {
+        # 22 Aug 26 - ATTRIBUTE THIS TO THE RIGHT CAUSE.  The first version sent
+        # everyone who could not read the tree down the "sign out and back in"
+        # path, INCLUDING somebody who is not in sdusers at all.  Signing out
+        # and back in would not help them and they would do it, find nothing
+        # changed, and have been told the wrong thing by the tool that was
+        # supposed to explain their install.  The membership check above has
+        # already reported their real problem; this only says why the catalogue
+        # went unchecked, and does not offer a remedy that cannot work.
+        NotYet 'The program catalogue was not checked, because of the membership problem above.'
+    } else {
+        NotYet 'Cannot check the program catalogue until you sign out and back in.'
+        Info 'See the note above - this is the same group membership, not a second problem.'
+    }
+}
+
+# --- 5. remote access, only where it was asked for -------------------------
+# EVERY CHECK HERE IS CONDITIONAL ON THE FEATURE BEING WANTED.  Reporting "the
+# API port is closed" to somebody who never asked for the API would be noise
+# that reads like a fault.
+Section 'Remote access'
+
+$apiPort = $null
+$conf = Join-Path $DataDir 'sd.conf'
+$confState = Test-PathState $conf
+if ($confState -eq 'present') {
+    try {
+        $line = Select-String -LiteralPath $conf -Pattern '^\s*APIPORT\s*=\s*(\d+)' -ErrorAction Stop |
+                    Select-Object -First 1
+        if ($line) { $apiPort = [int]$line.Matches[0].Groups[1].Value }
+    } catch { }
+}
+
+if ($confState -eq 'unreadable') {
+    # SAYING "switched off" HERE WOULD BE A FALSE STATEMENT, not just a gap:
+    # sd.conf could not be read, so whether the API is on is simply unknown.
+    # Same denial as the database above and the same remedy.
+    NotYet 'The network options could not be checked on this sign-in.'
+    Info 'Reading sd.conf needs the same group membership as the database above.'
+} elseif ($null -eq $apiPort -or $apiPort -le 0) {
+    Ok 'The network API is switched off, so nothing is listening for it.'
+} else {
+    $listening = $false
+    try {
+        $listening = [bool](@(Get-NetTCPConnection -State Listen -LocalPort $apiPort -ErrorAction Stop).Count)
+    } catch {
+        # Get-NetTCPConnection is absent on some editions; netstat is the
+        # fallback and is present everywhere.
+        $ns = & "$env:SystemRoot\System32\netstat.exe" -an
+        $listening = [bool](@($ns | Where-Object { $_ -match ('LISTENING') -and $_ -match (':' + $apiPort + '\s') }).Count)
+    }
+    if ($listening) {
+        Ok ('The network API is listening on port ' + $apiPort + '.')
+
+        # 03 Sep 26 - PRE_RELEASE_FIXES 148.  LISTENING IS NOT REACHABLE, AND
+        # SAYING ONLY "listening" IS THE DEFECT.  The firewall rule can be
+        # ABSENT - a machine that kept its database through an uninstall and
+        # reinstall (147) answers nobody off-box - or scoped to this computer,
+        # and reporting the socket while ignoring the rule told a site whose
+        # network access had silently gone that all was well.
+        #
+        # api-firewall.ps1 -ScopeFile IS READ-ONLY and takes no elevation gate,
+        # so it does not break this script's no-elevation rule (see the header).
+        # It is run in a CHILD powershell so its own 'exit' and Stop preference
+        # cannot reach this process - the installer calls it the same way.  A
+        # word it does not recognise, a missing script, or a failed read all
+        # leave the reachability UNSTATED rather than guessed.
+        $scope = $null
+        $fw = Join-Path $AppDir 'api-firewall.ps1'
+        if (Test-Path -LiteralPath $fw) {
+            $scopeFile = Join-Path $env:TEMP ('sd-apiscope-' + $PID + '.txt')
+            try {
+                & (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') `
+                    -NoProfile -NonInteractive -ExecutionPolicy Bypass `
+                    -File $fw -ScopeFile $scopeFile | Out-Null
+                if (Test-Path -LiteralPath $scopeFile) {
+                    $scope = (Get-Content -LiteralPath $scopeFile -Raw).Trim()
+                    Remove-Item -LiteralPath $scopeFile -ErrorAction SilentlyContinue
+                }
+            } catch { }
+        }
+        switch ($scope) {
+            'open' {
+                Info 'Other computers on your network may reach it.'
+            }
+            'restricted' {
+                Info 'It is reachable from this computer only; "remote.api on" opens it to the network.'
+            }
+            'none' {
+                # THE 147 STATE, NAMED WHERE THE READER IS.  Info, NOT [not yet]:
+                # the summary turns every [not yet] into "sign out and back in",
+                # which does nothing for a firewall rule and is the exact
+                # misdirection this file's own comments warn against.  And NOT a
+                # [PROBLEM]: a local-only API is a legitimate choice ("remote.api
+                # local"), so exit 1 would be wrong.  It is a true sub-statement
+                # of the [ok] listening line above - the API works, and this is
+                # who can reach it - which is what Info is for.
+                Info 'No firewall rule admits other computers, so only this one can reach the API.'
+                Info 'To open it to the network, in SD Core as an administrator run "remote.api on".'
+            }
+            default {
+                Info 'Who may reach it could not be read from the firewall.'
+            }
+        }
+    } elseif ($null -ne $svc -and $svc.Status -ne 'Running') {
+        NotYet ('Nothing is listening on port ' + $apiPort + ' because the service is not running.')
+    } else {
+        Problem ('The network API is switched on but nothing is listening on port ' + $apiPort + '.')
+    }
+}
+
+$sshSvc = Get-Service -Name 'sshd' -ErrorAction SilentlyContinue
+if ($null -eq $sshSvc) {
+    Info 'The ssh server is not installed, so ssh access was not set up.'
+} elseif ($sshSvc.Status -eq 'Running') {
+    Ok 'The ssh server is running.'
+} else {
+    NotYet ('The ssh server is installed but is ' + $sshSvc.Status + '.')
+}
+
+Write-Host ''
+Write-Host '============================='
+if ($script:problems -gt 0) {
+    Write-Host ('Found ' + $script:problems + ' problem(s).') -ForegroundColor Red
+    if ($script:notyet -gt 0) {
+        # 22 Aug 26 - NEUTRAL WORDING ON THIS PATH, DELIBERATELY.  It used to
+        # say these checks "need you to sign out and back in", which is only
+        # true when the token is the reason.  When a PROBLEM is what blocked
+        # them - not being in sdusers at all - that sentence sends the reader
+        # off to do something that cannot help, and away from the fault that is
+        # printed six lines above.  Each [not yet] line has already said why it
+        # was skipped; the summary only counts them.
+        Write-Host ($script:notyet.ToString() + ' other check(s) could not be made - see above.') -ForegroundColor Yellow
+    }
+    Finish
+    exit 1
+}
+
+if ($script:notyet -gt 0) {
+    Write-Host 'Nothing is wrong.' -ForegroundColor Green
+    Write-Host ($script:notyet.ToString() + ' check(s) need you to SIGN OUT AND BACK IN before they can be made.') -ForegroundColor Yellow
+    Write-Host 'That is expected straight after installing.' -ForegroundColor Yellow
+    Write-Host ''
+    # 22 Aug 26 - SAY HOW, NOT JUST WHEN.  This used to end with "run this again
+    # afterwards" and never said how to, which on a fresh install is advice
+    # nobody can act on: the first run is ALWAYS the incomplete one - the
+    # installing user's token cannot carry sdusers yet - so the re-run is not an
+    # optional extra, it is how the check ever gets finished.  Being told to
+    # repeat something unfindable is the same fault as being told to sign out
+    # when that cannot help, which this file already had once.
+    Write-Host 'Afterwards, run it again from:'
+    Rerun
+    Finish
+    exit 0
+}
+
+Write-Host 'Everything checks out.  SD is installed and working.' -ForegroundColor Green
+Finish
+exit 0

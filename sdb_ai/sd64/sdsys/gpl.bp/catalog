@@ -1,0 +1,588 @@
+* CATALOG
+* CATALOG verb
+* Copyright (c) 2006 Ladybridge Systems, All Rights Reserved
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 3, or (at your option)
+* any later version.
+* 
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software Foundation,
+* Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+* 
+* 
+* START-HISTORY:
+* 14 Sep 26 Windows port - RELEASE_1.1 5 D2: the upper-case rename below runs
+*           only on a case-sensitive VOC.  On a NOCASE one it deleted the entry
+*           it had just written, so a second CATALOG ... LOCAL left none.
+* 14 Sep 26 Windows port - RELEASE_1.1 5 stage 3a (owner: "CATALOG stores
+*           lower").  Call names are lower case, the runtime's canonical case.
+*           A local catalogue entry made before this, under the upper-case VOC
+*           id, is renamed rather than twinned, and found by the "also in the
+*           local catalogue" check.  A global or private entry is deleted
+*           before it is rewritten: on NTFS a file written over an existing
+*           one keeps the OLD name's case, so without it a re-catalogued
+*           program would keep its upper-case name on disk.
+* 19 Aug 26 Windows port - the default source file is bp, not BP.  5.12 (b).
+* rev 0.9.0 Jan 25 mab require admin priviliges for global catalog
+*                       and set owner : group to sdsys : sdusers on write
+* 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
+* 15 Aug 26 Windows port - the chown to sdsys:sdusers on every catalogue write
+*           is gone; it failed on every one and printed a warning
+* 13 Aug 26 Windows port - CATALOG GLOBAL tests K$ADMINISTRATOR, not system(27)
+* 18 Aug 26 Windows port - and so does an implicit global catalogue, chosen by a
+*           "*!_$" call name prefix rather than by the GLOBAL keyword
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*    CATALOG [file.name [call.name]] [program.name] [LOCAL]  [NO.XREF]
+*                                    [*]            [GLOBAL]
+*                                                   [PCODE]
+*
+* Omitting the program name is only valid if there is an active select list.
+*
+* Global mode is implied by use of catalog prefix character.
+*
+* Use of PCODE requires that program.name begins with an underscore.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+
+program $catalog
+$catalog $CATALOG
+
+$include parser.h
+$include header.h
+$include syscom.h
+
+$include keys.h
+$include int$keys.h
+$include err.h
+
+   prompt ''
+
+   parser = "!PARSER"
+
+   @system.return.code = -ER$ARGS  ;* Preset for command format errors
+
+   dim name(3)
+   no.names = 0
+   no.query = @false
+   
+   option.seen = @false          ;* No options yet - names still allowed
+
+   mode = 0
+$define CAT_LOCAL  1
+$define CAT_GLOBAL 2
+$define CAT_PCODE  3
+
+   no.xref = @false              ;* Not seen NOXREF option
+   catalogue.all = @false        ;* Not using * tolen
+   using.list = @false           ;* Not using a select list
+   prefix.chars = "*!_$"
+   leading.chars = "abcdefghijklmnopqrstuvwxyz0123456789"         ;* 14 Sep 26 stage 3a: call names are lower
+   following.chars = "abcdefghijklmnopqrstuvwxyz0123456789.%$-_"
+
+   * Check for alternative private catalogue location
+
+   private.catalogue = 'cat'
+   read voc.rec from voc, "$PRIVATE.CATALOGUE" then
+      if upcase(voc.rec[1,1]) = 'X' then private.catalogue = voc.rec<2>
+   end
+
+
+   call @parser(PARSER$RESET, 0, @sentence, 0)
+   call @parser(PARSER$GET.TOKEN, token.type, token, keyword) ;* Verb
+
+   loop
+      call @parser(PARSER$MFILE, token.type, token, keyword)
+
+   while token.type = parser$token
+      begin case
+         case keyword = KW$LOCAL
+            if mode and mode # CAT_LOCAL then stop sysmsg(3021) ;* Incompatible cataloguing modes specified
+            option.seen = @true
+            mode = CAT_LOCAL
+
+         case keyword = KW$GLOBAL
+            if mode and mode # CAT_GLOBAL then stop sysmsg(3021) ;* Incompatible cataloguing modes specified
+            option.seen = @true
+            mode = CAT_GLOBAL
+            * rev 0.9.0 must be admin for Global
+            * 13 Aug 26 Windows port - was system(27) # 0.  There is no uid zero
+            *   on Windows, so CATALOG GLOBAL was always refused.
+            if not(kernel(K$ADMINISTRATOR, -1)) then
+              stop sysmsg(2001)  ;* Command requires administrator privileges
+            end
+
+         case keyword = KW$PCODE
+            if mode and mode # CAT_PCODE then stop sysmsg(3021) ;* Incompatible cataloguing modes specified
+            option.seen = @true
+            mode = CAT_PCODE
+
+         case keyword = KW$NO.QUERY
+            no.query = @true
+
+         case keyword = KW$NOXREF
+            no.xref.keyword = token  ;* Hang onto name (May not be NOXREF)
+            option.seen = @true
+            no.xref = @true
+
+         case 1
+            if option.seen or (no.names = 3) then
+               stop sysmsg(2018, token) ;* Unexpected token (xx)
+            end
+
+            no.names += 1
+            name(no.names) = token
+      end case
+   repeat
+
+   * Sort out which name is which
+
+   begin case
+      case no.names = 0
+         if not(selectinfo(0, sl$active)) then
+            stop sysmsg(3020) ;* Program name or select list required
+         end
+         file.name = "bp"
+         using.list = @true
+
+      case no.names = 1
+         if name(1) = '*' then
+            file.name = "bp"
+            catalogue.all = @true
+         end else if selectinfo(0, sl$active) then
+            file.name = name(1)
+            using.list = @true
+         end else
+            file.name = "bp"
+            call.name = downcase(name(1))
+            program.name = name(1)
+            if mode # CAT_PCODE and index(prefix.chars, call.name[1,1], 1) then
+               program.name = program.name[2,999]
+               if mode and mode # CAT_GLOBAL then stop sysmsg(3021) ;* Incompatible cataloguing modes specified
+               mode = CAT_GLOBAL
+            end
+         end
+
+      case no.names = 2
+         file.name = name(1)
+         if name(2) = '*' then
+            catalogue.all = @true
+         end else
+            program.name = name(2)
+            call.name = downcase(name(2))
+            if mode # CAT_PCODE and index(prefix.chars, call.name[1,1], 1) then
+               program.name = program.name[2,999]
+               if mode and mode # CAT_GLOBAL then stop sysmsg(3021) ;* Incompatible cataloguing modes specified
+               mode = CAT_GLOBAL
+            end
+         end
+
+      case no.names = 3
+         file.name = name(1)
+         call.name = downcase(name(2))
+         program.name = name(3)
+         if mode # CAT_PCODE and index(prefix.chars, call.name[1,1], 1) then
+            if mode and mode # CAT_GLOBAL then stop sysmsg(3021) ;* Incompatible cataloguing modes specified
+            mode = CAT_GLOBAL
+         end
+   end case
+
+* 18 Aug 26 Windows port - THE ADMINISTRATOR TEST BELONGS HERE, NOT ONLY ON THE
+*   KEYWORD.  KW$GLOBAL above tests K$ADMINISTRATOR, but a call name beginning
+*   with one of "*!_$" sets CAT_GLOBAL implicitly in all three name cases above,
+*   and none of those routes tested anything: "CATALOG BP $LOGIN" wrote the
+*   global catalogue from any account that holds CATALOG.  gcat carries $LOGIN
+*   and $CPROC as object code and CPROC calls $LOGIN for every session, so that
+*   is code execution in everybody's session, administrators included, from a
+*   PROGRAMMER account.  Upstream has the same gap - UPSTREAM_FIXES.md.
+*
+*   TESTED ONCE, WHERE mode IS FINALLY KNOWN, so a fourth route to CAT_GLOBAL
+*   inherits the test rather than rediscovering this.  The keyword's own test is
+*   left where it is: it reports while parsing, before the object file is
+*   opened, which is the better message for the common mistake.
+   if mode = CAT_GLOBAL and not(kernel(K$ADMINISTRATOR, -1)) then
+      stop sysmsg(2001)  ;* Command requires administrator privileges
+   end
+
+
+   * Open the object file
+
+   if index(file.name, ',', 1) then   ;* Multifile
+      file.name = file.name[',', 1, 1] : '.OUT,' : file.name[',', 2, 999]
+   end else                           ;* Simple file
+      file.name := '.OUT'
+   end
+
+   open file.name to object.file else
+      open downcase(file.name) to object.file then
+         file.name = downcase(file.name)
+      end else
+         open upcase(file.name) to object.file else
+            stop sysmsg(2021, file.name) ;* File %1 not found
+         end
+
+         file.name = upcase(file.name)
+      end
+   end
+
+   mark.mapping object.file, off
+
+   * Open the global and private catalogue files
+
+   openpath @sdsys:@ds:'gcat' to gcat.f else
+      stop sysmsg(3022) ;* Cannot open global catalogue directory
+   end
+
+   openpath private.catalogue to cat.f else
+      stop sysmsg(3023) ;* Cannot open private catalogue directory
+   end
+
+   * Are we cataloguing every program in the file?
+
+   if catalogue.all then
+      select object.file to 11
+      readnext program.name from 11 then
+         loop
+            call.name = downcase(program.name)
+            gosub catalogue.program
+            readnext program.name from 11 else exit
+         repeat
+      end
+   end else if using.list then
+      readnext program.name then
+         loop
+            call.name = downcase(program.name)
+            gosub catalogue.program
+            readnext program.name else exit
+         repeat
+      end
+   end else           ;* No select list
+      gosub catalogue.program
+   end
+
+   i = events(-1, EVT$UNLOAD)
+
+   @system.return.code = 0
+
+   return
+
+* ======================================================================
+
+catalogue.program:
+   gosub validate.call.name
+
+   * Read object code image
+
+   read object.code from object.file, program.name else
+      read object.code from object.file, downcase(program.name) then
+         program.name = downcase(program.name)
+      end else
+         read object.code from object.file, upcase(program.name) then
+            program.name = upcase(program.name)
+         end else
+            display sysmsg(3024, file.name, program.name) ;* fn pn not found
+            return
+         end
+      end
+   end
+
+   * Check that it is an object file
+
+   magic = if system(1009) then HDR.MAGIC.NO.B else HDR.MAGIC.NO.L
+   if object.code[hdr.magic,1] # char(magic) then
+      display sysmsg(3025, program.name) ;* Invalid object record (xx)
+      return
+   end
+
+   if object.code[hdr.rev,1] # char(hdr.revision) then
+      display sysmsg(3026, program.name) ;* Invalid object record revision level in xx
+      return
+   end
+
+   flags = oconv(object.code[hdr.flags, 2], "IS")
+
+   * Ensure call name is in object code
+
+   if mode # CAT_PCODE then
+      object.code[hdr.program.name, hdr.program.name.len] = call.name:char(0)
+   end
+
+   * Remove symbol and line tables if NOXREF option used
+   * The line table always appears before the symbol table. Both are optional.
+
+   if no.xref then
+      if bitand(flags, hdr.debug) then
+         display sysmsg(3027, no.xref.keyword,  program.name) ;* xx option ignored - Program xx is in debug mode
+      end else
+         object.code.size = oconv(object.code[hdr.object.size, 4], "IL")
+
+         * Reduce object size to before symbol table, if present
+         symbol.table.offset = oconv(object.code[hdr.sym.tab.offset, 4], "IL")
+         if symbol.table.offset then object.code.size = symbol.table.offset
+
+         * Reduce object size to before line table, if present
+         line.table.offset = oconv(object.code[hdr.lin.tab.offset, 4], "IL")
+         if line.table.offset then object.code.size = line.table.offset
+
+         object.code[hdr.object.size, 4] = iconv(object.code.size, "IL")
+         object.code[hdr.sym.tab.offset, 4] = iconv(0, "IL")
+         object.code[hdr.lin.tab.offset, 4] = iconv(0, "IL")
+
+         object.code = object.code[1, object.code.size]
+      end
+   end
+
+
+   begin case
+      case mode = CAT_LOCAL
+*        14 Sep 26 - stage 3a.  An entry catalogued before call names went lower
+*        is under the upper-case VOC id.  It is found here and deleted once the
+*        lower-case one is written, so the entry is renamed, not twinned.
+*        14 Sep 26 - ONLY ON A CASE-SENSITIVE VOC (RELEASE_1.1 5 D2).  On a
+*        case-insensitive one the upcase read below hits the lower-case entry
+*        ITSELF, so the write updated it and the delete removed it: measured
+*        14 Sep 2026, a second CATALOG bp zzcatp LOCAL printed 3029 and left no
+*        entry.  There the exact read of call.name already finds an old upper
+*        entry, and writing over it keeps the catalogue whole.
+         old.local.id = ''
+         if upcase(call.name) # call.name and not(fileinfo(@voc, FL$NOCASE)) then
+            readu old.voc.rec from @voc, upcase(call.name) then
+               if upcase(old.voc.rec[1,1]) = 'V' and old.voc.rec<2> = 'CS' then
+                  old.local.id = upcase(call.name)
+               end else
+                  release @voc, upcase(call.name)
+               end
+            end else
+               release @voc, upcase(call.name)
+            end
+         end
+
+         readu voc.rec from @voc, call.name then
+            if upcase(voc.rec[1,1]) # 'V' or voc.rec<2> # 'CS' then
+               release @voc, call.name
+               if old.local.id # '' then release @voc, old.local.id
+               display sysmsg(3028, call.name) ;* VOC already contains a conflicting entry named xx
+               return
+            end
+         end
+
+         program.path = fileinfo(object.file, fl$path) : @ds : program.name
+         voc.rec = "V" : @fm : "CS" : @fm : program.path
+         write voc.rec to @voc, call.name
+         if old.local.id # '' then delete @voc, old.local.id
+
+         display sysmsg(3029, call.name) ;* xx added to local catalogue
+         gosub check.private
+         gosub check.global
+
+      case mode = CAT_GLOBAL
+         recordlocku gcat.f, call.name
+         mark.mapping gcat.f, off
+         deleteu gcat.f, call.name   ;* 14 Sep 26 stage 3a: NTFS keeps an overwritten file's old case
+         write object.code to gcat.f, call.name
+* 15 Aug 26 Windows port - THE chown IS GONE.  It set every catalogue entry to
+*   sdsys:sdusers, neither of which is a Windows account, so it failed on every
+*   single write and printed "Unable change ownership of directory ... err:
+*   1000" - one line per program, on every compile, which three sessions of
+*   this file's notes have had to explain away as expected.  Access here is the
+*   inheritable ACE the installer puts on C:\ProgramData\SD (PROJECT_STATUS.md
+*   5.7): NTFS applies it in the kernel to everything created underneath, so
+*   there is nothing for the catalogue to set.
+         display sysmsg(3030, call.name) ;* xx added to global catalogue
+
+         gosub check.local
+         gosub check.private
+
+      case mode = CAT_PCODE
+         if program.name[1,1] # '_' then
+            stop sysmsg(7701, program.name) ;* %1 is not a valid recursive pcode name
+         end
+
+         program.name = downcase(program.name[2,999])   ;* 14 Sep 26 stage 3a: pcode names are lower (sd.c load_pcode)
+
+         if not(bitand(flags, HDR.RECURSIVE)) then
+            stop sysmsg(3048, program.name) ;* %1 is not a recursive pcode item
+         end
+
+         openpath @sdsys:@ds:'bin' to bin.f else
+            stop sysmsg(3049) ;* Cannot open pcode library
+         end
+
+         * Delete entry from composite library if it exists
+
+         mark.mapping bin.f, off
+         readu pcode from bin.f, 'pcode' then
+            * Make a backup copy of the existing pcode library.
+            write pcode to bin.f, 'pcode.old'
+         end
+
+         i = 0
+         loop
+            s = field(pcode[i+HDR.PROGRAM.NAME, 999], char(0), 1)
+            j = bitand(oconv(pcode[i+HDR.OBJECT.SIZE, 4], 'IL') + 3, bitnot(3))
+
+            if s = program.name then       ;* Found it
+               pcode = pcode[1, i] : pcode[i+j+1, 999999]
+               exit
+            end
+
+            i += j
+         while i < len(pcode)
+         repeat
+
+         * Now add the new entry on the end of the library file
+         * We round the length to a multiple of 4 bytes to ensure
+         * word alignment.
+
+         pcode := object.code
+         pcode := str(char(0), bitand(4 - bitand(len(pcode),3), 3))
+
+         write pcode to bin.f, 'pcode'
+         close bin.f
+         display sysmsg(7700, call.name) ;* xx added to pcode library
+
+      case 1
+         recordlocku cat.f, call.name
+         mark.mapping cat.f, off
+         deleteu cat.f, call.name   ;* 14 Sep 26 stage 3a: NTFS keeps an overwritten file's old case
+         write object.code to cat.f, call.name
+      
+         display sysmsg(3031, call.name) ;* xx added to private catalogue
+
+         gosub check.local
+         gosub check.global
+   end case
+
+   return
+
+* ======================================================================
+
+validate.call.name:
+!!CALLNAME!!
+   if len(call.name) > MAX.CALL.NAME.LEN ~
+    or index(prefix.chars:leading.chars, call.name[1,1], 1) = 0 ~
+    or convert(following.chars, '', call.name[2,99]) # '' ~
+    or (index(prefix.chars, call.name[1,1], 1) and len(call.name) = 1) then
+      stop sysmsg(3032, call.name)  ;* Illegal call name (%1)
+   end
+   return
+
+* ======================================================================
+
+check.local:
+* 14 Sep 26 - stage 3a.  A local entry catalogued before call names went lower
+* is under the upper-case VOC id, so both spellings are checked.
+* 14 Sep 26 - ONLY ON A CASE-SENSITIVE VOC (RELEASE_1.1 5 D2).  On a NOCASE
+*   one both reads hit the same record, so 3033 was asked twice and the second
+*   question ate the lines after it (b162, verify-promptenter leg 5, killed).
+   local.ids = call.name
+   if upcase(call.name) # call.name and not(fileinfo(@voc, FL$NOCASE)) then local.ids<2> = upcase(call.name)
+   for local.i = 1 to dcount(local.ids, @fm)
+      local.id = local.ids<local.i>
+      gosub check.local.id
+   next local.i
+   return
+
+check.local.id:
+   readu voc.rec from @voc, local.id then
+      if upcase(voc.rec[1,1]) = 'V' and voc.rec<2> = 'CS' then
+         if no.query then
+            delete @voc, local.id
+         end else
+            loop
+               display sysmsg(3033) : ;* Program is also in local catalogue. Remove?
+               input yn
+               yn = upcase(yn)
+* 11 Sep 26 Windows port - RELEASE_1.1_FIXES.md 6.  ENTER TAKES THE DEFAULT,
+*   AND WITHOUT THIS THE LOOP NEVER ENDS.  Owner's rule, 30 Aug 2026: "scripts
+*   need to indicate which is the default using <y>/n or y/<n>"; DELACC:279 is
+*   the same fix.  At end of input "input" yields '', which is neither Y nor N,
+*   so the until never fires and the question repeats for ever.
+*
+*   N IS THE SAFE ANSWER AND IT IS ALSO THE HARMLESS ONE: only Y reaches the
+*   delete below, so an empty answer now leaves the catalogue entry exactly
+*   where it was.  The three catalogue prompts here and CPROC's 5040 all have
+*   this shape.  RELEASE_1.1 6 records the ONE that is deliberately left
+*   hanging - message 2050 - and why.
+               if yn = '' then yn = 'N'
+            until yn = 'Y' or yn = 'N'
+            repeat
+
+            if yn = 'Y' then delete @voc, local.id
+         end
+      end
+   end
+
+   release @voc, local.id    ;* Ensure released for all paths
+
+   return
+
+* ======================================================================
+
+check.private:
+   readvu s from cat.f, call.name, 0 then
+      if no.query then
+         delete cat.f, call.name
+      end else
+         loop
+            display sysmsg(3034) : ;* Program is also in private catalogue. Remove?
+            input yn
+            yn = upcase(yn)
+* 11 Sep 26 Windows port - RELEASE_1.1_FIXES.md 6.  See 3033 above.
+            if yn = '' then yn = 'N'
+         until yn = 'Y' or yn = 'N'
+         repeat
+   
+         if yn = 'Y' then delete cat.f, call.name
+      end
+   end
+
+   release cat.f, call.name    ;* Ensure released for all paths
+
+   return
+
+* ======================================================================
+
+check.global:
+   readvu s from gcat.f, call.name, 0 then
+      if no.query then
+         delete gcat.f, call.name
+      end else
+         loop
+            display sysmsg(3035) : ;* Program is also in global catalogue. Remove?
+            input yn
+            yn = upcase(yn)
+* 11 Sep 26 Windows port - RELEASE_1.1_FIXES.md 6.  See 3033 above.
+            if yn = '' then yn = 'N'
+         until yn = 'Y' or yn = 'N'
+         repeat
+   
+         if yn = 'Y' then delete gcat.f, call.name
+      end
+   end
+
+   release gcat.f, call.name    ;* Ensure released for all paths
+
+   return
+   
+   
+* ======================================================================
+* 15 Aug 26 Windows port - the set.owner subroutine was here, and its only
+*   caller has gone with it.  See the note at the write to gcat above.
+
+end
+
+* END-CODE

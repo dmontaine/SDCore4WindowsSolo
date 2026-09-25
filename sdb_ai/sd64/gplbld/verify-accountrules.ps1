@@ -1,0 +1,620 @@
+<#
+.SYNOPSIS
+    The rules CREATE.ACCOUNT enforces and nothing else measures: silence about
+    the access keyword means BOTH routes (and NONE still means none), a password
+    is mandatory, a GROUP account has neither, and ATTACH is refused without the
+    installer's one-shot marker.
+
+    ***STEPS 1 AND 4 WERE REWRITTEN 20 Sep 2026.***  They measured the 10082
+    refusal (withdrawn by RELEASE_1.1 68) and ADOPT (abolished by 64); steps 2
+    and 3 are unchanged and were measured by no run between those changes and
+    this.
+
+.DESCRIPTION
+    THIS IS THE REFUSAL SIDE OF PHASES 2 AND 3.  verify-routes.ps1 measures what
+    happens when the verbs are given what they want; every check here is about
+    what happens when they are not, and until this existed none of it had any
+    coverage at all - PROJECT_STATUS.md listed 10082, 10086, 10087 and the ADOPT
+    gate as built-but-unmeasured.  (That paragraph is the original: 10082 and
+    ADOPT have since gone, and ATTACH and the silence rule took their places.)
+
+    EVERY REFUSAL HAS A CONTROL THAT SUCCEEDS, and that is the whole design.
+    "Nothing was created" passes just as happily on a build where
+    CREATE.ACCOUNT never creates anything, on a machine out of disk, or on a
+    name Windows would have refused anyway.  So each leg refuses first and then
+    makes the SAME account a second time with the one thing that was missing:
+    the keyword, a matching password, the marker.  A leg whose control does not
+    succeed is reported as a failure of the leg, because the refusal it
+    measured has been shown to prove nothing.
+
+    THE PASSWORD FAILURE IS PROVOKED WITH TWO DIFFERENT PASSWORDS, not a weak
+    one.  !set_passwd returns false with status 3 when "pw1 = '' or pw1 # pw2"
+    (SET_PASSWD:100), which is deterministic; a password rejected by Windows
+    policy would depend on the policy of the machine the test happens to run on.
+
+    WHAT THE UNWIND HAS TO SHOW is that the WINDOWS account is gone, not just
+    that SD made no account.  CREATEA creates the Windows user BEFORE asking for
+    a password and calls delete_user() when the answer is no, and its own
+    comment claims the unwind is complete because the sdu_ group, the directory,
+    the VOC and the register entry are all made further down.  All four are
+    checked, so that claim is measured rather than believed.
+
+    IT NEVER OPENS AN API CONNECTION and never signs anybody in.  Those live in
+    verify-apiadmin.ps1 and verify-routes.ps1; this one is about what does and
+    does not get MADE.
+
+.PARAMETER Prefix
+    Stem for the throwaway accounts - five names are used: <prefix>n (given no
+    access keyword), <prefix>o (given NONE, the control), <prefix>p (offered
+    mismatched passwords), <prefix>g (a GROUP account) and <prefix>d (a Windows
+    account made by hand, for the ATTACH refusal).
+    Use a stem nobody has used: CREATE.ACCOUNT refuses a name it has seen.
+
+.PARAMETER Keep
+    Leave everything behind for poking at.
+
+.EXAMPLE
+    C:\Users\dmont\Projects\sd4windows\sdb_ai\sd64\gplbld\verify-accountrules.ps1 -Prefix sdar1
+#>
+
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $false)] [string] $Prefix,
+    [switch] $Keep
+)
+
+$ErrorActionPreference = 'Stop'
+
+$Gplbld = Split-Path -Parent $MyInvocation.MyCommand.Path
+$sdExe  = Join-Path $env:ProgramFiles 'SD\usr\bin\sd.exe'
+$Data   = Join-Path $env:ProgramData 'SD'
+
+$logDir = Join-Path $env:LOCALAPPDATA 'SD-verify'
+if (-not (Test-Path -LiteralPath $logDir)) { $null = New-Item -ItemType Directory -Path $logDir -Force }
+$log = Join-Path $logDir ('verify-accountrules-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.log')
+try { Start-Transcript -Path $log -Force | Out-Null } catch { }
+Write-Host "transcript: $log"
+
+$results = New-Object System.Collections.ArrayList
+$failed  = $false
+
+function Note($check, $expected, $got) {
+    $pass = ($expected -eq $got)
+    if (-not $pass) { $script:failed = $true }
+    $null = $results.Add([pscustomobject]@{ Check = $check; Expected = $expected; Observed = $got })
+    Write-Host ("  [{0}] {1}: expected {2}, got {3}" -f
+        $(if ($pass) { 'PASS' } else { 'FAIL' }), $check, $expected, $got)
+}
+
+function Fail($msg) {
+    Write-Host ''
+    Write-Host "STOPPED: $msg" -ForegroundColor Red
+    try { Stop-Transcript | Out-Null } catch { }
+    exit 2
+}
+
+function Step($n, $msg) { Write-Host ''; Write-Host "== [$n] $msg" -ForegroundColor Cyan }
+
+# WHAT SD SAID, INDENTED, INTO THE TRANSCRIPT.  Added 21 Aug 2026 after the
+# first run of this file: step 3 failed five checks and printed NOT ONE LINE of
+# what the verb had actually done, so the diagnosis had to be reconstructed from
+# the source and could not be completed.  Every other verifier here prints its
+# output; this one did not, and a failing check with no evidence is barely
+# better than no check.  It is called on EVERY step, not only on failure - the
+# point is that a run which passes is still readable afterwards.
+function Said($label, $out) {
+    Write-Host "   --- $label ---" -ForegroundColor DarkGray
+    foreach ($l in ($out -split "`r?`n")) {
+        if ($l.Trim() -ne '') { Write-Host ("     " + $l) -ForegroundColor DarkGray }
+    }
+}
+
+# The installed sysmsg(N) as a REGEX: each %n becomes the value supplied for it
+# or ".*", every literal run escaped.  Read from the install rather than
+# hard-coded, so a reworded message fails the check that names it instead of
+# going blind.  Copied from verify-delaccount.ps1, whose header records why the
+# substitution is positional.
+#
+# 28 Aug 26 - AND A LITERAL RUN IS MATCHED LOOSELY NOW.  PRE_RELEASE_FIXES.md
+# 51.  The message FILES hold literal backslash-n rather than newlines and SD
+# renders each as a line break, so escaping the text as it stands produces a
+# pattern hunting a literal backslash the output never contains - a multi-line
+# message could not be matched at all.  Nothing THIS script names is
+# multi-line, so no check here was affected; applied so the copy does not drift
+# from the one in verify-delaccount.ps1 it came from.
+function Esc-Loose([string]$s) {
+    $runs = [regex]::Split($s, '(?:\\n|\s)+')
+    $out = ''
+    for ($i = 0; $i -lt $runs.Count; $i++) {
+        if ($i -gt 0) { $out += '\s+' }
+        $out += [regex]::Escape($runs[$i])
+    }
+    return $out
+}
+
+function Get-SysMsgPattern([int]$n, [string[]]$vals) {
+    $f = Join-Path $Data ('sdsys\messages\' + $n)
+    if (-not (Test-Path -LiteralPath $f)) { return '' }
+    $t = ((Get-Content -LiteralPath $f -Raw)).Trim()
+    if ($t -eq '') { return '' }
+    $parts = [regex]::Split($t, '%\d')
+    $pat = Esc-Loose $parts[0]
+    for ($i = 1; $i -lt $parts.Count; $i++) {
+        if ($vals -and $vals.Count -ge $i -and $vals[$i - 1] -ne '') {
+            $pat += [regex]::Escape($vals[$i - 1])
+        } else {
+            $pat += '.*'
+        }
+        $pat += Esc-Loose $parts[$i]
+    }
+    return $pat
+}
+
+function Shown($out, [int]$n, [string[]]$vals) {
+    $p = Get-SysMsgPattern $n $vals
+    return ($p -ne '' -and $out -match $p)
+}
+
+# Blank first line absorbs the pipe's BOM, TERM stops pagination, OFF ends it.
+# The pipe is not a convenience: Start-Process -RedirectStandardInput hands SD a
+# FILE handle and SD answers "Process terminated" and exits (section 6).
+# 20 Sep 26 - RELEASE_1.1 76, THE SDSYS SEAT (sdsys-seat.ps1; verify-createaccount
+# was the pilot).  THE "LOGTO SDSYS" PREFIX THIS USED TO SEND IS REFUSED (10002)
+# FROM ANY SESSION THAT DID NOT START AS THE OS SDSYS ACCOUNT with an elevated,
+# interactive token (cproc:2789), and an elevated Don is not one.  So the commands
+# go to a task inside SDSYS's own live session and the text comes back through a
+# file.  The TERM line this sent first, and again after every LOGTO the caller sent
+# (LOGIN re-inits terminal geometry on each account switch, LOGIN:201-209, and long
+# LIST/COUNT output paginates on a stdin nothing can answer), is added by the
+# helper (Expand-SeatCommands).  A seat that did not run THROWS rather than
+# returning ''.  SDSYS must be signed in: `query session` shows its row.  The bound
+# is 180 s where the old in-process pipe was unbounded.
+. (Join-Path $Gplbld 'sdsys-seat.ps1')
+. (Join-Path $Gplbld 'internal-marker.ps1')
+function Invoke-SD([string[]]$commands) {
+    return (Invoke-SdSeatText -Commands $commands -TimeoutSec 180)
+}
+
+# ADOPT is gated on K$INTERNAL, which means "sd -internal", which means separate
+# arguments and NOT piped - the shape adopt-account.ps1 uses and the only one
+# that has ever worked for it (PROJECT_STATUS.md 7 step 0).
+function Invoke-SDInternal([string[]] $SdArgs) {
+    $so = Join-Path $env:TEMP ("sd-acctrules-out-$PID.txt")
+    $se = Join-Path $env:TEMP ("sd-acctrules-err-$PID.txt")
+    # RELEASE_1.1 82 (D2').  LOGIN admits an "sd -internal" session only against its one-shot
+    # marker - written here, deleted by LOGIN on admission.  ***THIS IS NOT THE ATTACH
+    # MARKER:*** step 4 measures that ATTACH is refused WITHOUT createa's per-account
+    # $attach.<name> marker, so that one must stay absent; this one only gets the session
+    # started at all.
+    $marked = Set-SdInternalMarker -SdsysDir (Join-Path $Data 'sdsys') -Writer 'verify-accountrules'
+    $p = Start-Process -FilePath $sdExe -ArgumentList $SdArgs -NoNewWindow -PassThru `
+                       -RedirectStandardOutput $so -RedirectStandardError $se
+    $exited = $p.WaitForExit(120000)
+    if ($marked) { $null = Remove-SdInternalMarker -SdsysDir (Join-Path $Data 'sdsys') }
+    $text = ''
+    foreach ($f in @($so, $se)) {
+        if (Test-Path $f) {
+            $text += (Get-Content $f -Raw)
+            Remove-Item $f -Force -ErrorAction SilentlyContinue
+        }
+    }
+    if (-not $exited) { return "sd $SdArgs did not finish within two minutes" }
+    return $text.Trim()
+}
+
+function Test-SdRunning { return ((Get-Process sdwind -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0) }
+
+function Start-SD {
+    if (Test-SdRunning) { return $true }
+    $null = Start-Process -FilePath $sdExe -ArgumentList '-start' -NoNewWindow
+    for ($i = 0; $i -lt 30; $i++) {
+        if (Test-SdRunning) { Write-Host '  sdwind is up'; return $true }
+        Start-Sleep -Milliseconds 500
+    }
+    return $false
+}
+
+function InGroup($group, $user) {
+    $m = Get-LocalGroupMember -Group $group -ErrorAction SilentlyContinue |
+         Where-Object { $_.Name -like ("*\" + $user) }
+    return [bool]$m
+}
+
+function Routes($user) {
+    $r = @()
+    if (InGroup 'sdssh' $user) { $r += 'ssh' }
+    if (InGroup 'sdapi' $user) { $r += 'api' }
+    if ($r.Count -eq 0) { return 'none' }
+    return ($r -join '+')
+}
+
+function AcctRec($name) { return (Join-Path $Data ('sdsys\accounts\' + $name.ToUpper())) }
+function UserDir($name) { return (Join-Path $Data ('user_accounts\' + $name)) }
+function GrpDir($name)  { return (Join-Path $Data ('group_accounts\' + $name)) }
+function HasUser($name) { return [bool](Get-LocalUser  -Name $name -ErrorAction SilentlyContinue) }
+function HasGrp($name)  { return [bool](Get-LocalGroup -Name $name -ErrorAction SilentlyContinue) }
+
+# "Is there any trace of this account at all?"  One string, so a half-made
+# account reports WHICH half survived instead of failing four checks that each
+# say a little of it.
+function Traces($name) {
+    $t = @()
+    if (Test-Path -LiteralPath (AcctRec $name)) { $t += 'register' }
+    if (Test-Path -LiteralPath (UserDir $name)) { $t += 'directory' }
+    if (HasUser $name)                          { $t += 'windows-user' }
+    if (HasGrp ('sdu_' + $name))                { $t += 'sdu_group' }
+    if ($t.Count -eq 0) { return 'nothing' }
+    return ($t -join '+')
+}
+
+# ---------------------------------------------------------------------------
+if (-not $Prefix) {
+    Write-Host 'verify-accountrules: -Prefix is required, and must be a stem nobody has used.'
+    Write-Host '  Example: -Prefix sdar1'
+    try { Stop-Transcript | Out-Null } catch { }
+    exit 2
+}
+if ($Prefix -notmatch '^[a-z][a-z0-9_]*$') {
+    Fail ("-Prefix is '$Prefix'.  Lower case letters, digits and underscore only, " +
+          'starting with a letter - CREATEA downcases the name and the Windows ' +
+          'account takes it verbatim.')
+}
+
+$pr = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+if (-not $pr.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Fail 'this needs an ELEVATED PowerShell - CREATE_USER needs an elevated token.'
+}
+
+& (Join-Path $Gplbld 'assert-current.ps1')
+if ($LASTEXITCODE -ne 0) { Fail 'the installed tree does not match source - see above' }
+
+if (-not (Test-Path -LiteralPath $sdExe)) { Fail "no $sdExe" }
+
+# EVERY MESSAGE THIS RUN NAMES MUST BE THERE, checked before anything is made.
+#
+# Shown() answers $false for a message file it cannot read, and TWO checks below
+# expect $false - "10084 NOT shown" in step 3 - so a missing or emptied message
+# would score them as passes on a run that measured nothing.  That is the
+# "absent marker read as an answer" shape this project has paid for five times
+# (PROJECT_STATUS.md, "THE RULE THAT WAS PAID FOR FIVE TIMES"): assert the
+# marker is readable before believing what its absence means.
+$needMsgs = @(2018, 5051, 10008, 10014, 10015, 10040, 10082, 10084, 10085, 10086, 10087)
+$missing  = @($needMsgs | Where-Object { (Get-SysMsgPattern $_ $null) -eq '' })
+if ($missing.Count -gt 0) {
+    Fail ('checks here name these messages and the install has none of them: ' +
+          ($missing -join ', '))
+}
+
+if (-not (Start-SD)) { Fail 'SD would not start, and step 4 needs a server for sd -internal.' }
+
+# 20 Sep 26 - RELEASE_1.1 76: PROVE THE SDSYS SEAT BEFORE CREATING ANYTHING, so a
+# missing SDSYS session is exit 2 ("could not run") and leaves no account behind,
+# not a thrown error at the first CREATE.ACCOUNT that reads as a product failure.
+Assert-SdSeat -Label 'verify-accountrules'
+
+Add-Type -AssemblyName System.Web
+
+$noKw    = $Prefix + 'n'  # given NO access keyword - silence means BOTH (68)
+$noneAcc = $Prefix + 'o'  # given NONE, the control that tells it from silence
+$pwAcc   = $Prefix + 'p'  # offered two different passwords
+$grpAcc  = $Prefix + 'g'  # a GROUP account
+$adpAcc  = $Prefix + 'd'  # a Windows account made by hand, for the ATTACH refusal
+
+foreach ($a in @($noKw, $noneAcc, $pwAcc, $grpAcc, $adpAcc)) {
+    if (HasUser $a) { Fail "$a already exists as a Windows account - use a fresh -Prefix." }
+    if (Test-Path -LiteralPath (AcctRec $a)) {
+        Fail ($a.ToUpper() + ' is still in the ACCOUNTS register - use a fresh -Prefix.')
+    }
+}
+if (HasGrp ('sdg_' + $grpAcc)) { Fail "sdg_$grpAcc already exists - use a fresh -Prefix." }
+
+$sentinel    = 'SDARSENTINEL'
+# ATTACH'S ONE-SHOT MARKER IS PER ACCOUNT (createa's attach.marker, downcased name), and
+# it replaced ADOPT's single $adopt marker when 64 abolished ADOPT.
+$adoptMarker = Join-Path $Data ('sdsys\$attach.' + $adpAcc.ToLower())
+$madeUsers   = @()      # Windows accounts this script is responsible for
+$madeGroups  = @()      # Windows groups likewise
+
+try {
+    # -----------------------------------------------------------------------
+    Step 1 "CREATE.ACCOUNT USER $noKw with NO access keyword: SILENCE MEANS BOTH (68)"
+
+    # ***REWRITTEN 20 Sep 2026.***  This step used to send the command with no
+    # keyword and expect the 10082 refusal ("say who may reach this account").
+    # RELEASE_1.1 68 WITHDREW THAT REFUSAL: silence now sets both routes and the
+    # account IS made, so SD went on to ask for a password, the piped input ran
+    # out, and the call sat at the prompt until the seat's 180 s bound threw
+    # (the owner's b200 run).  A verifier written against the rule before it
+    # moved, found stale by the first run since - the failure class
+    # test-acctkeywords-units.py exists for, on a rule it does not cover.
+    #
+    # WHAT IS MEASURED NOW, and every row reads Windows or the filesystem rather
+    # than SD's own wording: the account is made in full, and it holds BOTH
+    # routes.  10082 must NOT be shown - it is in the message-file check above so
+    # that "not shown" means the text was there to be looked for and was absent,
+    # not that the message file was unreadable.
+    $pw  = [System.Web.Security.Membership]::GeneratePassword(20, 4) + 'aA1!'
+    $out = Invoke-SD @("CREATE.ACCOUNT USER $noKw", $pw, $pw)
+    Said "CREATE.ACCOUNT USER $noKw  (no keyword, matching passwords)" $out
+    if (HasUser $noKw) { $script:madeUsers += $noKw }
+    Note 'silence creates the account' 'register+directory+windows-user+sdu_group' (Traces $noKw)
+    Note 'silence means BOTH: routes are ssh and api' 'ssh+api' (Routes $noKw)
+    Note 'message 10082 NOT shown (the refusal 68 withdrew)' $false (Shown $out 10082 @())
+
+    # THE CONTROL: NONE IS STILL SAYABLE, and it is what tells "nobody said"
+    # from "nobody may".  Collapsing the two would make NONE unsayable (createa's
+    # own history says so), and a build that did would still pass every row
+    # above.
+    $pwN = [System.Web.Security.Membership]::GeneratePassword(20, 4) + 'aA1!'
+    $out = Invoke-SD @("CREATE.ACCOUNT USER $noneAcc NONE", $pwN, $pwN)
+    Said "CREATE.ACCOUNT USER $noneAcc NONE  (the control)" $out
+    if (HasUser $noneAcc) { $script:madeUsers += $noneAcc }
+    Note 'CONTROL: NONE creates the account' 'register+directory+windows-user+sdu_group' (Traces $noneAcc)
+    Note 'CONTROL: NONE holds no route'      'none' (Routes $noneAcc)
+
+    # -----------------------------------------------------------------------
+    Step 2 "A password is mandatory, and refusing unwinds (10086)"
+
+    # TWO DIFFERENT PASSWORDS, which is what makes !set_passwd fail with status
+    # 3 (SET_PASSWD:100) without depending on this machine's password policy.
+    # Then N to "Retry (Y/N)", which since 21 Aug 2026 deletes the Windows user
+    # and creates nothing instead of warning and carrying on.
+    $out = Invoke-SD @("CREATE.ACCOUNT USER $pwAcc SSH", 'Sd-Verify-One-1!', 'Sd-Verify-Two-2!', 'N')
+    Said "CREATE.ACCOUNT USER $pwAcc SSH  (mismatched passwords, then N)" $out
+    if (HasUser $pwAcc) { $script:madeUsers += $pwAcc }   # only if the unwind failed
+
+    Note 'message 10008 shown (retry?)'   $true (Shown $out 10008 @())
+    Note 'message 10086 shown (an account must have a password)' $true (Shown $out 10086 @())
+
+    # ALL FOUR TRACES, NOT JUST THE REGISTER.  CREATEA's own comment claims the
+    # unwind is complete because only the Windows user exists at that point;
+    # this is what turns that claim into a measurement.  A build that left the
+    # Windows user behind would leave an account nothing can ever log in to and
+    # a name CREATE.ACCOUNT would refuse for ever after.
+    Note 'the unwind left nothing behind' 'nothing' (Traces $pwAcc)
+
+    # THE CONTROL.  Without it, "nothing was made" is equally consistent with a
+    # verb that cannot make anything.
+    $pw2 = [System.Web.Security.Membership]::GeneratePassword(20, 4) + 'aA1!'
+    $out = Invoke-SD @("CREATE.ACCOUNT USER $pwAcc SSH", $pw2, $pw2)
+    Said "CREATE.ACCOUNT USER $pwAcc SSH  (the control)" $out
+    if (HasUser $pwAcc) { $script:madeUsers += $pwAcc }
+    Note 'CONTROL: matching passwords create the account' 'register+directory+windows-user+sdu_group' (Traces $pwAcc)
+
+    # -----------------------------------------------------------------------
+    Step 3 "A GROUP account has no Windows account, no password and no route"
+
+    # Owner, 21 Aug 2026: a group account is reached with LOGTO or an F pointer,
+    # so it gets none of the three - and "no password" means the idea does not
+    # apply, not that a requirement was waived.  Nothing tested
+    # CREATE.ACCOUNT GROUP at all before this.
+    #
+    # NO ACCESS KEYWORD AND NO PASSWORD ARE FED, and both are assertions: the
+    # 10082 test is the USER arm's alone, and the GROUP arm reaches neither
+    # create_user() nor set_passwd().  If either rule had been written as a
+    # blanket one, this call would hang on a prompt or be refused.
+    $out = Invoke-SD @("CREATE.ACCOUNT GROUP $grpAcc")
+    Said "CREATE.ACCOUNT GROUP $grpAcc" $out
+    if (HasGrp ('sdg_' + $grpAcc)) { $script:madeGroups += ('sdg_' + $grpAcc) }
+
+    # WHERE IT STOPPED, IF IT STOPPED, AND THIS IS THE CHECK THE FIRST RUN
+    # NEEDED AND DID NOT HAVE.  CREATEA makes the directory, then the sdg_
+    # group, then make.account fills the directory, then the register entry.
+    # So the directory's CONTENTS say which of those got as far as running:
+    #
+    #   empty          -> create.group failed and stopped (10015 will say why)
+    #   holds voc      -> make.account ran, so the failure is after it
+    #
+    # Recorded before the checks below and before any cleanup, because the
+    # first run deleted the directory in its finally and took the evidence.
+    $gdir = GrpDir $grpAcc
+    $gkids = @()
+    if (Test-Path -LiteralPath $gdir) {
+        $gkids = @(Get-ChildItem -LiteralPath $gdir -Force -ErrorAction SilentlyContinue |
+                   ForEach-Object { $_.Name })
+    }
+    Write-Host ("   group directory holds: " +
+                $(if ($gkids.Count -eq 0) { '(nothing)' } else { $gkids -join ', ' })) -ForegroundColor DarkGray
+
+    # NAME THE GROUP STEP'S OWN MESSAGE either way, so the next failure says
+    # WHY rather than leaving it to be reconstructed from the source.  10015
+    # carries the status code from os_group.
+    Note 'message 10014 shown (group created)' $true  (Shown $out 10014 @(('sdg_' + $grpAcc)))
+    Note 'message 10015 NOT shown (could not create the group)' $false (Shown $out 10015 @())
+
+    Note 'registered in ACCOUNTS'          $true (Test-Path -LiteralPath (AcctRec $grpAcc))
+    Note 'group account directory made'    $true (Test-Path -LiteralPath $gdir)
+    Note 'make.account ran (there is a voc)' $true ($gkids -contains 'voc')
+    Note "sdg_$grpAcc group made"          $true (HasGrp ('sdg_' + $grpAcc))
+    Note 'NO Windows user of that name'    $false (HasUser $grpAcc)
+    Note 'NO sdu_ group either'            $false (HasGrp ('sdu_' + $grpAcc))
+    # THE CREDENTIAL REGISTER IS KEYED BY ACCOUNT NAME, so an entry here would
+    # mean set_passwd or CRED_SET had been reached on a path that must not
+    # reach either.  Readable only because this script runs elevated - $cred is
+    # locked to SYSTEM and Administrators.
+    Note 'NO credential record'            $false (Test-Path -LiteralPath (
+             Join-Path $Data ('sdsys\$cred\' + $grpAcc.ToUpper())))
+
+    # MODIFY.ACCOUNT refuses it BY NAME rather than falling through to "is not a
+    # member of sdusers", which is true and explains nothing.  route.set tests
+    # the sdg_ prefix first for exactly that reason.
+    $out = Invoke-SD @("MODIFY.ACCOUNT $grpAcc SSH")
+    Said "MODIFY.ACCOUNT $grpAcc SSH" $out
+    Note 'MODIFY.ACCOUNT refused: message 10087' $true (Shown $out 10087 @($grpAcc.ToUpper()))
+    Note 'still no Windows user'                 $false (HasUser $grpAcc)
+
+    # AND IT IS DELETED WITHOUT BEING ASKED ABOUT A WINDOWS ACCOUNT IT NEVER
+    # HAD.  10084 names one and 10085 does not; showing the longer wording here
+    # would be the verb promising to remove something that does not exist.
+    #
+    # ONE Y, THEN THE SENTINEL.  If the verb asked exactly one question the
+    # sentinel reaches the command processor and comes back as 5051, "not in
+    # your VOC"; a second prompt would swallow it.  The trailing Ys satisfy any
+    # extra question so the session still ends.  verify-delaccount.ps1's header
+    # carries the full reasoning.
+    $out = Invoke-SD @("DELETE.ACCOUNT $grpAcc", 'Y', $sentinel, 'Y', 'Y')
+    Said "DELETE.ACCOUNT $grpAcc" $out
+    Note 'message 10085 shown (no Windows account named)' $true  (Shown $out 10085 @($grpAcc.ToUpper()))
+    Note 'message 10084 NOT shown'                        $false (Shown $out 10084 @())
+    Note 'the sentinel reached the VOC (5051)'            $true  (Shown $out 5051 @($sentinel))
+    Note 'ACCOUNTS record is gone'                        $false (Test-Path -LiteralPath (AcctRec $grpAcc))
+    Note 'group account directory is gone'                $false (Test-Path -LiteralPath (GrpDir $grpAcc))
+    Note "sdg_$grpAcc group is gone"                      $false (HasGrp ('sdg_' + $grpAcc))
+
+    # -----------------------------------------------------------------------
+    Step 4 "ATTACH is refused without its one-shot marker"
+
+    # ***REWRITTEN 20 Sep 2026.***  This step tested ADOPT, which RELEASE_1.1 64
+    # abolished; ATTACH is what replaced it and it has the same shape - an
+    # internal-only keyword that createa accepts only while a one-shot marker,
+    # written for ONE call by attach-account.ps1 and deleted on use, exists for
+    # THAT account (createa's attach.marker).  K$INTERNAL alone is only
+    # "somebody typed sd -internal", which any elevated administrator can do; the
+    # marker is what makes ATTACH install-only.
+    #
+    # A REAL WINDOWS ACCOUNT FIRST, because ATTACH is for a name that already is
+    # one - and if the refusal below were about the account not existing it would
+    # be measuring the wrong rule entirely.
+    $bpw = [System.Web.Security.Membership]::GeneratePassword(20, 4) + 'aA1!'
+    $null = New-LocalUser -Name $adpAcc -Password (ConvertTo-SecureString $bpw -AsPlainText -Force) `
+                          -Description 'made by hand, not by SD' -ErrorAction Stop
+    $madeUsers += $adpAcc
+
+    if (Test-Path -LiteralPath $adoptMarker) {
+        Remove-Item -LiteralPath $adoptMarker -Force -ErrorAction SilentlyContinue
+        Write-Host '   removed a marker that was already there - something left one behind' -ForegroundColor Yellow
+    }
+
+    $out = Invoke-SDInternal @('-internal', 'CREATE.ACCOUNT', 'USER', $adpAcc, 'ATTACH')
+    Said "sd -internal CREATE.ACCOUNT USER $adpAcc ATTACH  (no marker)" $out
+
+    # AS AN UNRECOGNISED TOKEN, NOT AS A REFUSAL, and that is deliberate: a
+    # keyword a console user may never use is not one they need to know exists,
+    # so a message naming it would confirm the guess.  2018 is "Unexpected
+    # token (%1)".
+    # THIS IS THE TEST, and it is the ONLY place a verifier runs ATTACH without
+    # the marker: it must be refused.  The owner's 21 Aug 2026 ruling, made for
+    # ADOPT and carried across, is that a verifier must not write the marker
+    # itself - that would re-open the very window the marker closes.
+    Note 'ATTACH refused as an unknown token (2018)' $true (Shown $out 2018 @('ATTACH'))
+    Note 'no SD account was registered'             $false (Test-Path -LiteralPath (AcctRec $adpAcc))
+    Note 'the Windows account is untouched'         $true  (HasUser $adpAcc)
+
+    # THE CONTROL COMES FROM THE INSTALL RATHER THAN A SECOND RUN.  The installer
+    # runs ATTACH exactly once (attach-account.ps1, which writes the marker for
+    # that one call and removes it) and leaves every property a control needs: the
+    # register record, no surviving marker, the untouched description, both route
+    # groups, and "keeps the Windows sign-in rights it already had" (10040) in
+    # attach-account.log.  Reading those measures the REAL attach instead of a
+    # simulation of it, and it still controls the refusal above: "ATTACH was
+    # refused" would pass on a build where ATTACH is broken outright.
+    #
+    # ***THE EXPECTED ROUTES WERE MEASURED, NOT ASSUMED (20 Sep 2026, on the
+    # install this was written against):*** the installing user is in sdssh and
+    # sdapi and in neither sdsshonly nor anything else route-shaped, and the log
+    # says "SD routes for don: ssh and the API." - silence means BOTH (68), and
+    # ATTACH does not turn that off.  The old ADOPT row expected 'none' (58: an
+    # administrator gets no remote door); 64 removed that ruling with the tiers.
+    $adoptLog = Join-Path $Data 'attach-account.log'
+    $installUser = ''
+    if (Test-Path -LiteralPath $adoptLog) {
+        $logText = Get-Content -LiteralPath $adoptLog -Raw
+        $m = [regex]::Match($logText, '(?m)^(\S+) keeps the Windows sign-in rights it already had')
+        if ($m.Success) { $installUser = $m.Groups[1].Value }
+    }
+
+    if ($installUser -eq '') {
+        # NOT SILENTLY SKIPPED.  A missing log means the refusal above has lost
+        # its control, and that has to be visible rather than inferred from a
+        # shorter summary.
+        Note 'attach-account.log names the installing user' $true $false
+        Write-Host '   without it the refusal above has no control - see this step''s comment' -ForegroundColor Yellow
+    } else {
+        Write-Host "   the install attached: $installUser"
+        Note 'CONTROL: the install registered the attached account' $true `
+             (Test-Path -LiteralPath (AcctRec $installUser))
+        Note 'CONTROL: the marker was consumed and none survives' $false `
+             (Test-Path -LiteralPath (Join-Path $Data ('sdsys\$attach.' + $installUser.ToLower())))
+        # ATTACH CHANGES NOTHING ABOUT THE WINDOWS ACCOUNT - so the installing
+        # user's description must not read as one SD created.
+        Note 'CONTROL: the description is not "SD account"' $false `
+             (((Get-LocalUser -Name $installUser -ErrorAction SilentlyContinue).Description) -ceq 'SD account')
+        Note 'CONTROL: an attached account has BOTH routes (silence, 68)' 'ssh+api' (Routes $installUser)
+        # 10040, not 10034: ATTACH must not put a borrowed login into sdsshonly.
+        Note 'CONTROL: it kept its sign-in rights (10040)' $true `
+             ($logText -match [regex]::Escape($installUser + ' keeps the Windows sign-in rights it already had'))
+        Note 'CONTROL: it is not in sdsshonly' $false (InGroup 'sdsshonly' $installUser)
+    }
+
+}
+catch {
+    $script:failed = $true
+    Write-Host ''
+    Write-Host ('verify-accountrules: THREW - ' + $_.Exception.Message) -ForegroundColor Red
+    Write-Host $_.ScriptStackTrace
+    $null = $results.Add([pscustomobject]@{
+        Check = 'the run completed without throwing'; Expected = $true; Observed = $false })
+}
+finally {
+    # THE MARKER GOES FIRST AND UNCONDITIONALLY.  Everything else here is a test
+    # account; this one is a hole in the install-only gate, and leaving it
+    # behind would quietly re-open ATTACH for that account afterwards.
+    if (Test-Path -LiteralPath $adoptMarker) {
+        Remove-Item -LiteralPath $adoptMarker -Force -ErrorAction SilentlyContinue
+        Write-Host '   removed the ATTACH marker'
+    }
+
+    if (-not $Keep) {
+        Step 5 'Putting the system back'
+
+        foreach ($x in ($madeUsers | Select-Object -Unique)) {
+            # OUT OF THE ROUTE GROUPS FIRST, AND UNCONDITIONALLY, as
+            # verify-routes.ps1 does: an account left locked out of its own
+            # console destroys the evidence of which half broke.
+            foreach ($g in @('sdsshonly', 'sdssh', 'sdapi')) {
+                if (InGroup $g $x) {
+                    try { Remove-LocalGroupMember -Group $g -Member $x -ErrorAction Stop
+                          Write-Host "   took $x out of $g" } catch { }
+                }
+            }
+            if (HasUser $x) { Remove-LocalUser -Name $x; Write-Host "   removed Windows account $x" }
+            $d = UserDir $x
+            if (Test-Path -LiteralPath $d) { Remove-Item -LiteralPath $d -Recurse -Force -ErrorAction SilentlyContinue }
+            if (HasGrp ('sdu_' + $x)) { Remove-LocalGroup -Name ('sdu_' + $x) }
+            $prof = Join-Path $env:SystemDrive ('Users\' + $x)
+            if (Test-Path -LiteralPath $prof) { Remove-Item -LiteralPath $prof -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+
+        foreach ($g in ($madeGroups | Select-Object -Unique)) {
+            if (HasGrp $g) { Remove-LocalGroup -Name $g; Write-Host "   removed group $g" }
+        }
+        $gd = GrpDir $grpAcc
+        if (Test-Path -LiteralPath $gd) { Remove-Item -LiteralPath $gd -Recurse -Force -ErrorAction SilentlyContinue }
+
+        Write-Host '   ACCOUNTS records left in place - remove with DELETE.ACCOUNT'
+    } else {
+        Write-Host ''
+        Write-Host ("-Keep: " + (($madeUsers + $madeGroups) -join ', ') + " are still there.") -ForegroundColor Yellow
+    }
+}
+
+# ---------------------------------------------------------------------------
+Write-Host ''
+Write-Host '=== Summary ============================================================='
+$results | Format-Table Check, Expected, Observed -AutoSize | Out-String | Write-Host
+
+$passed = @($results | Where-Object { $_.Expected -eq $_.Observed }).Count
+Write-Host ("$passed/" + @($results).Count + ' checks passed')
+
+if ($failed) {
+    Write-Host ''
+    Write-Host 'verify-accountrules: FAILED' -ForegroundColor Red
+    try { Stop-Transcript | Out-Null } catch { }
+    exit 1
+}
+
+Write-Host ''
+Write-Host ('verify-accountrules: silence means BOTH routes and NONE still means none, the password ' +
+            'is mandatory and unwinds, a GROUP account has neither, and ATTACH needs the marker.') -ForegroundColor Green
+try { Stop-Transcript | Out-Null } catch { }
+exit 0

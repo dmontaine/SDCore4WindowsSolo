@@ -1,0 +1,451 @@
+      * INT$KEYS.H
+      * Keys for internal use only
+      * Copyright (c) 2007 Ladybridge Systems, All Rights Reserved
+      *
+      * This program is free software; you can redistribute it and/or modify
+      * it under the terms of the GNU General Public License as published by
+      * the Free Software Foundation; either version 3, or (at your option)
+      * any later version.
+      *
+      * This program is distributed in the hope that it will be useful,
+      * but WITHOUT ANY WARRANTY; without even the implied warranty of
+      * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+      * GNU General Public License for more details.
+      *
+      * You should have received a copy of the GNU General Public License
+      * along with this program; if not, write to the Free Software Foundation,
+      * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+  	  * 
+  	  * 
+	  * START-HISTORY:
+	  * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
+	  * END-HISTORY
+      *
+      *  START-DESCRIPTION:
+      *
+      *  END-DESCRIPTION
+      *
+      *  START-CODE
+
+      $define MAX.CALL.NAME.LEN     63
+      $define MAX.TRIGGER.NAME.LEN  32
+      $define MAX.USERNAME.LEN      32
+      $define MAX.PATHNAME.LEN     255
+      $define MAX.ACCOUNT.NAME.LEN  32
+
+      * Screen parameters, also defined in csrc tio.h
+      $define MIN.WIDTH           20
+      $define DEFAULT.WIDTH      120
+      $define MAX.WIDTH        32767
+      $define MIN.DEPTH           10
+      $define DEFAULT.DEPTH       36
+      $define MAX.DEPTH        32767
+
+
+      $define DH.VERSION             2  ;* Current file version
+
+      * FLAGS argument to $INPUT
+      $define IN$FIELD.MODE      0x00000001  ;* INPUT.FIELD
+      $define IN$UPCASE          0x00000002  ;* Force input to uppercase
+      $define IN$DISPLAY         0x00000010  ;* Display existing field value
+      $define IN$NOCRLF          0x00000020  ;* Suppress CR/LF (underscore used)
+      $define IN$NOLF            0x00000040  ;* Suppress LF after CR (colon used)
+      $define IN$NOT.DATA        0x00000080  ;* Do not use DATA queue
+      $define IN$MASK            0x00000100  ;* INPUT @ with format mask
+      $define IN$ERR.DISPLAYED   0x00000200  ;* Error is currently displayed (see op_tio.c)
+      $define IN$PASSWORD        0x00000400  ;* Do password style masking of input
+      $define IN$TIMEOUT         0x00000800  ;* Timeout present on e-stack
+      $define IN$THENELSE        0x00001000  ;* THEN/ELSE clause(s) present
+      $define IN$OVERLAY         0x00002000  ;* Start in overlay mode
+      $define IN$EDIT            0x00004000  ;* Start in edit mode, don't clear on data
+      $define IN$APPEND          0x00008000  ;* Append (used with IN$EDIT)
+      $define IN$PANNING         0x00010000  ;* Panning input field
+      $define IN$NO.ECHO.DATA    0x00020000  ;* Supress echo on input from DATA statements.
+      $define IN$NO.CASE.INVERT  0x00040000  ;* Disable PTERM CASE inversion for the input session
+
+      * KERNEL() function action keys
+      $define K$INTERNAL         0       ;* Set/clear internal mode
+      $define K$SECURE           1       ;* Secure system (login required)?
+      $define K$LPTRHIGH         2       ;* @LPTRHIGH
+      $define K$LPTRWIDE         3       ;* @LPTRWIDE
+      $define K$PAGINATE         4       ;* Pagination active?
+      $define K$FLAGS            5       ;* Check/return header flags
+      $define K$DATE.FORMAT      6       ;* European date format?
+      $define K$CRTHIGH          7       ;* @CRTHIGH
+      $define K$CRTWIDE          8       ;* @CRTWIDE
+      $define K$SET.DATE         9       ;* Set current date
+      $define K$IS.PHANTOM      10       ;* Phantom process?
+      $define K$TERM.TYPE       11       ;* Terminal type name
+      $define K$USERNAME        12       ;* User name
+      $define K$DATE.CONV       13       ;* Set default date conversion
+      $define K$PPID            14       ;* Get parent process id
+      $define K$USERS           15       ;* User id/ip_addr list
+      $define K$USERS.UID     1       ;* User id (value position in field)
+      $define K$USERS.PID     2       ;* Process id
+      $define K$USERS.IP      3       ;* IP address
+      $define K$USERS.FLAGS   4       ;* Process flags
+      $define K$USERS.PUID    5       ;* Parent process id for phantom
+      $define K$USERS.UNAME   6       ;* User login name
+      $define K$USERS.DEV     7       ;* TTY name
+      $define K$USERS.LOGIN   8       ;* Login time
+      $define K$CONFIG.DATA     16       ;* Configuration data
+      $define K$LICENCE         17       ;* Validate licence data
+      $define K$INIPATH         18       ;* Get ini file pathname
+      $define K$MONITOR         19       ;* Report/Set/Clear pc monitor mode
+      $define K$FORCED.ACCOUNT  20       ;* Force entry to named account unless set in $LOGINS
+      $define K$SDNET           21       ;* Get/set SDNet status flag
+      $define K$CPROC.LEVEL     22       ;* Get/set command processor level
+      $define K$HELP            23       ;* Invoke help system
+      $define K$SUPPRESS.COMO   24       ;* Suppress como file output
+      $define K$IS.SDVBSRVR     25       ;* SDVbSrvr process?
+      $define K$ADMINISTRATOR   26       ;* Get/set administrator rights
+      $define K$FILESTATS       27       ;* Global file statistics
+      $define K$TTY             28       ;* Get terminal device name
+      $define K$GET.OPTIONS     29       ;* Get option flags
+      $define K$SET.OPTIONS     30       ;* Set option flags
+      $define K$PRIVATE.CATALOGUE 31     ;* Set private catalogue directory
+      $define K$SYS.ID          32       ;* Get system id
+      $define K$CLEANUP         33       ;* Remove defunct users
+      $define K$OBJKEY          34       ;* Object action key
+      $define K$COMMAND.OPTIONS 35       ;* SD command line option flag bit positions
+      $define CMD.APPLY.LICENCE  0x0001  ;* -L Apply new licnce
+      $define CMD.QUERY.ACCOUNT  0x0002  ;* -A Query account on entry
+      $define CMD.INSTALL        0x0004  ;* -I Completing install
+      $define CMD.QUIET          0x0008  ;* -QUIET - Suppress copyright/licence
+      $define CMD.PERSONAL       0x0010  ;* -IP Completing personal install
+      $define CMD.STDOUT         0x0020  ;* -STDOUT
+      $define CMD.FLASH          0x0040  ;* -F option
+      $define K$CASE.SENSITIVE  36       ;* REMOVE.TOKEN() case sensitive in TKN.NAME
+      $define K$PACKAGE.DATA    37       ;* Get package licence data
+      $define K$SET.LANGUAGE    38       ;* Set language for message system
+      $define K$HSM             39       ;* Hot spot monitor
+      $define K$COLLATION       40       ;* Set collation map
+      $define K$GET.SDNET.CONNECTIONS  41 ;* Get details of open SDNet connections
+      $define K$JNL             42       ;* Journalling functions
+      $define K$INVALIDATE.OBJECT  43    ;* Invalidate object cache
+      $define K$MESSAGE         44       ;* Enable/disable message reception
+      $define K$SET.EXIT.CAUSE  45       ;* Set k_exit_cause value
+      $define K$COLLATION.NAME  46       ;* Set collation name
+      $define K$AK.COLLATION    47       ;* Select/deselect AK collation map
+      $define K$EXIT.STATUS     48       ;* Set/retrieve exit status
+      $define K$CASE.MAP        49       ;* Set upper/lower case pairing
+      $define K$AUTOLOGOUT      50       ;* Set/retrieve autologout period
+      $define K$MAP.DIR.IDS     51       ;* Enable/disable dir file id mapping
+      $define K$IN.GROUP        52       ;* Is user in named group?
+      $define K$BREAK.HANDLER   53       ;* Define break handler
+      $define K$SETUID          54       ;* NIX authorisation
+      $define K$SETGID          55       ;* NIX authorisation
+      $define K$RUNEXE          56       ;* Run executable
+      $define K$AUDIT           57       ;* Append a record to the audit trail
+      $define K$WINPATH         58       ;* POSIX pathname as a Windows one
+      $define K$WINPID          59       ;* This session pid as Windows counts it
+      $define K$SET.USERNAME    60       ;* Set the session user name ($internal)
+      $define K$ASSUME.USER     61       ;* Become the authenticated user ($internal)
+      $define K$IMPERSONATING   62       ;* <1> identity Windows says, <2> token held?
+* 29 Aug 26 Windows port - PRE_RELEASE_FIXES 56.  IS THE SIGNED-IN PERSON AN
+*   ADMINISTRATOR - not "is this session elevated", which is K$ADMINISTRATOR
+*   (26) and is a different question with a near-identical name.  26 is the
+*   SESSION flag, set on entering SDSYS and cleared on the way out; this one
+*   is the PERSON, asked of Windows each time, and a LOGTO does not move it.
+*   Nothing in SD can set or forge it.  keys.h carries the same note.
+      $define K$OS.ADMINISTRATOR 63      ;* Is the signed-in person an OS administrator?
+* 05 Sep 26 Windows port - PRE_RELEASE_FIXES 167.  HOW DID THIS SESSION ARRIVE?
+*   The third of the trio and the one about the ROUTE: 26 is what this session
+*   may DO, 63 is WHO signed in, and this is HOW they got here.  True at the
+*   console and through a remote desktop installed as a SERVICE; false over
+*   ssh, over the API, and for an unattended scheduled task.
+*
+*   ***INDEPENDENT OF ELEVATION ON PURPOSE.***  An administrator at an
+*   UNELEVATED console must still be admitted - they log in to their own
+*   account and reach SDSYS with LOGTO, which is where UAC is asked.  Measured
+*   5 Sep 2026: it answers the same either side of a UAC prompt, because
+*   elevation reuses the logon session and its SIDs.
+      $define K$INTERACTIVE      64      ;* Does this session have a desktop?
+* 15 Sep 26 Windows port - RELEASE_1.1 45, the owner's "elevation is the only
+*   door to SDSYS" model.  DID THIS PROCESS START ELEVATED?  The fourth question:
+*   26 is what the session may DO, 63 is WHO, 64 is the ROUTE, and this is the
+*   PROCESS's own elevation.  IMMUTABLE for the process life, so a LOGTO does not
+*   move it - which is why LOGTO SDSYS gates on this and not on the seed (26).
+      $define K$OS.ELEVATED      65      ;* Did this process start elevated?
+* 17 Sep 26 Windows port - RELEASE_1.1 55.  HAND THIS CONNECTION OVER TO A
+*   SESSION THAT IS THE USER.  Replaces K$ASSUME.USER for the API and is the
+*   whole of 55's fix: 61 adopts the user in place with seteuid, so the real
+*   token stays LocalSystem's underneath; this spawns a NEW process as the user
+*   over the relay's handover pipe - the Linux port's setuid session.
+*   $internal only, and it FAILS CLOSED: 0 means no session was started and the
+*   caller must refuse the login.  61 stays, for ssh and the other callers.
+      $define K$HANDOFF          66      ;* Spawn the session AS the user ($internal)
+* 17 Sep 26 Windows port - RELEASE_1.1 55, the other side of 66.  AM I A
+*   PRE-AUTHENTICATED SESSION, AND WHO AM I?  The session 66 spawns runs
+*   sd -N -H: the front already ran SCRAM, so this one must not run it again and
+*   must set its own name from its OWN process token, not from the wire.
+*   <1> 1 if pre-authenticated, 0 if not.  <2> the bare Windows user name.
+*   <1>=1 with <2> empty is a session that cannot name itself - REFUSE it, do
+*   not carry on unnamed.  Read-only, so not $internal-only.
+      $define K$API.PREAUTH      67      ;* <1> pre-authenticated? <2> user name
+* 17 Sep 26 Windows port - RELEASE_1.1 55.  IS A NAMED USER IN A NAMED LOCAL
+*   GROUP?  A live SAM query with NO CHILD PROCESS, which is what a
+*   pre-authenticated session needs: one spawned AS the user by 66 cannot start
+*   PowerShell at all (measured b190 - the child dies in DLL init, 0xC0000142,
+*   because a non-interactive S4U token cannot attach to winsta0\default).
+*   !is_grp_member uses this instead of os.execute.
+*   ARGUMENT "user" : @fm : "group".  THREE ANSWERS: 1 member, 0 not a member,
+*   -1 COULD NOT TELL - and a caller that reads -1 as 0 restores the defect
+*   this replaced, where a failed lookup read as "not granted".
+      $define K$GROUP.MEMBER     68      ;* 1 member, 0 not, -1 could not tell
+
+      * PTERM() action keys
+      $define PT$BREAK           1       ;* Trap break character as break?
+      $define PT$INVERT          2       ;* Case inversion
+      $define PT$BRKCH           3       ;* Set break character
+      $define PT$ONEWLINE        4       ;* Set output newline mode
+      $define PT$INEWLINE        5       ;* Set input newline mode
+      $define PT$BINARY.IN       6       ;* Telnet binary mode, client -> server
+      $define PT$BINARY.OUT      7       ;* Telnet binary mode, server -> client
+      $define PT$TELNET          8       ;* Recognise TN_IAC on input?
+
+      * OSPATH() action keys
+      $define OS$PATHNAME        0       ;* Test if valid filename
+      $define OS$FILENAME        1       ;* Test if valid pathname
+      $define OS$EXISTS          2       ;* Test if file exists
+      $define OS$UNIQUE          3       ;* Make a unique file name
+      $define OS$FULLPATH        4       ;* Return full DOS file name
+      $define OS$DELETE          5       ;* Delete file
+      $define OS$CWD             6       ;* Get current working directory
+      $define OS$DTM             7       ;* Get date/time modified
+      $define OS$FLUSH.CACHE     8       ;* Flush DH file cache
+      $define OS$CD              9       ;* Change working directory
+      $define OS$MAPPED.NAME    10       ;* Map a directory file name
+      #define OS$OPEN           11       ;* Check if file is open by pathanme
+      $define OS$DIR            12       ;* Return content of directory
+      $define OS$MKDIR          13       ;* Create a directory
+      $define OS$MKPATH         14       ;* Create a directory path
+      * 20240225 mab add chown to OSPATH function
+      $define OS$CHOWN        100       ;* Chown on file / directory
+
+      * DH library errors
+      $define DHE.RECORD.NOT.FOUND     401       ;* Record not found (read, select, etc)
+
+      * @ABORT.CODE
+      $define K$LOGOUT           3               ;* LOGOUT of phantom process
+
+      * Kernel k_exit_cause values (from csrc kernel.h)
+      $define K$EXIT.ABORT       3
+
+      * USER_ENTRY flag word from kernel(K$USERS,n)
+      $define USR$PHANTOM      0x0001    ;* Process is a phantom
+      $define USR$LOGOUT       0x0002    ;* Logout in progress
+      $define USR$SDVBSRVR     0x0004    ;* SDVbSrvr process
+      $define USR$ADMIN        0x0008    ;* Administrator privileges
+      $define USR$SDNET        0x0010    ;* SDNet process (USR$SDVBSRVR also set)
+      $define USR$CHGPHANT     0x0020    ;* Chargeable phantom
+      $define USR$MSG.OFF      0x0040    ;* Messge reception disabled
+
+      * USER_ENTRY events word
+      $define EVT$LOGOUT       0x0001    ;* Forced logout - immediate termination
+      $define EVT$STATUS       0x0002    ;* Return status dump
+      $define EVT$UNLOAD       0x0004    ;* Unload inactive cached object code
+      $define EVT$BREAK        0x0008    ;* Clear break inhibit counter
+      $define EVT$HSM.ON       0x0010    ;* Enable HSM
+      $define EVT$HSM.DUMP     0x0020    ;* Return HSM data
+      $define EVT$PDUMP        0x0040    ;* Force process dump
+      $define EVT$FLUSH.CACHE  0x0080    ;* Flush DH cache
+      $define EVT$JNL.SWITCH   0x0100    ;* Switch journal file
+      $define EVT$TERMINATE    0x0200    ;* Forced logout - graceful termination
+      $define EVT$MESSAGE      0x0400    ;* Send immediate message
+
+      * Opcode prefix flags as defined in kernel.h.  These are used by the READV
+      * recursive function (See op_dio3.c).                                       */
+      $define P$LOCKED      2
+      $define P$LLOCK       4
+      $define P$ULOCK       8
+      $define P$READONLY   16
+      $define P$PICKREAD   32
+
+      * BTree flag keys
+      $define BT.RIGHT.ALIGNED 1
+      $define BT.DESCENDING    2
+      $define BT.UNIQUE        4
+      $define BT.DATA          8
+
+      * Undocumented FILEINFO() keys
+      $define FL$EXCLUSIVE   10000    ;* Set exclusive file access
+      $define FL$FLAGS       10001    ;* Fetch file flags
+      * LS 16 bits are from file header...
+      $define FL$FLAGS.NORESIZE   0x00000008   ;* No splits/merges
+      $define FL$FLAGS.NOCASE     0x00000010   ;* Case insensitive ids
+      $define FL$FLAGS.TRUSTED    0x00000020   ;* Access requires trusted program
+* 14 Sep 26 Windows port - RELEASE_1.1 5 D2.  Every hashed file is created
+*     NOCASE by the kernel (gplsrc/op_dio1.c), whatever flags it is given.
+*     KEEPCASE is a creation REQUEST, never a header bit (dh.h DHF_KEEPCASE,
+*     outside DHF_CREATE), honoured only in internal mode: it lets tooling
+*     build a case-sensitive fixture for the upgrade's twin refusal.
+      $define FL$FLAGS.KEEPCASE   0x00000004   ;* REQUEST: create case sensitive (internal mode only)
+      * MS 16 bits are internal...
+      $define FL$FLAGS.TRIGGER    0x00010000   ;* File has trigger
+      $define FL$FLAGS.AK         0x00020000   ;* File has AK indices
+      $define FL$FLAGS.RDONLY     0x00040000   ;* Read only
+      $define FL$FLAGS.UPDATED    0x00080000   ;* Written since opened
+      $define FL$STATS.ON    10002
+      $define FL$STATS.OFF   10003
+      $define FL$STATS       10004
+      $define FL$STATS.RESET           1
+      $define FL$STATS.OPENS           2
+      $define FL$STATS.READS           3
+      $define FL$STATS.WRITES          4
+      $define FL$STATS.DELETES         5
+      $define FL$STATS.CLEARS          6
+      $define FL$STATS.SELECTS         7
+      $define FL$STATS.SPLITS          8
+      $define FL$STATS.MERGES          9
+      $define FL$STATS.AKREADS        10
+      $define FL$STATS.AKWRITES       11
+      $define FL$STATS.AKDELETES      12
+      $define FL$SETRDONLY   10005           ;* Make file read only (cannot reverse)
+
+      * $LOGINS file
+      * Id = Uppercase user name or "Console". Name cannot start with $ sign.
+      $define LGN$LAST.ACCOUNT     1    ;* Last account name
+      $define LGN$DATE             2    ;* Date of last login
+      $define LGN$TIME             3    ;* Time of last login
+      $define LGN$PASSWORD         4    ;* Encrypted password
+      $define LGN$FORCE.ACCOUNT    5    ;* Forced account name
+      $define LGN$ADMIN            6    ;* Administrator?
+      $define LGN$MIN              7    ;* Minimum password length
+      $define LGN$OWNER            8    ;* Owner's name etc
+      $define LGN$VALID.ACCOUNTS   9    ;* Valid accounts, blank = unrestricted
+      $define LGN$BANNED.ACCOUNTS 10    ;* Banned accounts
+
+      * $CRED file - account credentials.  13 Aug 26 Windows port.
+      * Id = uppercase account name.  Replaces the password fields of the
+      * $LOGINS register, which was removed on 20240612.  The password is
+      * never stored.  See PROJECT_STATUS.md section 5.6.
+      *
+      * 19 Aug 26 Windows port - VERSION 2, FOR SCRAM.  docs/SCRAM_AUTH.md.
+      * Version 1 held CRED$SALT and CRED$VERIFIER, an Argon2 key derived by
+      * !SD_KEY_FROM_PW.  SCRAM needs material the client can prove knowledge
+      * of without sending the password, which an Argon2 verifier cannot
+      * supply, so the record holds StoredKey and ServerKey instead.
+      *
+      * THE VERSION IS FIELD 1 SO THAT AN OLD RECORD CANNOT BE MISREAD.  A
+      * version 1 record has base64 salt in field 1, which is not "2", so
+      * !CRED_VERIFY refuses it rather than deriving nonsense from a salt it
+      * has mistaken for a version number.  There is no migration: the
+      * plaintext was never stored, so every account has to run MODIFY.PASSWORD
+      * again.
+      *
+      * CRED$MECH is informational.  Nothing gates on it today - CRED$VERSION
+      * carries that job - but it is written so that a later mechanism, most
+      * likely SCRAM-SHA-256-PLUS once there is a TLS channel to bind to, can
+      * be told apart within the same record version.
+      $define CRED$VERSION         1    ;* Record format version, currently 2
+      $define CRED$MECH            2    ;* Mechanism name, informational
+      $define CRED$SALT            3    ;* Salt, base64
+      $define CRED$ITER            4    ;* PBKDF2 iteration count
+      $define CRED$STOREDKEY       5    ;* SHA256(ClientKey), base64
+      $define CRED$SERVERKEY       6    ;* HMAC(SaltedPassword,"Server Key"), b64
+
+      * Cost and sizes for new credentials.  The iteration count is written
+      * into each record rather than read from here at verify time, so raising
+      * it applies to new passwords without invalidating existing ones.
+      $define SCRAM$CRED.VERSION   2    ;* Value written to CRED$VERSION
+      $define SCRAM$ITERATIONS 600000   ;* PBKDF2 cost for a new password
+      $define SCRAM$KEY.LEN       32    ;* SaltedPassword length, = SHA-256
+
+      * 20 Aug 26 Windows port - WHAT A CLIENT WILL ACCEPT FROM A SERVER'S i=.
+      * A server does not get to choose the client's CPU cost: below the floor
+      * the derivation a captured exchange is judged against is weakened, above
+      * the ceiling it is a denial of service against the caller.  The ceiling
+      * is far above SCRAM$ITERATIONS, so raising the cost needs no change here.
+      *
+      * THE C CLIENT HOLDS THE SAME TWO NUMBERS SEPARATELY - SCRAM_MIN_ITERATIONS
+      * and SCRAM_MAX_ITERATIONS in gplsrc/sdclilib/sdclilib.c - and nothing
+      * cross-checks them.  Same arrangement as the SDEXT key numbers, and for
+      * the same reason: the DLL ships as one file and cannot read this.
+      $define SCRAM$MIN.ITER    4096    ;* Floor on a server's i=
+      $define SCRAM$MAX.ITER 10000000   ;* Ceiling on a server's i=
+
+      * ID = $SECURE
+      *    F1 = Secure system? (boolean)
+
+
+      * Variable types ++ALLTYPES++
+
+      $define V$UNASSIGNED    0
+      $define V$ADDR          1
+      $define V$INTEGER       2
+      $define V$FLOATNUM      3
+      $define V$SUBR          4
+      $define V$STRING        5
+      $define V$FILE.REF      6
+      $define V$ARRAY         7
+      ;* These tokens are from csrc descr.h
+      $define AH$PICK.STYLE  0x0001  ;* Pick style matrix
+      $define AH$AUTO.DELETE 0x0002  ;* Self-deleting common block
+      $define V$COMMON        8
+      $define V$IMAGE         9
+      $define V$BTREE        10
+      $define V$SELLIST      11
+      $define V$PMATRIX      12
+      $define V$SOCK         13
+      $define V$LOCALVARS    14
+      $define V$OBJ          15
+      $define V$OBJCD        16
+      $define V$OBJCDX       17
+      $define V$PERSISTENT   18
+
+      * Option flags (see also csrc options.h)
+      $define OPT.UNASS.WARNING        0 ;* Treat unassigned variable as warning
+      $define OPT.QUERY.DEBUG          1 ;* QPROC debugging (restricted)
+      $define OPT.PICK.WILDCARD        2 ;* QPROC supports Pick wildcards
+      $define OPT.QUAL.DISPLAY         3 ;* QPROC supports qualified display clauses
+      $define OPT.PICK.BREAKPOINT      4 ;* QPROC Pick placement of breakpoint text
+      $define OPT.WITH.IMPLIES.OR      5 ;* QPROC Pick WITH ... (OR) WITH ...
+      $define OPT.DUMP.ON.ERROR        6 ;* Dump process on error
+      $define OPT.DIV.ZERO.WARNING     7 ;* Treat divide by zero as warning
+      $define OPT.NON.NUMERIC.WARNING  8 ;* Treat non-numeric as warning
+      $define OPT.ASSOC.UNASSOC.MV     9 ;* Associate unassociated MV fields
+      $define OPT.PICK.BREAKPOINT.U   10 ;* QPROC Use Pick meaning of U breakpoint
+      $define OPT.NO.USER.ABORTS      11 ;* Suppress user options to abort
+      $define OPT.RUN.NO.PAGE         12 ;* RUN/DEBUG defaults to NO.PAGE
+      $define OPT.SHOW.STACK.ON.ERROR 13 ;* Show stack on error
+      $define OPT.CRDB.UPCASE         14 ;* Show CR/DB in OCONV MD in uppercase?
+      $define OPT.AMPM.UPCASE         15 ;* Show AM/PM in OCONV MTH in uppercase?
+      $define OPT.PICK.NULL           16 ;* Return null for null data in ML, MR and FMT()
+      $define OPT.PICK.GRAND.TOTAL    17 ;* GRAND.TOTAL text on same line as values
+      $define OPT.SUPPRESS.ABORT.MSG  18 ;* Suppress program details on abort
+      $define OPT.DEBUG.REBIND.KEYS   19 ;* Rebind AccuTerm keys on entry to debugger
+      $define OPT.ED.NO.QUERY.FD      20 ;* Don't ask for confirmation on FD command in ED
+      $define OPT.NO.SEL.LIST.QUERY   21 ;* Don't query use of select list
+      $define OPT.CHAIN.KEEP.COMMON   22 ;* Keep unnamed common on CHAIN
+      $define OPT.SELECT.KEEP.CASE    23 ;* Keep case in Windows dir file select
+      $define OPT.CREATE.FILE.CASE    24 ;* Keep operating system file name case in CREATE.FILE
+      $define OPT.PICK.EXPLODE        25 ;* Pick style processing of single value item in BY.EXP
+      $define OPT.INHERIT             26 ;* Phantom inherits options
+      $define OPT.QUERY.NO.CASE       27 ;* Case insensitive query processor selection operators
+      $define OPT.LOCKBEEP            28 ;* Beep on wait for record lock
+      $define OPT.PICK.IMPLIED.EQ     29 ;* Implied EQ between field and literal in query
+      $define OPT.QUERY.PRIORITY.AND  30 ;* AND has priority over OR operator in query processor
+      $define OPT.NO.DATE.WRAPPING    31 ;* Don't roll overlarge day number into next month
+      $define OPT.PROC.A              32 ;* Treat Proc A command as in D3
+
+      * MKINDEX flag values (additive)
+      $define MKI$CREATE               1 ;* Create indices
+      $define MKI$BUILD                2 ;* Build indices
+      $define MKI$NO.NULLS             4 ;* NO.NULLS (for create mode)
+      $define MKI$NO.CASE              8 ;* NO.CASE (for create mode)
+
+      * FCONTROL() keys
+      $define FC$SET.JNL.FNO           1 ;* Set jnl_fno in file header
+      $define FC$KILL.JNL              2 ;* Disable journalling on open file
+      $define FC$SET.AKPATH            3 ;* Set akpath element of file header
+      $define FC$NON.TXN               4 ;* Set open file as non-transactional
+      $define FC$SPLIT.MERGE           5 ;* Force split/merge
+      $define FC$NO.RESIZE             6 ;* Set DHF_NO_RESIZE flag
+
+
+
+      * !!ATVAR!!
+      $define READ.ONLY.AT.VARS 'ABORT.CODE,ANS,CRTHIGH,CRTWIDE,DATE,DAY,GID,HOSTNAME,IP.ADDR,LEVEL,LOGNAME,LPTRHIGH,LPTRWIDE,MONTH,PARASENTENCE,PATH,PIB,POB,SDSYS,SELECTED,SIB,SOB,TERM.TYPE,TIME,TTY,UID,USER,USERNO,USER.NO,WHO,YEAR,YEAR4'
+
+      * END-CODE

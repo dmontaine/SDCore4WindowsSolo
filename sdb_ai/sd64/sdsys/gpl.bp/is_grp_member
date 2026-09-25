@@ -1,0 +1,172 @@
+* IS_GRP_MEMBER(user,group)
+* Is user a member of group
+* Copyright (c) String Database
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 3, or (at your option)
+* any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software Foundation,
+* Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+*
+*
+* START-HISTORY:
+* 17 Sep 26 Windows port - RELEASE_1.1 55: asks K$GROUP.MEMBER instead of
+*           running PowerShell through os.execute.  A pre-authenticated API
+*           session cannot start a child process at all (0xC0000142, measured
+*           b190), so every caller in such a session got @false and the
+*           account gate read it as "not granted".  Same live SAM question, no
+*           child, and "could not tell" is now distinct from "not a member".
+*           The description's own "COST TO KNOW ABOUT" paragraph predicted
+*           this change; it is done, in C, as win32group.c.
+* 15 Aug 26 Windows port - a group given as a SID is asked for with -SID.
+*           Get-LocalGroupMember -Group refuses one, so "is this user an
+*           administrator?" used to answer false for everybody.
+* 14 Aug 26 Windows port - ask Windows instead of reading /etc/group, which
+*           does not exist on the MSYS2 runtime.  See the description.
+* rev 0.9.0 Jan 25 mab with the change in ownership of group ACCOUNTS, we need this routine to return true if a user is looking up their own group account.
+* 20240219 mab initial commit
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*    x = !is_grp_member(user,group)
+*
+*    user - Windows user name to test for membership of a Windows local group
+*
+*    This function sets the STATUS() value to 0 if successful, 1 if the
+*    specified group does not exist.
+*
+*    WHY THIS NO LONGER READS /etc/group.  It used to open /etc and read
+*    "group" as a text file.  MSYS2 and Cygwin dropped /etc/passwd and
+*    /etc/group in favour of direct SAM lookups, so the open failed, the
+*    routine set status 1 and returned false for EVERYONE, and the sdusers
+*    test at LOGIN terminated every connection with "This user is not
+*    registered for SD use".  Nothing about it looked like a missing file.
+*    See PROJECT_STATUS.md section 6.
+*
+*    K$GROUP.MEMBER is asked instead - a live NetLocalGroupGetMembers lookup
+*    in C (gplsrc/win32group.c) - and it distinguishes the three answers the
+*    caller needs, which parsing "net localgroup" output does not do without
+*    depending on the language Windows is installed in:
+*
+*       1    a member                -> @true,  status 0
+*       0    not a member            -> @false, status 0
+*      -1    COULD NOT TELL          -> @false, status 1
+*
+*    Membership is compared on the last backslash-delimited component, so
+*    MACHINE\don and don both match don.  A group may be named as a SID, which
+*    win32group.c resolves before the lookup.
+*
+*    WHAT REPLACED THE POWERSHELL, AND WHY.  This ran Get-LocalGroupMember
+*    through os.execute until 17 Sep 2026.  The paragraph that stood here
+*    called that a cost worth knowing about - "slow enough to notice on a path
+*    that runs at every login" - and said the fast answer was a KERNEL key but
+*    "that is new C code and this is not".  RELEASE_1.1 55 forced the issue:
+*    an API session spawned AS the user cannot start ANY child process, so the
+*    PowerShell answer was not slow there, it was unobtainable.  The C is now
+*    written.  getgrnam() was NOT the route taken - in_group() answers only
+*    about the CALLING process's own groups and cannot be asked about another
+*    user - so the key does a live lookup by name, which also keeps the
+*    revocation semantics apisrvr's sdapi test depends on.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+function is_grp_member(user,group)
+$catalog !is_grp_member
+
+* 17 Sep 26 Windows port - this file had no $include at all; K$GROUP.MEMBER
+*   needs one.  The header is $defines only.  (It arrived as a temporary
+*   diagnostic aid and is now load-bearing - do not remove it with the
+*   diagnostics.)
+$include int$keys.h
+
+deffun valid_os_name(name) calling '!valid_os_name'
+
+user_found = @false
+set.status 0
+
+* Modified by Composer AI - 2026/06/10.
+* Empty user or group cannot match membership; skip the lookup.
+if user = '' or group = '' then
+   set.status 1
+   return user_found
+end
+* --------------------
+
+* rev 0.9.0  is this the user's own group account?
+if upcase(user) = upcase(group) then return @true
+
+* 14 Aug 26 Windows port - both names are interpolated into a shell command
+*   below, so they are validated first.  !valid_os_name permits letters,
+*   digits, dot, underscore and hyphen only, which is what makes the quoting
+*   below sufficient rather than merely tidy.
+* 17 Sep 26 Windows port - ***THE SHELL COMMAND IS GONE AND THIS CHECK STAYS,
+*   ON PURPOSE.***  There is no quoting left to protect, so the reason above no
+*   longer applies - but the check is still what refuses a malformed name
+*   cheaply and with status 1, and it is what keeps the @fm-joined argument to
+*   K$GROUP.MEMBER free of anything that could be read as a separator.  Kept
+*   with its reason corrected rather than deleted with its reason.
+if not(valid_os_name(user)) or not(valid_os_name(group)) then
+   set.status 1
+   return user_found
+end
+
+* 15 Aug 26 Windows port - A SID NAMES A GROUP TOO, and it must keep working:
+*   asking whether somebody is a Windows administrator HAS to be asked by SID,
+*   because the name is translated on a localised Windows.  When this ran
+*   PowerShell that meant -SID rather than -Group (measured 15 Aug 2026:
+*   -Group "S-1-5-32-544" answered "not found", so the check silently answered
+*   FALSE for every administrator alive).  win32group.c now resolves the SID
+*   itself, so the requirement survives the mechanism that carried it.
+* 17 Sep 26 Windows port - RELEASE_1.1 55.  ***NO CHILD PROCESS.***  This ran
+*   PowerShell's Get-LocalGroupMember through os.execute, and a
+*   PRE-AUTHENTICATED API session - one spawned AS the user by K$HANDOFF -
+*   CANNOT START POWERSHELL AT ALL.  Measured on b190: CreateProcess succeeds
+*   and the child dies in DLL initialisation with 0xC0000142, because the
+*   session is on a non-interactive S4U token pointed at winsta0\default and
+*   user32 cannot attach; sd.exe itself survives only because a POSIX console
+*   program never loads user32.  The front, still LocalSystem, answered the
+*   same question in the same run - so it was never the data.
+*
+*   K$GROUP.MEMBER IS THE SAME QUESTION, LIVE, IN C (win32group.c): a
+*   NetLocalGroupGetMembers lookup by NAME.  Not K$IN.GROUP, whose in_group()
+*   reads the CALLING process's own groups and cannot be asked about another
+*   user.  Keeping a LIVE query rather than a token test also keeps the
+*   semantics apisrvr's sdapi test relies on - a grant removed in Windows
+*   takes effect on the next connection, with no sign-out.
+*
+*   ***THREE ANSWERS, AND THE THIRD IS WHY THIS WAS SILENT FOR SEVEN RUNS.***
+*   -1 is "could not tell" - a lookup that failed, or a group that does not
+*   exist - and it is NOT the same as 0.  It still returns @false, because
+*   failing closed is right for an access check, but it sets STATUS 1 so a
+*   caller can tell the two apart, and the reason is on the audit trail
+*   (op_kernel.c writes it).  The old code could not make that distinction:
+*   a shell that never ran and a real "no" both arrived as @false.
+   grp.answer = kernel(K$GROUP.MEMBER, user : @fm : group)
+
+   begin case
+      case grp.answer = 1
+         user_found = @true
+      case grp.answer = 0
+         user_found = @false
+      case 1
+         * Could not tell.  Fail closed, and say so in status().
+         user_found = @false
+         set.status 1
+   end case
+
+return user_found
+end
+
+* END-CODE

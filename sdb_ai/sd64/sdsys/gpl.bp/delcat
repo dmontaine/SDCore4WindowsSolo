@@ -1,0 +1,187 @@
+* DELCAT
+* DELETE.CATALOG verb
+* Copyright (c) 2006 Ladybridge Systems, All Rights Reserved
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 3, or (at your option)
+* any later version.
+* 
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software Foundation,
+* Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+* 
+* 
+* START-HISTORY:
+* 14 Sep 26 Windows port - RELEASE_1.1 5 stage 3a: catalogue names are lower
+*           case, and a local entry is found under its old upper-case VOC id too.
+* 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
+* 18 Aug 26 Windows port - deleting from the global catalogue requires
+*           administrator rights.  It required nothing at all before.
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*    DELETE.CATALOG name... { GLOBAL | LOCAL }
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+program $delcat
+$catalog $delcat
+
+$include err.h
+$include parser.h
+$include syscom.h
+$include int$keys.h
+
+   parser = "!PARSER"
+
+   @system.return.code = -ER$ARGS    ;* Preset for command format errors
+
+   global = @false
+   local = @false
+   prefix.chars = "*!_$"
+   using.select.list = @false
+
+   * Check for alternative private catalogue location
+
+   private.catalogue = 'cat'
+   read voc.rec from voc, "$PRIVATE.CATALOGUE" then
+      if upcase(voc.rec[1,1]) = 'X' then private.catalogue = voc.rec<2>
+   end
+
+
+   call @parser(PARSER$RESET, 0, @sentence, 0)
+   call @parser(PARSER$GET.TOKEN, token.type, token, keyword) ;* Verb
+
+   readlist name.list then using.select.list = @true
+
+   loop
+      call @parser(PARSER$GET.TOKEN, token.type, token, keyword)
+   until token.type = PARSER$END
+      begin case
+         case keyword = KW$LOCAL
+            local = @true
+
+         case keyword = KW$GLOBAL
+            global = @true
+
+         case not(using.select.list)
+            name.list<-1> = downcase(token)   ;* 14 Sep 26 stage 3a: call names are lower
+
+         case 1
+            stop sysmsg(2018, token) ;* Unexpected token (xx)
+      end case
+   repeat
+
+   if name.list = '' then stop sysmsg(3036) ;* Catalogue name required
+
+   if local and global then
+      stop sysmsg(3021) ;* Incompatible cataloguing modes specified
+   end
+
+* 18 Aug 26 Windows port - DELETING FROM THE GLOBAL CATALOGUE NEEDS ADMINISTRATOR
+*   RIGHTS.  THIS PROGRAM TESTED NOTHING - not even for the GLOBAL keyword, which
+*   is where CATALOG has always had a test.  Either route reaches gcat: the
+*   keyword, or a "*!_$" name prefix in the case below.  "DELETE.CATALOG $LOGIN"
+*   removed the program CPROC runs for every session, from any account holding
+*   the verb, which is a denial of service for the whole system rather than for
+*   the caller.  Upstream has the same gap - UPSTREAM_FIXES.md.
+*
+*   BEFORE THE LOOP, NOT INSIDE IT, so a list that mixes private and global names
+*   deletes nothing at all rather than stopping part way through with the private
+*   ones already gone.  dcount/for is the idiom used elsewhere in GPL.BP; the
+*   loop below consumes name.list with remove(), so this reads it first.
+   if not(kernel(K$ADMINISTRATOR, -1)) then
+      gbl.count = dcount(name.list, @fm)
+      for gbl.i = 1 to gbl.count
+         gbl.name = name.list<gbl.i>
+         if global or index(prefix.chars, gbl.name[1,1], 1) then
+            stop sysmsg(2001) ;* Command requires administrator privileges
+         end
+      next gbl.i
+   end
+
+
+   * Open global and private catalogues
+
+   openpath @sdsys:@ds:'gcat' to gcat.f else
+      stop sysmsg(3022) ;* Cannot open global catalogue directory
+   end
+
+   openpath private.catalogue to pcat.f else
+      stop sysmsg(3023) ;* Cannot open private catalogue directory
+   end
+
+
+   @system.return.code = 0
+   loop
+      cat.name = downcase(remove(name.list, delim))   ;* a select list's names too (stage 3a)
+
+      if cat.name = '' then
+         display sysmsg(3037) ;* Null catalogue entry name ignored
+      end else
+         begin case
+            case global or index(prefix.chars, cat.name[1,1], 1)
+               readvu obj.rec from gcat.f, cat.name, 0 then
+                  delete gcat.f, cat.name
+                  unload.object
+                  display sysmsg(3038, cat.name) ;* xx deleted from the global catalogue
+               end else
+                  release gcat.f, cat.name
+                  display sysmsg(3039, cat.name) ;* xx is not in the global catalogue
+                  @system.return.code = -ER$NOT.CAT
+               end
+
+            case local
+*              14 Sep 26 - stage 3a.  An entry catalogued before call names went
+*              lower is under the upper-case VOC id, so that is tried second.
+               local.id = cat.name
+               voc.rec = ''
+               readu voc.rec from @voc, local.id else
+                  release @voc, local.id
+                  local.id = upcase(cat.name)
+                  voc.rec = ''
+                  readu voc.rec from @voc, local.id else voc.rec = ''
+               end
+               if upcase(voc.rec[1,1]) = "V" and voc.rec<2> = "CS" then
+                  delete @voc, local.id
+                  unload.object
+                  display sysmsg(3040, cat.name) ;* xx deleted from the local catalogue
+               end else
+                  release @voc, local.id
+                  display sysmsg(3041, cat.name) ;* xx is not in the local catalogue
+                  @system.return.code = -ER$NOT.CAT
+               end
+
+            case 1       ;* private
+               readvu obj.rec from pcat.f, cat.name, 0 then
+                  delete pcat.f, cat.name
+                  unload.object
+                  display sysmsg(3042, cat.name) ;* xx deleted from the private catalogue
+               end else
+                  release pcat.f, cat.name
+                  display sysmsg(3043, cat.name) ;* xx is not in the private catalogue
+                  @system.return.code = -ER$NOT.CAT
+               end
+         end case
+      end
+   while delim
+   repeat
+
+   return
+
+   * Avoid compiler warnings
+   obj.rec = obj.rec
+end
+
+* END-CODE
+

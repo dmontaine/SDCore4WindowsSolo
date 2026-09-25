@@ -1,0 +1,358 @@
+* ERR.H
+* Error numbers and STATUS() values
+* Copyright (c) 2006 Ladybridge Systems, All Rights Reserved
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 3, or (at your option)
+* any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software Foundation,
+* Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+*
+* START-HISTORY:
+* 31 Dec 23 SD launch - prior history suppressed
+* 01 Jul 24 mab define max string size error ER_MAX_STRING
+* 30 Jul 24 mab add error codes for SD_ENCRYPT_SODIUM
+* rev 0.9.0 Jan 25 mab sdext_eguid_set error codes
+* rev 0.9-2 Mar 25 mab add sdext_pyobj direct control of python dictionary object
+* 25 Aug 26 Windows port - VFS stripped: the C never implemented it
+* 14 Sep 26 Windows port - ER_TWIN 3042, RELEASE_1.1 5 D2
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+* END-DESCRIPTION
+*
+* START-CODE
+*
+
+* Commands that set negative error codes into @SYSTEM.RETURN.CODE use the
+* arithmetic inverse of the values listed below.
+
+* Errors tagged (os.error) have associated operating system error numbers
+* that can be retrieved from OS.ERROR().  The !ERRTEXT() subroutine will
+* automatically include this extended error information in the message.
+
+* 0001 - 0999  General command processing errors
+$define ER$ARGS           1    ;* Command arguments invalid or incomplete
+$define ER$NCOMO          2    ;* Como file not active
+$define ER$ICOMP          3    ;* I-type compilation error
+$define ER$ACC.EXISTS     4    ;* Account name already in register
+$define ER$NO.DIR         5    ;* Directory not found
+$define ER$NOT.CREATED    6    ;* Unable to create directory
+$define ER$STOPPED        7    ;* Processing terminated by user action
+$define ER$INVA.PATH      8    ;* Invalid pathname
+$define ER$NOT.CAT        9    ;* Item not in catalogue
+$define ER$PROCESS       10    ;* Unable to start new process
+$define ER$USER.EXISTS   11    ;* User name already in register
+$define ER$UNSUPPORTED   12    ;* This operation is not supported on this platform
+$define ER$TERMINFO      13    ;* No terminfo definition for this function
+$define ER$NO.ACC        14    ;* Account name not in register
+$define ER$TERMINATED    15    ;* Operation terminated by user
+
+* 1000 - 1999  General errors
+
+$define ER$PARAMS      1000    ;* Invalid parameters
+$define ER$MEM         1001    ;* Cannot allocate memory
+$define ER$LENGTH      1002    ;* Invalid length
+$define ER$BAD.NAME    1003    ;* Bad name
+$define ER$NOT.FOUND   1004    ;* Item not found
+$define ER$IN.USE      1005    ;* Item is in use
+$define ER$BAD.KEY     1006    ;* Bad action key
+$define ER$PRT.UNIT    1007    ;* Bad print unit
+$define ER$FAILED      1008    ;* Action failed (os.error)
+$define ER$MODE        1009    ;* Bad mode setting
+$define ER$TXN         1010    ;* Operation not allowed in a transaction
+$define ER$TIMEOUT     1011    ;* Timeout
+$define ER$LIMIT       1012    ;* Limit reached
+$define ER$EXPIRED     1013    ;* Expired
+$define ER$NO.CONFIG   1014    ;* Cannot find configuration file
+$define ER$RDONLY.VAR  1015    ;* Variable is read-only
+$define ER$NOT.PHANTOM 1016    ;* Not a phantom process
+$define ER$CONNECTED   1017    ;* Device already connected
+$define ER$INVA.ITYPE  1018    ;* Invalid I-type
+$define ER$MAX.STRING  1900    ;* Max String (record) Size
+
+* 20xx  Catalog management errors
+
+$define ER$INVA.OBJ    2000    ;* Invalid object code
+$define ER$CFNF        2001    ;* Catalogued function not found
+
+* 21xx  Terminfo errors
+
+$define ER$TI.NAME     2100    ;* Invalid terminal type name
+$define ER$TI.NOENT    2101    ;* No terminfo entry for given name
+$define ER$TI.MAGIC    2102    ;* Terminfo magic number check failed
+$define ER$TI.INVHDR   2103    ;* Invalid terminfo header data
+$define ER$TI.STRSZ    2104    ;* Invalid terminfo string length
+$define ER$TI.STRMEM   2105    ;* Error allocating terminfo string memory
+$define ER$TI.NAMEMEM  2106    ;* Error allocating terminfo name memory
+$define ER$TI.BOOLMEM  2107    ;* Error allocating terminfo boolean memory
+$define ER$TI.BOOLRD   2108    ;* Error reading terminfo booleans
+$define ER$TI.NUMMEM   2109    ;* Error allocating terminfo numbers memory
+$define ER$TI.NUMRD    2110    ;* Error reading terminfo numbers
+$define ER$TI.STROMEM  2111    ;* Error allocating terminfo string offsets memory
+$define ER$TI.STRORD   2112    ;* Error reading terminfo string offsets
+$define ER$TI.STRTBL   2113    ;* Error reading terminfo string table
+
+* 3000 - 3999  Generic file system errors
+$define ER$IID         3000    ;* Illegal record id
+$define ER$SFNF        3001    ;* Subfile not found
+$define ER$NAM         3002    ;* Bad file name
+$define ER$FNF         3003    ;* File not found
+$define ER$NDIR        3004    ;* Not a directory file
+$define ER$NDYN        3005    ;* Not a dynamic file
+$define ER$RNF         3006    ;* Record not found
+$define ER$NVR         3007    ;* No VOC record
+$define ER$NPN         3008    ;* No pathname in VOC record
+$define ER$VNF         3009    ;* VOC file record not F type
+$define ER$IOE         3010    ;* I/O error (os.error)
+$define ER$LCK         3011    ;* Lock is held by another process
+$define ER$NLK         3012    ;* Lock is not held by this process
+$define ER$NSEQ        3013    ;* Not a sequential file
+$define ER$NEOF        3014    ;* Not at end of file
+$define ER$SQRD        3015    ;* Sequential file record read before creation
+$define ER$SQNC        3016    ;* Sequential record not created due to error (os.error)
+$define ER$SQEX        3017    ;* Sequential record already exists (CREATE)
+$define ER$RDONLY      3018    ;* Update to read only file
+$define ER$AKNF        3019    ;* AK index not found
+$define ER$INVAPATH    3020    ;* Invalid pathname
+$define ER$EXCLUSIVE   3021    ;* Cannot gain exclusive access to file
+$define ER$TRIGGER     3022    ;* Trigger function error
+$define ER$NOLOCK      3023    ;* Attempt to write/delete record with no lock
+$define ER$REMOTE      3024    ;* Open of remote file not allowed
+$define ER$NOTNOW      3025    ;* Action cannot be performed now
+$define ER$PORT        3026    ;* File is a port
+$define ER$NPORT       3027    ;* File is not a port
+$define ER$SQSEEK      3028    ;* Seek to invalid offset in sequential file
+$define ER$SQREL       3029    ;* Invalid seek relto in sequential file
+$define ER$EOF         3030    ;* End of file
+$define ER$CNF         3031    ;* Multifile component not found
+$define ER$MFC         3032    ;* Multifile reference with no component name
+$define ER$PNF         3033    ;* Port not found (os.error)
+$define ER$BAD.DICT    3034    ;* Bad dictionary entry
+$define ER$PERM        3035    ;* Permissions error (os.errno)
+$define ER$SEEK.ERROR  3036    ;* Seek error
+$define ER$WRITE.ERROR 3037    ;* Write error (os.errno)
+* 25 Aug 26 Windows port - 3038-3040 RETIRED, do not recycle.  They were
+* the VFS errors, never raised, and sdclilib/err.h still defines them.
+$define ER$ENCRYPTED   3041    ;* Access denied to encrypted file
+* 14 Sep 26 Windows port - RELEASE_1.1 5 D2.  Raised by CONFIGURE.FILE when a
+* case-sensitive file it is asked to rebuild holds two ids that differ only
+* by case, so the rebuild (which would keep only one) is refused.
+$define ER$TWIN        3042    ;* Two record ids differ only by case
+
+* 4000 - 4999   SDClient errors
+$define ER$SRVRMEM     4000    ;* Insufficient memory for packet buffer
+* 15 Aug 26 Windows port - from sdb64 dev (1.0-3).
+$define ER$SRVRERR     4100    ;* Undefined Server Error
+$define ER$INV.NBR     4101    ;* Invalid File Number
+
+* 5000 - 5999   Operating system related issues
+$define ER$NO.DLL      5000    ;* DLL not found
+$define ER$NO.API      5001    ;* API not found
+$define ER$NO.TEMP     5002    ;* Cannot open temporary file (os.error)
+
+* 6000 - 6999
+$define ER$NO.EXIST    6031    ;* Item does not exist
+$define ER$EXISTS      6032    ;* Item already exists
+$define ER$NO.SPACE    6033    ;* No space for entry
+$define ER$INVALID     6034    ;* Validation error
+
+* 7000 - 7999   Network errors
+$define ER$NETWORK     7000    ;* Networked file not allowed for this operation
+$define ER$SERVER      7001    ;* Unknown server name
+$define ER$WSA.ERR     7002    ;* Failed to start Window socket library (os.error)
+$define ER$HOSTNAME    7003    ;* Invalid host name
+$define ER$NOSOCKET    7004    ;* Cannot open socket (os.error)
+$define ER$CONNECT     7005    ;* Cannot connect socket (os.error)
+$define ER$RECV.ERR    7006    ;* Error receiving socket data (os.error)
+$define ER$RESOLVE     7007    ;* Cannot resolve server name (os.error)
+$define ER$LOGIN       7008    ;* Login rejected
+$define ER$XREMOTE     7009    ;* Remote server disallowed access
+$define ER$ACCOUNT     7010    ;* Cannot connect to account
+$define ER$HOST.TABLE  7011    ;* Host table is full
+$define ER$BIND        7012    ;* Error binding socket (os.error)
+$define ER$SKT.CLOSED  7013    ;* Socket has been closed
+$define ERAI$ADDRFAMILY 7014    ;* Address family for nodename not supported
+$define ERAI$AGAIN      7015    ;* Temporary failure in name resolution.
+$define ERAI$BADFLAGS   7016    ;* Invalid value for ai.flags
+$define ERAI$FAIL       7017    ;* Non-recoverable failure in name resolution.
+$define ERAI$FAMILY     7018    ;* Requested ai.family not supported
+$define ERAI$MEMORY     7019    ;* Memory allocation failure
+$define ERAI$NODATA     7020    ;* No address associated with nodename
+$define ERAI$NONAME     7021    ;* nodename nor servname provided, or not known.
+$define ERAI$SERVICE    7022    ;* servname not supported for ai.socktype
+$define ERAI$SOCKTYPE   7023    ;* Requested ai.socktype not supported
+$define ERAI$SYSTEM     7024    ;* System error returned in errno
+
+$define ER$INCOMP.PROTO 7025    ;* Incompatible protocol/transport combination
+$define ER$NONBLOCK.FAIL 7026   ;* Attempt to set O.NON.BLOCK via fctnl() has failed
+$define ER$BADADDR      7027    ;* Incorrectly formed hostname or IP Address
+
+* 8000 - 8999  DH errors
+$define DHE$FILE.NOT.OPEN        8001 ;* DH.FILE pointer is NULL
+$define DHE$NOT.A.FILE           8002 ;* DH.FILE does not point to a file descriptor
+$define DHE$ID.LEN.ERR           8003 ;* Invalid record id length
+$define DHE$SEEK.ERROR           8004 ;* Error seeking in DH file (os.error)
+$define DHE$READ.ERROR           8005 ;* Error reading DH file (os.error)
+$define DHE$WRITE.ERROR          8006 ;* Error writing DH file (os.error)
+$define DHE$NAME.TOO.LONG        8007 ;* File name is too long
+$define DHE$SIZE                 8008 ;* File exceeds maximum allowable size
+$define DHE$STAT.ERR             8009 ;* Error from STAT() (os.error)
+$define DHE$OPEN.NO.MEMORY       8100 ;* No memory for DH.FILE structure
+$define DHE$FILE.NOT.FOUND       8101 ;* Cannot open primary subfile (os.error)
+$define DHE$OPEN1.ERR            8102 ;* Cannot open overflow subfile (os.error)
+$define DHE$PSFH.FAULT           8103 ;* Primary subfile header format error
+$define DHE$OSFH.FAULT           8104 ;* Overflow subfile header format error
+$define DHE$NO.BUFFERS           8105 ;* Unable to allocate file buffers
+$define DHE$INVA.FILE.NAME       8106 ;* Invalid file name
+$define DHE$TOO.MANY.FILES       8107 ;* Too many files (NUMFILES config param)
+$define DHE$NO.MEM               8108 ;* No memory to allocate group buffer
+$define DHE$AK.NOT.FOUND         8109 ;* Cannot open AK subfile
+$define DHE$AK.HDR.READ.ERROR    8110 ;* Error reading AK header
+$define DHE$AK.HDR.FAULT         8111 ;* AK subfile header format error
+$define DHE$AK.ITYPE.ERROR       8112 ;* Format error in AK I-type code
+$define DHE$AK.NODE.ERROR        8113 ;* Unrecognised node type
+$define DHE$NO.SUCH.AK           8114 ;* Reference to non-existant AK
+$define DHE$AK.DELETE.ERROR      8115 ;* Error deleting AK subfile
+$define DHE$EXCLUSIVE            8116 ;* File is open for exclusive access
+$define DHE$TRUSTED              8117 ;* Requires trusted program to open
+$define DHE$VERSION              8118 ;* Incompatible file version
+$define DHE$ID.LEN               8119 ;* File may contain id longer than MAX.ID
+$define DHE$AK.CROSS.CHECK       8120 ;* Relocated index pathname cross-check failed
+$define DHE$HASH.TYPE            8121 ;* Unsupported hash type
+$define DHE$ILLEGAL.GROUP.SIZE   8201 ;* Group size out of range
+$define DHE$ILLEGAL.MIN.MODULUS  8202 ;* Minimum modulus < 1
+$define DHE$ILLEGAL.BIG.REC.SIZE 8203 ;* Big record size invalid
+$define DHE$ILLEGAL.MERGE.LOAD   8204 ;* Merge load invalid
+$define DHE$ILLEGAL.SPLIT.LOAD   8205 ;* Split load invalid
+$define DHE$FILE.EXISTS          8206 ;* File exists on create
+$define DHE$CREATE.DIR.ERR       8207 ;* Cannot create directory (os.error)
+$define DHE$CREATE0.ERR          8208 ;* Cannot create primary subfile (os.error)
+$define DHE$CREATE1.ERR          8209 ;* Cannot create overflow subfile (os.error)
+$define DHE$PSFH.WRITE.ERROR     8210 ;* Failure writing primary subfile header (os.error)
+$define DHE$INIT.DATA.ERROR      8211 ;* Failure initialising data bucket (os.error)
+$define DHE$ILLEGAL.HASH         8212 ;* Invalid hashing algorithm
+$define DHE$OSFH.WRITE.ERROR     8213 ;* Failure writing overflow subfile header (os.error)
+$define DHE$RECORD.NOT.FOUND     8301 ;* Record not in file
+$define DHE$BIG.CHAIN.END        8302 ;* Found end of big record chain early
+$define DHE$NOT.BIG.REC          8303 ;* Big record pointer does not point to big record block
+$define DHE$NO.SELECT            8401 ;* No select is active
+$define DHE$OPEN2.ERR            8402 ;* Cannot open select list
+$define DHE$GSL.WRITE.ERR        8403 ;* Error from write() (os.error)
+$define DHE$GSL.TRUNCATE.ERR     8404 ;* Error from chsize() (os.error)
+$define DHE$AK.NAME.LEN          8501 ;* Index name too long
+$define DHE$AK.EXISTS            8502 ;* AK already exists
+$define DHE$AK.TOO.MANY          8503 ;* Too many AKs to create a new one
+$define DHE$AK.CREATE.ERR        8504 ;* Unable to create AK subfile
+$define DHE$AK.HDR.WRITE.ERROR   8505 ;* Error writing SK subfile header
+$define DHE$AK.WRITE.ERROR       8506 ;* Error writing AK node
+$define DHE$PSF.CHSIZE.ERR       8601 ;* Error compacting primary subfile (os.error)
+$define DHE$ALL.LOCKED           8701 ;* All buffers are locked
+$define DHE$SPLIT.HASH.ERROR     8702 ;* Record does not hash to either group in split
+$define DHE$WRONG.BIG.REC        8703 ;* Big record chain error
+$define DHE$FREE.COUNT.ZERO      8704 ;* Overflow free count zero in dh.new.overflow()
+$define DHE$FDS.OPEN.ERR         8705 ;* Cannot reopen subfile (os.error)
+$define DHE$POINTER.ERROR        8706 ;* Internal file pointer fault
+$define DHE$NO.INDICES           8707 ;* File has no AKs
+$define DHE$JNL.OPEN.ERR         8801 ;* Cannot open journal file (os.error)
+$define DHE$JNL.CTL.ERR          8802 ;* Cannot open SDSYS $JNLCTRL (os.error)
+$define DHE$JNL.CTL.READ         8803 ;* Cannot read SDSYS $JNLCTRL (os.error)
+$define DHE$JNL.XCHK             8804 ;* $JNL cross-check error
+$define DHE$ECB.TYPE             8900 ;* ECB has incorrect type
+
+
+* SD_ENCRYPT_SODIUM error codes
+* Generic error codes
+$define SD$Mem.Err   -10100  ;* memory allocation error
+
+* encrytption decryption error codes
+$define SD$SodInit.Err -10199  ;* libsodium initialization error
+$define SD$Encrypt.Err -10200  ;* error in call to crypto.secretbox.easy
+$define SD$Decrypt.Err -10201  ;* error in call to crypto.secretbox.easy.open
+$define SD$Encode.Err  -10202  ;* error in call to bin2hex or bin2base64
+$define SD$Decode.Err  -10203  ;* error in call to hex2bin or base642bin
+$define SD$KeyLen.Err  -10204  ;* key length error
+$define SD$EDType.Err  -10205  ;* Encode Decode type error
+
+* SDEXT error codes
+$define SD$EXT.KEY.ERR -10300  ;* unknown key
+$define SD$EXT.ARG.CNT -10301  ;* incorrect argument count for called function
+$define SD$INT.OVERFLW -10302  ;* Result will create integer overflow  (> 32 Bit int)
+* 19 Aug 26 Windows port - SCRAM primitives.  docs/SCRAM_AUTH.md
+$define SD$SCRAM.ERR   -10303  ;* sd.scram.c primitive failed or was given bad input
+
+* 5 Sep 26 Windows port - the sdext_eguid_set error codes, -10400 to -10403,
+* were removed with sdext_eguid.c.  PRE_RELEASE_FIXES 168.
+
+* 13 Aug 26 Windows port - the embedded Python error codes, -12001 to
+* -12036, were removed with the interpreter.  PROJECT_STATUS.md 5.15.
+
+* 12 Sep 26 Windows port - RESTORED, with the SAME NUMBERS AND THE SAME
+* MEANINGS, for the helper process of PROJECT_STATUS.md 5.27.  Python is no
+* longer inside sd.exe: these travel back over a pipe from sdpy.exe, and
+* sdpy.c carries its own copy of the subset it returns.  The numbers are kept
+* because every PY_* documents "status() - 0 on success, error code as defined
+* in ERR.H" - reusing them means the documented contract survives the change
+* of mechanism, and renumbering would have broken it for no gain.
+$define SD$PyEr.NotInit    -12001  ;* interpreter not initialised
+$define SD$PyEr.Dict       -12002  ;* PyDict.New() failed
+$define SD$PyEr.Builtin    -12003  ;* failed to link ..builtins.. into the scope
+$define SD$PyEr.Excpt      -12004  ;* exception while running code
+$define SD$PyEr.FinalEr    -12005  ;* error reported by PY.FINALIZE
+$define SD$PyEr.NOF        -12006  ;* could not open script file
+$define SD$PyEr.Key        -12007  ;* failed to find key in dictionary
+$define SD$PyEr.ObToStr    -12008  ;* failed to convert python object to string
+$define SD$PyErr.UniToStr  -12009  ;* error encoding unicode string to Latin
+
+$define SD$PyErr.MainMod   -12010  ;* cannot import ..main..
+$define SD$PyErr.GlobDict  -12011  ;* could not get ..main.. dictionary
+$define SD$PyErr.DictExsts -12012  ;* dictionary already exists
+$define SD$PyErr.NamSpcErr -12013  ;* failed to add to namespace
+$define SD$PyErr.ObjNOF    -12014  ;* requested object does not exist
+$define SD$PyErr.DictSet   -12015  ;* failed to set dictionary key / value
+$define SD$PyErr.DictDel   -12016  ;* failed to delete dictionary key / value
+$define SD$PyErr.NotDict   -12017  ;* object is not a dictionary
+$define SD$PyErr.EnLatin   -12018  ;* error encoding Latin string to unicode
+$define SD$PyErr.NotStr    -12019  ;* object is not a string
+$define SD$PyErr.DelObj    -12020  ;* failed to remove object from the namespace
+
+$define SD$PyErr.NoItems   -12030  ;* object contains no items
+$define SD$PyErr.CreStr    -12031  ;* failed to create a python string object
+$define SD$PyErr.ConCat    -12032  ;* failed to concatenate python strings
+$define SD$PyErr.LstItem   -12033  ;* failed to access a list item
+$define SD$PyErr.NotList   -12034  ;* object is not a list
+
+* 12 Sep 26 Windows port - NEW, and the only number this restoration adds.
+* The helper is a PROCESS now, so it can fail in a way an in-process
+* interpreter never could: not be there.  Every other code above describes
+* something Python said; this one describes not having reached Python at all,
+* and the two must not be confused by a caller deciding whether to retry.
+$define SD$PyErr.NoHelper  -12040  ;* the helper could not be started or has died
+
+* 12 Sep 26 Windows port - RELEASE_1.1 21, on the owner's ruling.
+* -12040 MEANT THREE DIFFERENT THINGS AND A CALLER COULD NOT TELL THEM APART.
+* sdpy_session() refuses for three reasons - the session may not use the
+* operating system, the permission could not be determined, or the helper
+* itself would not start - and it wrote a sentence saying which into a buffer
+* whose accessor had NO CALLER.  Separating a permission from a broken binary
+* then cost a probe, a discriminator and a two-leg control, and the comment on
+* sdpy_session() had predicted exactly that: "Confusing the two would tell an
+* administrator that Python is broken when it is a permission, or tell an
+* ordinary user they lack a right when the binary is missing."
+
+* ***-12040 KEEPS ITS MEANING - "could not start" - SO NOTHING ALREADY
+* WRITTEN ABOUT IT BECOMES WRONG.***  That is the case a machine with no
+* Python hits, which is what the changelog documents.  The two new codes take
+* the meanings that were being smuggled inside it.
+$define SD$PyErr.NotPermitted -12041  ;* this session may not use the OS, so may not have Python
+$define SD$PyErr.PrivUnknown  -12042  ;* the OS permission could not be determined
+* END-CODE

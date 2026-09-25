@@ -1,0 +1,727 @@
+/* SDWIND.C
+ * SD Windows daemon.
+ * Copyright (c) 2007 Ladybridge Systems, All Rights Reserved
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3, or (at your option)
+ * any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * 
+ * START-HISTORY:
+ * 17 Sep 26 Windows port - RELEASE_1.1 37: check_lost_users() starts
+ *                      "sd -cleanup" with fork/execl and waits for it, not
+ *                      system() - the install has no /bin/sh, so system()
+ *                      returned 127 unchecked and the sweep never reaped
+ *                      anything.  It logs the lost user and any failure.
+ * 21 Aug 26 Windows port - the API listener binds EVERY INTERFACE, not just
+ *                      loopback.  Owner's decision: the API is reached at the
+ *                      port and the ssh tunnel is no longer part of the
+ *                      design.  Reverses posture B - see open_api_listener()
+ *                      for what changed in front of the port to allow it
+ * 20 Aug 26 Windows port - the peer of an API connection is identified and
+ *                      logged (win32peer.c), and log_message() gained the
+ *                      errlog trim the sd side has always had - without it
+ *                      the new per-connection line ignores ERRLOG and grows
+ *                      the file without bound
+ * 17 Aug 26 Windows port - the API listener.  Windows has neither xinetd nor
+ *                      systemd socket activation, so the listener and the
+ *                      per-connection spawn that the Linux build gets from
+ *                      the operating system have to live somewhere; this is
+ *                      the only process SD already keeps running.
+ * 16 Aug 26 Windows port - report why startup failed instead of exiting
+ *                      silently; the errmsg from get_semaphores() was being
+ *                      filled in and then discarded
+ * 14 Aug 26 Windows port - renamed from sdlnxd, and the cleanup session is
+ *                      launched from beside the running executable rather
+ *                      than from <sysdir>/bin, which holds no binaries
+ * 31 Dec 23 SD launch - prior history suppressed
+ * END-HISTORY
+ *
+ * START-DESCRIPTION:
+ *
+ * The background daemon.  It was sdlnxd, "SD Linux daemon", which is the
+ * wrong name in a Windows-only repository; the name now lives in one place,
+ * SDWIND_NAME in sddefs.h, which start_sd() also uses to launch it.
+ *
+ * END-DESCRIPTION
+ *
+ * START-CODE
+ */
+
+#define Public
+#define init(a) = a
+#include "sd.h"
+
+#include <time.h>
+#include <ctype.h>
+/* 13 Aug 26 Windows port - POSIX shared memory in place of System V */
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <signal.h>
+#include <sched.h>
+/* 17 Aug 26 Windows port - for the API listener */
+#include <sys/socket.h>
+#include <sys/select.h>
+#include <sys/wait.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+/* 20 Aug 26 Windows port - who is at the other end of an API connection.
+   NO WINDOWS HEADER IS REACHED THROUGH THIS: windows.h and netinet/in.h
+   cannot share a translation unit at all, which is exactly why the Win32
+   half is a separate file taking plain integers.  win32peer.h has the
+   measurement. */
+#include "win32peer.h"
+
+/* 20 Aug 26 Windows port - DOMAIN\name as win32_pid_user() returns it.  Its
+   two LookupAccountSid buffers are 256 each, plus the separator and the
+   terminator, so anything smaller would make that call fail rather than
+   truncate - it checks the length before it writes. */
+#define WHO_LEN 514
+
+bool terminate = FALSE;
+
+/* 17 Aug 26 Windows port - the API listener, -1 when APIPORT is not set.
+   21 Aug 26 - THE SHIPPED sd.conf SETS IT, so -1 means an administrator
+   commented it out rather than "the default".  This default has moved three
+   times; gplbld/stage.py's SD_CONF carries the record of why, and it is the
+   one place to change it. */
+static int api_listener = -1;
+
+void check_lost_users(void);
+static int open_api_listener(int port);
+static void accept_api_session(void);
+
+void signal_handler(int signum);
+
+/* ====================================================================== */
+
+int main() {
+  char errmsg[80];
+  int timer = 0;
+  int fd;
+  struct stat statbuf;
+  time_t next_tick;
+
+  process.user_no = -2; /* Mark as sdwind for semaphore table */
+
+  signal(SIGTERM, signal_handler);
+
+  /* Attach the shared memory segment */
+
+  /* 16 Aug 26 Windows port - SAY WHY, RATHER THAN JUST DYING.  Every failure
+     below used to be a bare exit(1) or exit(2), and the exit(2) threw away the
+     errmsg get_semaphores() had just filled in.  On 16 Aug 2026 the service
+     started nothing and there was NOTHING to read anywhere - the fault had to
+     be narrowed by running this program by hand and looking at its exit code.
+
+     log_message() is not available here and cannot be: it takes ERRLOG_SEM,
+     and the whole point of these branches is that the segment or the
+     semaphores are not attached yet.  So stderr is all there is - which is
+     enough when the daemon is run by hand, and is the first thing to try when
+     it will not start.  The exit codes are unchanged and still discriminate:
+     1 the shared memory segment, 2 the semaphores.                          */
+
+  if ((fd = shm_open(SD_POSIX_SHM_NAME, O_RDWR, 0666)) == -1) {
+    fprintf(stderr, "%s: cannot open shared memory %s - %s\n", SDWIND_NAME,
+            SD_POSIX_SHM_NAME, strerror(errno));
+    exit(1);
+  }
+
+  if (fstat(fd, &statbuf) || (statbuf.st_size == 0)) {
+    fprintf(stderr, "%s: shared memory %s is unreadable or empty - %s\n",
+            SDWIND_NAME, SD_POSIX_SHM_NAME, strerror(errno));
+    close(fd);
+    exit(1);
+  }
+
+  sysseg = (SYSSEG*)mmap(NULL, (size_t)statbuf.st_size, PROT_READ | PROT_WRITE,
+                         MAP_SHARED, fd, 0);
+  close(fd);
+
+  if (sysseg == MAP_FAILED) {
+    fprintf(stderr, "%s: cannot map shared memory - %s\n", SDWIND_NAME,
+            strerror(errno));
+    sysseg = NULL;
+    exit(1);
+  }
+
+  /* Get access to semaphores */
+
+  if (!get_semaphores(FALSE, errmsg)) {
+    fprintf(stderr, "%s: %s\n", SDWIND_NAME, errmsg);
+    exit(2);
+  }
+
+  /* Set process id into shared memory */
+
+  sysseg->sdwind_pid = getpid();
+
+  /* ========================= Main loop ========================= */
+
+  /* 17 Aug 26 Windows port - THE LOOP NOW WAITS ON A SOCKET RATHER THAN
+     SLEEPING, and the minute timer is driven by the CLOCK instead of by the
+     iteration count.  It has to be: select() returns as soon as a connection
+     arrives, so counting iterations would run check_lost_users() once per
+     API connection rather than once every five minutes.  With APIPORT unset
+     there is no descriptor to watch and select() is just the old sleep.    */
+  api_listener = open_api_listener((int)sysseg->api_port);
+
+  next_tick = time(NULL) + 60;
+
+  while (!terminate) {
+    fd_set rd;
+    struct timeval tv;
+    long wait_secs;
+    int nfds;
+
+    wait_secs = (long)(next_tick - time(NULL));
+    if (wait_secs < 0)
+      wait_secs = 0;
+    tv.tv_sec = wait_secs;
+    tv.tv_usec = 0;
+
+    FD_ZERO(&rd);
+    nfds = 0;
+    if (api_listener >= 0) {
+      FD_SET(api_listener, &rd);
+      nfds = api_listener + 1;
+    }
+
+    /* EINTR is expected here - SIGTERM arrives this way - and is handled by
+       falling through to the while test rather than by retrying. */
+    if (select(nfds, (nfds > 0) ? &rd : NULL, NULL, NULL, &tv) > 0) {
+      if ((api_listener >= 0) && FD_ISSET(api_listener, &rd))
+        accept_api_session();
+    }
+
+    /* REAPED HERE RATHER THAN IN A SIGCHLD HANDLER, deliberately.  SIG_IGN
+       would auto-reap but then make check_lost_users()'s waitpid() on its
+       cleanup child fail with ECHILD (it was system() until 17 Sep 26, same
+       reasoning), and a handler would have to be reasoned about against that
+       wait.  A zombie living until the next loop pass costs nothing.       */
+    while (waitpid(-1, NULL, WNOHANG) > 0)
+      ;
+
+    if (time(NULL) >= next_tick) {
+      next_tick += 60;
+      timer++;
+
+      /* One minute actions */
+
+      if ((timer % 5) == 0) {
+        /* Five minute actions */
+
+        check_lost_users();
+      }
+    }
+  }
+
+  if (api_listener >= 0)
+    close(api_listener);
+
+  /* Tidy up on our way out */
+
+  munmap((void*)sysseg, (size_t)statbuf.st_size); /* Dettach shared memory */
+
+  return 0;
+}
+
+/* ======================================================================
+   check_lost_users()  -  Clear down "lost" processes                     */
+
+void check_lost_users() {
+  USER_ENTRY* uptr;
+  int32_t pid;
+  int16_t u;
+  int16_t num_checked = 0;
+  bool lost_user_detected = FALSE;
+  int16_t lost_uid = 0;             /* the first lost slot, for the log */
+  int32_t lost_pid = 0;
+  char bindir[MAX_PATHNAME_LEN + 1];
+  /* Room for the directory plus "/sd" and its terminator. */
+  char cmd[MAX_PATHNAME_LEN + 20];
+
+  StartExclusive(SHORT_CODE, 69);
+
+  for (u = 1; u <= sysseg->max_users; u++) {
+    uptr = UPtr(u);
+    pid = uptr->pid;
+    if (uptr->uid) {
+      if ((++num_checked % 5) == 0) {
+        /* Be nice - don't hold sempahore for entire table scan */
+
+        EndExclusive(SHORT_CODE);
+        RelinquishTimeslice;
+        StartExclusive(SHORT_CODE, 69);
+        if (uptr->uid == 0)
+          continue; /* User logged out */
+      }
+
+      if (kill(pid, 0) && (errno != EPERM)) {
+        lost_user_detected = TRUE;
+        lost_uid = uptr->uid;
+        lost_pid = pid;
+        break;
+      }
+    }
+  }
+
+  EndExclusive(SHORT_CODE);
+
+  if (lost_user_detected) {
+    /* Fire off a SD session to clear down the users. Although it would be
+      nice to do the whole job here, there are so many dependencies that
+      sdwind ends up carrying around most of SD.                          */
+    // converted to snprintf() -gwb 25Feb20
+    /* Modified by Composer AI - 2026/06/10.
+       Single-quote the executable path so spaces or shell metacharacters
+       in the (administrator controlled) system directory cannot break or
+       inject into the command. Also do not execute the command at all if
+       it would have been truncated, instead of running a mangled path. */
+    /* if (snprintf(cmd, MAX_PATHNAME_LEN + 10, "%s/bin/sd -cleanup", sysseg->sysdir) >= (MAX_PATHNAME_LEN + 10)) {
+        printf(
+            "Overflowed path/filename buffer. Truncated to:\n%s/bin/sd "
+            "-cleanup",
+            sysseg->sysdir);
+      }
+    system(cmd); */
+    /* 14 Aug 26 Windows port - this named "<sysdir>/bin/sd", the same wrong
+       location start_sd() used for the daemon: <sysdir>/bin holds pcode and
+       pcode.old, not executables (PROJECT_STATUS.md 5.8).  sd lives beside
+       this daemon, so ask where that is.  A daemon has no useful stdout, so
+       failures go to the error log rather than to printf.                 */
+    /* 17 Sep 26 Windows port - RELEASE_1.1 37.  NOT system(): THAT NEVER RAN
+       ON AN INSTALL.  system() is "/bin/sh -c", and the install ships sd.exe
+       and sdwind.exe with no shell - measured with gplbld/probe-system.c
+       under the installed runtime: /bin/sh absent, system("echo alive") 127
+       with errno ENOENT, and the -cleanup line in this very quoting the
+       same.  The return was never tested, so a lost user was detected every
+       five minutes and nothing followed, silently: a killed session's slot
+       and record lock outlived the tick by 5 m 45 s on 15 Sep 2026 and would
+       have outlived every tick after it.  The detection above is NOT the
+       fault - gplbld/probe-killzero.ps1 asked kill(pid, 0) from this daemon's
+       own token and session about a live console session (ALIVE) and a
+       killed one (LOST), and sd -cleanup by hand removed the dead slots and
+       kept the live one.  Only the link between them was broken.
+
+       So the child is started the way accept_api_session() starts a session:
+       fork(), execl(), no shell.  Then waited for HERE, by pid, so the
+       reaping loop in the main routine cannot take it first and so its exit
+       can be reported; a daemon that logs nothing on success is the reason
+       the 15 Sep observation could not say which half had failed.       */
+    if (!exe_directory(bindir, sizeof(bindir))) {
+      log_message("Cleanup not run: cannot locate the SD program directory");
+    } else if (snprintf(cmd, sizeof(cmd), "%s/sd", bindir) >= (int)sizeof(cmd)) {
+      log_message("Cleanup not run: overflowed path/filename buffer");
+    } else {
+      char msg[MAX_PATHNAME_LEN + 120];
+      pid_t cpid;
+      int status = 0;
+
+      snprintf(msg, sizeof(msg), "Lost user %d (pid %d): running %s -cleanup",
+               (int)lost_uid, (int)lost_pid, cmd);
+      log_message(msg);
+
+      cpid = fork();
+      if (cpid < 0) {
+        snprintf(msg, sizeof(msg), "Cleanup not run: fork failed (errno %d)", errno);
+        log_message(msg);
+      } else if (cpid == 0) {
+        execl(cmd, "sd", "-cleanup", (char*)NULL);
+        _exit(127);                /* only reached if exec failed */
+      } else {
+        if (waitpid(cpid, &status, 0) < 0) {
+          snprintf(msg, sizeof(msg), "Cleanup started but could not be waited for (errno %d)", errno);
+          log_message(msg);
+        } else if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+          snprintf(msg, sizeof(msg), "Cleanup did not complete: %s %d",
+                   WIFEXITED(status) ? "exit code" : "signal",
+                   WIFEXITED(status) ? WEXITSTATUS(status) : WTERMSIG(status));
+          log_message(msg);
+        }
+        /* A clean exit says nothing here: cleanup() itself logs every slot it
+           removed ("Cleanup removed user ..."), and that is the record.   */
+      }
+    }
+    /* -------------------- */
+  }
+}
+
+/* ======================================================================
+   open_api_listener()  -  Bind the API port, if there is one
+
+   17 Aug 26 Windows port.  Returns -1 for "no listener", which is not an
+   error: a system whose sd.conf has no APIPORT opens no port at all.  What
+   answers a connection is $CRED and the ACC$GROUP check inside APISRVR, not
+   the transport.  section 7 step 6.
+
+   21 Aug 26 Windows port - IT BINDS EVERY INTERFACE NOW, AND THAT REVERSES
+   POSTURE B.  Owner's decision, 21 Aug 2026: the API is reached AT THE PORT,
+   normally 4243, and the ssh tunnel is no longer part of the design.
+
+   THE COMMENT THAT STOOD HERE ARGUED THE OPPOSITE and is worth quoting rather
+   than deleting, because the argument was sound when it was made: "Posture B
+   (section 8): nothing of SD's own faces the network, ssh carries the traffic.
+   A bind address in the configuration file would be a way to get that wrong by
+   accident."
+
+   WHAT CHANGED IS NOT THE ARGUMENT, IT IS WHAT STANDS IN FRONT OF THE PORT.
+   Posture B was settled on 14 Aug, when the API's login was cleartext and a
+   session that got in could open $cred and reach OS.EXECUTE.  Since then:
+   SCRAM-SHA-256 replaced the cleartext login (19-20 Aug), and the containment
+   gate in op_dio2.c plus the USR_ADMIN fix in kernel.c shut both of those
+   (21 Aug, measured - ER_PERM 3035 on $cred, and OS.EXECUTE refused by name).
+   So the port is no longer a boundary doing work that nothing else does.
+
+   WHAT IS STILL TRUE AND IS THE REASON THIS IS NOT FREE: an API session's
+   TOKEN is still LocalSystem, because sdwind fork()s it and Windows has no
+   setuid.  Binding a network interface widens who may ATTEMPT a SCRAM exchange
+   from "every local process" to "everything the firewall admits".  It does not
+   widen what a session can do once it is in - that is the gate's job - but the
+   token work in section 7 is what closes the remaining half.
+
+   STILL NOT CONFIGURABLE, and deliberately: one bind address in a config file
+   is a way to get this wrong by accident in the other direction too.  A site
+   that wants to narrow it uses the firewall rule, which is where a Windows
+   administrator expects to look.  gplbld/api-firewall.ps1.                   */
+
+static int open_api_listener(int port) {
+  int fd;
+  int on = 1;
+  struct sockaddr_in addr;
+  char msg[128];
+
+  if (port <= 0)
+    return -1; /* APIPORT not set - the default, and not a failure */
+
+  if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    log_message("API listener not started: cannot create socket");
+    return -1;
+  }
+
+  setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char*)&on, sizeof(on));
+
+  memset(&addr, 0, sizeof(addr));
+  addr.sin_family = AF_INET;
+  /* EVERY INTERFACE.  See the block above this function for why this changed
+     and what still guards it.                                              */
+  addr.sin_addr.s_addr = htonl(INADDR_ANY);
+  addr.sin_port = htons((u_int16_t)port);
+
+  if (bind(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+    snprintf(msg, sizeof(msg),
+             "API listener not started: cannot bind port %d", port);
+    log_message(msg);
+    close(fd);
+    return -1;
+  }
+
+  if (listen(fd, 5) < 0) {
+    snprintf(msg, sizeof(msg),
+             "API listener not started: cannot listen on port %d", port);
+    log_message(msg);
+    close(fd);
+    return -1;
+  }
+
+  /* SAYS "all interfaces" RATHER THAN NAMING ONE.  The log line is where an
+     administrator finds out what this install actually exposes, and it read
+     "127.0.0.1" for as long as that was true - so it must not go on saying so
+     now that it is not.                                                     */
+  snprintf(msg, sizeof(msg), "API listener on all interfaces, port %d", port);
+  log_message(msg);
+  return fd;
+}
+
+/* ======================================================================
+   accept_api_session()  -  One connection, one sd process
+
+   17 Aug 26 Windows port.  This is the half of xinetd that Windows does not
+   provide: accept, then fork and exec "sd -n -q" with the socket as
+   descriptors 0 and 1, which is exactly the contract etc/xinetd.d/qmclient
+   describes and what start_connection() reads.
+
+   The socket is handed over by INHERITING IT ACROSS fork(), which is why this
+   lives in an MSYS2 program rather than in the native service.  A native
+   listener passing the accepted socket to a Cygwin child was measured on
+   17 Aug 2026 and does not work: the descriptor arrives valid enough for
+   getsockname() and send() and cannot be read at all, because a Windows
+   socket's receive path stays bound to the process that created it.  Both
+   halves of this fork are Cygwin, so none of that applies.                  */
+
+static void accept_api_session(void) {
+  int conn;
+  pid_t pid;
+  char bindir[MAX_PATHNAME_LEN + 1];
+  char sdpath[MAX_PATHNAME_LEN + 20];
+  struct sockaddr_in peer;
+  struct sockaddr_in me;
+  socklen_t addrlen;
+  /* Sized so the longest line CANNOT truncate, which -Wformat-truncation
+     objected to at 512 and was right to: the account is up to WHO_LEN and
+     the rest of the line is about sixty characters.  A truncated log line
+     naming the wrong account would be worse than no line at all.         */
+  char msg[WHO_LEN + 128];
+
+  /* 20 Aug 26 Windows port - THE PEER ADDRESS IS KEPT NOW RATHER THAN
+     DISCARDED.  It used to be accept(..., NULL, NULL); the remote port is
+     what identifies this connection's row in the Windows TCP table.       */
+  addrlen = sizeof(peer);
+  if ((conn = accept(api_listener, (struct sockaddr*)&peer, &addrlen)) < 0)
+    return; /* EINTR, or a client that gave up between select and accept */
+
+  /* 20 Aug 26 Windows port - WHO IS AT THE OTHER END.  Binding to 127.0.0.1
+     is not the same as authenticating the peer, and the difference stopped
+     being theoretical when RDPACCOUNT was built: "anyone who can be local is
+     an administrator" was true by construction until an account existed that
+     may sign in to Windows without being one.
+
+     21 Aug 26 Windows port - RDPACCOUNT IS GONE AND THIS STILL STANDS.  That
+     keyword was the demonstration, not the reason.  "Local" is not a claim
+     about identity even when every local account IS an administrator: the port
+     is reachable by any process on the machine, including one running as a
+     service or a scheduled task under an account that never signs in
+     anywhere.  ssh -L makes it reachable from another machine as well, and
+     win32peer.h records that such a client identifies as sshd.
+
+     LOG ONLY - owner's decision, 20 Aug 2026.  Nothing is refused here.  The
+     mechanism is what the three candidate policies in section 8 all need
+     first, and the log is what says whether enforcement would break anything
+     before it is turned on.  Note an ssh-forwarded client identifies SSHD,
+     which is the ordinary case under posture B; win32peer.h has why.
+
+     FIRST, AND BEFORE ANYTHING THAT CAN FAIL SLOWLY: the peer may exit and
+     its port be reused, so every instruction between accept() and here
+     widens the window (win32peer.h, TOCTOU).                              */
+  addrlen = sizeof(me);
+  if (getsockname(conn, (struct sockaddr*)&me, &addrlen) == 0) {
+    unsigned long peer_pid;
+    char who[WHO_LEN];
+
+    peer_pid = win32_peer_pid(ntohs(me.sin_port), ntohs(peer.sin_port));
+    if (peer_pid == 0) {
+      snprintf(msg, sizeof(msg),
+               "API connection from %s:%d - peer process not identified",
+               inet_ntoa(peer.sin_addr), (int)ntohs(peer.sin_port));
+    } else if (win32_pid_user(peer_pid, who, sizeof(who))) {
+      snprintf(msg, sizeof(msg), "API connection from %s:%d - pid %lu, %s",
+               inet_ntoa(peer.sin_addr), (int)ntohs(peer.sin_port), peer_pid,
+               who);
+    } else {
+      /* A pid with no name is worth logging as it stands.  It means the
+         process went between the two calls, or that LocalSystem could not
+         open it - and the two are worth telling apart from the log alone. */
+      snprintf(msg, sizeof(msg),
+               "API connection from %s:%d - pid %lu, owner unknown",
+               inet_ntoa(peer.sin_addr), (int)ntohs(peer.sin_port), peer_pid);
+    }
+    log_message(msg);
+  }
+
+  /* sd lives beside this daemon, not under <sysdir>/bin, which holds pcode -
+     the same correction check_lost_users() carries. */
+  if (!exe_directory(bindir, sizeof(bindir))) {
+    log_message("API connection refused: cannot locate the SD program directory");
+    close(conn);
+    return;
+  }
+
+  if (snprintf(sdpath, sizeof(sdpath), "%s/sd", bindir) >= (int)sizeof(sdpath)) {
+    log_message("API connection refused: overflowed path/filename buffer");
+    close(conn);
+    return;
+  }
+
+  if ((pid = fork()) < 0) {
+    log_message("API connection refused: fork failed");
+    close(conn);
+    return;
+  }
+
+  if (pid == 0) {
+    /* Child.  The listening socket must not survive into the session, or a
+       dead sdwind would leave the port held open by whatever is still
+       running. */
+    close(api_listener);
+    if ((dup2(conn, 0) < 0) || (dup2(conn, 1) < 0))
+      _exit(126);
+    if (conn > 1)
+      close(conn);
+    execl(sdpath, "sd", "-n", "-q", (char*)NULL);
+    _exit(127); /* Only reached if exec failed */
+  }
+
+  /* Parent.  Close our copy, or the client never sees the session end. */
+  close(conn);
+}
+
+/* ======================================================================
+   Signal handler                                                         */
+
+void signal_handler(signum) int signum;
+{
+  switch (signum) {
+    case SIGTERM:
+      signal(SIGTERM, SIG_IGN);
+      terminate = TRUE;
+      break;
+  }
+}
+
+/* ======================================================================
+   trim_errlog()  -  Discard the oldest half of the error log
+
+   20 Aug 26 Windows port.  THE SD SIDE HAS ALWAYS DONE THIS AND THIS PROCESS
+   NEVER HAS - k_error.c:569 trims when the file reaches ERRLOG, sdwind's own
+   log_message() only ever appended.  It did not show, because until today
+   this program logged at startup and on failure and nowhere else, so the file
+   it wrote to was capped by whichever SD session next logged anything.  That
+   is an accident, not a cap: on a machine used only through the API, no SD
+   session need ever call log_message() at all.
+
+   Identifying the peer of every accepted connection turns this program into a
+   PER-CONNECTION writer, which is what makes the gap matter: config.c:214
+   promises ERRLOG kilobytes, config.c:401 refuses to honour anything under
+   10kb "for file trim to work in log_message()", and the shipped sd.conf asks
+   for 50 - about 450 connections' worth.
+
+   The algorithm is k_error.c's, in POSIX calls rather than SD's file layer,
+   WITH ONE GUARD ADDED.  That one assumes a newline within the first
+   BUFF_SIZE bytes read - "there must be one" - and dereferences the memchr
+   result unconditionally; a log holding one long line would take the daemon
+   down.  Here a missing newline abandons the trim and leaves the file alone,
+   which loses nothing: the next line still appends and the next trim tries
+   again.  Not raised upstream - the file is trimmed by the SD side there and
+   sdlnxd never writes often enough to reach the case.
+
+   IT REMOVES limit/2 BYTES PER CALL, NOT HALF THE FILE, and the name invites
+   the wrong reading.  Growing one line at a time - which is the only way this
+   file grows - it settles between limit/2 and limit, so ERRLOG is honoured.
+   A file ALREADY far over the limit comes down slowly, one half-limit per
+   message: 66000 bytes against a 10240 limit loses 5120 and no more.  That
+   is k_error.c's behaviour and is matched deliberately rather than improved,
+   so the two writers to one file cannot disagree about what it means.
+
+   Caller holds ERRLOG_SEM.  The descriptor must be O_BINARY, or the runtime
+   rewrites what is copied and dst loses track (k_error.c says the same).   */
+
+static void trim_errlog(int errlog, int limit) {
+  char buff[4096];
+  char* p;
+  char* nl;
+  int bytes;
+  int src;
+  int dst;
+
+  if (lseek(errlog, 0, SEEK_END) < limit)
+    return;
+
+  src = limit / 2; /* Move from here... */
+  dst = 0;         /* ...to here */
+
+  lseek(errlog, src, SEEK_SET);
+  bytes = read(errlog, buff, sizeof(buff));
+  if (bytes <= 0)
+    return;
+  src += bytes;
+
+  /* Start at a record boundary, or the log opens mid-line. */
+  nl = (char*)memchr(buff, '\n', bytes);
+  if (nl == NULL)
+    return; /* No boundary to start from - leave the file as it is */
+  p = nl + 1;
+  bytes -= (int)(p - buff);
+
+  while (bytes > 0) {
+    lseek(errlog, dst, SEEK_SET);
+    dst += write(errlog, p, bytes);
+
+    lseek(errlog, src, SEEK_SET);
+    bytes = read(errlog, buff, sizeof(buff));
+    if (bytes <= 0)
+      break;
+    src += bytes;
+    p = buff;
+  }
+
+  if (ftruncate(errlog, dst) != 0)
+    return; /* Nothing useful to do about it, and nothing lost by carrying on */
+}
+
+/* ======================================================================
+   log_message()  -  Add message to error log                             */
+
+void log_message(char* msg) {
+  int errlog;
+  time_t timenow;
+  struct tm* ltime;
+  int bytes;
+#define BUFF_SIZE 4096
+  char buff[BUFF_SIZE];
+  static char* month_names[12] = {
+      "January", "February", "March",     "April",   "May",      "June",
+      "July",    "August",   "September", "October", "November", "December"};
+
+  if (sysseg->errlog) {
+    StartExclusive(ERRLOG_SEM, 71);
+
+    sprintf(buff, "%s%cerrlog", sysseg->sysdir, DS);
+    errlog = open(buff, O_RDWR | O_CREAT | O_BINARY, 0777);
+
+    /* Modified by Composer AI - 2026/06/10.
+       If the open() failed, "bytes" was used uninitialized and write()/
+       close() were called with a negative file descriptor. Move the
+       write and close inside the successful-open branch. */
+    /* if (errlog >= 0) {
+      lseek(errlog, 0, SEEK_END);
+
+      timenow = time(NULL);
+      ltime = localtime(&timenow);
+
+      bytes = sprintf(buff, "%02d %.3s %02d %02d:%02d:%02d [sdlnxd]:%s   %s%s",
+                      ltime->tm_mday, month_names[ltime->tm_mon],
+                      ltime->tm_year % 100, ltime->tm_hour, ltime->tm_min,
+                      ltime->tm_sec, Newline, msg, Newline);
+    }
+
+    write(errlog, buff, bytes);
+
+    close(errlog); */
+    if (errlog >= 0) {
+      /* 20 Aug 26 Windows port - trim BEFORE appending, the same order and
+         the same threshold as k_error.c:569.  See trim_errlog(). */
+      trim_errlog(errlog, sysseg->errlog);
+
+      lseek(errlog, 0, SEEK_END);
+
+      timenow = time(NULL);
+      ltime = localtime(&timenow);
+
+      bytes = sprintf(buff,
+                      "%02d %.3s %02d %02d:%02d:%02d [" SDWIND_NAME "]:%s   %s%s",
+                      ltime->tm_mday, month_names[ltime->tm_mon],
+                      ltime->tm_year % 100, ltime->tm_hour, ltime->tm_min,
+                      ltime->tm_sec, Newline, msg, Newline);
+
+      write(errlog, buff, bytes);
+
+      close(errlog);
+    }
+    /* -------------------- */
+
+    EndExclusive(ERRLOG_SEM);
+  }
+}
+
+/* END-CODE */

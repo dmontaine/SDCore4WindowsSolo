@@ -1,0 +1,436 @@
+# test-stripcomments-units.ps1 - drive gplbld/strip-comments.ps1, the comment
+# stripper shared by assert-current.ps1 and test-retired-wording-units.ps1.
+#
+# 02 Sep 26 Windows port - PRE_RELEASE_FIXES 143.
+#
+# WHY THIS EXISTS SEPARATELY FROM THE WORDING LINT.  The stripper used to live
+# inside test-retired-wording-units.ps1, where its only witness was that lint's
+# own assertions - so it was tested for "does the lint still pass", never for
+# what it does to a line.  assert-current.ps1 now reads the same functions and
+# fails in the OPPOSITE direction (an over-strip there hides a Source line and
+# lets a stale tree report CURRENT), so the stripper needs tests of its own.
+#
+# INSTRUMENT RULES (CLAUDE.md):
+#   - it ECHOES the resolved paths and the real sd.iss line it reasons about;
+#   - it REFUSES the null case out loud - a fixture that produced no lines, or
+#     an sd.iss that cannot be read, is a FAIL rather than a quiet pass;
+#   - the 143 case is proved RED BEFORE GREEN against the REAL sd.iss: the
+#     unstripped text must match, and the stripped text must not.  A test that
+#     only checked "stripped does not match" would pass just as well if the
+#     stripper deleted the whole file.
+#
+# Unelevated, no SD, no install, no network, no run token.  It writes one
+# fixture into the system temp directory and deletes it.
+
+[CmdletBinding()]
+param()
+
+$ErrorActionPreference = 'Continue'
+
+$gplbld = ($PSScriptRoot -replace '\\', '/')
+Write-Host "test-stripcomments-units: gplbld $gplbld"
+
+. (Join-Path $PSScriptRoot 'strip-comments.ps1')
+
+$script:pass = 0
+$script:fail = 0
+function Check($label, $ok, $detail) {
+    if ($ok) { $script:pass++; Write-Host ("  [PASS] " + $label) }
+    else {
+        $script:fail++
+        Write-Host ("  [FAIL] " + $label) -ForegroundColor Red
+        if ($detail) { Write-Host ("         " + $detail) -ForegroundColor Red }
+    }
+}
+# 19 Sep 26 - A SECTION THAT RAN NO CHECKS USED TO SCORE AS A CLEAN RUN, AND
+# THIS FILE'S OWN HEADER FORBIDS THAT.  RELEASE_1.1 69.  Adding the basic kind,
+# the first run of section 4b threw on parameter binding - Get-StrippedText
+# still carried the two-value ValidateSet - so every Check in it was skipped,
+# and the script printed "PASSED - 31 of 31" with the error text on the screen
+# above it.  $ErrorActionPreference is 'Continue' here on purpose, so a
+# non-terminating error inside a section is not going to end the run; what was
+# missing is anybody ASKING whether the section did anything.
+#
+# THE FLOOR IS COUNTED, NOT WRITTEN DOWN.  A hard-coded "at least N checks"
+# rots the moment a row is added or removed; each section simply has to have
+# moved the tally.
+$script:sectionName  = ''
+$script:sectionStart = 0
+$script:emptySections = New-Object System.Collections.ArrayList
+function Close-Section {
+    if ($script:sectionName -ne '' -and ($script:pass + $script:fail) -eq $script:sectionStart) {
+        [void]$script:emptySections.Add($script:sectionName)
+    }
+}
+function Section($m) {
+    Close-Section
+    $script:sectionName  = $m
+    $script:sectionStart = $script:pass + $script:fail
+    Write-Host ''; Write-Host ("=== " + $m + " ===")
+}
+
+# --------------------------------------------------------------------------
+Section '0. dot-sourcing must not impose StrictMode on the caller'
+# The suite-only.ps1 trap: a dot-sourced file's file-scope strict mode binds the
+# CALLER.  This scope is deliberately lax, so reading an undefined variable must
+# still be legal here after the dot-source above.
+$leaked = $false
+try { $null = $NoSuchVariableAnywhere } catch { $leaked = $true }
+Check "strict mode did NOT leak into this scope: $leaked" (-not $leaked) `
+      'strip-comments.ps1 has set strict mode at file scope and bound its callers'
+
+Check 'Get-StrippedLines is defined' `
+      ($null -ne (Get-Command Get-StrippedLines -ErrorAction SilentlyContinue)) $null
+Check 'Get-StrippedText is defined' `
+      ($null -ne (Get-Command Get-StrippedText -ErrorAction SilentlyContinue)) $null
+
+# --------------------------------------------------------------------------
+Section '1. THE 143 CASE, RED BEFORE GREEN, ON THE REAL sd.iss'
+# assert-current's rule: a quote or a slash before the name is evidence of a
+# ship line.  sd.iss:4577 quotes the rejected spelling inside the paragraph
+# explaining that the spelling is wrong, which is what re-tripped it.
+$issPath = Join-Path $PSScriptRoot 'sd.iss'
+$name    = 'probe-taskdialog.iss'
+$shipPat = "[""'\\/]" + [regex]::Escape($name)
+
+if (-not (Test-Path -LiteralPath $issPath)) {
+    Check 'sd.iss is readable' $false "not found: $issPath"
+} else {
+    $raw      = Get-Content -LiteralPath $issPath -Raw
+    $stripped = Get-StrippedText -Path $issPath -Kind 'iss'
+
+    Write-Host ("  sd.iss raw {0} chars, stripped {1} chars" -f $raw.Length, $stripped.Length)
+
+    # THE NULL CASE.  A stripper that emptied the file would pass the green
+    # check below for the wrong reason.
+    #
+    # THE FLOOR IS MEASURED, NOT GUESSED, AND THE FIRST GUESS WAS WRONG.  It was
+    # written as 40% and failed at 28%, which looked like over-stripping and was
+    # not: counted on 2 Sep 2026, sd.iss is ~73% comment CHARACTERS - 61,004 in
+    # leading-";" lines, ~105,652 in braced prose and ~30,683 in (* *) blocks,
+    # against 269,947 raw.  So 28% surviving is right.  The floor is kept loose
+    # and deliberately weak; section 2's canaries are the real control, because
+    # "how much survived" cannot tell shipped text from comment.
+    Check ("the strip left a substantial file (>= 15%): {0}%" -f [int](100 * $stripped.Length / [Math]::Max(1, $raw.Length))) `
+          ($stripped.Length -ge $raw.Length * 0.15) `
+          'the stripper is eating shipped text, not just comments'
+
+    $rawHits      = @([regex]::Matches($raw,      $shipPat))
+    $strippedHits = @([regex]::Matches($stripped, $shipPat))
+
+    Check ("RED: the UNstripped sd.iss matches the ship pattern ({0} hit(s))" -f $rawHits.Count) `
+          ($rawHits.Count -ge 1) `
+          'the 143 case is no longer present, so this test proves nothing - check sd.iss:4577'
+    Check ("GREEN: the stripped sd.iss does NOT ({0} hit(s))" -f $strippedHits.Count) `
+          ($strippedHits.Count -eq 0) `
+          'the comment quoting "gplbld/probe-taskdialog.iss" is still in the scanned text'
+}
+
+# --------------------------------------------------------------------------
+Section '2. THE OVER-STRIP CONTROL: real ship lines must survive'
+# assert-current fails expensively if the strip eats a Source line, so the two
+# canaries it uses are asserted here as well - one per file and per syntax.
+$stageP = Join-Path $PSScriptRoot 'stage.py'
+if (Test-Path -LiteralPath $issPath) {
+    $s = Get-StrippedText -Path $issPath -Kind 'iss'
+    $p = "[""'\\/]" + [regex]::Escape('install-sdsys.ps1')
+    Check 'sd.iss still ships install-sdsys.ps1 after stripping' `
+          ($s -match $p) 'an sd.iss [Files] Source line was stripped away'
+}
+if (Test-Path -LiteralPath $stageP) {
+    $s = Get-StrippedText -Path $stageP -Kind 'hash'
+    $p = "[""'\\/]" + [regex]::Escape('deny-logon.ps1')
+    Check 'stage.py still ships deny-logon.ps1 after stripping' `
+          ($s -match $p) 'a stage.py ship tuple was stripped away'
+} else {
+    Check 'stage.py is readable' $false "not found: $stageP"
+}
+
+# --------------------------------------------------------------------------
+Section '3. the [Files] semicolon trap'
+# Inno separates [Files] parameters with ";".  A mid-line ";" rule would eat
+# every Source line in the installer, so ";" counts only at the start of a line.
+$fx = Join-Path ([System.IO.Path]::GetTempPath()) ('stripfx-' + [Guid]::NewGuid().ToString('N') + '.iss')
+$fixture = @(
+    '[Files]',
+    'Source: "{#Stage}\a\adopt-account.ps1"; DestDir: "{app}"; Flags: ignoreversion',
+    '; a whole-line comment naming "gplbld/secret-one.ps1"',
+    'Source: "{#Stage}\b\keep-me.ps1"; DestDir: "{app}"   // trailing naming "x/secret-two.ps1"',
+    '[Code]',
+    'procedure P;  { prose naming "gplbld/secret-three.ps1" }',
+    'begin',
+    '  S := ExpandConstant(''{app}'') + ''\usr\bin'';   { {app} is a constant, not prose }',
+    '  T := ''{#AppName}'';',
+    '(* a paren-star block naming',
+    '   "gplbld/secret-four.ps1"',
+    ' *)',
+    '  U := ''kept-four'';',
+    '  { an unterminated brace opens here and names "gplbld/secret-five.ps1"',
+    '    and closes on this line }  V := ''kept-five'';',
+    # 04 Sep 26 - PRE_RELEASE_FIXES 70.  A COMMENT LINE THAT STARTS WITH A
+    # BRACKETED WORD IS NOT A SECTION HEADER.  The [Code] test matched a PREFIX,
+    # so a wrapped sentence beginning "[locked] on everything but a verb" left
+    # code mode and turned Pascal stripping OFF for the whole rest of the file.
+    # The symptom surfaced 1,300 lines away, in another script's canary.
+    #
+    # ***THE BRACKETED WORD HAS TO START THE LINE, WHICH THE FIRST VERSION OF
+    # THIS FIXTURE GOT WRONG AND THE MUTANT CONTROL CAUGHT.***  Written first as
+    # "  { [locked] ... }" - one line, brace first - which cannot match
+    # "^\s*\[" at all, so both rows below passed against the UNFIXED stripper
+    # and measured nothing.  The real case is a WRAPPED comment whose
+    # CONTINUATION line begins with the word, which is how sd.iss came to have
+    # one.  secret-ten proves the damage does not stop at that comment: with the
+    # prefix test, stripping stays off for every later line too.
+    '  { a wrapped prose comment; the line after this one begins with a word in',
+    '  [locked] brackets and is prose, naming "gplbld/secret-eight.ps1" }',
+    '  W := ''kept-eight'';',
+    '  { later prose, naming "gplbld/secret-ten.ps1" }',
+    '  X := ''kept-ten'';',
+    'end;',
+    '[Registry]',
+    'Root: HKLM; ValueData: "{ still-code-would-strip secret-nine }"'
+)
+Set-Content -LiteralPath $fx -Value $fixture -Encoding ASCII
+try {
+    $lines = @(Get-StrippedLines -Path $fx -Kind 'iss')
+    $text  = Get-StrippedText  -Path $fx -Kind 'iss'
+
+    Check ("the fixture produced lines: {0}" -f $lines.Count) ($lines.Count -eq $fixture.Count) `
+          ("expected $($fixture.Count)")
+
+    Check 'a [Files] Source line survives its mid-line semicolons' `
+          ($text -match [regex]::Escape('adopt-account.ps1')) `
+          'the ";" rule is matching mid-line and eating Source entries'
+    Check 'the second Source line survives too' `
+          ($text -match [regex]::Escape('keep-me.ps1')) $null
+
+    Check 'a whole-line ";" comment is stripped'      ($text -notmatch 'secret-one')   $null
+    Check 'a trailing "//" comment is stripped'       ($text -notmatch 'secret-two')   $null
+    Check 'a { } prose comment is stripped'           ($text -notmatch 'secret-three') $null
+    Check 'a (* *) block comment is stripped'         ($text -notmatch 'secret-four')  $null
+    Check 'a multi-line { } comment is stripped'      ($text -notmatch 'secret-five')  $null
+
+    Check 'the {app} constant is KEPT'                ($text -match [regex]::Escape('{app}'))      $null
+    Check 'the {#AppName} directive is KEPT'          ($text -match [regex]::Escape('{#AppName}')) $null
+    Check 'code after a closed (* *) block is kept'   ($text -match 'kept-four') $null
+    Check 'code after a closed { } comment is kept'   ($text -match 'kept-five') $null
+
+    # PRE_RELEASE_FIXES 70's pair.  Both halves, because either alone can be
+    # satisfied by a stripper that is simply wrong in the other direction.
+    Check 'a "[locked] ..." continuation line does NOT end [Code]' `
+          ($text -notmatch 'secret-eight') `
+          'the section test is matching a prefix, so prose beginning with a bracketed word switches Pascal stripping off'
+    Check 'code after that line is still kept'        ($text -match 'kept-eight') $null
+    Check 'and a LATER { } comment is still stripped' `
+          ($text -notmatch 'secret-ten') `
+          'stripping stayed off after the fake header - the damage is not local to that comment'
+    Check 'code after the later comment is kept'      ($text -match 'kept-ten') $null
+    Check 'a REAL [Registry] line DOES end [Code], so braces there are left alone' `
+          ($text -match 'secret-nine') `
+          'the anchored test is too tight and a genuine section header no longer registers'
+} finally {
+    Remove-Item -LiteralPath $fx -Force -ErrorAction SilentlyContinue
+}
+
+# --------------------------------------------------------------------------
+Section '4. the hash kind, shared by .ps1 and .py'
+$fx2 = Join-Path ([System.IO.Path]::GetTempPath()) ('stripfx-' + [Guid]::NewGuid().ToString('N') + '.py')
+Set-Content -LiteralPath $fx2 -Value @(
+    "SHIPPED = ('deny-logon.ps1', 'x')   # names 'gplbld/secret-six.ps1'",
+    '# a whole-line remark naming "gplbld/secret-seven.ps1"',
+    "KEEP = 'tail-value'"
+) -Encoding ASCII
+try {
+    $t2 = Get-StrippedText -Path $fx2 -Kind 'hash'
+    Check 'a tuple before a trailing # survives'  ($t2 -match [regex]::Escape('deny-logon.ps1')) $null
+    Check 'the trailing # remark is stripped'     ($t2 -notmatch 'secret-six')   $null
+    Check 'a whole-line # remark is stripped'     ($t2 -notmatch 'secret-seven') $null
+    Check 'a later plain line survives'           ($t2 -match 'tail-value')      $null
+} finally {
+    Remove-Item -LiteralPath $fx2 -Force -ErrorAction SilentlyContinue
+}
+
+# --------------------------------------------------------------------------
+# 20 Sep 26 - RELEASE_1.1 81.  THE ROW THAT MATTERS HERE IS "a # comment that
+# MENTIONS <#", because it is the one a naive fix gets wrong and it is the one
+# this tree actually writes: strip-comments.ps1's own header, and
+# test-logtoreaim-units.ps1's table, both discuss "<# #>" inside ordinary "#"
+# comments.  A stripper that ran a block pass BEFORE the hash pass would open a
+# block on that line and swallow every line down to the next "#>" ANYWHERE in
+# the file - a silent over-strip, which for assert-current's caller is the
+# expensive direction its own header names.  Every other row below passes under
+# that broken ordering; only this one fails.
+Section '4a. the hashblock kind, for .ps1'
+$fx4 = Join-Path ([System.IO.Path]::GetTempPath()) ('stripfx-' + [Guid]::NewGuid().ToString('N') + '.ps1')
+Set-Content -LiteralPath $fx4 -Value @(
+    '<#',
+    '.SYNOPSIS',
+    '    help prose naming secret-sixteen',
+    '.DESCRIPTION',
+    '    more prose naming secret-seventeen, with no hash of its own',
+    '#>',
+    "$" + "keep1 = 'kept-sixteen'",
+    "$" + "keep2 = 'kept-seventeen'   # trailing remark naming secret-eighteen",
+    '# a whole-line remark that MENTIONS <# and does not close it',
+    "$" + "keep3 = 'kept-eighteen'",
+    "$" + "keep4 = 'kept-nineteen' <# an inline block naming secret-nineteen #> + 'kept-twenty'",
+    '<# an unterminated block opens here, naming secret-twenty'
+) -Encoding ASCII
+try {
+    $t4 = Get-StrippedText -Path $fx4 -Kind 'hashblock'
+    Check 'a <# #> help block is stripped'            ($t4 -notmatch 'secret-sixteen')    `
+          'comment-based-help prose is reaching the caller as live script text'
+    Check 'a block line with no # of its own is stripped too' ($t4 -notmatch 'secret-seventeen') `
+          'only the lines carrying a # were being cut, which is the whole defect'
+    Check 'code after the closing #> survives'        ($t4 -match 'kept-sixteen')         `
+          'the block state never cleared, so the rest of the file was eaten'
+    Check 'a trailing # remark is still stripped'     ($t4 -notmatch 'secret-eighteen')   `
+          'the block rule displaced the plain hash rule instead of joining it'
+    Check 'code before that trailing # survives'      ($t4 -match 'kept-seventeen')       $null
+
+    Check 'a # comment MENTIONING <# does NOT open a block' ($t4 -match 'kept-eighteen')  `
+          ('THE ORDERING ROW: a block pass run before the hash pass opens a block on a ' +
+           'line comment that merely discusses one, and swallows the file from there')
+
+    Check 'an inline <# #> span is removed'           ($t4 -notmatch 'secret-nineteen')   $null
+    Check 'code BEFORE an inline span survives'       ($t4 -match 'kept-nineteen')        $null
+    Check 'code AFTER an inline span survives'        ($t4 -match 'kept-twenty')          `
+          'the machine stopped at the span instead of resuming after it'
+    Check 'an unterminated block runs to end of file' ($t4 -notmatch 'secret-twenty')     $null
+} finally {
+    Remove-Item -LiteralPath $fx4 -Force -ErrorAction SilentlyContinue
+}
+
+# 20 Sep 26 - RELEASE_1.1 81's "Not done, and named" pair, closed as tests
+# rather than as a behaviour change - the header above Remove-HashComment
+# already calls the string-literal case "bounded by the caller's own
+# controls", the same standing policy 'hash' and 'basic' carry for their own
+# string caveats.  These two rows DOCUMENT that known shape rather than
+# fixing it, so a future edit that quietly changed it would be caught here
+# instead of discovered downstream.  A SEPARATE fixture, not appended to
+# $fx4 above: $fx4's last line is deliberately unterminated to prove a block
+# runs to end of file, so anything appended after it would be swallowed by
+# that same block and would prove nothing about the case below it.
+$fx4b = Join-Path ([System.IO.Path]::GetTempPath()) ('stripfx-' + [Guid]::NewGuid().ToString('N') + '.ps1')
+Set-Content -LiteralPath $fx4b -Value @(
+    "$" + "strLit1 = 'kept-twentyone <# secret-twentytwo'",
+    "$" + "strLit2 = 'secret-twentythree'  #> kept-twentyfour",
+    "$" + "kept3 = 'kept-twentyfive'",
+    "$" + "hereStr = @'",
+    'line one of a here-string, kept-twentysix',
+    'a line with <# secret-twentyseven #> on it, kept-twentyeight',
+    "'@",
+    "$" + "kept4 = 'kept-twentynine'"
+) -Encoding ASCII
+try {
+    $t4b = Get-StrippedText -Path $fx4b -Kind 'hashblock'
+    # A "<#" inside an ordinary string literal opens a block exactly as a real
+    # one would, because Remove-HashComment has no idea of PowerShell string
+    # syntax - it is a left-to-right scan over "#" alone.  Kept-before, then
+    # everything through the first later "#>" is treated as in-block, then
+    # kept-after on the line that closed it.
+    Check 'text before a string-literal "<#" survives'    ($t4b -match 'kept-twentyone')     $null
+    Check 'a "<#" inside a string literal DOES open a block' ($t4b -notmatch 'secret-twentytwo') `
+          'RELEASE_1.1 81''s documented string caveat has changed shape - this must stay a known limitation, not a silent regression'
+    Check 'in-block content up to the accidental closer is eaten' ($t4b -notmatch 'secret-twentythree') $null
+    Check 'text after the accidental closer survives'     ($t4b -match 'kept-twentyfour')     `
+          'the accidental block never closed, so it ran on eating real code'
+    Check 'ordinary code after the pair is unaffected'    ($t4b -match 'kept-twentyfive')      $null
+
+    # THE OTHER NAMED GAP: a "<# ... #>" span that opens and closes on ONE
+    # LINE, where that line sits INSIDE what is, to a real PowerShell parser,
+    # a here-string (@' ... '@).  Remove-HashComment is exactly as blind to
+    # the here-string's boundaries as it is to a plain string literal above -
+    # it never sees "@'" or "'@" as anything special - so the inline span is
+    # stripped exactly as PRE_RELEASE 131's ordinary inline-block row already
+    # proves for code, and this row is what was missing: the SAME mechanic,
+    # exercised where the surrounding text is here-string content rather than
+    # live statements either side of it.
+    Check 'text before the here-string is untouched'      ($t4b -match 'kept-twentysix')      $null
+    Check 'a same-line "<# #>" span inside a here-string is stripped' ($t4b -notmatch 'secret-twentyseven') `
+          'the inline-span rule does not reach a line that happens to sit inside a here-string'
+    Check 'text after that span, same line, survives'     ($t4b -match 'kept-twentyeight')     `
+          'the machine stopped at the span instead of resuming after it, inside a here-string too'
+    Check 'code after the here-string closes is unaffected' ($t4b -match 'kept-twentynine')    $null
+} finally {
+    Remove-Item -LiteralPath $fx4b -Force -ErrorAction SilentlyContinue
+}
+
+# ***THE REFUSAL, AND IT IS THE HALF THAT KEEPS THE FIX FROM ROTTING.***  'hash'
+# is the obvious name and a later caller with a .ps1 in hand would reach for it;
+# that is exactly how the 655 leaked lines happened.  So the pair is refused at
+# the call site rather than answered wrongly.  Driven on a path that does not
+# exist, because the refusal must come BEFORE the Test-Path early return - a
+# caller that got the Kind wrong should hear about the Kind, not receive an
+# empty result it will read as "no hits".
+$ghost = Join-Path ([System.IO.Path]::GetTempPath()) 'no-such-file-xyz.ps1'
+$refused = $false
+try { $null = Get-StrippedLines -Path $ghost -Kind 'hash' } catch { $refused = $true }
+Check "Kind 'hash' on a .ps1 is REFUSED, even for a missing file" $refused `
+      'a caller can still strip a .ps1 with the kind that cannot see its block comments'
+$stillOk = $true
+try { $null = Get-StrippedLines -Path $stageP -Kind 'hash' } catch { $stillOk = $false }
+Check "Kind 'hash' on a .py is still accepted" $stillOk `
+      'the refusal is too wide and has broken assert-current, whose stage.py read is correct'
+
+# --------------------------------------------------------------------------
+# 19 Sep 26 - RELEASE_1.1 69.  THE ROW THAT MATTERS HERE IS THE TRAILING ";*",
+# because this tree echoes a message's own text after the call that displays it
+# ("display sysmsg(10170) ;* Every registered account ..."), and an unstripped
+# one would read to the wording lint as a SECOND COPY of the shipped message.
+# A stripper that only handled whole-line "*" would pass every other row below.
+Section '4b. the basic kind, for sdsys/gpl.bp'
+$fx3 = Join-Path ([System.IO.Path]::GetTempPath()) ('stripfx-' + [Guid]::NewGuid().ToString('N') + '.bas')
+Set-Content -LiteralPath $fx3 -Value @(
+    '* a whole-line remark naming secret-eleven',
+    '   * an INDENTED whole-line remark naming secret-twelve',
+    '! the bang form, naming secret-thirteen',
+    '!!          case token.string = ''secret-fourteen''',
+    "   crt 'kept-eleven'",
+    '   display sysmsg(10170) ;* echoing secret-fifteen after the call',
+    "   crt 'kept-twelve'"
+) -Encoding ASCII
+try {
+    $t3 = Get-StrippedText -Path $fx3 -Kind 'basic'
+    Check 'a whole-line * remark is stripped'          ($t3 -notmatch 'secret-eleven')   $null
+    Check 'an INDENTED whole-line * remark is stripped' ($t3 -notmatch 'secret-twelve')  `
+          'the test is anchored at column 1, and this tree indents comments inside subroutines'
+    Check 'a whole-line ! remark is stripped'          ($t3 -notmatch 'secret-thirteen') $null
+    Check 'the "!!" commented-out-code form is stripped' ($t3 -notmatch 'secret-fourteen') $null
+    Check 'a trailing ;* remark is stripped'           ($t3 -notmatch 'secret-fifteen')  `
+          'an echoed sysmsg text would read as a second copy of the shipped message'
+    Check 'the code before a trailing ;* survives'     ($t3 -match 'sysmsg\(10170\)')    `
+          'the ;* rule is eating the statement as well as the remark'
+    Check 'a shipped crt line survives'                ($t3 -match 'kept-eleven')        $null
+    Check 'a shipped crt line AFTER a stripped one survives' ($t3 -match 'kept-twelve')  `
+          'stripping did not stop at the end of the line it started on'
+} finally {
+    Remove-Item -LiteralPath $fx3 -Force -ErrorAction SilentlyContinue
+}
+
+# --------------------------------------------------------------------------
+Section '5. refusals and edges'
+$missing = @(Get-StrippedLines -Path (Join-Path ([System.IO.Path]::GetTempPath()) 'no-such-file-xyz.iss') -Kind 'iss')
+Check ("a missing file yields no lines rather than throwing: {0}" -f $missing.Count) ($missing.Count -eq 0) $null
+
+$threw = $false
+try { $null = Get-StrippedLines -Path $issPath -Kind 'nonsense' } catch { $threw = $true }
+Check 'an unknown Kind is refused rather than silently treated as one' $threw `
+      'ValidateSet is missing, so a typo would scan with the wrong rules'
+
+# --------------------------------------------------------------------------
+Section '6. the null case: every section above ran at least one check'
+Check ("no section was skipped ({0} empty)" -f $script:emptySections.Count) `
+      ($script:emptySections.Count -eq 0) `
+      ('a section produced no [PASS]/[FAIL] rows at all, so its subject was never measured: ' +
+       ($script:emptySections -join '; '))
+
+# --------------------------------------------------------------------------
+Write-Host ''
+if ($script:fail -eq 0) {
+    Write-Host ("test-stripcomments-units: PASSED - {0} of {0} checks passed." -f $script:pass)
+    exit 0
+} else {
+    Write-Host ("test-stripcomments-units: FAILED - {0} of {1} checks failed." -f $script:fail, ($script:pass + $script:fail)) -ForegroundColor Red
+    exit 1
+}
