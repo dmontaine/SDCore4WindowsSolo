@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 25 Sep 26 SD Core Solo - GetHomePath(), GetDefaultSysdir()
  * 31 Dec 23 SD launch - prior history suppressed
  * END-HISTORY
  * 
@@ -178,6 +179,8 @@ OSFILE dio_open(char * fn, int mode);
 
 /* INIPATH.C */
 bool GetConfigPath(char * inipath);
+bool GetHomePath(char * buff, int buff_len);
+bool GetDefaultSysdir(char * buff, int buff_len);
 
 /* KERNEL.C */
 int16_t assign_user_no(int16_t user_table_index);

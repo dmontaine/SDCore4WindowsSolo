@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 25 Sep 26 SD Core Solo - SDSYS, USRDIR and GRPDIR default to folders in
+ *           the installation's own folder (inipath.c GetHomePath)
  * 14 Sep 26 Windows port - the global catalogue check names gcat/$cproc
  *           (RELEASE_1.1 5 stage 3a)
  * 31 Dec 23 SD launch - prior history suppressed
@@ -75,8 +77,9 @@ Private bool rangecheck(char* param,
 /* ====================================================================== */
 
 struct CONFIG* read_config(char* errmsg) {
-  FILE* fu;
+  FILE* fu = NULL;  /* 25 Sep 26 - the home check can leave before fopen() */
   char path[MAX_PATHNAME_LEN + 1];
+  char home[MAX_PATHNAME_LEN + 1];
   char rec[200 + 1];
   char section[32 + 1] = "";
   char* p;
@@ -112,8 +115,14 @@ struct CONFIG* read_config(char* errmsg) {
     an operating system user; under the credential model it is not one, so
     the Linux location decides nothing.  See PROJECT_STATUS.md section 5.8.
     Drive letters and backslashes only became usable when sdrealpath() was
-    taught to accept them - see the note there.                            */
-  strncpy(pcfg.grpdir,"C:\\ProgramData\\SD\\group_accounts",MAX_PATHNAME_LEN+1);  /* GRPDIR: group accounts parent dir */
+    taught to accept them - see the note there.
+    25 Sep 26 SD Core Solo - and C:\ProgramData\SD is now the installation's
+    own folder, found at run time (inipath.c), so sd.conf holds no path.    */
+  if (!GetHomePath(home, sizeof(home))) {
+    sprintf(errmsg, "Cannot determine the SD Core Solo folder.");
+    goto exit_read_config;
+  }
+  snprintf(pcfg.grpdir, MAX_PATHNAME_LEN + 1, "%s\\group_accounts", home);  /* GRPDIR: group accounts parent dir */
   pcfg.grpsize = 1;               /* GRPSIZE:  Default group size */
   pcfg.intprec = 13;              /* INTPREC:  Precision for INT() etc */
   pcfg.lptrhigh = 66;             /* LPTRHIGH: Default printer lines */
@@ -139,7 +148,7 @@ struct CONFIG* read_config(char* errmsg) {
   pcfg.txchar = TRUE;         /* TXCHAR:   Enable ansi/oem translation */
 /* 20240219 mab create-account based on type (user / group / other) */
 /* 13 Aug 26 Windows port - see the note on grpdir above.                   */
-  strncpy(pcfg.usrdir,"C:\\ProgramData\\SD\\user_accounts",MAX_PATHNAME_LEN+1);  /* USRDIR: user accounts parent dir */
+  snprintf(pcfg.usrdir, MAX_PATHNAME_LEN + 1, "%s\\user_accounts", home);  /* USRDIR: user accounts parent dir */
   pcfg.yearbase = 1930;       /* YEARBASE: Two digit year base */
 
   /* Set any non-zero defaults for shared configuration parameters */
@@ -150,6 +159,12 @@ struct CONFIG* read_config(char* errmsg) {
   cfg->maxidlen = 63;
   cfg->fds_limit = SHRT_MAX;
   cfg->max_users = 1;
+
+  /* 25 Sep 26 SD Core Solo - SDSYS defaults to <home>\sdsys, so sd.conf need
+     not name it.  An SDSYS line still overrides; -f (CMD_FLASH) has already
+     set it from the command line and is left alone.                        */
+  if (!(command_options & CMD_FLASH))
+    snprintf(cfg->sysdir, sizeof(cfg->sysdir), "%s\\sdsys", home);
 
   fu = fopen(config_path, "r");
   if (fu == NULL) {

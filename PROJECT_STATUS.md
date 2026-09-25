@@ -49,22 +49,25 @@ or *"— PRE_RELEASE_FIXES.md"*; grep the number there.
 What it lists as owed is also an entry under OPEN TASKS — if the two disagree,
 OPEN TASKS wins.
 
-***HANDOFF 24 Sep 2026, end of session — SOLO 1 DONE (`7ef82a8`, HISTORY.md); no
-Solo code written yet. Next: SOLO 2.***
+***HANDOFF 25 Sep 2026 — SOLO 2's C and name/version half DONE (compiled,
+unit-run, not run as SD). Next: SOLO 2's `stage.py` half, then SOLO 8.***
 
 **Start here:**
-1. **SOLO 2** — paths, name, version. It touches the most files and every later task
-   builds on it. Its entry lists the sites.
+1. **SOLO 2, "Still owed here"** — `stage.py` to one tree with `dev\shm` and a
+   path-free `sd.conf`. Then the first real Solo tree can be laid out by hand and
+   `sd.exe` run in it, which is the witness the C half is still owed.
 2. **One owner decision is open** (SOLO 3): remote sessions may carry an
    administrator user's UNFILTERED token. Does not block SOLO 2.
 
 **State of this machine, measured at handoff:**
-- **No SD of any kind is installed.** `C:\ProgramData\SD`, `C:\Program Files\SD` and
-  the SD service are gone (not by this session). So `test-sysmsg-units.ps1` reports
-  NO TREE — expected; free tier otherwise 53 pass / 0 fail.
-- ***`cycle.ps1` STILL BUILDS AND INSTALLS THE MULTI-USER SD CORE*** (`sd.iss`,
-  `C:\Program Files\SD`, the service, SDSYS). **Do not run it expecting Solo** — it
-  would put the old product back. It becomes Solo's cycle in SOLO 2/8/9.
+- **No SD of any kind is installed.** So `test-sysmsg-units.ps1` reports NO TREE —
+  expected; free tier otherwise 53 pass / 0 fail (25 Sep, after the SOLO 2 change).
+- ***DO NOT RUN `cycle.ps1`.*** It still stages and installs the multi-user
+  layout (`sd.iss`, `C:\Program Files\SD`, the service, SDSYS), and since SOLO 2
+  that install should not start: `sd.exe` in `C:\Program Files\SD\usr\bin` would
+  look for `C:\Program Files\SD\sd.conf` and `...\SD\sdsys`, which that installer
+  does not create. *Read from the code, not run.* It becomes Solo's cycle in
+  SOLO 8/9.
 - The spike leftovers are removed; the five `probe-solo-*` files in `gplbld` are
   the working pattern for SOLO 3 and 8.
 
@@ -147,14 +150,45 @@ of it is built or measured yet**, and each names what would change it.
 
 ### SOLO 2 · relocatable paths, product name and version
 
-Everything under `%USERPROFILE%\SDCoreSolo` (ruling 1). The config location stops
-being compiled in (`sddefs.h:313-314`, and its duplicate in `sdclilib.c` — change
-both together, §5.8). The `ProgramData` / `Program Files` literals come out of the
-C (13 files), BASIC (6) and shipped scripts (~43; the 24 Sep count includes
-comments). Name and version: `revstamp.h` ×3 (`gplsrc`, `gpl.bp`, `sdclilib`),
-`sd.iss` `AppVer`, `sd --version` (`sd.c:554`). **Also:** Solo should refuse to
-install beside a multi-user SD Core — the two would share pipe, segment and
-program names ("one copy per computer" assumes it, nothing enforces it).
+Everything under `%USERPROFILE%\SDCoreSolo` (ruling 1). **Owner's layout choice,
+25 Sep 2026: the home is found from where the programs are, not written into any
+file** — programs and `msys-2.0.dll` in `<home>\usr\bin`, so the MSYS2 POSIX root
+`/` IS the home.
+
+**Done 25 Sep 2026, compiled and unit-run, NOT yet run as SD** (no Solo tree to
+run it in until the stage/installer half below):
+- `inipath.c` `GetHomePath()` (POSIX root via `cygwin_conv_path`) and
+  `GetDefaultSysdir()`; `GetConfigPath()` = `SD_CONFIG` else `<home>\sd.conf`.
+  `config.c` defaults `SDSYS`, `USRDIR`, `GRPDIR` to `<home>\sdsys`,
+  `\user_accounts`, `\group_accounts` (sd.conf lines still override); `sdtic.c`
+  the same for SDSYS. `SD_CONFIG_DEFAULT` removed from `sddefs.h`.
+- `sdclilib.c` (native, no MSYS2): `home_path()` = three components up from its
+  own `...\usr\bin\sd.exe`; SDSYS defaults to `<home>\sdsys`.
+- `S1.1-0` in the three `revstamp.h` (`gpl.bp`'s regenerated, `gen_includes.py
+  --check` in sync) and both `$release`; login banner and `sd --version` say SD
+  Core Solo; `edit` finds bundled editors at `@sdsys`'s parent `/usr/bin`.
+- **Measured** (scratch root, run from PowerShell): `GetHomePath`/`GetConfigPath`/
+  `GetDefaultSysdir` answer the tree's own folder, `SD_CONFIG` overrides, a short
+  buffer fails. **`/dev/shm` needs no fstab**: with no `etc\fstab`, `/dev/shm` =
+  `<home>\dev\shm`; `shm_open` works once that folder exists and fails without it
+  (the control). So the tree ships an empty `dev\shm`.
+
+**Still owed here:**
+- **`stage.py`**: one tree instead of `ProgramFiles`+`ProgramData`; ship
+  `dev\shm`, drop `FSTAB` and the `shm` data dir; `SD_CONF` loses `SDSYS`,
+  `DUMPDIR`, `USRDIR`, `GRPDIR` (all derived now). `PRODUCTION_SDSYS`: the
+  `accounts\sdsys` register record embeds an absolute path — the installer or
+  LOGIN must write it (it is the one path the layout cannot derive); SOLO 4
+  reshapes the register anyway.
+- `sdclilib` `home_path()` is compiled, not run — the first DLL client in a Solo
+  tree is its test.
+- `sd.iss` `AppVer` left at W1.1-0 deliberately: `sd.iss` is the multi-user
+  installer and SOLO 8 replaces it; `sd-solo.iss` takes `S1.1-0`.
+- BASIC: `createa:527,930` and `delete_user:300` still name `C:\ProgramData` —
+  both go with SOLO 4. Scripts: the ~140 `gplbld` hits are nearly all scripts
+  SOLO 4/8/9 retire; fix only the ones that survive, when they are touched.
+- Solo should refuse to install beside a multi-user SD Core (shared pipe and
+  program names; shm segments are now per-tree) — SOLO 8.
 
 ### SOLO 3 · everything runs as the user
 

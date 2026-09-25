@@ -32,7 +32,9 @@
  * so, delete this exception statement from your version.
  *
  * START-HISTORY:
- * 31 Dec 23 SD launch - prior history suppressed 
+ * 25 Sep 26 SD Core Solo - sd.conf and SDSYS found from this library's own
+ *           folder; no machine path compiled in (sysdir(), home_path())
+ * 31 Dec 23 SD launch - prior history suppressed
  * START-HISTORY (winSDclilib):
  * xxDec23 mab add more functions, at this build we now include:
  * SDCallx
@@ -1301,14 +1303,43 @@ exit_sdconnect:
    gplsrc/sddefs.h, which this toolchain deliberately does not include
    (PROJECT_STATUS.md 5.2) - change them in both places.
 
+   25 Sep 26 SD Core Solo - NO MACHINE PATH.  With SD_CONFIG unset the file is
+   sd.conf in the installation's own folder, and SDSYS defaults to its sdsys -
+   the same rule the server applies (gplsrc/inipath.c).  The server asks the
+   MSYS2 runtime for its POSIX root; this library has no such runtime, so it
+   takes the same folder from where it was loaded: it ships in <home>\usr\bin
+   beside sd.exe (sd_exe_path() below), so the home is two folders up.
+
    The answer is cached after the first successful read. */
 
 #define SD_CONFIG_ENV     "SD_CONFIG"
-#define SD_CONFIG_DEFAULT "C:\\ProgramData\\SD\\sd.conf"
+
+Private int sd_exe_path(char* buff, size_t buffsize);
+
+/* home_path()  -  <home>, from <home>\usr\bin\sd.exe.  FALSE if the library
+   is not in a folder two deep, which callers report rather than guess past. */
+
+Private int home_path(char* buff, size_t buffsize) {
+  int i;
+  char* p;
+
+  if (!sd_exe_path(buff, buffsize))
+    return FALSE;
+
+  for (i = 0; i < 3; i++) { /* \sd.exe, \bin, \usr */
+    p = strrchr(buff, '\\');
+    if ((p == NULL) || (p == buff))
+      return FALSE;
+    *p = '\0';
+  }
+
+  return TRUE;
+}
 
 Private char* sysdir(void) {
   static char sysdirpath[MAX_PATHNAME_LEN + 1] = "";
   char inipath[MAX_PATHNAME_LEN + 1];
+  char home[MAX_PATHNAME_LEN + 1];
   char section[50];
   char rec[200 + 1];
   FILE* fu;
@@ -1317,19 +1348,18 @@ Private char* sysdir(void) {
   if (sysdirpath[0] != '\0')
     return sysdirpath;
 
+  if (!home_path(home, sizeof(home))) {
+    snprintf(session[session_idx].sderror,
+             sizeof(session[session_idx].sderror),
+             "Cannot determine the SD Core Solo folder");
+    return NULL;
+  }
+
   p = getenv(SD_CONFIG_ENV);
   if ((p != NULL) && (*p != '\0')) {
     snprintf(inipath, sizeof(inipath), "%s", p);
   } else {
-    /* Built from %ProgramData% rather than written as C:\ProgramData,
-       because that folder can be relocated and the variable holds where it
-       actually is.  The literal is only the last resort. */
-    p = getenv("ProgramData");
-    if ((p != NULL) && (*p != '\0')) {
-      snprintf(inipath, sizeof(inipath), "%s\\SD\\sd.conf", p);
-    } else {
-      snprintf(inipath, sizeof(inipath), "%s", SD_CONFIG_DEFAULT);
-    }
+    snprintf(inipath, sizeof(inipath), "%s\\sd.conf", home);
   }
 
   fu = fopen(inipath, "rt");
@@ -1378,12 +1408,8 @@ Private char* sysdir(void) {
 
   fclose(fu);
 
-  if (sysdirpath[0] == '\0') {
-    snprintf(session[session_idx].sderror,
-             sizeof(session[session_idx].sderror),
-             "No SDSYS parameter in %s", inipath);
-    return NULL;
-  }
+  if (sysdirpath[0] == '\0')
+    snprintf(sysdirpath, sizeof(sysdirpath), "%s\\sdsys", home);
 
   return sysdirpath;
 }

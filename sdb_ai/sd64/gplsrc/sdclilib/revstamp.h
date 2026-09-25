@@ -31,6 +31,8 @@
  * so, delete this exception statement from your version.
  * 
  * START-HISTORY:
+ * rev S1.1-0 25 Sep 26 SD Core Solo - release string S1.1-0 (owner's ruling
+ *            7, 24 Sep 2026).  Segment numerics unchanged, as before.
  * rev W1.1-0 15 Sep 26 Windows port - release string W1.1-0 (RELEASE_1.1);
  *            segment numerics left as W1.0-0 shipped them (see gplsrc/revstamp.h).
  * rev W1.0-0 18 Aug 26 Windows port - SD release string is W1.0-0
@@ -57,7 +59,7 @@
 #define MAJOR_REV      1
 #define MINOR_REV      0
 #define BUILD          2
-#define SD_REV_STAMP   "W1.1-0"
+#define SD_REV_STAMP   "S1.1-0"
 
 #define SD_COPYRIGHT_YEAR "2007"
 

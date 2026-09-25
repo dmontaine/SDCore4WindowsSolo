@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 25 Sep 26 SD Core Solo - SDSYS defaults to <home>\sdsys (inipath.c)
  * 19 Aug 26 Windows port - reset the buffers for every entry, not only for one
  *           that compiled, and exit non-zero when any entry did not.
  *           UPSTREAM_FIXES.md #9.
@@ -211,6 +212,7 @@ bool more;
 /* External routines */
 
 bool GetConfigPath(char* inipath);
+bool GetDefaultSysdir(char* buff, int buff_len);
 
 /* Internal routines */
 
@@ -293,6 +295,10 @@ int main(int argc, char* argv[]) {
 
     if (!read_config())
       goto abort;
+
+    /* 25 Sep 26 SD Core Solo - sd.conf need not name SDSYS (inipath.c) */
+    if ((sysdir[0] == '\0') && !GetDefaultSysdir(sysdir, sizeof(sysdir)))
+      sysdir[0] = '\0';
 
     if (sysdir[0] == '\0') {
       printf("Unable to locate SDSYS directory\n");

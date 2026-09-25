@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 25 Sep 26 SD Core Solo - the banner names SD Core Solo (SOLO 2).
 * 22 Sep 26 Windows port - RELEASE_1.1 106.  THE ONLY PRIVILEGED ACCOUNT IS
 *           SDSYS.  Owner's ruling: elevation must not give any account extra
 *           SD privileges.  The ordinary-account login case now clears
@@ -448,7 +449,7 @@ deffun pw_complex(pw) calling '!pw_complex'
       * Modified by Composer AI - 2026/06/10.
       * Close version banner string; unclosed quote caused "Unrecognised statement".
       * display "SD, the Multivalue String Database, version " : SD.REV.STAMP : "(AI modified)
-      display "SD Core for Windows, the Essential Multivalue String Database, version " : SD.REV.STAMP
+      display "SD Core Solo, the Essential Multivalue String Database, version " : SD.REV.STAMP
       * --------------------
       display "(c) 2000-2026 by Ladybridge Systems and Other Contributors"
       display
