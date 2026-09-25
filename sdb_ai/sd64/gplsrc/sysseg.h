@@ -105,6 +105,11 @@ struct SYSSEG {
      #define SSF_INT_PDUMP  0x00080000   /* Allow PDUMP to dump internal mode */
      #define SSF_NO_FILE_CLEANUP 0x00100000 /* Inhibit cleanup of file table */
      #define SSF_APISRVR_LOG 0x00200000   /* APISRVR logs traffic */
+     /* 25 Sep 26 SD Core Solo - SOLO 13.  sd -stop asks sdwind to exit HERE as
+        well as by SIGTERM: an sd started from an MSYS2 shell lives in another
+        process table and its kill() never reaches a natively started daemon.
+        sdwind polls this and clears sdwind_pid when it goes.               */
+     #define SSF_STOP_REQUEST 0x00400000  /* sd -stop: sdwind, please exit */
 
    struct FILESTATS global_stats; /* Global file stats (see DH_STAT.H) */
    unsigned long next_txn_id;    /* Next transaction id */
