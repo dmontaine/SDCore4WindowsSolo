@@ -97,6 +97,11 @@ its own beyond that account's. **Assume one copy per computer.** Product name
    (`PowerShell/Win32-OpenSSH`, 10.0.0.0p2 on 27 Oct 2025, checked 24 Sep 2026) —
    installs offline, so one download serves many machines, but Windows Update does
    not patch it.
+9. **(24 Sep 2026) Distribution goal:** *"The installer can be loaded onto a USB
+   stick along with the SSH server installer and the documentation tree. The
+   install can be run from the USB or downloaded off of SourceForge."* So the
+   install must work **offline, from read-only removable media**, and the release
+   is a folder that is equally a SourceForge download and a USB stick. SOLO 11.
 
 **What this retires, found in the 24 Sep review** — the multi-user model is in every
 layer: `sdsvc.exe` running the daemon as `LocalSystem`; API sessions proved by SCRAM
@@ -114,7 +119,7 @@ conflicts with this section, this section wins.**
 
 ## OPEN TASKS — SD CORE SOLO S1.1-0
 
-New ids are **`SOLO <n>`**; the next is **SOLO 11**. `RELEASE_1.1 <n>` and
+New ids are **`SOLO <n>`**; the next is **SOLO 12**. `RELEASE_1.1 <n>` and
 `PRE_RELEASE <n>` citations in source and in §5/§6 name multi-user entries —
 grep HISTORY.md, or `sd4windows`, for them. **Every entry below is a plan: none
 of it is built or measured yet**, and each names what would change it.
@@ -238,6 +243,33 @@ own — a fork of them is the likely shape (the same pattern 48 settled for Linu
 and install Microsoft's OpenSSH MSI (x64 and ARM64, offline, record its SHA-256,
 and that its updates are manual), and what any other ssh server must be set to do
 for Solo.
+
+### SOLO 11 · one release folder that is both the SourceForge download and a USB stick (ruling 9)
+
+**The layout** (a plan): the release zip unpacks to a folder that can be copied
+whole onto a stick — the Solo installer, the README with checksums, the
+**documentation tree** (the HTML tree as well as the bound PDFs, so it can be read
+offline from the stick; the W1.1-0 zip carried only PDFs), the client libraries,
+and an **`ssh-server\` folder holding only a README**: where to download
+Microsoft's OpenSSH MSI and to drop it there before copying to a stick. The MSI
+itself is never in the zip (ruling 8); whoever prepares the stick adds it, and
+installs it by hand from the docs — Solo's installer does not run it.
+
+**What the installer must satisfy, and each is testable from a stick:**
+- **No network at any step.** Today's one network path is `install-editors.ps1`'s
+  `winget` fallback (lines 197-257); the editors themselves already ship, pinned
+  by SHA-256 at `stage.py:253-254`. Solo drops the fallback. Python needs no
+  download either — SD ships `sdpy.exe` only and uses the machine's own Python.
+- **Runs from read-only media, any drive letter.** Writes nothing beside itself;
+  finds nothing by a path relative to the stick.
+- **Witness:** install from a stick on a machine with the network unplugged.
+
+**Risk, not yet measured:** the installer is unsigned. A copy downloaded from
+SourceForge — and every file unpacked from that zip by Explorer — carries the
+"downloaded from the internet" mark, so Windows SmartScreen would warn before it
+runs, from the stick too. The fix is a code-signing certificate, a cost and an
+owner's decision; documenting the "More info → Run anyway" step is the free
+alternative.
 
 ---
 
