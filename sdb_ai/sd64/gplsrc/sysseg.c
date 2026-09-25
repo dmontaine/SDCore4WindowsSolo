@@ -17,6 +17,9 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 25 Sep 26 SD Core Solo - SOLO 13: stop_sd() asks sdwind through the segment
+ *           (SSF_STOP_REQUEST) and waits for sdwind_pid to clear; ESRCH is
+ *           no longer read as "gone"
  * 25 Sep 26 SD Core Solo - the segment is opened and unlinked by path under
  *           the home (SdShmOpen/SdShmUnlink), not via the inherited /dev/shm
  * 16 Aug 26 Windows port - a segment left by a previous boot is SD_STOPPED and
@@ -772,7 +775,7 @@ bool stop_sd() {
   int active;
   int daemon_pid = 0;            /* Daemon named in the segment, 0 if none */
   bool daemon_signalled = FALSE; /* SIGTERM was accepted, so wait for it */
-  bool daemon_refused = FALSE;   /* Alive, and not this session's to signal */
+  bool daemon_unconfirmed = FALSE; /* Still named, and kill() cannot see it */
   bool daemon_stuck = FALSE;     /* Signalled, still there when we gave up */
 
   /* We may already hold a mapping if we were called from the bind_sysseg
@@ -814,12 +817,19 @@ bool stop_sd() {
        mapping of a segment nothing else can see, and the next sd -start
        creates a second daemon beside it.                                    */
 
+    /* 25 Sep 26 SD Core Solo - SOLO 13.  ESRCH DID NOT MEAN "ALREADY GONE".
+       Measured: an sd started from an MSYS2 shell (Git Bash, the build's
+       python) lives in that runtime's process table, a natively started
+       daemon in the tree's, and kill() sees only its own - so it answered
+       ESRCH for a live daemon, this said "has been shut down", and sdwind ran
+       on.  The request now also goes through the SEGMENT, which both find by
+       path (SdShmOpen): sdwind polls SSF_STOP_REQUEST every second and zeroes
+       sdwind_pid as it leaves, and it is that zero this waits for.        */
     if (sysseg->sdwind_pid > 0) {
       daemon_pid = sysseg->sdwind_pid;
-      if (!kill(daemon_pid, SIGTERM))
-        daemon_signalled = TRUE;
-      else if (errno != ESRCH) /* ESRCH: already gone, which is the aim */
-        daemon_refused = TRUE;
+      sysseg->flags |= SSF_STOP_REQUEST;
+      (void)kill(daemon_pid, SIGTERM); /* Still sent: quicker where it works */
+      daemon_signalled = TRUE;
     }
 
     /* Wait for everyone to go.  System V exposed an attach count that fell to
@@ -842,7 +852,8 @@ bool stop_sd() {
          nothing noticed it surviving: this poll walks the user table only,
          and sdwind is not in it.                                           */
 
-      if (daemon_signalled && !kill(daemon_pid, 0))
+      /* SOLO 13: the daemon's own "gone" is sdwind_pid returning to zero. */
+      if (daemon_signalled && (sysseg->sdwind_pid > 0))
         active++;
 
       if (active == 0)
@@ -851,8 +862,16 @@ bool stop_sd() {
       sleep(1);
     }
 
-    if (daemon_signalled && !kill(daemon_pid, 0))
-      daemon_stuck = TRUE; /* Took the signal and has not acted on it */
+    /* Still named after ten seconds.  If kill() can see it, it is alive and
+       did not act; if it cannot, this process may simply be in the other
+       table (or the daemon died without saying so) - which is NOT a claim
+       either way, so it is reported as unconfirmed rather than as stopped.  */
+    if (daemon_signalled && (sysseg->sdwind_pid > 0)) {
+      if (!kill(daemon_pid, 0))
+        daemon_stuck = TRUE;
+      else
+        daemon_unconfirmed = TRUE;
+    }
 
     /* Dettach the shared memory */
 
@@ -864,7 +883,15 @@ bool stop_sd() {
      but an orphaned daemon is the one thing sd -stop cannot clear up, and
      the next sd -start will build a second system around it.               */
 
-  if (daemon_refused || daemon_stuck) {
+  if (daemon_unconfirmed) {
+    fprintf(stderr, "Warning: %s did not confirm that it stopped, and this "
+                    "session cannot see it\n(an sd started from Git Bash or "
+                    "another MSYS2 shell cannot).  Check Task\nManager for "
+                    "%s.exe before starting SD again.\n",
+            SDWIND_NAME, SDWIND_NAME);
+  }
+
+  if (daemon_stuck) {
     daemon_pid = win_pid(daemon_pid);
 
     if (daemon_pid > 0) {
@@ -874,21 +901,18 @@ bool stop_sd() {
       fprintf(stderr, "Warning: %s is still running.\n", SDWIND_NAME);
     }
 
-    if (daemon_refused) {
-      fprintf(stderr, "It belongs to a session with more privilege than this "
-                      "one, so it could not be\nsignalled.\n");
-    } else {
-      fprintf(stderr, "It did not stop when it was asked to.\n");
-    }
+    fprintf(stderr, "It did not stop when it was asked to.\n");
 
+    /* 25 Sep 26 SD Core Solo - no "elevated session": the daemon is the
+       user's own and runs on a standard token (ruling 16).                  */
     if (daemon_pid > 0) {
-      fprintf(stderr, "Stop it from an elevated session with \"Stop-Process "
-                      "-Id %d -Force\" before\nstarting SD again, or the "
-                      "machine will run two daemons.\n",
+      fprintf(stderr, "Stop it with \"Stop-Process -Id %d -Force\" before "
+                      "starting SD again,\nor the machine will run two "
+                      "daemons.\n",
               daemon_pid);
     } else {
-      fprintf(stderr, "Stop it from an elevated session before starting SD "
-                      "again, or the machine\nwill run two daemons.\n");
+      fprintf(stderr, "Stop it before starting SD again, or the machine will "
+                      "run two daemons.\n");
     }
   }
 

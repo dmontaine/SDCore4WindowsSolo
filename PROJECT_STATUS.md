@@ -187,7 +187,7 @@ conflicts with this section, this section wins.**
 
 ## OPEN TASKS — SD CORE SOLO S1.1-0
 
-New ids are **`SOLO <n>`**; the next is **SOLO 14** (SOLO 12 closed 25 Sep, HISTORY.md). `RELEASE_1.1 <n>` and
+New ids are **`SOLO <n>`**; the next is **SOLO 14** (SOLO 12, 13 closed 25 Sep, HISTORY.md). `RELEASE_1.1 <n>` and
 `PRE_RELEASE <n>` citations in source and in §5/§6 name multi-user entries —
 grep HISTORY.md, or `sd4windows`, for them. **Every entry below is a plan: none
 of it is built or measured yet**, and each names what would change it.
@@ -246,7 +246,7 @@ in `C:\msys64\dev\shm` ("SD has not been started") — fixed: `inipath.c`
 sdidx; `inipath.o` now linked into sdwind and sdidx); (2) **MSYS2-launched and
 natively-launched `sd` live in different process tables** — measured: a forced
 re-launched `-stop` stops a forced-started daemon, an MSYS2-launched one cannot
-(SOLO 13). So the probe now drives `sd` NATIVELY (cmd, files, never pipes), like
+(SOLO 13, fixed — HISTORY.md). So the probe now drives `sd` NATIVELY (cmd, files, never pipes), like
 production. `SD_DROP_ADMIN_TEST=1` forces the re-launch unelevated (can only
 remove rights); with it the agent ran the probe's mechanics: start, daemon
 Medium/deny-only, sessions, stop leaves no daemon — no hang. Unelevated
@@ -410,20 +410,6 @@ runs, from the stick too. The fix is a code-signing certificate, a cost and an
 owner's decision; documenting the "More info → Run anyway" step is the free
 alternative.
 
-
-### SOLO 13 · `sd -stop` from an MSYS2 shell says "shut down" and leaves the daemon
-
-**Measured 25 Sep 2026.** An `sd.exe` started by an MSYS2 process (Git Bash, the
-build's python) joins that runtime's process table; one started natively (the
-scheduled task, sshd, cmd, PowerShell, win32token's re-launch) uses the tree's.
-Neither can `kill()` the other's pids. `sysseg.c` stop_sd() takes `ESRCH` as "already
-gone, which is the aim", so `-stop` from Git Bash against a natively started daemon
-prints **"has been shut down"**, unlinks the segment, and leaves `sdwind` running
-(two sessions this day left one behind). The segment itself is found either way
-now (`SdShmOpen`, SOLO 3). *Planned, not built:* record the daemon's WINDOWS pid in
-the segment and have `-stop` check it with `OpenProcess`/`TerminateProcess` when
-`kill()` says ESRCH — or at least refuse to report a shutdown while that pid lives.
-Production starts are all native, so this bites developers and Git Bash users.
 
 ---
 

@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 25 Sep 26 SD Core Solo - SOLO 13: exits on SSF_STOP_REQUEST (checked every
+ *           second) and clears sdwind_pid on the way out
  * 25 Sep 26 SD Core Solo - the segment by path under the home (SdShmOpen)
  * 17 Sep 26 Windows port - RELEASE_1.1 37: check_lost_users() starts
  *                      "sd -cleanup" with fork/execl and waits for it, not
@@ -181,7 +183,10 @@ int main() {
 
   next_tick = time(NULL) + 60;
 
-  while (!terminate) {
+  /* 25 Sep 26 SD Core Solo - SOLO 13: the stop request in the segment is the
+     one sd -stop can always send, so it is checked every pass and the wait is
+     capped at one second to notice it promptly.                           */
+  while (!terminate && !(sysseg->flags & SSF_STOP_REQUEST)) {
     fd_set rd;
     struct timeval tv;
     long wait_secs;
@@ -190,6 +195,8 @@ int main() {
     wait_secs = (long)(next_tick - time(NULL));
     if (wait_secs < 0)
       wait_secs = 0;
+    if (wait_secs > 1)
+      wait_secs = 1;
     tv.tv_sec = wait_secs;
     tv.tv_usec = 0;
 
@@ -233,6 +240,10 @@ int main() {
     close(api_listener);
 
   /* Tidy up on our way out */
+
+  /* 25 Sep 26 SD Core Solo - SOLO 13: say we have gone, in the segment, which
+     is where sd -stop looks when kill() cannot see this process.          */
+  sysseg->sdwind_pid = 0;
 
   munmap((void*)sysseg, (size_t)statbuf.st_size); /* Dettach shared memory */
 

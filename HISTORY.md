@@ -36994,3 +36994,24 @@ install).
 - Left: the installer's prompts (SOLO 8); API login with `$GLOBAL` (SOLO 6).
 
 ====
+
+## SOLO 13 — `sd -stop` from an MSYS2 shell reported "shut down" and left the daemon (25 Sep 2026)
+
+**DONE AND WITNESSED, by the agent.** Found while testing ruling 16: an `sd.exe`
+started by an MSYS2 process (Git Bash, the build's python) joins that runtime's
+process table; one started natively (task, sshd, cmd, PowerShell, win32token's
+re-launch) uses the tree's; `kill()` cannot cross. `stop_sd()` read `ESRCH` as
+"already gone", printed "has been shut down" and left `sdwind` running — twice
+that day.
+- `sysseg.h` `SSF_STOP_REQUEST`; `stop_sd()` sets it (and still sends SIGTERM) and
+  waits for `sysseg->sdwind_pid` to return to 0; `sdwind` checks the flag every
+  second (wait capped at 1 s) and zeroes its pid on the way out. The segment is
+  reachable from both tables because it is opened by path (`SdShmOpen`, SOLO 3).
+- Still named after 10 s: alive-and-visible → "did not stop when asked"; not
+  visible → "did not confirm … cannot see it", never "shut down". The advice no
+  longer says "elevated" — the daemon is the user's (ruling 16).
+- **Witness:** forced (native) start, then a plain MSYS2 `-stop` — no `sdwind`
+  left (before the fix the same sequence left pid 11780 running). Plain start +
+  plain stop unchanged; unelevated stage+probe 23/23; free tier 51 pass.
+
+====
