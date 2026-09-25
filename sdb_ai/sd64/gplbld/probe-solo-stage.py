@@ -32,7 +32,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bootstrap as B  # noqa: E402  - sd(), the marker, the elevation test
 
 BS = chr(92)
-DISQUALIFY = ['programdata', 'not found', 'cannot']
+# 'has not been started' added after the first elevated run (25 Sep 2026)
+# printed it for all three sessions: the bootstrap stops SD when it finishes.
+DISQUALIFY = ['programdata', 'not found', 'cannot', 'has not been started']
 
 
 def winpath(p):
@@ -94,6 +96,22 @@ def main():
         (['-internal', 'CONFIG'], 'GRPDIR', wroot + BS + 'group_accounts'),
         (['-internal', 'WHERE'], None, wroot + BS + 'sdsys'),
     ]
+    # SD MUST BE RUNNING, and starting it is itself a check: the daemon reads
+    # sd.conf through GetConfigPath() with SD_CONFIG gone.  bootstrap.py stops
+    # SD when it finishes, so the first version of this probe asked a stopped
+    # system and got "SD has not been started" three times.  Stopped again in
+    # the finally, whatever happens.
+    print('\nsession: sd -start')
+    try:
+        B.sd(sdexe, env, ['-stop'], expect_fail=True)
+        B.sd(sdexe, env, ['-start'])  # dies, non-zero, if SD will not start
+        return finish(sdexe, sdsys, env, expect, fails)
+    finally:
+        print('\nsession: sd -stop')
+        B.sd(sdexe, env, ['-stop'], expect_fail=True)
+
+
+def finish(sdexe, sdsys, env, expect, fails):
     outputs = {}
     for cmd, key, want in expect:
         k = ' '.join(cmd)
