@@ -15,6 +15,7 @@
 * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 *
 * START-HISTORY:
+* 25 Sep 26 SD Core Solo - SOLO 5: saving into a VOC needs ADMIN (ruling 14).
 * 25 Sep 26 SD Core Solo - SOLO 4: no os.users check; the one user may edit.
 * 25 Sep 26 SD Core Solo - the bundled editor is found from @sdsys's parent,
 *           not C:\Program Files\SD (SOLO 2).
@@ -152,6 +153,8 @@ $catalog $EDIT
 
 $include syscom keys.h
 $include int$keys.h
+
+deffun voc_guard(f) calling '!voc_guard'
 
    q            = char(39)          ;* single quote, as ELEVATE builds its own
    ds           = @ds
@@ -964,6 +967,12 @@ save.record.query:
    end
 
    if response # 'Y' then
+      error.text = 'Record not saved'
+      goto end.program
+   end
+
+*  25 Sep 26 SD Core Solo - SOLO 5, ruling 14: saving into the VOC needs ADMIN.
+   if not(voc_guard(input.file)) then
       error.text = 'Record not saved'
       goto end.program
    end

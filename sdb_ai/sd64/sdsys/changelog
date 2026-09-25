@@ -3,6 +3,17 @@ S1.1-0 - SD Core Solo, in progress
 A personal SD Core for one Windows user. NOTHING IN THIS SECTION HAS BEEN
 RELEASED.
 
+25 Sep 26  ADMINISTRATOR COMMANDS ARE BEHIND A PASSWORD.
+
+           The administrator password is set when SD Core Solo is
+           installed. Type ADMIN and give it to unlock the administrator
+           commands for the rest of the session, and ADMIN OFF to lock
+           them again. On a managed system the global password unlocks
+           them too. Changing the VOC directly - editing, copying into,
+           deleting from or clearing it, or a program writing to it -
+           needs ADMIN first; the entries SD adds for you, such as the
+           one CREATE.FILE makes, do not. UPDATE.ACCOUNTS needs ADMIN.
+
 25 Sep 26  RUN WORKS FROM A DEEP FOLDER.
 
            RUN refused any program whose full path was longer than 128

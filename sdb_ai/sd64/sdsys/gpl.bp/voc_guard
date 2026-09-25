@@ -1,0 +1,69 @@
+* VOC_GUARD
+* May this session change the VOC through the file it has opened?
+* Copyright (c) 2026 Ladybridge Systems, All Rights Reserved
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 3, or (at your option)
+* any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software Foundation,
+* Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+*
+*
+* START-HISTORY:
+* 25 Sep 26 SD Core Solo - new, SOLO 5.
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*    deffun voc_guard(f) calling '!voc_guard'
+*    if not(voc_guard(file.var)) then stop
+*
+* Owner's rulings 12 and 14, 25 Sep 2026: a DIRECT edit of the VOC needs the
+* administrator password (ADMIN).  op_dio3.c refuses a user program's own
+* write, delete or clear of a VOC in C; the verbs that edit a file the user
+* names (ED, EDIT, COPY, COPYP, DELETE, CLEAR.FILE, and DELETE.FILE and RENAME
+* when the VOC itself is the target) are $internal, which the C test lets
+* through, so they ask this instead.
+*
+* IT LOOKS AT THE FILE THAT WAS OPENED, NOT AT THE NAME THAT WAS TYPED, so a
+* Q-pointer to a VOC, or "voc" in any case, is caught.  A VOC is a DH (dynamic)
+* file whose last path component is "voc" - the same rule as
+* voc_write_refused() in C.  The dictionary, voc.dic, is not the VOC.
+*
+* Returns @true when the edit may go ahead: not a VOC, or ADMIN is on.  On
+* @false it has already said why (12008).
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+function voc_guard(f)
+$catalog !voc_guard
+
+$include keys.h
+$include int$keys.h
+
+   if kernel(K$ADMINISTRATOR, -1) then return @true
+
+   if fileinfo(f, FL$TYPE) # FL$TYPE.DH then return @true
+
+   p = downcase(convert(char(92), '/', fileinfo(f, FL$PATH)))
+   if p[len(p), 1] = '/' then p = p[1, len(p) - 1]
+   last = field(p, '/', dcount(p, '/'))
+
+   if last # 'voc' then return @true
+
+   display sysmsg(12008) ;* The VOC can only be changed after ADMIN
+   return @false
+end
+
+* END-CODE

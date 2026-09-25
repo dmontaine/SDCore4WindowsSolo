@@ -1,0 +1,135 @@
+* ADMIN
+* ADMIN verb - unlock SD Core Solo's administrator commands for a session.
+* Copyright (c) 2026 Ladybridge Systems, All Rights Reserved
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 3, or (at your option)
+* any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software Foundation,
+* Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+*
+*
+* START-HISTORY:
+* 25 Sep 26 SD Core Solo - new, SOLO 5.
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*    ADMIN          ask for the administrator password; unlock on a match
+*    ADMIN OFF      lock again
+*
+* Owner's ruling 12, 25 Sep 2026: SD Core Solo's administrator commands are
+* gated by an administrator password set at install; in managed mode (b) the
+* global password unlocks them too.  Ruling 15: the mode is fixed at install,
+* and the mode IS whether a global password was set - there is no other flag.
+*
+* WHAT "UNLOCKED" MEANS IS THE FLAG THE ADMINISTRATOR COMMANDS ALREADY TEST.
+* About twenty-five programs gate on K$ADMINISTRATOR; kernel.c no longer seeds
+* it from Windows elevation (SOLO 4), so this verb is the one way an ordinary
+* session gets it.  Only a $internal program may set it (op_kernel.c,
+* K_ADMINISTRATOR), which is why this one is.  It lasts until ADMIN OFF or
+* the end of the session.
+*
+* THE PASSWORDS are SCRAM verifiers in $cred under $ADMIN and $GLOBAL, names no
+* account can have (an account name starts with a letter), written at install
+* by gpl.bp/solo_password through !CRED_SET and checked here by
+* !CRED_VERIFY, in constant time.  No record, no unlock: CRED_VERIFY fails
+* closed on a missing record.
+*
+* Every attempt is audited, unlocked or refused.  The password is never
+* displayed, stored or logged.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+program admin
+$catalog $ADMIN
+
+$include keys.h
+$include int$keys.h
+$include err.h
+
+   prompt ''
+   @system.return.code = -ER$ARGS
+
+   arg = upcase(trim(field(trim(@sentence), ' ', 2)))
+
+   if arg = 'OFF' then
+      void kernel(K$ADMINISTRATOR, 0)
+      void kernel(K$AUDIT, 'ADMIN LOCKED')
+      display sysmsg(12004) ;* Administrator commands locked
+      @system.return.code = 0
+      stop
+   end
+
+   if arg # '' then
+      display 'ADMIN takes no argument but OFF.'
+      stop
+   end
+
+   if kernel(K$ADMINISTRATOR, -1) then
+      display sysmsg(12006) ;* Administrator commands are already unlocked
+      @system.return.code = 0
+      stop
+   end
+
+*  Is there anything to check against?  Said plainly rather than letting every
+*  password be "wrong" on a system that was installed without one.
+   has.admin = @false
+   openpath @sdsys : @ds : '$cred' to cred.f then
+      read cred.rec from cred.f, '$ADMIN' then has.admin = @true
+      close cred.f
+   end
+   if not(has.admin) then
+      display sysmsg(12007) ;* No administrator password is set on this system
+      void kernel(K$AUDIT, 'ADMIN REFUSED reason=no $ADMIN credential')
+      stop
+   end
+
+   display sysmsg(12002) : ' ' :   ;* Administrator password:
+   input pw HIDDEN
+
+   ok = @false
+   call !CRED_VERIFY('$ADMIN', pw, ok)
+   via = 'admin'
+   if not(ok) then
+*     Managed mode (b): the global password is the other key (ruling 12).  In
+*     standalone mode there is no $GLOBAL record and CRED_VERIFY says no.
+      call !CRED_VERIFY('$GLOBAL', pw, ok)
+      via = 'global'
+   end
+   pw = ''
+
+   if not(ok) then
+      sleep 2
+      display sysmsg(12005) ;* Wrong password - administrator commands stay locked
+      void kernel(K$AUDIT, 'ADMIN REFUSED reason=wrong password')
+      stop
+   end
+
+*  TAKE THE ANSWER, as LOGIN does: the key reports the flag as it stands, so a
+*  grant that did not happen cannot be reported as one.
+   granted = kernel(K$ADMINISTRATOR, 1)
+   if not(granted) then
+      display sysmsg(12005)
+      void kernel(K$AUDIT, 'ADMIN REFUSED reason=the flag was not granted')
+      stop
+   end
+
+   void kernel(K$AUDIT, 'ADMIN UNLOCKED via=' : via)
+   display sysmsg(12003) ;* Administrator commands unlocked for this session
+   @system.return.code = 0
+   stop
+end
+
+* END-CODE

@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 25 Sep 26 SD Core Solo - SOLO 5: copying into, or DELETING out of, a VOC
+*           needs ADMIN (ruling 14, !voc_guard).
 * 13 Sep 26 Windows port - Enter at "Use active select list" (2050) means N
 *            (RELEASE_1.1_FIXES.md 33, owner's ruling).
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
@@ -54,6 +56,8 @@ $include syscom.h
 $include syscom err.h
 $include syscom keys.h
 $include int$keys.h
+
+deffun voc_guard(f) calling '!voc_guard'
 
    @system.return.code = -ER$ARGS      ;* Preset for command format errors
 
@@ -322,6 +326,11 @@ copy.record:
             end
          end
 
+         if not(voc_guard(tgt.file)) then        ;* 25 Sep 26 SOLO 5, ruling 14
+            release tgt.file, tgt.record.name
+            @system.return.code = -ER$PERM
+            stop
+         end
          write rec to tgt.file, tgt.record.name on error
             crt sysmsg(6164, status(), tgt.record.name) ;* Error xx writing record 'xx'
             if status() = ER$TRIGGER then
@@ -362,6 +371,11 @@ copy.record:
                display sysmsg(10187, src.record.name) ;* Record 'xx' was copied onto itself, so it was not deleted.
             end else
                recordlocku src.file, src.record.name
+               if not(voc_guard(src.file)) then  ;* 25 Sep 26 SOLO 5, ruling 14
+                  release src.file, src.record.name
+                  @system.return.code = -ER$PERM
+                  stop
+               end
                delete src.file, src.record.name on error
                   crt sysmsg(6165, status(), tgt.record.name) ;* Error xx deleting record 'xx'
                   if status() = ER$TRIGGER then

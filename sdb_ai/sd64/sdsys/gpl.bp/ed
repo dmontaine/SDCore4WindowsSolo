@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 25 Sep 26 SD Core Solo - SOLO 5: saving, unloading into or deleting a VOC
+*           record needs ADMIN (ruling 14, !voc_guard).
 * 13 Sep 26 Windows port - Enter at "Use active select list" (2050) means N
 *            (RELEASE_1.1_FIXES.md 33, owner's ruling).
 * 21 Aug 26 Windows port - the command-error preset was ER$ARGS, not -ER$ARGS,
@@ -45,6 +47,8 @@ $include keyin.h
 $include dictdict.h
 
 $include int$keys.h
+
+deffun voc_guard(f) calling '!voc_guard'
 
 $define MERGE.LOAD  50
 $define IDEAL.LOAD 100
@@ -1142,6 +1146,7 @@ d:
             if no then return
          end
 
+         if not(voc_guard(file)) then return   ;* 25 Sep 26 SOLO 5, ruling 14
          delete file, record.name
          done = @true
 
@@ -1346,6 +1351,7 @@ f:
             gosub yes.no
             if no then return
          end
+         if not(voc_guard(file)) then return   ;* 25 Sep 26 SOLO 5, ruling 14
          delete file, record.name
          done = @true
 
@@ -2613,6 +2619,10 @@ u:
             end
          end
 
+         if not(voc_guard(n.file)) then           ;* 25 Sep 26 SOLO 5, ruling 14
+            release n.file, new.record
+            goto abort.unload
+         end
          write s to n.file, new.record
          display sysmsg(6586, n.lines, new.file, new.record)
          * %1 lines unloaded to %2 %3
@@ -3425,6 +3435,10 @@ save.record:
       gosub error
       return
    end
+
+*  25 Sep 26 SD Core Solo - SOLO 5, ruling 14: saving into the VOC needs ADMIN.
+*  voc_guard has already said so when it refuses.
+   if not(voc_guard(n.file)) then return
 
    readvu s from n.file, new.record, 0 locked
       display sysmsg(1429, status()) ;* Record is locked by user %1
