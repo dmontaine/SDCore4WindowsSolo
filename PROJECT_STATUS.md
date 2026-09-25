@@ -157,8 +157,17 @@ file** — programs and `msys-2.0.dll` in `<home>\usr\bin`, so the MSYS2 POSIX r
 
 **Done 25 Sep 2026, compiled and unit-run, NOT yet run as SD** (no Solo tree to
 run it in until the stage/installer half below):
-- `inipath.c` `GetHomePath()` (POSIX root via `cygwin_conv_path`) and
-  `GetDefaultSysdir()`; `GetConfigPath()` = `SD_CONFIG` else `<home>\sd.conf`.
+- `inipath.c` `GetHomePath()` and `GetDefaultSysdir()`; `GetConfigPath()` =
+  `SD_CONFIG` else `<home>\sd.conf`. ***The home is `/proc/self/exe` converted by
+  `cygwin_conv_path`, three components up, and those must be `usr\bin`, else
+  refused — NOT the POSIX root.*** The first version used the root and the owner's
+  elevated run disproved it: `sd.exe` started by an MSYS2 process inherits the
+  parent's mount table and printed `C:/msys64/sd.conf not found`. Re-measured:
+  right from PowerShell and from MSYS2 bash; an exe outside `usr\bin` refuses.
+  With no home, `config.c` leaves the three defaults empty (dev runs set
+  `SD_CONFIG`). **Open, same cause:** `/dev/shm` IS the POSIX root, so an
+  `sd.exe` started from an MSYS2 shell (Git Bash) would use that shell's
+  `/dev/shm`, not the daemon's — segment mismatch. Not measured.
   `config.c` defaults `SDSYS`, `USRDIR`, `GRPDIR` to `<home>\sdsys`,
   `\user_accounts`, `\group_accounts` (sd.conf lines still override); `sdtic.c`
   the same for SDSYS. `SD_CONFIG_DEFAULT` removed from `sddefs.h`.
@@ -191,9 +200,11 @@ run it in until the stage/installer half below):
   — `stage.py --bootstrap` into `<repo>\stage`, then `probe-solo-stage.py`
   with `SD_CONFIG` removed: `CONFIG` USRDIR/GRPDIR and `WHERE` must be inside the
   staged root, `accounts\sdsys` must read `@SDSYS`. Log:
-  `<repo>\stage\probe-solo-stage.log`. Both scripts load-checked and watched
-  refusing unelevated; **not yet run elevated**. If the bootstrap fails, suspect
-  first the `dev\shm` move (the old fstab mapped `/dev/shm` out) and `@SDSYS`.
+  `<repo>\stage\probe-solo-stage.log`. **Run 1 (owner, 25 Sep): the bootstrap
+  PASSED** (stage.py exit 0 on the new layout, `@SDSYS` shipped, no path in
+  sd.conf); the probe failed on its own fault (SD not started) — fixed. **Run 2:
+  `sd -start` → `C:/msys64/sd.conf not found`** — the POSIX-root defect above,
+  fixed. Run 3 owed, full (not `-SkipStage`: the staged `sd.exe` is the old one).
 - `sdclilib` `home_path()` is compiled, not run — the first DLL client in a Solo
   tree is its test.
 - `sd.iss` `AppVer` left at W1.1-0 deliberately: `sd.iss` is the multi-user

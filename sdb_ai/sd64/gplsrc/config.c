@@ -77,9 +77,10 @@ Private bool rangecheck(char* param,
 /* ====================================================================== */
 
 struct CONFIG* read_config(char* errmsg) {
-  FILE* fu = NULL;  /* 25 Sep 26 - the home check can leave before fopen() */
+  FILE* fu = NULL;
   char path[MAX_PATHNAME_LEN + 1];
   char home[MAX_PATHNAME_LEN + 1];
+  bool home_ok;
   char rec[200 + 1];
   char section[32 + 1] = "";
   char* p;
@@ -118,11 +119,15 @@ struct CONFIG* read_config(char* errmsg) {
     taught to accept them - see the note there.
     25 Sep 26 SD Core Solo - and C:\ProgramData\SD is now the installation's
     own folder, found at run time (inipath.c), so sd.conf holds no path.    */
-  if (!GetHomePath(home, sizeof(home))) {
-    sprintf(errmsg, "Cannot determine the SD Core Solo folder.");
-    goto exit_read_config;
-  }
-  snprintf(pcfg.grpdir, MAX_PATHNAME_LEN + 1, "%s\\group_accounts", home);  /* GRPDIR: group accounts parent dir */
+  /* No home (an executable outside ...\usr\bin, i.e. a development run with
+     SD_CONFIG) leaves these three defaults EMPTY rather than guessed; sd.conf
+     must then set them, and a missing SDSYS is reported below as before.
+     A default that would not fit is left empty too, never truncated.       */
+  home_ok = GetHomePath(home, sizeof(home));
+  if (!home_ok ||
+      (snprintf(pcfg.grpdir, MAX_PATHNAME_LEN + 1, "%s\\group_accounts", home)  /* GRPDIR: group accounts parent dir */
+       >= MAX_PATHNAME_LEN + 1))
+    pcfg.grpdir[0] = '\0';
   pcfg.grpsize = 1;               /* GRPSIZE:  Default group size */
   pcfg.intprec = 13;              /* INTPREC:  Precision for INT() etc */
   pcfg.lptrhigh = 66;             /* LPTRHIGH: Default printer lines */
@@ -148,7 +153,10 @@ struct CONFIG* read_config(char* errmsg) {
   pcfg.txchar = TRUE;         /* TXCHAR:   Enable ansi/oem translation */
 /* 20240219 mab create-account based on type (user / group / other) */
 /* 13 Aug 26 Windows port - see the note on grpdir above.                   */
-  snprintf(pcfg.usrdir, MAX_PATHNAME_LEN + 1, "%s\\user_accounts", home);  /* USRDIR: user accounts parent dir */
+  if (!home_ok ||
+      (snprintf(pcfg.usrdir, MAX_PATHNAME_LEN + 1, "%s\\user_accounts", home)  /* USRDIR: user accounts parent dir */
+       >= MAX_PATHNAME_LEN + 1))
+    pcfg.usrdir[0] = '\0';
   pcfg.yearbase = 1930;       /* YEARBASE: Two digit year base */
 
   /* Set any non-zero defaults for shared configuration parameters */
@@ -163,8 +171,10 @@ struct CONFIG* read_config(char* errmsg) {
   /* 25 Sep 26 SD Core Solo - SDSYS defaults to <home>\sdsys, so sd.conf need
      not name it.  An SDSYS line still overrides; -f (CMD_FLASH) has already
      set it from the command line and is left alone.                        */
-  if (!(command_options & CMD_FLASH))
-    snprintf(cfg->sysdir, sizeof(cfg->sysdir), "%s\\sdsys", home);
+  if (home_ok && !(command_options & CMD_FLASH) &&
+      (snprintf(cfg->sysdir, sizeof(cfg->sysdir), "%s\\sdsys", home)
+       >= (int)sizeof(cfg->sysdir)))
+    cfg->sysdir[0] = '\0';
 
   fu = fopen(config_path, "r");
   if (fu == NULL) {
