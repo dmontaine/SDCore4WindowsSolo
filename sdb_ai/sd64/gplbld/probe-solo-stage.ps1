@@ -8,6 +8,10 @@
 #
 # Installs nothing and touches nothing outside <repo>\stage.  Elevated because
 # the bootstrap's "sd -internal" sessions need it (bootstrap.py says so too).
+#
+# -SkipStage runs step 2 only, against the tree step 1 left last time.
+
+param([switch] $SkipStage)
 
 $ErrorActionPreference = 'Stop'
 $Sd64  = Split-Path -Parent $PSScriptRoot
@@ -33,13 +37,18 @@ if (-not $elevated) { Write-Host 'REFUSED: run this from an ELEVATED PowerShell.
 if (-not (Test-Path -LiteralPath $Bash)) { Write-Host "REFUSED: no MSYS2 bash at $Bash"; exit 2 }
 
 Write-Host ''
-Write-Host '=== 1. stage.py --bootstrap ==='
-$cmd = "cd '$(ToMsys $Sd64)' && python3 gplbld/stage.py --stage '$(ToMsys $Stage)' --force --bootstrap"
-Write-Host "  bash -lc $cmd"
-& $Bash -lc $cmd
-$stageExit = $LASTEXITCODE
-Write-Host "  stage.py exit $stageExit"
-if ($stageExit -ne 0) { Write-Host 'FAILED at staging - nothing to probe.'; exit 1 }
+if ($SkipStage) {
+    Write-Host '=== 1. stage.py SKIPPED (-SkipStage): probing the existing tree ==='
+    $stageExit = 'skipped'
+} else {
+    Write-Host '=== 1. stage.py --bootstrap ==='
+    $cmd = "cd '$(ToMsys $Sd64)' && python3 gplbld/stage.py --stage '$(ToMsys $Stage)' --force --bootstrap"
+    Write-Host "  bash -lc $cmd"
+    & $Bash -lc $cmd
+    $stageExit = $LASTEXITCODE
+    Write-Host "  stage.py exit $stageExit"
+    if ($stageExit -ne 0) { Write-Host 'FAILED at staging - nothing to probe.'; exit 1 }
+}
 
 Write-Host ''
 Write-Host '=== 2. probe-solo-stage.py (SD_CONFIG removed) ==='
