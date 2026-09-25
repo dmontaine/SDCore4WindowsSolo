@@ -36915,3 +36915,32 @@ no BOM, no CR, no mojibake, and every byte outside the cut identical to `e311adc
   legs → SOLO 9.
 
 ====
+
+## SOLO 4 — one account (25 Sep 2026)
+
+**DONE AND WITNESSED UNELEVATED, by the agent** (`probe-solo-stage.py`, 8/8, raw
+output read; last run after the final deletion). Commits `61475f0` and the one
+closing this. Owner's rulings 10-14 recorded in PROJECT_STATUS.md.
+
+- **C:** `check_admin()` tests nothing; `USR_ADMIN` seeded only for `sd -internal`;
+  `os_user_permitted()` yes except a socket session (until SOLO 3); semaphores
+  grant SYSTEM + the creating user. ***The first unelevated bootstrap died
+  `sdwind: Error 5 getting semaphores`*** — the multi-user ACL (Administrators +
+  `sdusers`) matched no unelevated user.
+- **BASIC:** LOGIN — no `sdusers` gate, no SDSYS landing, SDSYS refused by name, no
+  batch gate (and `batch.permitted` deleted); CPROC `SH`/`LOGOUT ALL` and `EDIT` read
+  no `os.users`. New `gpl.bp/solo_account` is the installer's account step.
+  Deleted as a group (owner: one test afterwards): `createa delacc modifya granta
+  os_group delete_user set_passwd is_sd_user is_user is_group profile_dir
+  create_user`; `os.users`/`batch.jobs` and their dictionaries leave the tree.
+- **VOC:** maintenance verbs into `newvoc`; account/grant verbs out of `voc_template`.
+- **Build:** no elevation needed for stage/bootstrap (§5.6's warning overridden,
+  reason at the site) — the agent can now cycle the tree itself.
+- **Guards:** deleted `test-privundetermined`, `test-acctkeywords` (subjects gone);
+  `test-privwhy`, `test-groupmember`, `test-psinterp`, `test-pwcomplex` follow the
+  deletions, each floor reset to the MEASURED count.
+- **Found:** SOLO 12 (128-char runfile limit; bootstrap blind to it).
+- Leftovers: multi-user scripts, `remote.api`/`remote.ssh` → SOLO 7/8; dead
+  verifiers → SOLO 9; socket exception, relay descriptor → SOLO 3.
+
+====

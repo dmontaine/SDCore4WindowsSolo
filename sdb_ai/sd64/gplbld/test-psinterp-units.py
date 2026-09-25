@@ -127,15 +127,13 @@ def builders():
 #
 # createa is ABSENT ON PURPOSE and the check below asserts it: its two sites
 # were the reachable ones and 72 rewrote them with single quotes.
-DECLARED = {
-    "create_user": ["username"],
-    "delete_user": ["username"],
-    "is_group":    ["group"],
-    "is_sd_user":  ["username"],
-    "is_user":     ["username"],
-    "os_group":    ["group", "group", "group", "group", "group", "member", "member"],
-    "profile_dir": ["username"],
-}
+#
+# 25 Sep 26 - SD Core Solo (SOLO 4) deleted every declared file - create_user,
+# delete_user, is_group, is_sd_user, is_user, os_group, profile_dir - and
+# createa, with the account model.  THE DECLARED SET IS NOW EMPTY, so any site
+# found is undeclared and fails; section 2 (createa's sites) went with createa,
+# and section 3's MUTANT is now the only control that the detector can see one.
+DECLARED = {}
 
 if not os.path.isdir(BPDIR):
     print("gpl.bp not found: " + BPDIR)
@@ -147,7 +145,7 @@ print("")
 print("=== 0. the null case is refused: the scan ran against something ===")
 files = builders()
 check("gpl.bp files that build a PowerShell command line (%d)" % len(files),
-      len(files) >= 10, "found: " + repr(files))
+      len(files) >= 9, "found: " + repr(files))  # 25 Sep 26: 10 -> 9, measured after SOLO 4
 
 found = {}
 for name in files:
@@ -155,8 +153,11 @@ for name in files:
     if s:
         found[name] = s
 total = sum(len(v) for v in found.values())
-check("CONTROL: the detector found interpolation sites at all (%d)" % total,
-      total >= 5, "it found none, so every row below would pass vacuously")
+# 25 Sep 26 - WAS "found >= 5 sites".  Since SOLO 4 there are none to find, so
+# the live control cannot exist; the MUTANT in section 3 is the control that
+# the detector sees a real interpolation, and it must pass for this to mean
+# anything.  The count is still printed.
+print("  detector found %d live interpolation site(s); 0 expected since SOLO 4" % total)
 
 print("")
 print("=== 1. the set of double-quoted interpolations is the declared one ===")
@@ -176,19 +177,6 @@ for name in sorted(set(got) & set(DECLARED)):
           got[name] == DECLARED[name],
           "declared %s, found %s at %s" % (DECLARED[name], got[name],
                                            found[name]))
-
-print("")
-print("=== 2. createa's two sites are gone and stay gone (the 72 fix) ===")
-ca = sites(os.path.join(BPDIR, "createa"))
-check("createa interpolates nothing inside a double-quoted string",
-      ca == [],
-      "72 rewrote secure.account.dir with single quotes; this is back: " + repr(ca))
-with open(os.path.join(BPDIR, "createa"), encoding="ISO-8859-1") as f:
-    catext = f.read()
-check("createa still builds the icacls path as a PowerShell LITERAL",
-      "sad.path" in catext and "char(39)" in catext,
-      "the single-quoting went away, so the pathname is unquoted or "
-      "double-quoted again")
 
 print("")
 print("=== 3. MUTANT: the pre-72 line is detected ===")

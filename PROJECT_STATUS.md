@@ -49,8 +49,8 @@ or *"— PRE_RELEASE_FIXES.md"*; grep the number there.
 What it lists as owed is also an entry under OPEN TASKS — if the two disagree,
 OPEN TASKS wins.
 
-***HANDOFF 25 Sep 2026 — SOLO 2 DONE; SOLO 4's core DONE AND WITNESSED
-UNELEVATED (8/8 probe legs). Next: SOLO 4's dead-program removal, or SOLO 12.***
+***HANDOFF 25 Sep 2026 — SOLO 2 AND SOLO 4 DONE AND WITNESSED (HISTORY.md).
+Next: SOLO 12, then SOLO 5 (needs ruling 14's scope answered).***
 
 **Start here:**
 1. **The agent can now cycle the tree itself, unelevated**: from MSYS2 bash in
@@ -58,7 +58,7 @@ UNELEVATED (8/8 probe legs). Next: SOLO 4's dead-program removal, or SOLO 12.***
    then `python3 gplbld/probe-solo-stage.py --stage <repo>/stage`. Use the repo
    `stage` folder — a long path trips SOLO 12. `bin\` rebuilt 25 Sep with
    `make -o sdpy sd` (`sdpy.exe` is 21 Sep's).
-2. **SOLO 4 "Still owed here"** — remove the dead programs, one at a time.
+2. **SOLO 12** — the 128-char runfile limit and the silent bootstrap step.
 3. **Rulings 12-14 (25 Sep) define SOLO 5**; ruling 14's scope is an open question.
 4. **One owner decision is open** (SOLO 3): remote sessions may carry an
    administrator user's UNFILTERED token.
@@ -205,51 +205,6 @@ the user; note that CPROC's `SH` passes C's `HDR_INTERNAL` test regardless, so a
 API session's `SH` is not stopped by that exception. `win32relay.c` still builds
 its own multi-user security descriptor; `win32sem.c` now grants SYSTEM + the user.
 
-### SOLO 4 · one account
-
-`LOGIN` lands every session in the user's own account; SDSYS stays as SD's system
-files (catalogue, programs, messages) and is not a login target. **Removed:**
-`CREATE.ACCOUNT`, `DELETE.ACCOUNT`, `MODIFY.ACCOUNT`, `GRANT`, `REVOKE`,
-`LIST.GRANTS`, `OS.USERS`, `ATTACH`/`ADOPT`, the all-accounts half of
-`UPDATE.ACCOUNTS` (an upgrade still has to refresh the one account's VOC —
-PRE_RELEASE 70's lesson), `attach-account.ps1`, `install-sdsys.ps1`,
-`reconcile-accounts.ps1`, `reclaim-profiles.ps1`, `remove-sdaccounts.ps1`,
-`deny-logon.ps1`, `sync-route-groups.ps1`, the `secure-*` ACL scripts, the four
-groups, and the `os.users` gates — `SH` and `OS.EXECUTE` just run as the user.
-**Done 25 Sep 2026 and WITNESSED UNELEVATED by `probe-solo-stage.py`** (agent
-shell, `<repo>\stage`, 8/8 PASS; raw output read):
-- C: `check_admin()` tests nothing (`sd.c`); `USR_ADMIN` is seeded only for
-  `sd -internal` (`kernel.c`); `os_user_permitted()` says yes except for a socket
-  session (`op_sh.c`, until SOLO 3); semaphores grant SYSTEM + the creating user,
-  not Administrators + `sdusers` (`win32sem.c`) — ***measured: the first unelevated
-  bootstrap died `sdwind: Error 5 getting semaphores`***.
-- BASIC: LOGIN has no `sdusers` gate, no SDSYS landing, refuses `@logname` SDSYS,
-  no batch gate; CPROC `SH` and `LOGOUT ALL` need no `os.users`/SDSYS; `EDIT` needs
-  no `os.users`. New `gpl.bp/solo_account` (install-only, internal) builds the one
-  account and writes the register (absolute path — see its header).
-- Build: `bootstrap.py`/`stage.py` no longer require elevation (§5.6 warning
-  overridden, reason at the site). `test-privundetermined-units` deleted (its
-  subject, the `os.users` read, is gone); `test-privwhy` and `test-groupmember`
-  follow the deletions.
-- VOC: `newvoc` gains `append.sd.path clean.account clear.locks config list.locks
-  list.readu listu lock unlock set.date update.accounts $contrib $licence`;
-  `voc_template` loses `create/delete/modify.account grant revoke list.grants
-  os.users`.
-- Witnessed: `solo_account` makes `don` (398 VOC entries); plain `sd WHERE` lands in
-  `user_accounts/don`; `sd -internal` without a marker → `Connection terminated`;
-  `sd -ASDSYS` → own-account refusal; `sd SH 6*7` → `42`.
-
-**Still owed here:** delete the dead programs and their shipped data (`createa`,
-`delacc`, `modifya`, `granta`, `os_group`, `delete_user`, `set_acc_password`…, the
-`os.users` directory, `$cred` uses) — each has cross-references, so one at a time
-with a restage + probe; `remote.api`/`remote.ssh` VOC placement (SOLO 7/8); the
-multi-user scripts (SOLO 8 with the installer). `createa:527,930` and
-`delete_user:300` still name `C:\ProgramData` — they go with those programs. The one account's register record can hold a path
-relative to `@SDSYS` (e.g. `@SDSYS\..\user_accounts\<name>`) so nothing written at
-install names the user's folder — `pathtkn` expands a leading `@SDSYS` (SOLO 2,
-HISTORY.md). The `sd -internal` elevation gate (bootstrap.py, RELEASE_1.1 64) is
-multi-user SDSYS-by-elevation and is this task's too.
-
 ### SOLO 5 · the two modes and the admin gate (rulings 4 and 6)
 
 **Also ruling 14: writes to the VOC are behind the same gate** (scope open there).
@@ -329,6 +284,13 @@ success line `SOLO ACCOUNT READY <name> <path>`; re-runnable. Nothing needs
 elevation except SOLO 3's task registration and SOLO 7's sshd_config/firewall.
 Solo should refuse to install beside a multi-user SD Core (shared pipe and
 program names; shm segments are per-tree now).
+**From SOLO 4:** retire the multi-user scripts with `sd.iss` — `attach-account`,
+`install-sdsys`, `install-service`, `reconcile-accounts`, `reclaim-profiles`,
+`remove-sdaccounts`, `deny-logon`, `sync-route-groups`, every `secure-*` (incl.
+`secure-osusers`, whose files are gone) — from `stage.py`'s ship list and the tree.
+`remote.api`/`remote.ssh` (still SDSYS-only VOC, machine-wide firewall/sshd) go
+with SOLO 7 and this task. `SD_USERS_GROUP` (`sddefs.h:238`) is now read by
+nobody but the ignored argument in `win32sem.c`.
 **Ruling 13.** The "`-internal` off after install" half ALREADY EXISTS: LOGIN's
 `internal.gate` (RELEASE_1.1 82, owner 20 Sep 2026) admits an internal session
 only against a fresh one-shot `sdsys\$internal` marker that the installer's own
@@ -357,6 +319,9 @@ sd.conf, 25 Sep), so a session started from Git Bash may use a different
 run the whole stage → bootstrap → probe itself (MSYS2 `python3`, repo `stage`
 folder — a long scratch path trips SOLO 12). `verify-privundetermined.ps1`
 measures the deleted `os.users` read — retire it (its free guard is already gone).
+SOLO 4 deleted `createa delacc modifya granta os_group delete_user set_passwd
+is_sd_user is_user is_group profile_dir create_user`; every `verify-*` that
+drives CREATE/DELETE/MODIFY.ACCOUNT, GRANT, `os.users` or `batch.jobs` is dead.
 
 ### SOLO 10 · documentation
 
