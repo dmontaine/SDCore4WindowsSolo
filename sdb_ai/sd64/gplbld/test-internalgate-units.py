@@ -235,6 +235,8 @@ WRITERS = {
     "upgrade-nocase.ps1": "Set-SdInternalMarker",
     "upgrade-voc.ps1": "Set-SdInternalMarker",
     "bootstrap.py": "INTERNAL_MARKER_DIR",
+    # 25 Sep 26 - SOLO 2's witness; sets bootstrap's INTERNAL_MARKER_DIR and uses its sd().
+    "probe-solo-stage.py": "INTERNAL_MARKER_DIR",
     "sdsys-seat.ps1": "Set-SdInternalMarker",
     "verify-accountrules.ps1": "Set-SdInternalMarker",
     "verify-createfilecase.ps1": "Set-SdInternalMarker",

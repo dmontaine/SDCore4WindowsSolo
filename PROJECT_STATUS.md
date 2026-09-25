@@ -49,13 +49,13 @@ or *"— PRE_RELEASE_FIXES.md"*; grep the number there.
 What it lists as owed is also an entry under OPEN TASKS — if the two disagree,
 OPEN TASKS wins.
 
-***HANDOFF 25 Sep 2026 — SOLO 2's C and name/version half DONE (compiled,
-unit-run, not run as SD). Next: SOLO 2's `stage.py` half, then SOLO 8.***
+***HANDOFF 25 Sep 2026 — SOLO 2's C, name/version and `stage.py` DONE (compiled,
+unit-run, cold-staged; the bootstrapped run is owed). Next: SOLO 2's witness.***
 
 **Start here:**
-1. **SOLO 2, "Still owed here"** — `stage.py` to one tree with `dev\shm` and a
-   path-free `sd.conf`. Then the first real Solo tree can be laid out by hand and
-   `sd.exe` run in it, which is the witness the C half is still owed.
+1. **SOLO 2, "Still owed here"** — the elevated `probe-solo-stage.ps1` run and its
+   log. `bin\` was rebuilt 25 Sep 11:21 with `make -o sdpy sd` (`sdpy.exe` is the
+   21 Sep one).
 2. **One owner decision is open** (SOLO 3): remote sessions may carry an
    administrator user's UNFILTERED token. Does not block SOLO 2.
 
@@ -173,13 +173,27 @@ run it in until the stage/installer half below):
   `<home>\dev\shm`; `shm_open` works once that folder exists and fails without it
   (the control). So the tree ships an empty `dev\shm`.
 
+- **`stage.py`** (25 Sep): one root `<stage>\SDCoreSolo` (`STAGE_ROOT`; `pf` and
+  `pd` are the same directory — the old roots shared no name); `dev\shm` staged,
+  `FSTAB` gone; `SD_CONF` names no `SDSYS`/`DUMPDIR`/`USRDIR`/`GRPDIR`; the
+  bootstrap conf INSERTS the staged `SDSYS=` (asserted). `accounts\sdsys` ships
+  **`@SDSYS`** (`PRODUCTION_SDSYS`): every account-path reader expands it through
+  `gpl.bp/pathtkn` (login ×3, `_voc_ref`), so no install writes a path. The
+  pre-bootstrap retarget still writes the absolute staged path.
+  `test-upgradeiss-units` follows `STAGE_ROOT`.
+  **Measured:** cold stage (unelevated) lays out that tree; `sd.conf` has no path
+  line; the staged `sd.exe --version` prints `SD Core Solo (sd) Version S1.1-0`
+  with `SD_CONFIG` unset.
+
 **Still owed here:**
-- **`stage.py`**: one tree instead of `ProgramFiles`+`ProgramData`; ship
-  `dev\shm`, drop `FSTAB` and the `shm` data dir; `SD_CONF` loses `SDSYS`,
-  `DUMPDIR`, `USRDIR`, `GRPDIR` (all derived now). `PRODUCTION_SDSYS`: the
-  `accounts\sdsys` register record embeds an absolute path — the installer or
-  LOGIN must write it (it is the one path the layout cannot derive); SOLO 4
-  reshapes the register anyway.
+- ***THE BOOTSTRAPPED WITNESS, run by the owner elevated:***
+  `powershell -ExecutionPolicy Bypass -File <repo>\sdb_ai\sd64\gplbld\probe-solo-stage.ps1`
+  — `stage.py --bootstrap` into `<repo>\stage`, then `probe-solo-stage.py`
+  with `SD_CONFIG` removed: `CONFIG` USRDIR/GRPDIR and `WHERE` must be inside the
+  staged root, `accounts\sdsys` must read `@SDSYS`. Log:
+  `<repo>\stage\probe-solo-stage.log`. Both scripts load-checked and watched
+  refusing unelevated; **not yet run elevated**. If the bootstrap fails, suspect
+  first the `dev\shm` move (the old fstab mapped `/dev/shm` out) and `@SDSYS`.
 - `sdclilib` `home_path()` is compiled, not run — the first DLL client in a Solo
   tree is its test.
 - `sd.iss` `AppVer` left at W1.1-0 deliberately: `sd.iss` is the multi-user
