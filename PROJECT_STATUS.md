@@ -49,9 +49,24 @@ or *"— PRE_RELEASE_FIXES.md"*; grep the number there.
 What it lists as owed is also an entry under OPEN TASKS — if the two disagree,
 OPEN TASKS wins.
 
-***HANDOFF 25 Sep 2026 — SOLO 2, 4, 5, 12 AND 13 DONE; SOLO 3's token drop
-(ruling 16) WITNESSED ELEVATED. Next: SOLO 3's remainder with SOLO 6 (API
-sessions as the user), or SOLO 8 (the installer).***
+***HANDOFF 25 Sep 2026 (end of session, pushed at `358d23c`) — SOLO 2, 4, 5, 12
+AND 13 DONE; SOLO 3's token drop (ruling 16) WITNESSED ELEVATED.***
+
+***OWNER'S ORDER, 25 Sep 2026: "both, installer first".***
+- **FIRST: SOLO 8, the Solo installer** — a new small `sd-solo.iss`, per-user
+  (`PrivilegesRequired=lowest`, files to `%USERPROFILE%\SDCoreSolo` from
+  `<stage>\SDCoreSolo`), ONE `ShellExec('runas')` step for the machine-wide work
+  (S4U task `sd -start` at startup — it drops its admin token itself, ruling 16;
+  firewall; sshd_config per SOLO 7), then the unelevated account and password
+  steps (`solo_account`, `solo_password ADMIN` and, managed mode only, `GLOBAL`,
+  each via `sd -internal` with the `$internal` marker — SOLO 8's entry has the
+  details). Compile to scratch with ISCC (tooling below); the owner runs installs.
+  `probe-solo-installer.iss` + `probe-solo-elevated.ps1` are the working pattern.
+- **THEN: the API design for SOLO 3's remainder + SOLO 6** — write it for the
+  owner's approval BEFORE building: API sessions need no identity switch in Solo
+  (the relay's S4U logon needs SYSTEM, which the daemon is not), and ruling 3's
+  Windows-password login is a new mode in BOTH client libraries, so the Linux
+  side is involved (through the owner — no mailbox).
 
 **Start here:**
 1. **The agent can cycle the tree itself, unelevated**: from MSYS2 bash in
