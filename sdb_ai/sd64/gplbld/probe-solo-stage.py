@@ -37,6 +37,15 @@ BS = chr(92)
 DISQUALIFY = ['programdata', 'not found', 'cannot', 'has not been started']
 
 
+def posixpath(winp):
+    """The MSYS2 form of a Windows path - how SD prints @PATH, which comes
+    from getcwd() (op_dio2.c: getcwd() -> /c/ProgramData/SD/sdsys)."""
+    if os.name == 'nt':
+        return winp
+    return subprocess.run(['cygpath', '-u', winp],
+                          capture_output=True, text=True).stdout.strip()
+
+
 def winpath(p):
     """The Windows form of a path, as sd.exe will print it."""
     if os.name == 'nt':
@@ -128,7 +137,11 @@ def finish(sdexe, sdsys, env, expect, fails):
                    if l.startswith(key + ' ') and len(l.split(None, 1)) == 2]
         else:
             got = [l.strip() for l in out.splitlines() if l.strip()]
-        ok = any(g.lower() == want.lower() for g in got) and not bad
+        # A WHOLE line must equal the expected path, in either spelling: run 3
+        # (25 Sep 2026) printed @PATH as /c/.../SDCoreSolo/sdsys, which is the
+        # right folder in getcwd()'s form, and the Windows-only match failed it.
+        wants = {want.lower()} if key else {want.lower(), posixpath(want).lower()}
+        ok = any(g.lower() in wants for g in got) and not bad
         print('  %s  %s: want %s' % ('PASS' if ok else 'FAIL', key or '@PATH', want))
         print('        got  %s%s' % (got, ('  DISQUALIFIED by %s' % bad) if bad else ''))
         if not ok:

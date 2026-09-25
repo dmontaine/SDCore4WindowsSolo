@@ -204,7 +204,14 @@ run it in until the stage/installer half below):
   PASSED** (stage.py exit 0 on the new layout, `@SDSYS` shipped, no path in
   sd.conf); the probe failed on its own fault (SD not started) — fixed. **Run 2:
   `sd -start` → `C:/msys64/sd.conf not found`** — the POSIX-root defect above,
-  fixed. Run 3 owed, full (not `-SkipStage`: the staged `sd.exe` is the old one).
+  fixed. **Run 3 (full, 11:34): `sd -start` started with `SD_CONFIG` removed;
+  `CONFIG` USRDIR/GRPDIR = `stage\SDCoreSolo\user_accounts`/`group_accounts`
+  (PASS); `WHERE` printed `/c/Users/Don/SDCoreProject/SDCore4WindowsSolo/stage/
+  SDCoreSolo/sdsys`** — the right folder via `@SDSYS`, in `getcwd()`'s POSIX
+  form (the multi-user product printed `/c/ProgramData/SD/sdsys` the same way);
+  the probe wanted only the Windows form and scored it FAIL. Probe now accepts
+  either spelling as a whole line. A `-SkipStage` rerun for the clean verdict is
+  owed.
 - `sdclilib` `home_path()` is compiled, not run — the first DLL client in a Solo
   tree is its test.
 - `sd.iss` `AppVer` left at W1.1-0 deliberately: `sd.iss` is the multi-user
