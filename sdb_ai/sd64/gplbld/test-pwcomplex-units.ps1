@@ -229,7 +229,7 @@ Section '4. the partition: every prompt that sets a password runs the rule'
 # invisible to every row above.  Each site is named with what it sets.
 $sites = @(
     @{ File = "$sd64/sdsys/gpl.bp/set_acc_password"; Pat = 'pw_complex\(pw1\)'; What = 'MODIFY.PASSWORD, the SD credential' }
-    @{ File = "$sd64/sdsys/gpl.bp/set_passwd";       Pat = 'pw_complex\(pw1\)'; What = "CREATE.ACCOUNT, the account user's Windows password" }
+    # 25 Sep 26 - set_passwd (CREATE.ACCOUNT's Windows password) deleted with SOLO 4.
     @{ File = "$sd64/sdsys/gpl.bp/login";            Pat = 'pw_complex\(pw1\)'; What = "LOGIN's credential prompt" }
     @{ File = $finish;                               Pat = 'Test-PasswordComplex'; What = 'the installer, the SDSYS Windows password' }
     @{ File = $instal;                               Pat = 'Test-GeneratedPasswordComplex'; What = 'the generated SDSYS password' }
@@ -242,7 +242,7 @@ foreach ($s in $sites) {
 }
 # And each BASIC caller must DECLARE the function, or the call is a subroutine
 # name the compiler resolves to nothing recognisable.
-foreach ($f in @('set_acc_password', 'set_passwd', 'login')) {
+foreach ($f in @('set_acc_password', 'login')) {
     $t = Get-Content -LiteralPath "$sd64/sdsys/gpl.bp/$f" -Raw
     Check ("$f declares deffun pw_complex") ($t -match "deffun\s+pw_complex\(pw\)\s+calling\s+'!pw_complex'") $null
 }

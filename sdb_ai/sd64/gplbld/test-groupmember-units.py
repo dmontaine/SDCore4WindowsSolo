@@ -94,38 +94,8 @@ FAIL_CLOSED = {
         "(the same conflation vb.account no longer has - see NOTES)",
     ("cproc", "if not(is_grp_member(@logname,acc.record<ACC$GROUP>)) then"):
         "the logto gate: an access check fails closed with 10003",
-    ("createa", "if not(is_grp_member(acc.uname,'sdusers')) then"):
-        "create account: a could-not-tell goes on to os_group ADDMEM, which "
-        "is idempotent and reports its own failure",
-    ("createa", 'if attach or is_grp_member(acc.uname, "S-1-5-32-544") then'):
-        "create account: asked about the well-known Administrators SID, "
-        "which always resolves; a could-not-tell would add the user to "
-        "sdsshonly, which os_group can undo.  RELEASE_1.1 66 put 'attach or' "
-        "in front of it: an ATTACHED account takes the keeps-its-rights "
-        "branch whatever the lookup says, so for the one account that "
-        "reaches this site with attach set the answer cannot matter - and "
-        "that is the point, since taking a logon right from somebody who "
-        "already signs in at this console is the 15 Aug 2026 lockout",
-    ("granta", "if is_grp_member(user, grp) then"):
-        "grant: a could-not-tell falls through to os_group ADDMEM, which "
-        "reports its own failure rather than claiming success",
-    ("granta", "if not(is_grp_member(user, grp)) then"):
-        "revoke: a could-not-tell reports 'has not been granted', which the "
-        "site's own comment already accepts for an orphaned SID",
-    # 25 Sep 26 - LOGIN's sdusers gate is gone with SOLO 4 (no SD groups in Solo).
-    ("modifya", "if is_grp_member(user.name,'sdusers') then"):
-        "group add: a could-not-tell refuses the add as 'not in sdusers'; "
-        "an administrator's verb, nothing is granted by mistake",
-    ("modifya", "if is_grp_member(user.name,group.name) THEN"):
-        "group add/delete (two sites, same line): 'already a member' is "
-        "skipped and os_group ADDMEM/DELMEM reports its own failure",
-    ("modifya", "user.ok = is_grp_member(acc.user,'sdusers')"):
-        "account.user: a could-not-tell refuses with 10020, fail closed",
-    ("modifya", "has.ssh = is_grp_member(acc.user, 'sdssh')"):
-        "route change: a could-not-tell reads as 'does not have it', so the "
-        "idempotent ADDMEM runs and reports its own failure",
-    ("modifya", "has.api = is_grp_member(acc.user, 'sdapi')"):
-        "route change: same as has.ssh",
+    # 25 Sep 26 - SD Core Solo (SOLO 4): LOGIN's sdusers gate, and every site in
+    # createa, granta and modifya, went with those programs (no SD groups).
 }
 
 # 18 Sep 26 - RELEASE_1.1 64 DELETED TWO DECLARED SITES: the administrator
@@ -309,7 +279,9 @@ def static_rows():
                 if s.lower().startswith("deffun"):
                     continue
                 sites.append((name, i, s))
-    check(len(sites) >= 5,
+    # 25 Sep 26 - floor 5 -> 3, the count measured after SOLO 4 deleted
+    # createa, granta and modifya.  It moves with the tree or it is no floor.
+    check(len(sites) >= 3,
           "control: the walk found real call sites (%d)" % len(sites))
     unclassified = []
     for name, i, s in sites:
