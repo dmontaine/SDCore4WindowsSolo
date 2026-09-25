@@ -250,9 +250,18 @@ re-launched `-stop` stops a forced-started daemon, an MSYS2-launched one cannot
 production. `SD_DROP_ADMIN_TEST=1` forces the re-launch unelevated (can only
 remove rights); with it the agent ran the probe's mechanics: start, daemon
 Medium/deny-only, sessions, stop leaves no daemon — no hang. Unelevated
-stage+probe 23/23 after all of it. **Owed: the owner's elevated rerun** — the
-ssh leg must read Medium and the control must read High, which only an elevated
-window can show.
+stage+probe 23/23 after all of it.
+***RULING 16 WITNESSED — owner's elevated rerun, 25 Sep 2026, `PASS - every leg
+held`:*** daemon started from the elevated window = **Medium, Administrators
+deny-only (0x10)**; `SH whoami` with `SSH_CONNECTION` = **Medium, Administrators
+"Group used for deny only"**; the control without it = **High, Administrators
+"Enabled group, Group owner"** (so the window WAS elevated and only the ssh case
+dropped); `-stop` left no daemon. Raw outputs in `<repo>\stage\probe-dropadmin`.
+*Aside, from that output:* the owner's token carries `ace\sdu_Don`, a Windows group
+the multi-user product created — leftover machine state, nothing Solo uses.
+**Still owed in SOLO 3:** retire `sdsvc.exe`, the S4U relay path and `sdrelay`; the
+task's registration and at-startup trigger (SOLO 8's elevated step); an API and an
+ssh session reaching the daemon from another machine with nobody signed in.
 **From SOLO 4:** `op_sh.c` `os_user_permitted()` still refuses a SOCKET session
 (the multi-user API token worry) — lift it once API sessions are shown to run as
 the user; note that CPROC's `SH` passes C's `HDR_INTERNAL` test regardless, so an
