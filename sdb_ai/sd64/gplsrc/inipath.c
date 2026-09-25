@@ -44,17 +44,26 @@
  *
  * SD CORE SOLO (25 Sep 2026, owner's choice of layout): THE HOME IS WHERE THE
  * PROGRAMS ARE.  Solo installs into one folder, %USERPROFILE%\SDCoreSolo, with
- * the programs and msys-2.0.dll in its usr\bin.  The MSYS2 runtime already
- * makes the folder two above that DLL the POSIX root "/" (PROJECT_STATUS.md 6),
- * so "/" IS the home, and asking the runtime for it keeps one rule rather than
- * two.  sd.conf is <home>\sd.conf, SDSYS defaults to <home>\sdsys and the
- * account folders sit beside it; nothing holds the user's path, so the tree
- * works wherever it is put.  /dev/shm is <home>\dev\shm with no fstab -
- * measured 25 Sep 2026: shm_open() works once that directory exists and
- * fails without it.
+ * the programs and msys-2.0.dll in its usr\bin, so the home is the folder two
+ * above the running executable.  sd.conf is <home>\sd.conf, SDSYS defaults to
+ * <home>\sdsys and the account folders sit beside it; nothing holds the
+ * user's path, so the tree works wherever it is put.
  *
- * SD_CONFIG still overrides, and a development run from sdb_ai/sd64/bin needs
- * it: there the DLL is MSYS2's own and the root is C:\msys64.
+ * FROM THE EXECUTABLE'S OWN PATH, NOT FROM THE POSIX ROOT - measured, and the
+ * first version got it wrong.  It asked the runtime for "/", which is the
+ * folder two above msys-2.0.dll when sd.exe is started natively.  But sd.exe
+ * started BY ANOTHER MSYS2 PROCESS (the bootstrap's python, and so Git Bash)
+ * inherits that parent's mount table: 25 Sep 2026, run from MSYS2 python,
+ * "sd -start" reported "C:/msys64/sd.conf not found".  /proc/self/exe
+ * converted by cygwin_conv_path() is right under any mount table, because the
+ * two use the same one.  And the executable must be in a folder named usr\bin,
+ * or this refuses: a guess at the home from an exe somewhere else is worse
+ * than an error, and a development run from sdb_ai/sd64/bin sets SD_CONFIG.
+ *
+ * /dev/shm is <root>\dev\shm with no fstab (measured 25 Sep 2026: shm_open()
+ * works once that directory exists and fails without it).  That IS the POSIX
+ * root, so an sd.exe started from an MSYS2 shell would put its segment under
+ * that shell's root instead - open, SOLO 2 in PROJECT_STATUS.md.
  *
  * END-CODE
  */
@@ -62,6 +71,7 @@
 #include "sd.h"
 
 #include <sys/cygwin.h>
+#include <unistd.h>  /* readlink() */
 
 /* ======================================================================
    GetHomePath()  -  The installation's own folder, as a Windows path with
@@ -69,21 +79,39 @@
                      callers must fail rather than guess.                   */
 
 bool GetHomePath(char* buff, int buff_len) {
-  size_t n;
+  char exe[MAX_PATHNAME_LEN + 1];
+  char* p;
+  ssize_t n;
+  int i;
+  static const char* const expect[2] = {"bin", "usr"};
 
   if ((buff == NULL) || (buff_len < 4))
     return FALSE;
 
-  if (cygwin_conv_path(CCP_POSIX_TO_WIN_A | CCP_ABSOLUTE, "/", buff,
+  n = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
+  if ((n <= 0) || (n >= (ssize_t)sizeof(exe) - 1))
+    return FALSE;
+  exe[n] = '\0';
+
+  if (cygwin_conv_path(CCP_POSIX_TO_WIN_A | CCP_ABSOLUTE, exe, buff,
                        (size_t)buff_len) != 0)
     return FALSE;
 
-  /* A drive root comes back as "C:\"; everything else without a separator.
-     Strip it so callers can always append "\name".                         */
+  /* <home>\usr\bin\sd  ->  <home>.  Strip the name, then insist on bin and
+     usr, so an executable anywhere else is refused rather than guessed at. */
 
-  n = strlen(buff);
-  if ((n > 0) && (buff[n - 1] == '\\'))
-    buff[n - 1] = '\0';
+  if ((p = strrchr(buff, '\\')) == NULL)
+    return FALSE;
+  *p = '\0';
+
+  for (i = 0; i < 2; i++) {
+    if (((p = strrchr(buff, '\\')) == NULL) || (p == buff) ||
+        (stricmp(p + 1, expect[i]) != 0))
+      return FALSE;
+    *p = '\0';
+  }
+
+  /* A home at a drive root is "C:", which callers' "\name" completes.     */
 
   return (buff[0] != '\0');
 }
