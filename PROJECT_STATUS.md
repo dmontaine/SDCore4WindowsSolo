@@ -49,24 +49,32 @@ or *"— PRE_RELEASE_FIXES.md"*; grep the number there.
 What it lists as owed is also an entry under OPEN TASKS — if the two disagree,
 OPEN TASKS wins.
 
-***HANDOFF 25 Sep 2026 — SOLO 2, 4, 5 AND 12 DONE AND WITNESSED (HISTORY.md).
-Next: SOLO 3 (needs the owner's token decision) or SOLO 8 (the installer).***
+***HANDOFF 25 Sep 2026 — SOLO 2, 4, 5, 12 AND 13 DONE; SOLO 3's token drop
+(ruling 16) WITNESSED ELEVATED. Next: SOLO 3's remainder with SOLO 6 (API
+sessions as the user), or SOLO 8 (the installer).***
 
 **Start here:**
-1. **The agent can now cycle the tree itself, unelevated**: from MSYS2 bash in
+1. **The agent can cycle the tree itself, unelevated**: from MSYS2 bash in
    `sdb_ai/sd64`, `python3 gplbld/stage.py --stage <repo>/stage --force --bootstrap`
-   then `python3 gplbld/probe-solo-stage.py --stage <repo>/stage` (long paths work
-   since SOLO 12). `bin\` rebuilt 25 Sep with `make -o sdpy sd` (`sdpy.exe` is
-   21 Sep's).
-2. **Notes left in `sd4windows` and `SDCore4Linux`** (owner pushed them, 25 Sep):
-   SOLO 12's defects exist in both trees.
-3. **Rulings 10-15 (25 Sep)** are in "WHAT SD CORE SOLO IS".
-4. **One owner decision is open** (SOLO 3): remote sessions may carry an
-   administrator user's UNFILTERED token.
+   then `python3 gplbld/probe-solo-stage.py --stage <repo>/stage` (23 legs).
+   `bin\` rebuilt 25 Sep with `make -o sdpy sd` (`sdpy.exe` is 21 Sep's).
+   ***A daemon started NATIVELY and a session started from MSYS2 are in different
+   process tables*** (SOLO 13) — the segment is found either way now, but drive an
+   admin-token test natively (`probe-solo-dropadmin.ps1` shows how).
+   `SD_DROP_ADMIN_TEST=1` forces the token re-launch unelevated.
+2. **Rulings 10-16 (25 Sep)** are in "WHAT SD CORE SOLO IS".
+3. **Notes left in `sd4windows` and `SDCore4Linux`** (owner pushed them): SOLO 12's
+   defects exist in both trees.
+4. **The API is the next hard part**: sessions are still handed to an S4U relay
+   that needs SYSTEM (`win32relay.c`, `win32s4u.c`); in Solo the daemon is the
+   user, so API sessions should need no identity switch (SOLO 3) and log in with
+   the Windows password (SOLO 6) — design first, it touches the Linux client.
 
 **State of this machine, measured at handoff:**
 - **No SD of any kind is installed.** So `test-sysmsg-units.ps1` reports NO TREE —
-  expected; free tier otherwise 53 pass / 0 fail (25 Sep, after the SOLO 2 change).
+  expected; free tier otherwise 51 pass / 0 fail (25 Sep, after SOLO 13).
+- `<repo>\stage` holds a bootstrapped tree with the probe's account `don` and its
+  test passwords; `stage.py --force` rebuilds it. No SD process is running.
 - ***DO NOT RUN `cycle.ps1`.*** It still stages and installs the multi-user
   layout (`sd.iss`, `C:\Program Files\SD`, the service, SDSYS), and since SOLO 2
   that install should not start: `sd.exe` in `C:\Program Files\SD\usr\bin` would
