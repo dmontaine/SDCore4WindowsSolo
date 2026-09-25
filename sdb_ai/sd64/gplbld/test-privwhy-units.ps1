@@ -115,6 +115,12 @@ function Get-Body([string]$text, [string]$signature) {
     return $null
 }
 
+# The floor for the null-case check below: the count measured on the roster
+# as it stands.  25 Sep 26 - 10 -> 7 when os_user_permitted()'s os.users exits
+# left (SOLO 4); measured 7, not assumed.  It moves with the roster or it stops
+# being a floor.
+$minReturns = 7
+
 $predicates = @(
     @{ Name = 'IsAdmin';       Text = $libText; Sig = 'bool IsAdmin(PRIV_WHY* why)' },
     @{ Name = 'IsElevated';    Text = $libText; Sig = 'bool IsElevated(PRIV_WHY* why)' },
@@ -123,14 +129,11 @@ $predicates = @(
     # same shape as $neverShipped's one real gap.  It is a fourth predicate of
     # exactly the guarded kind: two "return FALSE" exits that are the check
     # failing to complete rather than the answer being no.
-    @{ Name = 'IsInteractive'; Text = $libText; Sig = 'bool IsInteractive(PRIV_WHY* why)' },
-    # 13 Sep 26 - RELEASE_1.1 23.  os_permitted() was split: it keeps the
-    # HDR_INTERNAL test and delegates, and tests 2 and 3 - every "return FALSE"
-    # this rule is about - moved to os_user_permitted().  The guard follows the
-    # body, in the same commit, or it would be examining a function with no
-    # failure exits and calling that clean.  Section 3 below covers the split
-    # itself.
-    @{ Name = 'os_user_permitted'; Text = $shText; Sig = 'Private bool os_user_permitted(PRIV_WHY* why) {' }
+    @{ Name = 'IsInteractive'; Text = $libText; Sig = 'bool IsInteractive(PRIV_WHY* why)' }
+    # 25 Sep 26 - SD Core Solo (SOLO 4): os_user_permitted() LEFT THIS ROSTER.
+    # Its five failure exits were the os.users record read, which is deleted
+    # (the one user may; os.users is gone), so it has no "return FALSE" left to
+    # examine.  Section 3a still checks it.
 )
 
 $checkedReturns = 0
@@ -162,19 +165,12 @@ foreach ($p in $predicates) {
 # 05 Sep 26 - RAISED 8 -> 10 WITH IsInteractive's TWO EXITS.  The floor has to
 # move with the roster or it stops being a floor: at 8 the whole of the new
 # predicate could stop matching and the count would still clear it.
-Check 'some return-FALSE sites were actually examined' $true ($checkedReturns -ge 10)
-Write-Output ("       examined {0} 'return FALSE' site(s)" -f $checkedReturns)
+Check 'some return-FALSE sites were actually examined' $true ($checkedReturns -ge $minReturns)
+Write-Output ("       examined {0} 'return FALSE' site(s), floor {1}" -f $checkedReturns, $minReturns)
 
-# --- 3. The ENOENT discrimination, which is deliberate and easy to "tidy" away.
-Write-Output ''
-Write-Output '=== os.users: a missing record is the designed NO, not a failure ==='
+# --- 3. The ENOENT discrimination on the os.users read is GONE with the read
+# (25 Sep 26, SOLO 4).  The body is still needed by section 3a.
 $osBody = Get-Body $shText 'Private bool os_user_permitted(PRIV_WHY* why) {'
-if ($null -ne $osBody) {
-    Check 'the open() failure tests errno against ENOENT' $true `
-          ($osBody -match 'errno\s*!=\s*ENOENT')
-    Check 'it assigns PRIV_OPEN_FAILED for other errno values' $true `
-          ($osBody -match 'PRIV_OPEN_FAILED')
-}
 
 # --- 3a. The split, and the one call that must never go back.  RELEASE_1.1 23.
 #

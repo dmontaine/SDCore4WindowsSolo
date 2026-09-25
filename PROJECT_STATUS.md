@@ -49,13 +49,18 @@ or *"— PRE_RELEASE_FIXES.md"*; grep the number there.
 What it lists as owed is also an entry under OPEN TASKS — if the two disagree,
 OPEN TASKS wins.
 
-***HANDOFF 25 Sep 2026 — SOLO 2 DONE AND WITNESSED (HISTORY.md). Next: SOLO 4.***
+***HANDOFF 25 Sep 2026 — SOLO 2 DONE; SOLO 4's core DONE AND WITNESSED
+UNELEVATED (8/8 probe legs). Next: SOLO 4's dead-program removal, or SOLO 12.***
 
 **Start here:**
-1. **SOLO 4** — one account. BASIC and scripts; its witness needs a staged tree,
-   which `probe-solo-stage.ps1` (owner, elevated) produces without an installer.
-   `bin\` was rebuilt 25 Sep 11:31 with `make -o sdpy sd` (`sdpy.exe` is 21 Sep's).
-2. **One owner decision is open** (SOLO 3): remote sessions may carry an
+1. **The agent can now cycle the tree itself, unelevated**: from MSYS2 bash in
+   `sdb_ai/sd64`, `python3 gplbld/stage.py --stage <repo>/stage --force --bootstrap`
+   then `python3 gplbld/probe-solo-stage.py --stage <repo>/stage`. Use the repo
+   `stage` folder — a long path trips SOLO 12. `bin\` rebuilt 25 Sep with
+   `make -o sdpy sd` (`sdpy.exe` is 21 Sep's).
+2. **SOLO 4 "Still owed here"** — remove the dead programs, one at a time.
+3. **Rulings 12-14 (25 Sep) define SOLO 5**; ruling 14's scope is an open question.
+4. **One owner decision is open** (SOLO 3): remote sessions may carry an
    administrator user's UNFILTERED token.
 
 **State of this machine, measured at handoff:**
@@ -126,6 +131,32 @@ its own beyond that account's. **Assume one copy per computer.** Product name
    install must work **offline, from read-only removable media**, and the release
    is a folder that is equally a SourceForge download and a USB stick. SOLO 11.
 
+10. **(25 Sep 2026) The one account is named after the Windows user**, in
+    `<home>\user_accounts\<name>`; the installer creates it and writes the name
+    into the register. LOGIN keeps landing `@logname` in its own account.
+    (Offered and declined: a fixed name in `<home>\account` that ignores
+    `@logname`.)
+11. **(25 Sep 2026) SDSYS is never a login target** — nobody LOGINs or LOGTOs
+    to it; *"maintenance verbs accessed from the user"* do what SDSYS was entered
+    for. (Declined: LOGTO SDSYS behind the admin gate.) `sd -internal` stays as
+    the installer/bootstrap door.
+12. **(25 Sep 2026) THE ADMIN GATE, REPLACING RULING 6'S "in (a) everything is
+    open".** The maintenance verbs, run from the user's account, are gated by an
+    **admin password set at install**; in managed mode (b), **either** that
+    password **or** the global password unlocks them. The account and grant
+    commands stay removed in both modes.
+13. **(25 Sep 2026) `sd -internal` is not available once the system is
+    installed, and the installed tree carries no install-time source** — no
+    `gpl.bp` source (objects only). Chosen from three offered: the `-internal`
+    code stays in `sd.exe`, dormant, switched off when the install finishes and
+    on again only by an upgrade's installer for its own steps. (Declined for
+    now: moving install-only code out of `sd.exe` into a separate tool.)
+14. **(25 Sep 2026) Editing the VOC is gated by the same password as the admin
+    verbs** (ruling 12). *Open, for the owner at SOLO 5:* SD writes VOC records
+    as a side effect of ordinary work (`CREATE.FILE` adds an F-record, `.S`
+    saves a sentence, `$command.stack`); whether those count as "editing the
+    VOC" or only direct writes (`ED VOC`, a program's `WRITE` to VOC) do.
+
 **What this retires, found in the 24 Sep review** — the multi-user model is in every
 layer: `sdsvc.exe` running the daemon as `LocalSystem`; API sessions proved by SCRAM
 against `$cred` and then given the user's identity by an S4U logon
@@ -142,7 +173,7 @@ conflicts with this section, this section wins.**
 
 ## OPEN TASKS — SD CORE SOLO S1.1-0
 
-New ids are **`SOLO <n>`**; the next is **SOLO 12**. `RELEASE_1.1 <n>` and
+New ids are **`SOLO <n>`**; the next is **SOLO 13**. `RELEASE_1.1 <n>` and
 `PRE_RELEASE <n>` citations in source and in §5/§6 name multi-user entries —
 grep HISTORY.md, or `sd4windows`, for them. **Every entry below is a plan: none
 of it is built or measured yet**, and each names what would change it.
@@ -168,6 +199,11 @@ token: remote `SH` would administer the machine, with only the Windows password.
 Fits "no additional security" (ruling), but it is a choice to make knowingly. *Not
 read directly: the probe's integrity line came back empty (`WindowsIdentity.Groups`
 omits `S-1-16-*`); a token-integrity read should confirm it first.*
+**From SOLO 4:** `op_sh.c` `os_user_permitted()` still refuses a SOCKET session
+(the multi-user API token worry) — lift it once API sessions are shown to run as
+the user; note that CPROC's `SH` passes C's `HDR_INTERNAL` test regardless, so an
+API session's `SH` is not stopped by that exception. `win32relay.c` still builds
+its own multi-user security descriptor; `win32sem.c` now grants SYSTEM + the user.
 
 ### SOLO 4 · one account
 
@@ -180,8 +216,35 @@ PRE_RELEASE 70's lesson), `attach-account.ps1`, `install-sdsys.ps1`,
 `reconcile-accounts.ps1`, `reclaim-profiles.ps1`, `remove-sdaccounts.ps1`,
 `deny-logon.ps1`, `sync-route-groups.ps1`, the `secure-*` ACL scripts, the four
 groups, and the `os.users` gates — `SH` and `OS.EXECUTE` just run as the user.
-From SOLO 2: `createa:527,930` and `delete_user:300` still name `C:\ProgramData`
-(they go with this task). The one account's register record can hold a path
+**Done 25 Sep 2026 and WITNESSED UNELEVATED by `probe-solo-stage.py`** (agent
+shell, `<repo>\stage`, 8/8 PASS; raw output read):
+- C: `check_admin()` tests nothing (`sd.c`); `USR_ADMIN` is seeded only for
+  `sd -internal` (`kernel.c`); `os_user_permitted()` says yes except for a socket
+  session (`op_sh.c`, until SOLO 3); semaphores grant SYSTEM + the creating user,
+  not Administrators + `sdusers` (`win32sem.c`) — ***measured: the first unelevated
+  bootstrap died `sdwind: Error 5 getting semaphores`***.
+- BASIC: LOGIN has no `sdusers` gate, no SDSYS landing, refuses `@logname` SDSYS,
+  no batch gate; CPROC `SH` and `LOGOUT ALL` need no `os.users`/SDSYS; `EDIT` needs
+  no `os.users`. New `gpl.bp/solo_account` (install-only, internal) builds the one
+  account and writes the register (absolute path — see its header).
+- Build: `bootstrap.py`/`stage.py` no longer require elevation (§5.6 warning
+  overridden, reason at the site). `test-privundetermined-units` deleted (its
+  subject, the `os.users` read, is gone); `test-privwhy` and `test-groupmember`
+  follow the deletions.
+- VOC: `newvoc` gains `append.sd.path clean.account clear.locks config list.locks
+  list.readu listu lock unlock set.date update.accounts $contrib $licence`;
+  `voc_template` loses `create/delete/modify.account grant revoke list.grants
+  os.users`.
+- Witnessed: `solo_account` makes `don` (398 VOC entries); plain `sd WHERE` lands in
+  `user_accounts/don`; `sd -internal` without a marker → `Connection terminated`;
+  `sd -ASDSYS` → own-account refusal; `sd SH 6*7` → `42`.
+
+**Still owed here:** delete the dead programs and their shipped data (`createa`,
+`delacc`, `modifya`, `granta`, `os_group`, `delete_user`, `set_acc_password`…, the
+`os.users` directory, `$cred` uses) — each has cross-references, so one at a time
+with a restage + probe; `remote.api`/`remote.ssh` VOC placement (SOLO 7/8); the
+multi-user scripts (SOLO 8 with the installer). `createa:527,930` and
+`delete_user:300` still name `C:\ProgramData` — they go with those programs. The one account's register record can hold a path
 relative to `@SDSYS` (e.g. `@SDSYS\..\user_accounts\<name>`) so nothing written at
 install names the user's folder — `pathtkn` expands a leading `@SDSYS` (SOLO 2,
 HISTORY.md). The `sd -internal` elevation gate (bootstrap.py, RELEASE_1.1 64) is
@@ -189,15 +252,21 @@ multi-user SDSYS-by-elevation and is this task's too.
 
 ### SOLO 5 · the two modes and the admin gate (rulings 4 and 6)
 
-The admin commands that survive SOLO 4 go into the user's VOC. **Proposed
+**Also ruling 14: writes to the VOC are behind the same gate** (scope open there).
+The admin commands that survive SOLO 4 go into the user's VOC, **gated per ruling
+12** (install-set admin password; in (b) that OR the global password). **Proposed
 mechanism, cheap because it reuses what exists:** ~25 BASIC programs already test
 one flag, `K$ADMINISTRATOR`, today seeded from Windows elevation (`kernel.c:299`).
-- **Mode (a):** the seed is TRUE for the one user — everything open.
-- **Mode (b):** the seed is FALSE; a new `ADMIN` verb asks for the global password
-  and sets it for the session; an API login with the global password lands with
-  it set. The global password is stored as a SCRAM verifier in `$cred` under a
-  reserved name, so the Linux master's EXISTING client should authenticate
-  unchanged (to verify, SOLO 6).
+- **Both modes:** the seed is FALSE (no elevation meaning at all); a new `ADMIN`
+  verb asks for a password and, if it matches, sets the flag for the session.
+- **Mode (a):** only the admin password set at install matches.
+- **Mode (b):** the admin password OR the global password; an API login with the
+  global password lands with the flag set. Both stored as SCRAM verifiers in
+  `$cred` under reserved names, so the Linux master's EXISTING client should
+  authenticate unchanged (to verify, SOLO 6).
+*Would be falsified if* a maintenance verb needs the flag inside a session that
+cannot prompt (a hidden installer session) — `sd -internal` already bypasses by
+being internal; check each verb's gate before relying on it.
 **Open, for the owner when it comes up:** can a mode-(a) install later become
 mode (b) (a command to set the global password), and can (b) go back?
 
@@ -254,8 +323,21 @@ From SOLO 2: the staged tree is `<stage>\SDCoreSolo`, copied whole to
 `%USERPROFILE%\SDCoreSolo` — it holds no path, so the installer writes none.
 `sd-solo.iss` takes `AppVer` `S1.1-0` (`sd.iss` still says W1.1-0 on purpose).
 `upgrade.iss` Source lines already use `STAGE_ROOT`; `{#DataDir}` is to define.
+From SOLO 4: the account is made by `sd -internal RUN gpl.bp solo_account <user>`
+after writing the one-shot `sdsys\$internal` marker (`internal-marker.ps1`);
+success line `SOLO ACCOUNT READY <name> <path>`; re-runnable. Nothing needs
+elevation except SOLO 3's task registration and SOLO 7's sshd_config/firewall.
 Solo should refuse to install beside a multi-user SD Core (shared pipe and
 program names; shm segments are per-tree now).
+**Ruling 13.** The "`-internal` off after install" half ALREADY EXISTS: LOGIN's
+`internal.gate` (RELEASE_1.1 82, owner 20 Sep 2026) admits an internal session
+only against a fresh one-shot `sdsys\$internal` marker that the installer's own
+steps write, and nothing writes one on a delivered system. **New work, planned
+(conditional):** the installer's LAST step deletes the `gpl.bp` source files
+(keeping `gpl.bp.out`) and `{app}\gplbld\FILES_DICTS`; an upgrade re-lays what
+its internal steps need and deletes it again. *Would be falsified if* anything at
+run time reads `gpl.bp` source (a `$include` from user code, a VOC pointer a verb
+uses, `UPDATE.ACCOUNTS`) — check each before deleting.
 
 ### SOLO 9 · the test harness
 
@@ -271,6 +353,10 @@ run — a DLL client against a Solo tree; (2) `/dev/shm` is the POSIX root, and 
 sd.conf, 25 Sep), so a session started from Git Bash may use a different
 `/dev/shm` from the daemon's — measure it. `probe-solo-stage.ps1` (elevated,
 `-SkipStage` to reprobe) is the stage-level witness and a start for `cycle.ps1`.
+**Since SOLO 4 it needs no elevation** and carries SOLO 4's legs; the agent can
+run the whole stage → bootstrap → probe itself (MSYS2 `python3`, repo `stage`
+folder — a long scratch path trips SOLO 12). `verify-privundetermined.ps1`
+measures the deleted `os.users` read — retire it (its free guard is already gone).
 
 ### SOLO 10 · documentation
 
@@ -307,6 +393,22 @@ SourceForge — and every file unpacked from that zip by Explorer — carries th
 runs, from the stick too. The fix is a code-signing certificate, a cost and an
 owner's decision; documenting the "More info → Run anyway" step is the free
 alternative.
+
+### SOLO 12 · a long runfile path fails, and the bootstrap does not notice
+
+**Measured 25 Sep 2026** (unelevated bootstrap into a scratchpad stage, root path
+~120 chars): `RUN gpl.bp write_install_dicts` printed `Invalid runfile pathname at line
+2386 of $cproc` and ***`bootstrap.py` carried on and `stage.py` exited 0*** — the
+dictionaries were silently not written. Cause: `op_run()` (`op_jumps.c:800`) copies
+the runfile path into `MAX_PROGRAM_NAME_LEN` (128, `sddefs.h:322`) and
+`k_get_c_string` fails beyond it; CPROC builds the path as `fileinfo(fl$path) :
+@ds : name` (`cproc:2383`). Same run: `RUN gpl.bp solo_account` failed the same
+way. The short `<repo>\stage` passes. Fix both: the length (a runfile path is a
+path, `MAX_PATHNAME_LEN`), and `bootstrap.py` must anchor on
+`write_install_dicts`' success wording and fail otherwise. An install at
+`%USERPROFILE%\SDCoreSolo` is ~40 + user name + 30 chars — normally under 128,
+which is how this survived. Check upstream `sdb64` for the 128 limit
+(UPSTREAM_FIXES.md).
 
 ---
 

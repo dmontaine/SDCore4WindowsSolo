@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 25 Sep 26 SD Core Solo - SOLO 4: LOGOUT ALL no longer requires SDSYS.
 * 21 Sep 26 Windows port - RELEASE_1.1 64 leftover.  elev.obtained is deleted:
 *            it was initialised false and never set true once LOGTO stopped
 *            calling elevate('START') on 18 Sep, so its two bypasses in
@@ -3298,10 +3299,9 @@ int.logout:
            return
          end
 
-         if @who # 'SDSYS' then
-           display sysmsg(2002) ;* Command can only be executed from SDSYS account
-           return
-         end
+*        25 Sep 26 SD Core Solo (SOLO 4) - the "only from SDSYS" test is gone:
+*        SDSYS is never a login target (ruling 11), and every session is the one
+*        user's.  The administrator test above is ruling 12's gate.
 
          s = kernel(K$USERS, 0)  ;* First value in each field is user no
          n = dcount(s, @fm)
@@ -3763,12 +3763,10 @@ os.command:
 *
 *   @logname, NOT the account: the permission belongs to the person, so it does
 *   not change when they LOGTO somewhere else.
-   sh.listed = @false
-   openpath @sdsys:@ds:'os.users' to sh.f then
-      read sh.rec from sh.f, @logname then
-         sh.listed = (upcase(trim(sh.rec<1>)) = 'YES')
-      end
-   end
+* 25 Sep 26 SD Core Solo (SOLO 4) - OS.USERS IS GONE: the one user has the
+*   shell, pipes and all, as they would at their own prompt.  sh.listed stays
+*   as the name the tests below already read, always true now.
+   sh.listed = @true
 
    if not(kernel(K$ADMINISTRATOR, -1)) and not(sh.listed) then
       display sysmsg(10053, @logname) ;* %1 is not permitted to use the shell

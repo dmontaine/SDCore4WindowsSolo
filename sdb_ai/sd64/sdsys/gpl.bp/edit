@@ -15,6 +15,7 @@
 * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 *
 * START-HISTORY:
+* 25 Sep 26 SD Core Solo - SOLO 4: no os.users check; the one user may edit.
 * 25 Sep 26 SD Core Solo - the bundled editor is found from @sdsys's parent,
 *           not C:\Program Files\SD (SOLO 2).
 * 03 Sep 26 Windows port - PRE_RELEASE_FIXES 66.  find.editor now tries the
@@ -472,40 +473,9 @@ check.permitted:
       return
    end
 
-   if kernel(K$ADMINISTRATOR, -1) then
-      permitted = @true
-      return
-   end
-
-   openpath @sdsys : ds : 'os.users' to os.users.f else
-      error.text  = verb.text : ' is not available: this system has no os.users'
-      error.text := ' list, so nobody but an administrator may reach the'
-      error.text := ' operating system.' : char(10)
-      error.text := 'ed, the line editor, needs none of this.'
-      return
-   end
-
-*  THE THREE-CASE FOLD, as CPROC and LOGIN's batch gate do it: as held, then
-*  lower, then upper.  The record is written by hand with ED and the login
-*  name arrives in whatever case Windows reports it.
-   os.rec = ''
-   read os.rec from os.users.f, @logname else
-      read os.rec from os.users.f, downcase(@logname) else
-         read os.rec from os.users.f, upcase(@logname) else os.rec = ''
-      end
-   end
-   close os.users.f
-
-   if downcase(trim(os.rec<2>, ' ', 'B')) = 'yes' then
-      permitted = @true
-      return
-   end
-
-   error.text  = verb.text : ' is not available to ' : @logname : '.' : char(10)
-   error.text := 'It runs an editor outside SD, so it needs OS.EXECUTE'
-   error.text := ' permission: field 2 of your record in the SD system file'
-   error.text := ' os.users, which only an administrator can change.' : char(10)
-   error.text := 'ed, the line editor, needs none of this.'
+*  25 Sep 26 SD Core Solo (SOLO 4) - OS.USERS IS GONE; a session with a
+*  terminal is the one user, who may run an editor like anything else.
+   permitted = @true
 return
 
 * ---------------------------------------------------------------------------
