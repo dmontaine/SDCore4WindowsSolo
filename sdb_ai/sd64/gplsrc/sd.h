@@ -181,6 +181,8 @@ OSFILE dio_open(char * fn, int mode);
 bool GetConfigPath(char * inipath);
 bool GetHomePath(char * buff, int buff_len);
 bool GetDefaultSysdir(char * buff, int buff_len);
+int SdShmOpen(const char * name, int flags, int mode);
+int SdShmUnlink(const char * name);
 
 /* KERNEL.C */
 int16_t assign_user_no(int16_t user_table_index);
