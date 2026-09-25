@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 25 Sep 26 SD Core Solo - the segment is opened and unlinked by path under
+ *           the home (SdShmOpen/SdShmUnlink), not via the inherited /dev/shm
  * 16 Aug 26 Windows port - a segment left by a previous boot is SD_STOPPED and
  *                      not SD_WRECKAGE.  /dev/shm is NTFS here, so it survives
  *                      a reboot and the service could not start after one
@@ -323,7 +325,7 @@ Private bool create_shared_segment(int32_t bytes,
                                    char* errmsg) {
   int fd;
 
-  if ((fd = shm_open(SD_POSIX_SHM_NAME, O_CREAT | O_RDWR, 0666)) == -1) {
+  if ((fd = SdShmOpen(SD_POSIX_SHM_NAME, O_CREAT | O_RDWR, 0666)) == -1) {
     sprintf(errmsg, "Error %d creating shared segment.", errno);
     return FALSE;
   }
@@ -334,7 +336,7 @@ Private bool create_shared_segment(int32_t bytes,
   if (ftruncate(fd, (off_t)bytes)) {
     sprintf(errmsg, "Error %d sizing shared segment.", errno);
     close(fd);
-    shm_unlink(SD_POSIX_SHM_NAME);
+    SdShmUnlink(SD_POSIX_SHM_NAME);
     return FALSE;
   }
 
@@ -345,7 +347,7 @@ Private bool create_shared_segment(int32_t bytes,
   if (sysseg == MAP_FAILED) {
     sysseg = NULL;
     sprintf(errmsg, "Error %d attaching to new shared segment.", errno);
-    shm_unlink(SD_POSIX_SHM_NAME);
+    SdShmUnlink(SD_POSIX_SHM_NAME);
     return FALSE;
   }
 
@@ -361,7 +363,7 @@ bool attach_shared_memory() {
   int fd;
   struct stat statbuf;
 
-  if ((fd = shm_open(SD_POSIX_SHM_NAME, O_RDWR, 0666)) == -1)
+  if ((fd = SdShmOpen(SD_POSIX_SHM_NAME, O_RDWR, 0666)) == -1)
     return FALSE; /* Not started */
 
   /* The creator sizes the object in a separate step from creating it.  A zero
@@ -477,7 +479,7 @@ Private bool segment_predates_boot(void) {
   if ((booted = boot_time()) == (time_t)0)
     return FALSE;
 
-  if ((fd = shm_open(SD_POSIX_SHM_NAME, O_RDONLY, 0666)) == -1)
+  if ((fd = SdShmOpen(SD_POSIX_SHM_NAME, O_RDONLY, 0666)) == -1)
     return FALSE;
 
   got = fstat(fd, &statbuf);
@@ -561,7 +563,7 @@ Private int sd_state(int* daemon_pid, int* sessions) {
      captured nothing on three attempts (PROJECT_STATUS.md).                */
 
   if (stale) {
-    shm_unlink(SD_POSIX_SHM_NAME);
+    SdShmUnlink(SD_POSIX_SHM_NAME);
     fprintf(stderr,
             "Discarding the shared segment left by the previous boot - SD did "
             "not shut down cleanly.\n");
@@ -893,7 +895,7 @@ bool stop_sd() {
   /* Remove the name.  As with IPC_RMID, any mapping a straggler still holds
      stays valid until that process exits.                                  */
 
-  if (shm_unlink(SD_POSIX_SHM_NAME) && (errno != ENOENT)) {
+  if (SdShmUnlink(SD_POSIX_SHM_NAME) && (errno != ENOENT)) {
 /* 20240126 mab add syslog */
     syslog (LOG_INFO, "Error %d deleting shared memory", errno);
     fprintf(stderr, "Error %d deleting shared memory\n", errno);

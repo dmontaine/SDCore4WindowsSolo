@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 25 Sep 26 SD Core Solo - the segment by path under the home (SdShmOpen)
  * 31 Dec 23 SD launch - prior history suppressed
  * rev 0.9.0 Jan 25 mab change dyn file prefix to %
  *  1 Sep 26 Windows port - make_path() keeps a drive letter as the root
@@ -663,7 +664,8 @@ bool attach_shared_memory() {
   int fd;
   struct stat statbuf;
 
-  if ((fd = shm_open(SD_POSIX_SHM_NAME, O_RDWR, 0666)) == -1)
+  /* 25 Sep 26 SD Core Solo - by path under the home (inipath.c SdShmOpen) */
+  if ((fd = SdShmOpen(SD_POSIX_SHM_NAME, O_RDWR, 0666)) == -1)
     return FALSE; /* Not started */
 
   if (fstat(fd, &statbuf) || statbuf.st_size == 0) {

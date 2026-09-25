@@ -398,9 +398,10 @@ sdconv: sdconv.o ctype.o linuxlb.o dh_hash.o
 	@echo Linking $@
 	@$(COMP) $(C_FLAGS) -lc $(GPLOBJ)sdconv.o $(GPLOBJ)ctype.o $(GPLOBJ)linuxlb.o $(GPLOBJ)dh_hash.o -o $(GPLBIN)sdconv
 
-sdidx: sdidx.o
+# 25 Sep 26 SD Core Solo - inipath.o for SdShmOpen(), the segment by path.
+sdidx: sdidx.o inipath.o
 	@echo Linking $@
-	@$(COMP) $(C_FLAGS) -lc $(GPLOBJ)sdidx.o -o $(GPLBIN)sdidx
+	@$(COMP) $(C_FLAGS) -lc $(GPLOBJ)sdidx.o $(GPLOBJ)inipath.o -o $(GPLBIN)sdidx
 
 # 14 Aug 26 Windows port - renamed from sdlnxd, and exepath.o added: the daemon
 #           launches "sd -cleanup" and has to find it beside itself rather than
@@ -410,9 +411,10 @@ sdidx: sdidx.o
 #           iphlpapi, which mingw does not link by default; the OpenProcess and
 #           LookupAccountSid half of that file is covered by the -ladvapi32
 #           already here for win32sem.o.
-sdwind: sdwind.o sdsem.o win32sem.o win32peer.o exepath.o
+# 25 Sep 26 SD Core Solo - inipath.o for SdShmOpen(), the segment by path.
+sdwind: sdwind.o sdsem.o win32sem.o win32peer.o exepath.o inipath.o
 	@echo Linking $@
-	@$(COMP) $(C_FLAGS) -lc $(GPLOBJ)sdwind.o $(GPLOBJ)sdsem.o $(GPLOBJ)win32sem.o $(GPLOBJ)win32peer.o $(GPLOBJ)exepath.o -ladvapi32 -liphlpapi -o $(GPLBIN)sdwind
+	@$(COMP) $(C_FLAGS) -lc $(GPLOBJ)sdwind.o $(GPLOBJ)sdsem.o $(GPLOBJ)win32sem.o $(GPLOBJ)win32peer.o $(GPLOBJ)exepath.o $(GPLOBJ)inipath.o -ladvapi32 -liphlpapi -o $(GPLBIN)sdwind
 
 terminfo:
 	@echo Compiling terminfo library

@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 25 Sep 26 SD Core Solo - SdShmOpen()/SdShmUnlink(): the segment by its
+ *                      path under the home, not by the inherited POSIX root
  * 25 Sep 26 SD Core Solo - everything is found from the installation's own
  *                      folder (GetHomePath); no machine path is compiled in
  * 14 Aug 26 Windows port - SD_CONFIG replaces SCARLET_CONFIG, and the
@@ -71,7 +73,10 @@
 #include "sd.h"
 
 #include <sys/cygwin.h>
-#include <unistd.h>  /* readlink() */
+#include <unistd.h>  /* readlink(), unlink() */
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
 
 /* ======================================================================
    GetHomePath()  -  The installation's own folder, as a Windows path with
@@ -126,6 +131,47 @@ bool GetDefaultSysdir(char* buff, int buff_len) {
     return FALSE;
 
   return (snprintf(buff, (size_t)buff_len, "%s\\sdsys", home) < buff_len);
+}
+
+/* ======================================================================
+   SdShmOpen(), SdShmUnlink()  -  the shared memory segment, by the home
+
+   25 Sep 26 SD Core Solo.  shm_open() puts the segment in /dev/shm, which is
+   the POSIX ROOT - and the root is inherited: an sd.exe started by an MSYS2
+   process (Git Bash, the build's python) uses THAT process's root.  MEASURED
+   25 Sep 2026: a daemon re-launched natively by win32token.c made its segment
+   in <home>\dev\shm, while an sd.exe started from MSYS2 python looked in
+   C:\msys64\dev\shm and reported "SD has not been started" with SD running.
+   So the segment is opened by PATH, <home>\dev\shm\<name>, from the same
+   GetHomePath() that finds sd.conf - which /proc/self/exe makes right under
+   any root.  With no home (a development run with SD_CONFIG), shm_open() as
+   before.  Same flags and mode as shm_open(), plus close-on-exec as it has.  */
+
+Private bool shm_path(const char* name, char* buff, int buff_len) {
+  char home[MAX_PATHNAME_LEN + 1];
+
+  if (!GetHomePath(home, sizeof(home)))
+    return FALSE;
+  while (*name == '/')
+    name++;
+  return (snprintf(buff, (size_t)buff_len, "%s\\dev\\shm\\%s", home, name)
+          < buff_len);
+}
+
+int SdShmOpen(const char* name, int flags, int mode) {
+  char path[MAX_PATHNAME_LEN + 1];
+
+  if (shm_path(name, path, sizeof(path)))
+    return open(path, flags | O_CLOEXEC, (mode_t)mode);
+  return shm_open(name, flags, (mode_t)mode);
+}
+
+int SdShmUnlink(const char* name) {
+  char path[MAX_PATHNAME_LEN + 1];
+
+  if (shm_path(name, path, sizeof(path)))
+    return unlink(path);
+  return shm_unlink(name);
 }
 
 /* ====================================================================== */

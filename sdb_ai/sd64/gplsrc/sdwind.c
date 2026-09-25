@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 25 Sep 26 SD Core Solo - the segment by path under the home (SdShmOpen)
  * 17 Sep 26 Windows port - RELEASE_1.1 37: check_lost_users() starts
  *                      "sd -cleanup" with fork/execl and waits for it, not
  *                      system() - the install has no /bin/sh, so system()
@@ -132,7 +133,8 @@ int main() {
      it will not start.  The exit codes are unchanged and still discriminate:
      1 the shared memory segment, 2 the semaphores.                          */
 
-  if ((fd = shm_open(SD_POSIX_SHM_NAME, O_RDWR, 0666)) == -1) {
+  /* 25 Sep 26 SD Core Solo - by path under the home (inipath.c SdShmOpen) */
+  if ((fd = SdShmOpen(SD_POSIX_SHM_NAME, O_RDWR, 0666)) == -1) {
     fprintf(stderr, "%s: cannot open shared memory %s - %s\n", SDWIND_NAME,
             SD_POSIX_SHM_NAME, strerror(errno));
     exit(1);

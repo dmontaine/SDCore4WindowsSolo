@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 25 Sep 26 SD Core Solo - only the standard handles cross (the first elevated
+ *           run hung on an inherited pipe); SD_DROP_ADMIN_TEST forces the path.
  * 25 Sep 26 SD Core Solo - written, SOLO 3, owner's ruling 16.
  * END-HISTORY
  *
@@ -106,8 +108,11 @@ int win32_drop_admin(int* exit_code, char* why, size_t whylen) {
   SID_AND_ATTRIBUTES deny;
   SID_IDENTIFIER_AUTHORITY nt = SECURITY_NT_AUTHORITY;
   TOKEN_MANDATORY_LABEL tml;
-  STARTUPINFOA si;
+  STARTUPINFOEXA six;
   PROCESS_INFORMATION pi;
+  HANDLE list[3];
+  int nlist;
+  SIZE_T alen = 0;
   DWORD code = 1;
   long level;
   int result = -1;
@@ -117,6 +122,7 @@ int win32_drop_admin(int* exit_code, char* why, size_t whylen) {
 
   if (why != NULL && whylen > 0)
     why[0] = '\0';
+  memset(&six, 0, sizeof(six)); /* every "goto done" reaches its cleanup */
 
   if (!OpenProcessToken(GetCurrentProcess(), MAXIMUM_ALLOWED, &tok)) {
     why_set(why, whylen, "OpenProcessToken");
@@ -128,8 +134,17 @@ int win32_drop_admin(int* exit_code, char* why, size_t whylen) {
     why_set(why, whylen, "GetTokenInformation(TokenIntegrityLevel)");
     goto done;
   }
-  if (level < SECURITY_MANDATORY_HIGH_RID) {
+  /* SD_DROP_ADMIN_TEST=1 forces the re-launch at any integrity, so the path can
+     be exercised from an unelevated shell (the agent cannot elevate).  It can
+     only REMOVE rights - the child gets the same restricted, Medium token - so
+     it cannot be used to gain anything.  Added 25 Sep 2026 when the first
+     elevated run hung and the path had no unelevated witness at all.       */
+  if ((level < SECURITY_MANDATORY_HIGH_RID) && (getenv("SD_DROP_ADMIN_TEST") == NULL)) {
     result = 0; /* Already standard - nothing to do */
+    goto done;
+  }
+  if ((level < SECURITY_MANDATORY_HIGH_RID) && (getenv(FILTER_MARKER) != NULL)) {
+    result = 0; /* Test mode, second pass: the child is the filtered one */
     goto done;
   }
   if (getenv(FILTER_MARKER) != NULL) {
@@ -177,22 +192,53 @@ int win32_drop_admin(int* exit_code, char* why, size_t whylen) {
       snprintf(why, whylen, "out of memory copying the command line");
     goto done;
   }
+  /* ONLY THE THREE STANDARD HANDLES CROSS, AND THAT IS THE WHOLE OF THE FIRST
+     ELEVATED RUN'S HANG (25 Sep 2026).  bInheritHandles=TRUE alone passes
+     EVERY inheritable handle this process holds - including the pipe the
+     caller reads our output from - and "sd -start" hands them on to sdwind,
+     which lives for ever, so the reader waited for an end of file that never
+     came.  PROC_THREAD_ATTRIBUTE_HANDLE_LIST names what crosses and nothing
+     else crosses; win32relay.c does the same for the same reason.  The list
+     may not hold a handle twice (stdout and stderr often ARE one handle).  */
   std[0] = GetStdHandle(STD_INPUT_HANDLE);
   std[1] = GetStdHandle(STD_OUTPUT_HANDLE);
   std[2] = GetStdHandle(STD_ERROR_HANDLE);
+  nlist = 0;
   for (i = 0; i < 3; i++) {
-    if (std[i] != NULL && std[i] != INVALID_HANDLE_VALUE)
-      SetHandleInformation(std[i], HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
+    int j;
+    int seen = 0;
+    if (std[i] == NULL || std[i] == INVALID_HANDLE_VALUE)
+      continue;
+    SetHandleInformation(std[i], HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
+    for (j = 0; j < nlist; j++)
+      if (list[j] == std[i])
+        seen = 1;
+    if (!seen)
+      list[nlist++] = std[i];
   }
-  memset(&si, 0, sizeof(si));
-  si.cb = sizeof(si);
-  si.dwFlags = STARTF_USESTDHANDLES;
-  si.hStdInput = std[0];
-  si.hStdOutput = std[1];
-  si.hStdError = std[2];
 
-  if (!CreateProcessAsUserA(rtok, NULL, cmdline, NULL, NULL, TRUE, 0, NULL,
-                            NULL, &si, &pi)) {
+  six.StartupInfo.cb = sizeof(six);
+  six.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+  six.StartupInfo.hStdInput = std[0];
+  six.StartupInfo.hStdOutput = std[1];
+  six.StartupInfo.hStdError = std[2];
+  if (nlist > 0) {
+    InitializeProcThreadAttributeList(NULL, 1, 0, &alen);
+    six.lpAttributeList =
+        (LPPROC_THREAD_ATTRIBUTE_LIST)HeapAlloc(GetProcessHeap(), 0, alen);
+    if (six.lpAttributeList == NULL ||
+        !InitializeProcThreadAttributeList(six.lpAttributeList, 1, 0, &alen) ||
+        !UpdateProcThreadAttribute(six.lpAttributeList, 0,
+                                   PROC_THREAD_ATTRIBUTE_HANDLE_LIST, list,
+                                   nlist * sizeof(HANDLE), NULL, NULL)) {
+      why_set(why, whylen, "PROC_THREAD_ATTRIBUTE_HANDLE_LIST");
+      goto done;
+    }
+  }
+
+  if (!CreateProcessAsUserA(rtok, NULL, cmdline, NULL, NULL, nlist > 0,
+                            EXTENDED_STARTUPINFO_PRESENT, NULL, NULL,
+                            &six.StartupInfo, &pi)) {
     why_set(why, whylen, "CreateProcessAsUser");
     goto done;
   }
@@ -210,6 +256,10 @@ int win32_drop_admin(int* exit_code, char* why, size_t whylen) {
   result = 1;
 
 done:
+  if (six.lpAttributeList != NULL) {
+    DeleteProcThreadAttributeList(six.lpAttributeList);
+    HeapFree(GetProcessHeap(), 0, six.lpAttributeList);
+  }
   if (cmdline != NULL)
     free(cmdline);
   if (medium != NULL)
