@@ -36882,3 +36882,36 @@ no BOM, no CR, no mojibake, and every byte outside the cut identical to `e311adc
   SOLO 8.
 
 ====
+
+## SOLO 2 — relocatable paths, name and version (25 Sep 2026)
+
+**DONE AND WITNESSED on a bootstrapped staged tree.** Commits `c26678e`, `2f214e4`,
+`687a0d9`, `21b7349`, `7731deb` (this repository).
+
+- **Owner's layout choice: the home is found from sd.exe's location, not written
+  into any file.** `inipath.c` `GetHomePath()` = `/proc/self/exe` through
+  `cygwin_conv_path`, three components up, and those must be `usr\bin` or it
+  refuses; `config.c` defaults `SDSYS`/`USRDIR`/`GRPDIR` from it; `sdclilib.c`
+  does the same from its own DLL path (compiled, not run). `SD_CONFIG` overrides.
+- ***THE FIRST VERSION USED THE POSIX ROOT AND WAS WRONG*** — an `sd.exe` started
+  by an MSYS2 process (bootstrap's python, Git Bash) inherits the parent's mount
+  table: `sd -start` printed `C:/msys64/sd.conf not found`. Re-measured after
+  the fix from PowerShell and from MSYS2 bash; an exe outside `usr\bin` refuses.
+  The same inheritance may affect `/dev/shm` — carried to SOLO 9.
+- **`/dev/shm` needs no fstab** (scratch measurement): it is `<root>\dev\shm`;
+  `shm_open` works when it exists, fails when not. `stage.py` ships it.
+- **`stage.py`**: one root `<stage>\SDCoreSolo`; `sd.conf` has no path line;
+  `accounts\sdsys` ships `@SDSYS`, which every account-path reader expands
+  through `gpl.bp/pathtkn`.
+- **S1.1-0 / "SD Core Solo"**: three `revstamp.h`, both `$release`, login banner,
+  `sd --version`; `edit` finds bundled editors from `@sdsys`'s parent.
+- **Witness** — `gplbld/probe-solo-stage.ps1` (owner, elevated), four runs. Run 1:
+  bootstrap PASSED, probe forgot `sd -start`. Run 2: the POSIX-root defect. Run 3:
+  right paths, probe too strict on `@PATH`'s `/c/...` spelling. **Run 4
+  (`-SkipStage`): `sd -start` with `SD_CONFIG` removed, `USRDIR`, `GRPDIR` and
+  `WHERE` (= `.../stage/SDCoreSolo/sdsys` via `@SDSYS`) all PASS, exit 0.**
+- Leftovers moved: BASIC `ProgramData` sites and the account record → SOLO 4;
+  `sd-solo.iss` AppVer, side-by-side refusal → SOLO 8; client DLL and `/dev/shm`
+  legs → SOLO 9.
+
+====

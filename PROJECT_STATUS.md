@@ -49,15 +49,14 @@ or *"— PRE_RELEASE_FIXES.md"*; grep the number there.
 What it lists as owed is also an entry under OPEN TASKS — if the two disagree,
 OPEN TASKS wins.
 
-***HANDOFF 25 Sep 2026 — SOLO 2's C, name/version and `stage.py` DONE (compiled,
-unit-run, cold-staged; the bootstrapped run is owed). Next: SOLO 2's witness.***
+***HANDOFF 25 Sep 2026 — SOLO 2 DONE AND WITNESSED (HISTORY.md). Next: SOLO 4.***
 
 **Start here:**
-1. **SOLO 2, "Still owed here"** — the elevated `probe-solo-stage.ps1` run and its
-   log. `bin\` was rebuilt 25 Sep 11:21 with `make -o sdpy sd` (`sdpy.exe` is the
-   21 Sep one).
+1. **SOLO 4** — one account. BASIC and scripts; its witness needs a staged tree,
+   which `probe-solo-stage.ps1` (owner, elevated) produces without an installer.
+   `bin\` was rebuilt 25 Sep 11:31 with `make -o sdpy sd` (`sdpy.exe` is 21 Sep's).
 2. **One owner decision is open** (SOLO 3): remote sessions may carry an
-   administrator user's UNFILTERED token. Does not block SOLO 2.
+   administrator user's UNFILTERED token.
 
 **State of this machine, measured at handoff:**
 - **No SD of any kind is installed.** So `test-sysmsg-units.ps1` reports NO TREE —
@@ -148,80 +147,6 @@ New ids are **`SOLO <n>`**; the next is **SOLO 12**. `RELEASE_1.1 <n>` and
 grep HISTORY.md, or `sd4windows`, for them. **Every entry below is a plan: none
 of it is built or measured yet**, and each names what would change it.
 
-### SOLO 2 · relocatable paths, product name and version
-
-Everything under `%USERPROFILE%\SDCoreSolo` (ruling 1). **Owner's layout choice,
-25 Sep 2026: the home is found from where the programs are, not written into any
-file** — programs and `msys-2.0.dll` in `<home>\usr\bin`, so the MSYS2 POSIX root
-`/` IS the home.
-
-**Done 25 Sep 2026, compiled and unit-run, NOT yet run as SD** (no Solo tree to
-run it in until the stage/installer half below):
-- `inipath.c` `GetHomePath()` and `GetDefaultSysdir()`; `GetConfigPath()` =
-  `SD_CONFIG` else `<home>\sd.conf`. ***The home is `/proc/self/exe` converted by
-  `cygwin_conv_path`, three components up, and those must be `usr\bin`, else
-  refused — NOT the POSIX root.*** The first version used the root and the owner's
-  elevated run disproved it: `sd.exe` started by an MSYS2 process inherits the
-  parent's mount table and printed `C:/msys64/sd.conf not found`. Re-measured:
-  right from PowerShell and from MSYS2 bash; an exe outside `usr\bin` refuses.
-  With no home, `config.c` leaves the three defaults empty (dev runs set
-  `SD_CONFIG`). **Open, same cause:** `/dev/shm` IS the POSIX root, so an
-  `sd.exe` started from an MSYS2 shell (Git Bash) would use that shell's
-  `/dev/shm`, not the daemon's — segment mismatch. Not measured.
-  `config.c` defaults `SDSYS`, `USRDIR`, `GRPDIR` to `<home>\sdsys`,
-  `\user_accounts`, `\group_accounts` (sd.conf lines still override); `sdtic.c`
-  the same for SDSYS. `SD_CONFIG_DEFAULT` removed from `sddefs.h`.
-- `sdclilib.c` (native, no MSYS2): `home_path()` = three components up from its
-  own `...\usr\bin\sd.exe`; SDSYS defaults to `<home>\sdsys`.
-- `S1.1-0` in the three `revstamp.h` (`gpl.bp`'s regenerated, `gen_includes.py
-  --check` in sync) and both `$release`; login banner and `sd --version` say SD
-  Core Solo; `edit` finds bundled editors at `@sdsys`'s parent `/usr/bin`.
-- **Measured** (scratch root, run from PowerShell): `GetHomePath`/`GetConfigPath`/
-  `GetDefaultSysdir` answer the tree's own folder, `SD_CONFIG` overrides, a short
-  buffer fails. **`/dev/shm` needs no fstab**: with no `etc\fstab`, `/dev/shm` =
-  `<home>\dev\shm`; `shm_open` works once that folder exists and fails without it
-  (the control). So the tree ships an empty `dev\shm`.
-
-- **`stage.py`** (25 Sep): one root `<stage>\SDCoreSolo` (`STAGE_ROOT`; `pf` and
-  `pd` are the same directory — the old roots shared no name); `dev\shm` staged,
-  `FSTAB` gone; `SD_CONF` names no `SDSYS`/`DUMPDIR`/`USRDIR`/`GRPDIR`; the
-  bootstrap conf INSERTS the staged `SDSYS=` (asserted). `accounts\sdsys` ships
-  **`@SDSYS`** (`PRODUCTION_SDSYS`): every account-path reader expands it through
-  `gpl.bp/pathtkn` (login ×3, `_voc_ref`), so no install writes a path. The
-  pre-bootstrap retarget still writes the absolute staged path.
-  `test-upgradeiss-units` follows `STAGE_ROOT`.
-  **Measured:** cold stage (unelevated) lays out that tree; `sd.conf` has no path
-  line; the staged `sd.exe --version` prints `SD Core Solo (sd) Version S1.1-0`
-  with `SD_CONFIG` unset.
-
-**Still owed here:**
-- ***THE BOOTSTRAPPED WITNESS, run by the owner elevated:***
-  `powershell -ExecutionPolicy Bypass -File <repo>\sdb_ai\sd64\gplbld\probe-solo-stage.ps1`
-  — `stage.py --bootstrap` into `<repo>\stage`, then `probe-solo-stage.py`
-  with `SD_CONFIG` removed: `CONFIG` USRDIR/GRPDIR and `WHERE` must be inside the
-  staged root, `accounts\sdsys` must read `@SDSYS`. Log:
-  `<repo>\stage\probe-solo-stage.log`. **Run 1 (owner, 25 Sep): the bootstrap
-  PASSED** (stage.py exit 0 on the new layout, `@SDSYS` shipped, no path in
-  sd.conf); the probe failed on its own fault (SD not started) — fixed. **Run 2:
-  `sd -start` → `C:/msys64/sd.conf not found`** — the POSIX-root defect above,
-  fixed. **Run 3 (full, 11:34): `sd -start` started with `SD_CONFIG` removed;
-  `CONFIG` USRDIR/GRPDIR = `stage\SDCoreSolo\user_accounts`/`group_accounts`
-  (PASS); `WHERE` printed `/c/Users/Don/SDCoreProject/SDCore4WindowsSolo/stage/
-  SDCoreSolo/sdsys`** — the right folder via `@SDSYS`, in `getcwd()`'s POSIX
-  form (the multi-user product printed `/c/ProgramData/SD/sdsys` the same way);
-  the probe wanted only the Windows form and scored it FAIL. Probe now accepts
-  either spelling as a whole line. A `-SkipStage` rerun for the clean verdict is
-  owed.
-- `sdclilib` `home_path()` is compiled, not run — the first DLL client in a Solo
-  tree is its test.
-- `sd.iss` `AppVer` left at W1.1-0 deliberately: `sd.iss` is the multi-user
-  installer and SOLO 8 replaces it; `sd-solo.iss` takes `S1.1-0`.
-- BASIC: `createa:527,930` and `delete_user:300` still name `C:\ProgramData` —
-  both go with SOLO 4. Scripts: the ~140 `gplbld` hits are nearly all scripts
-  SOLO 4/8/9 retire; fix only the ones that survive, when they are touched.
-- Solo should refuse to install beside a multi-user SD Core (shared pipe and
-  program names; shm segments are now per-tree) — SOLO 8.
-
 ### SOLO 3 · everything runs as the user
 
 Retire `sdsvc.exe`, the S4U path and the `sdrelay` account; the daemon, the relay
@@ -255,6 +180,12 @@ PRE_RELEASE 70's lesson), `attach-account.ps1`, `install-sdsys.ps1`,
 `reconcile-accounts.ps1`, `reclaim-profiles.ps1`, `remove-sdaccounts.ps1`,
 `deny-logon.ps1`, `sync-route-groups.ps1`, the `secure-*` ACL scripts, the four
 groups, and the `os.users` gates — `SH` and `OS.EXECUTE` just run as the user.
+From SOLO 2: `createa:527,930` and `delete_user:300` still name `C:\ProgramData`
+(they go with this task). The one account's register record can hold a path
+relative to `@SDSYS` (e.g. `@SDSYS\..\user_accounts\<name>`) so nothing written at
+install names the user's folder — `pathtkn` expands a leading `@SDSYS` (SOLO 2,
+HISTORY.md). The `sd -internal` elevation gate (bootstrap.py, RELEASE_1.1 64) is
+multi-user SDSYS-by-elevation and is this task's too.
 
 ### SOLO 5 · the two modes and the admin gate (rulings 4 and 6)
 
@@ -319,6 +250,12 @@ upgrade logic. **No ssh server install, no download (ruling 8).** Choices: **mod
 **API port open or closed**; **ssh straight into `sd`** (only where OpenSSH is
 found, SOLO 7); **PATH (the user's own)**. Creates the one account; no service, groups or SDSYS Windows
 account. The installer-text rule in CLAUDE.md still governs its screens.
+From SOLO 2: the staged tree is `<stage>\SDCoreSolo`, copied whole to
+`%USERPROFILE%\SDCoreSolo` — it holds no path, so the installer writes none.
+`sd-solo.iss` takes `AppVer` `S1.1-0` (`sd.iss` still says W1.1-0 on purpose).
+`upgrade.iss` Source lines already use `STAGE_ROOT`; `{#DataDir}` is to define.
+Solo should refuse to install beside a multi-user SD Core (shared pipe and
+program names; shm segments are per-tree now).
 
 ### SOLO 9 · the test harness
 
@@ -328,6 +265,12 @@ Retire the ~150 multi-user `verify-*` scripts (they create accounts, groups and
 grants that no longer exist) and write a small Solo suite: one account, mode
 (a)/(b) admin gate, API with the Windows password and with the global password,
 ssh landing in `sd`, signed-out remote access.
+From SOLO 2, owed as suite legs: (1) `sdclilib` `home_path()` is compiled, not
+run — a DLL client against a Solo tree; (2) `/dev/shm` is the POSIX root, and an
+`sd.exe` started by an MSYS2 process inherits that parent's root (measured for
+sd.conf, 25 Sep), so a session started from Git Bash may use a different
+`/dev/shm` from the daemon's — measure it. `probe-solo-stage.ps1` (elevated,
+`-SkipStage` to reprobe) is the stage-level witness and a start for `cycle.ps1`.
 
 ### SOLO 10 · documentation
 
