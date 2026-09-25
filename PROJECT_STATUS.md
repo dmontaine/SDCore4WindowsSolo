@@ -157,6 +157,15 @@ its own beyond that account's. **Assume one copy per computer.** Product name
     `ED VOC`, a user program's `WRITE`/`DELETE` to VOC, `COPY` into VOC. Records
     SD writes as a side effect of ordinary commands (`CREATE.FILE`'s F-record, a
     saved sentence, `$command.stack`) are NOT gated. (Declined: every VOC write.)
+16. **(25 Sep 2026) SD never serves remote sessions on an administrator
+    token.** Given the measurement in SOLO 3 (an S4U task holds the full admin
+    token whatever `-RunLevel`), the owner chose: the daemon drops itself to a
+    standard token — Administrators deny-only, Medium integrity, admin
+    privileges gone — like an ordinary unelevated window. Applied also to an
+    `sd` started over ssh, because sshd, not the daemon, starts those (the
+    option as offered said sessions "inherit" it, which is true only of API
+    sessions). A local elevated console is left alone. (Declined: accept the
+    admin token; require a standard account.)
 15. **(25 Sep 2026) The mode is fixed at install.** Standalone (a) or managed (b)
     is chosen by the installer; changing it means reinstalling (an upgrade keeps
     the data). No verb sets or clears the global password. (Declined: switching
@@ -209,8 +218,28 @@ task as the user at `-RunLevel Limited` and `Highest`, each running
 `whoami /all /fo list`; prints integrity, how `BUILTIN\Administrators` is held,
 privilege counts, `SeDebugPrivilege`, and the elevated caller for contrast. Its
 parser was run (lifted by AST) on the agent's real unelevated `whoami` output:
-Medium, Administrators deny-only, 1/4 privileges — so it reads the format. Result
-owed.
+Medium, Administrators deny-only, 1/4 privileges — so it reads the format.
+***MEASURED, owner's run 25 Sep 2026 14:13: THE S4U TASK HOLDS THE FULL
+ADMINISTRATOR TOKEN, AND `-RunLevel` DOES NOT CHANGE IT.*** Limited and Highest
+alike: `ace\don`, **High Mandatory Level**, `BUILTIN\Administrators` **Enabled
+group**, 3 enabled / 21 disabled privileges, **SeDebugPrivilege present** — the
+same as the owner's elevated window (High, Enabled, 4/20). Task result 0 both;
+both tasks removed. So for a user who is a Windows administrator, a daemon started
+this way, and every remote session it serves, would hold that token.
+**Owner's ruling 16: drop to a standard token. Built 25 Sep 2026:**
+`gplsrc/win32token.c` `win32_drop_admin()` — at High integrity or above, re-launch
+the same command line on `CreateRestrictedToken(DISABLE_MAX_PRIVILEGE)` with
+Administrators deny-only and integrity set to Medium, same console/std handles,
+wait, return its exit code; `SD_TOKEN_FILTERED` stops a loop, and a child still
+High with it set is REFUSED. `sd.c` calls it first thing for `-START`, `-RESTART`
+or `SSH_CONNECTION`; a local elevated console is left alone. In `gpl.src`; linked
+(`nm`); make 0 warnings; the unelevated stage+probe is unchanged, 23/23.
+**Owed — the elevated witness:** `gplbld/probe-solo-dropadmin.ps1` (owner,
+elevated, on the agent's staged tree): `sd -start` from the elevated window; the
+running `sdwind.exe`'s token must read Medium + Administrators deny-only; an
+`SH whoami` session with `SSH_CONNECTION` must be Medium; WITHOUT it (the control)
+must stay High. Its token reader was run (lifted by AST) on the agent's own shell
+and agreed with `whoami` — after it caught its own ANSI/Unicode SID bug.
 **From SOLO 4:** `op_sh.c` `os_user_permitted()` still refuses a SOCKET session
 (the multi-user API token worry) — lift it once API sessions are shown to run as
 the user; note that CPROC's `SH` passes C's `HDR_INTERNAL` test regardless, so an
