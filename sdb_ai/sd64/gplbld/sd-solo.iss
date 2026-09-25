@@ -18,8 +18,9 @@
 ;      to the task.
 ;   2. PATH, the user's own (HKCU).
 ;   3. solo-machine.ps1, elevated: the S4U startup task, registered and started
-;      (SOLO 3, ruling 2); API firewall; ssh firewall scope (ruling 8); the
-;      sshd_config block (ruling 5).
+;      (SOLO 3, ruling 2); API firewall; ssh firewall scope (ruling 8); and,
+;      wherever OpenSSH is found, the sshd_config block that lands this user in
+;      SD (ruling 5) with sshd set to start at boot - not a choice.
 ;
 ; WHAT IS NOT HERE YET (SOLO 8 in PROJECT_STATUS.md): the opt-in data removal
 ; at uninstall (5.9.1 - the data is always kept for now), ruling 13's deletion
@@ -95,8 +96,11 @@ Name: "api"; Description: "Provide the SD Core API (port 4243)"; Flags: unchecke
 Name: "api\network"; Description: "Let other computers reach it"; Flags: unchecked dontinheritcheck
 Name: "sshnetwork"; Description: "Let other computers reach this computer's ssh server"; \
     Flags: unchecked; Check: SshRulePresent
-Name: "sshintosd"; Description: "Start SD Core Solo when I sign in over ssh"; \
-    Check: SshServerPresent
+; 25 Sep 26 - NO BOX FOR "ssh lands in SD".  Ruling 5 makes it the product, not
+; a choice; the box that was here ("Start SD Core Solo when I sign in over
+; ssh") read to the owner as starting the SERVER on sign-in, which it never
+; did - SD starts at boot from the task.  Wherever OpenSSH is found the block
+; is written and sshd is set to start at boot (solo-machine.ps1).
 
 [Dirs]
 Name: "{app}\user_accounts"; Flags: uninsneveruninstall
@@ -447,7 +451,7 @@ begin
       Extra := Extra + ' -SshScope open'
     else
       Extra := Extra + ' -SshScope restrict';
-    if SshServerWasFound and WizardIsTaskSelected('sshintosd') then
+    if SshServerWasFound then
       Extra := Extra + ' -SshIntoSd';
     Code := RunMachineStep('Install', Extra);
   end;
