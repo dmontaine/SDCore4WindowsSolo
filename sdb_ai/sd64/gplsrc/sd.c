@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 25 Sep 26 SD Core Solo - SOLO 3, ruling 16: -START, -RESTART and an ssh
+ *           session re-launch on a standard token (win32token.c)
  * 25 Sep 26 SD Core Solo - --version names SD Core Solo (SOLO 2)
  * 14 Sep 26 Windows port - program names are canonical LOWER case: the
  *           bootstrap processor is $bbproc and load_pcode() looks for lower-
@@ -107,6 +109,7 @@
 /* 17 Aug 26 Windows port - its own header rather than a prototype here, so
    that sd.c never sees windows.h.  See win32pipe.h.                        */
 #include "win32pipe.h"
+#include "win32token.h" /* 25 Sep 26 SD Core Solo - SOLO 3, ruling 16 */
 #include "locks.h"
 #include "keys.h"
 
@@ -136,11 +139,47 @@ void dump_pcode_file(void);
 
 /* ====================================================================== */
 
+/* 25 Sep 26 SD Core Solo - SOLO 3, owner's ruling 16.  Which starts must not
+   run on an administrator token: the daemon's (-START, -RESTART - the
+   scheduled task that starts Solo holds the FULL admin token, measured), and
+   a session sshd started (SSH_CONNECTION - sshd builds a full token for an
+   administrator, measured 5 Sep 2026).  A local elevated console is left
+   alone: that elevation was chosen at the keyboard.  API and phantom sessions
+   are started by the daemon, so they inherit its standard token.           */
+Private bool wants_standard_token(int argc, char *argv[]) {
+  int i;
+  char *p;
+
+  for (i = 1; i < argc; i++) {
+    if ((stricmp(argv[i], "-START") == 0) || (stricmp(argv[i], "-RESTART") == 0))
+      return TRUE;
+  }
+  p = getenv("SSH_CONNECTION");
+  return ((p != NULL) && (*p != '\0'));
+}
+
 int main(int argc, char *argv[]) {
   /* 13Jan22 gwb Refactored to remove "goto" calls. */
 
   int status = 1;
   char errmsg[80 + 1];
+
+  /* 25 Sep 26 SD Core Solo - SOLO 3, ruling 16: before anything else, so no
+     state is built on the admin token.  win32token.c has the mechanism.   */
+  if (wants_standard_token(argc, argv)) {
+    int child_exit = 1;
+    char why[200];
+
+    switch (win32_drop_admin(&child_exit, why, sizeof(why))) {
+      case 1: /* A standard-token copy of this command ran; its result is ours */
+        return child_exit;
+      case -1:
+        fprintf(stderr, "sd: refusing to run on an administrator token: %s\n", why);
+        return 1;
+      default: /* Already standard */
+        break;
+    }
+  }
 
   tio.term_type[0] = '\0';
 
