@@ -334,9 +334,15 @@ VERIFIED, account `don` entered, `WHO`/`WHERE` answered, served by the front
 itself; wrong password, `$admin` and `sdsys` refused. **Step 3's installer
 page built** (ISCC clean; a fresh install shows it — the owner's kept tree has a
 BOM'd `$ADMIN` anyway). **`SET.API.PASSWORD` (owner: that name, ADMIN-gated)
-BUILT AND WITNESSED 25 Sep** — docs/SOLO_API.md step 3. **Open, the owner's
-call: `MODIFY.PASSWORD` bypasses that gate** (same record; own password with the
-current one, a first one with no check) — retire it from Solo? **Next: step 4,**
+BUILT AND WITNESSED 25 Sep** — docs/SOLO_API.md step 3. **`MODIFY.PASSWORD`
+RETIRED (owner, 25 Sep)** — it bypassed that gate: `set_acc_password` and
+`newvoc/modify.password` deleted; witnessed "MODIFY.PASSWORD is not in your
+VOC" in a fresh account. Its guard duty moved: `SET.API.PASSWORD` and the
+installer's three password pages now run the password rule (`pw_complex`,
+10920; witnessed: `short1!` refused), `test-pwcomplex-units` names both.
+*An upgraded account keeps its old VOC entry, which now points at nothing* —
+fine for a fresh install, which this tree needs anyway (BOM). **SOLO 9:** ten
+`verify-*.ps1` run `MODIFY.PASSWORD` and are dead with it. **Next: step 4,**
 the global password on the same login name (shared salt). It covers SOLO 3's API remainder. **D3's option (b) MEASURED 25
 Sep** (`gplbld/probe-relayrestrict.c`, the real relay, unelevated): a restricted
 own token with restricting SIDs Everyone/Users/RESTRICTED at Low passes every

@@ -381,6 +381,36 @@ end;
 { Letters, digits and punctuation: solo-setup.ps1 sends the password to sd's
   standard input as ASCII bytes, and solo_password refuses anything outside
   33-126 (the byte-order-mark defect, PROJECT_STATUS.md SOLO 8). }
+{ 25 Sep 26 - THE PASSWORD RULE, gpl.bp/pw_complex arm for arm: at least 8
+  characters, a lower-case letter, an upper-case letter, a digit and a symbol.
+  Every prompt that sets a password runs it (test-pwcomplex-units.ps1, which
+  names this function); the refusal is message 10920 word for word. }
+function PasswordComplex(P: String): Boolean;
+var
+  I, C: Integer;
+  Lo, Up, Dg, Sy: Boolean;
+begin
+  Result := False;
+  if Length(P) < 8 then
+    Exit;
+  Lo := False; Up := False; Dg := False; Sy := False;
+  for I := 1 to Length(P) do
+  begin
+    C := Ord(P[I]);
+    if (C >= 97) and (C <= 122) then
+      Lo := True
+    else if (C >= 65) and (C <= 90) then
+      Up := True
+    else if (C >= 48) and (C <= 57) then
+      Dg := True
+    else if (C >= 32) and (C <= 126) then
+      Sy := True
+    else
+      Exit;
+  end;
+  Result := Lo and Up and Dg and Sy;
+end;
+
 function PasswordProblem(A, B: String): String;
 var
   I: Integer;
@@ -391,12 +421,16 @@ begin
   else if A <> B then
     Result := 'The passwords do not match.'
   else
+  begin
     for I := 1 to Length(A) do
       if (Ord(A[I]) < 33) or (Ord(A[I]) > 126) then
       begin
         Result := 'Use letters, digits and punctuation only.';
         Exit;
       end;
+    if not PasswordComplex(A) then
+      Result := 'A password needs at least 8 characters, with a lower-case letter, an upper-case letter, a digit and a symbol.';
+  end;
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
