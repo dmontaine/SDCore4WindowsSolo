@@ -12,6 +12,9 @@
  * GNU General Public License for more details.
  *
  * START-HISTORY:
+ * 25 Sep 26 SD Core Solo - SOLO 3, ruling 20: SD_RELAY_ACCOUNT is gone and
+ *           win32_relay_spawn() takes no account; win32_admin_only() is
+ *           win32_owner_only(), which also admits this process's own user.
  * 17 Sep 26 Windows port - RELEASE_1.1 55: the relay gains a THIRD inherited
  *           descriptor, a control socketpair to the front, and its argv grows
  *           by one.  The front uses it once, after SCRAM, to have the relay
@@ -108,10 +111,11 @@ const unsigned char* sd_tls_server_binding(void);      /* NULL: no TLS */
 
 /* ---- Windows (win32tls.c, includes windows.h and no SD header) -------- */
 
-/* Non-zero when every allow ACE on the object grants only SYSTEM (S-1-5-18)
-   or BUILTIN\Administrators (S-1-5-32-544).  Anything else - an inherited
-   sdusers Modify, a stray grant - is a refusal, and why says which SID. */
-int win32_admin_only(const char* path, char* why, size_t whylen);
+/* Non-zero when every allow ACE on the object grants only SYSTEM (S-1-5-18),
+   BUILTIN\Administrators (S-1-5-32-544) or THIS PROCESS'S OWN USER (SD Core
+   Solo: the identity lives in the user's tree).  Anything else - Users,
+   Everyone, a stray grant - is a refusal, and why says which SID. */
+int win32_owner_only(const char* path, char* why, size_t whylen);
 
 /* ---- The Windows relay: sd_tlssrv.c <-> sdtlsrelay/sdtlsrelay.c ------- */
 
@@ -136,7 +140,6 @@ int win32_admin_only(const char* path, char* why, size_t whylen);
 
    Then bytes flow: decrypted network -> socketpair, socketpair -> network. */
 #define SD_RELAY_EXE          "sdtlsrelay.exe"    /* beside sd.exe, like sdpy */
-#define SD_RELAY_ACCOUNT      "sdrelay"           /* install-service.ps1 */
 #define SD_RELAY_IDENTITY_MAX 65536
 #define SD_RELAY_OK             0
 #define SD_RELAY_EXIT_IDENTITY  2
@@ -208,14 +211,14 @@ int win32_my_sid(char* out, size_t outlen, char* why, size_t whylen);
 int sd_tls_relay_pipe(char* pipename, size_t namelen, int timeout_ms,
                       char* why, size_t whylen);
 
-/* win32relay.c (windows.h, no SD header).  Mint the account's token, strip
-   it, drop it to Low, and start exe (beside sd.exe) with the three Cygwin
-   descriptors as its only inherited handles.  Non-zero on success, with
-   *proc an opaque handle for win32_relay_exit_code(); zero with why on
-   failure.  The relay's argv is:
+/* win32relay.c (windows.h, no SD header).  Restrict a copy of our own token
+   (SD Core Solo, ruling 20: restricting SIDs, no privileges, Low), and start
+   exe (beside sd.exe) with the three Cygwin descriptors as its only inherited
+   handles.  Non-zero on success, with *proc an opaque handle for
+   win32_relay_exit_code(); zero with why on failure.  The relay's argv is:
      <net handle> <sp handle> <control handle> <timeout ms>.               */
-int win32_relay_spawn(const char* account, int net_fd, int sp_fd, int ctl_fd,
-                      int timeout_ms, void** proc, char* why, size_t whylen);
+int win32_relay_spawn(int net_fd, int sp_fd, int ctl_fd, int timeout_ms,
+                      void** proc, char* why, size_t whylen);
 /* The exit code if the relay has ended, or -1 while it runs; releases the
    handle either way (the caller asks once, at the end of the preamble).     */
 int win32_relay_exit_code(void* proc, int wait_ms);

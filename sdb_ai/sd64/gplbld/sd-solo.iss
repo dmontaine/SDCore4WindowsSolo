@@ -121,6 +121,11 @@ Name: "installpython"; Description: "Install Python for me"; Check: PythonExeOff
 [Dirs]
 Name: "{app}\user_accounts"; Flags: uninsneveruninstall
 Name: "{app}\group_accounts"; Flags: uninsneveruninstall
+; The API's TLS identity (api.pem, made by sd on the first connection).  sd
+; never creates this folder itself (sd_tlssrv.c); it inherits the profile's
+; ACL - the user, SYSTEM, Administrators - which win32_owner_only() accepts.
+; Kept at uninstall so a reinstall keeps the same server key.
+Name: "{app}\sd-tls"; Flags: uninsneveruninstall
 
 [Files]
 ; The programs and scripts.  sdsys, the account folders and sd.conf are laid

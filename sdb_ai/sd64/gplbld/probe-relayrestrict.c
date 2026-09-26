@@ -86,6 +86,17 @@ static HANDLE make_token(const char* mode) {
   PACL dacl = NULL;
   TOKEN_DEFAULT_DACL tdd;
 
+  /* "<mode>-strip": also REMOVE every privilege, SeChangeNotify included -
+     what win32relay.c's strip_privileges() does (added 25 Sep 2026, before
+     building ruling 20, which asks for exactly that). */
+  int strip = 0;
+  char base[64];
+  snprintf(base, sizeof(base), "%s", mode);
+  if (strlen(base) > 6 && strcmp(base + strlen(base) - 6, "-strip") == 0) {
+    base[strlen(base) - 6] = '\0';
+    strip = 1;
+  }
+  mode = base;
   if (strcmp(mode, "a") == 0) {
     nrs = 0;
   } else if (strcmp(mode, "b-users") == 0) {
@@ -109,7 +120,7 @@ static HANDLE make_token(const char* mode) {
   }
   if (!OpenProcessToken(GetCurrentProcess(),
                         TOKEN_DUPLICATE | TOKEN_QUERY | TOKEN_ASSIGN_PRIMARY |
-                            TOKEN_ADJUST_DEFAULT,
+                            TOKEN_ADJUST_DEFAULT | TOKEN_ADJUST_PRIVILEGES,
                         &tok)) {
     say("  OpenProcessToken: error %lu\n", GetLastError());
     return NULL;
@@ -118,6 +129,23 @@ static HANDLE make_token(const char* mode) {
                              nrs, nrs ? rs : NULL, &rtok)) {
     say("  CreateRestrictedToken: error %lu\n", GetLastError());
     return NULL;
+  }
+  if (strip) {
+    BYTE pb[4096];
+    DWORD pl = 0;
+    TOKEN_PRIVILEGES* tp = (TOKEN_PRIVILEGES*)pb;
+    if (!GetTokenInformation(rtok, TokenPrivileges, pb, sizeof(pb), &pl)) {
+      say("  GetTokenInformation(privileges): error %lu\n", GetLastError());
+      return NULL;
+    }
+    for (i = 0; i < tp->PrivilegeCount; i++)
+      tp->Privileges[i].Attributes = SE_PRIVILEGE_REMOVED;
+    if (tp->PrivilegeCount &&
+        !AdjustTokenPrivileges(rtok, FALSE, tp, 0, NULL, NULL)) {
+      say("  AdjustTokenPrivileges(remove): error %lu\n", GetLastError());
+      return NULL;
+    }
+    say("  every privilege REMOVED (%lu)\n", tp->PrivilegeCount);
   }
   /* Low integrity, S-1-16-4096. */
   low = sid_of("S-1-16-4096");
@@ -281,6 +309,22 @@ int main(int argc, char* argv[]) {
   HANDLE tok;
   char cmd[4096];
   int i;
+
+  /* "--inspect <pid>": the token of a RUNNING process, to stdout - used on the
+     relay sd.exe itself started (win32relay.c), the build's witness. */
+  if (argc == 3 && strcmp(argv[1], "--inspect") == 0) {
+    DWORD pid = (DWORD)strtoul(argv[2], NULL, 10);
+    HANDLE ph = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (!ph) {
+      printf("inspect %lu: cannot open the process, error %lu\n", pid, GetLastError());
+      return 2;
+    }
+    logf = stdout;
+    say("inspect pid %lu:\n", pid);
+    report_child_token(ph);
+    CloseHandle(ph);
+    return 0;
+  }
 
   /* The ACCESS child: "--access-child <report handle>". */
   if (argc == 3 && strcmp(argv[1], "--access-child") == 0) {

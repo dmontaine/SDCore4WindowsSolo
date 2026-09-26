@@ -1,6 +1,6 @@
 /* WIN32TLS.C
  * Native Windows half of the API's TLS relay: is the identity directory
- * closed to everyone but SYSTEM and Administrators?
+ * closed to everyone but SYSTEM, Administrators and this process's user?
  * Copyright (c) String Database
  *
  * This program is free software; you can redistribute it and/or modify
@@ -14,6 +14,11 @@
  * GNU General Public License for more details.
  *
  * START-HISTORY:
+ * 25 Sep 26 SD Core Solo - SOLO 3: win32_admin_only() -> win32_owner_only(),
+ *           which also admits this process's own user.  Solo's identity lives
+ *           in the user's own tree, which inherits the profile's ACL - the
+ *           user, SYSTEM, Administrators - and sd runs as that user.  Users,
+ *           Everyone and any other grant are still refused.
  * 15 Sep 26 Windows port - written for RELEASE_1.1 41 (Linux S.19).
  * END-HISTORY
  *
@@ -46,7 +51,7 @@
 #include <string.h>
 
 /* Declared in sd_tls.h; repeated here so this file includes no SD header. */
-int win32_admin_only(const char* path, char* why, size_t whylen);
+int win32_owner_only(const char* path, char* why, size_t whylen);
 
 /* ====================================================================== */
 
@@ -68,17 +73,33 @@ static void name_sid(PSID sid, char* out, size_t outlen) {
   }
 }
 
-int win32_admin_only(const char* path, char* why, size_t whylen) {
+int win32_owner_only(const char* path, char* why, size_t whylen) {
   PACL dacl = NULL;
   PSECURITY_DESCRIPTOR sd = NULL;
   DWORD rc;
   WORD i;
   int ok = 0;
+  HANDLE tok = NULL;
+  BYTE ubuf[512];
+  DWORD ulen = 0;
+  PSID me = NULL;
 
   if (path == NULL) {
     snprintf(why, whylen, "no path");
     return 0;
   }
+
+  /* Who "me" is: read from our own token, never assumed. */
+  if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &tok) ||
+      !GetTokenInformation(tok, TokenUser, ubuf, sizeof(ubuf), &ulen)) {
+    snprintf(why, whylen, "cannot read this process's own user (error %lu)",
+             (unsigned long)GetLastError());
+    if (tok)
+      CloseHandle(tok);
+    return 0;
+  }
+  CloseHandle(tok);
+  me = ((TOKEN_USER*)ubuf)->User.Sid;
 
   rc = GetNamedSecurityInfoA((LPSTR)path, SE_FILE_OBJECT,
                              DACL_SECURITY_INFORMATION, NULL, NULL, &dacl,
@@ -112,13 +133,13 @@ int win32_admin_only(const char* path, char* why, size_t whylen) {
 
     sid = (PSID)&((ACCESS_ALLOWED_ACE*)hdr)->SidStart;
     if (IsWellKnownSid(sid, WinLocalSystemSid) ||
-        IsWellKnownSid(sid, WinBuiltinAdministratorsSid))
+        IsWellKnownSid(sid, WinBuiltinAdministratorsSid) || EqualSid(sid, me))
       continue;
 
     name_sid(sid, who, sizeof(who));
     snprintf(why, whylen,
-             "%s grants access to %s, and only SYSTEM and Administrators may "
-             "have any%s", path, who,
+             "%s grants access to %s, and only SYSTEM, Administrators and "
+             "this user may have any%s", path, who,
              (hdr->AceFlags & INHERITED_ACE) ? " (inherited from the parent)"
                                              : "");
     ok = 0;
