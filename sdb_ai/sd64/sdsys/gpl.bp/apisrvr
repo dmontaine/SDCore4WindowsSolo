@@ -27,6 +27,8 @@
 *           read, so $ADMIN/$GLOBAL are never API logins (ruling 18).
 *           vb.account: the only enterable account is the user's own, never
 *           SDSYS (rulings 10, 11), replacing the Windows-group test.
+*           The version-1 refusal names SET.API.PASSWORD: MODIFY.PASSWORD is
+*           retired (owner, 25 Sep 2026).
 * 22 Sep 26 Windows port - RELEASE_1.1 101.  SDSYS IS ENTERED OVER SDConnectLocal
 *   AND OVER NOTHING ELSE.  vb.local.login records the transport (local.session);
 *   vb.account admits SDSYS on that transport, the process owner being the
@@ -1523,7 +1525,7 @@ vb.scram.first:
                * run MODIFY.PASSWORD again.  !CRED_VERIFY refuses it the same way.
                if scram.cred<CRED$VERSION> # SCRAM$CRED.VERSION then
                   scram.cred = ''
-                  scram.refuse.reason = 'credential is version 1 - run MODIFY.PASSWORD'
+                  scram.refuse.reason = 'credential is version 1 - run SET.API.PASSWORD'
                   goto scram.bad.cred
                end
 

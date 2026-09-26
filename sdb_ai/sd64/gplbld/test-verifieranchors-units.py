@@ -36,9 +36,12 @@ SD64 = os.path.dirname(HERE)
 
 # (retired phrase, live phrase, product file that must print the live phrase, why)
 RETIRED = [
-    ('Password set for account', 'Password accepted.',
-     os.path.join(SD64, 'sdsys', 'gpl.bp', 'set_acc_password'),
-     'SET_ACC_PASSWORD success line, reworded 21 Sep 2026'),
+    # 25 Sep 26 - SD Core Solo: the one row here, SET_ACC_PASSWORD's success
+    # line ('Password set for account' -> 'Password accepted.'), went with
+    # MODIFY.PASSWORD itself - retired by the owner, SET.API.PASSWORD replaces
+    # it.  The ten verify-*.ps1 that ran it are multi-user and die with SOLO 9.
+    # The canary rows below still prove the scanner; add a row here the next
+    # time a line a verifier matches on is reworded.
 ]
 
 MIN_VERIFIERS = 40

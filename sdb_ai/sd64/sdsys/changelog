@@ -9,7 +9,12 @@ RELEASED.
            turned on. Programs log in with your account name and that
            password, using the same client libraries as every SD Core.
            To change it, type ADMIN, then SET.API.PASSWORD. The API
-           password must differ from the global password.
+           password must differ from the global password. MODIFY.PASSWORD
+           is gone; SET.API.PASSWORD replaces it.
+
+           Every password - administrator, global and API - needs at
+           least 8 characters, with a lower-case letter, an upper-case
+           letter, a digit and a symbol.
 
            Fixed: passwords set by the installer were stored with three
            hidden characters in front, so typing them was refused. A
