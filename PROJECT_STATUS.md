@@ -65,7 +65,7 @@ INSTALLED.*** SOLO 8's entry says what was measured and what was not.
   and from an ordinary prompt `C:\Users\Don\SDCoreSolo\usr\bin\sd.exe` should land
   in account `don`. A reboot then tests the startup trigger (SOLO 3).
 - **THEN: the API — design drafted in [docs/SOLO_API.md](docs/SOLO_API.md), waiting
-  on the owner's decisions D5, D2, D3 (client libraries unchanged, owner); build in its §5 order once approved.** Was:
+  on the owner's decision D3 (D5, D2 decided: rulings 18, 19); build in its §5 order once approved.** Was:
   the API design for SOLO 3's remainder + SOLO 6 — write it for the
   owner's approval BEFORE building: API sessions need no identity switch in Solo
   (the relay's S4U logon needs SYSTEM, which the daemon is not), and ruling 3's
@@ -209,6 +209,17 @@ its own beyond that account's. **Assume one copy per computer.** Product name
     `python-3.x-amd64.exe /quiet InstallAllUsers=0|1 PrependPath=1
     Include_test=0 /log <file>` (per-user needs no elevation). The `.exe` is
     deprecated since 3.14 and not produced from 3.16 (python.org docs).
+18. **(25 Sep 2026) THE CLIENT LIBRARIES STAY UNCHANGED** — *"they are used to
+    log into all versions of sd"* — so a network login is SCRAM 47/48 only and
+    **RULING 3's OPTION A IS WITHDRAWN** (the server never sees the password).
+    **The user's API login uses an API password of its own** (D5a), set by the
+    installer and changed by a verb — not the Windows password.
+19. **(25 Sep 2026) THE MASTER SERVER LOGS IN WITH THE SAME ACCOUNT NAME AS THE
+    USER** — *"the account has two passwords"*: the user's API password and, in
+    managed mode, the global one; the global one also sets `K$ADMINISTRATOR`.
+    Buildable server-side only: both credentials share the account's salt, so
+    SCRAM's server-first fits either, and the proof is checked against each
+    (docs/SOLO_API.md §3).
 
 **What this retires, found in the 24 Sep review** — the multi-user model is in every
 layer: `sdsvc.exe` running the daemon as `LocalSystem`; API sessions proved by SCRAM
@@ -310,7 +321,8 @@ its own multi-user security descriptor; `win32sem.c` now grants SYSTEM + the use
 ### SOLO 6 · API authentication (rulings 3 and 4)
 
 **DESIGN DRAFTED, 25 Sep 2026: [docs/SOLO_API.md](docs/SOLO_API.md), awaiting the
-owner's decisions D5, D2, D3 — nothing built.** It covers SOLO 3's API remainder.
+owner's decision D3 (relay confinement; D5, D2 decided — rulings 18, 19) —
+nothing built.** It covers SOLO 3's API remainder.
 ***OWNER, 25 Sep 2026: THE CLIENT LIBRARIES STAY UNCHANGED*** (*"they are used to
 log into all versions of sd"*). So the wire is SCRAM 47/48 only, the server never
 sees a password, and **ruling 3's option A cannot be built** — the user's API
