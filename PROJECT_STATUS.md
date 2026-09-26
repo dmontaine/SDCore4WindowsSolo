@@ -200,7 +200,8 @@ its own beyond that account's. **Assume one copy per computer.** Product name
     same way we are doing the ssh server msi file — and the installer will
     manage the installation of those two packages."* So the release (SOLO 11)
     carries Microsoft's OpenSSH MSI and python.org's single-file Python `.exe`,
-    and Solo's installer runs both. **Not yet ruled:** whether each is optional.
+    and Solo's installer runs both. **Both OPTIONAL, and Python is installed
+    PER-USER** (owner, 25 Sep 2026) — so the Python install needs no elevation.
     **Documented, not measured:** both install with no interaction —
     `msiexec /i <msi> /qn ADDLOCAL=Server` (per-machine: the elevated step);
     `python-3.x-amd64.exe /quiet InstallAllUsers=0|1 PrependPath=1
@@ -520,8 +521,8 @@ alternative.
 ### SOLO 14 · which Python installs Solo's Python helper can use (owner, 25 Sep 2026)
 
 **Ruling 17 narrows it:** Solo ships python.org's `.exe` and installs it — so the
-question is which of ITS modes (per-user or all-users, `PrependPath`) the
-helper can use from a local session, an ssh session and the task-started
+question is whether its PER-USER mode (ruled 25 Sep; `InstallAllUsers=0
+PrependPath=1`) is one the helper can use from a local session, an ssh session and the task-started
 server, offline; the manager routes below matter from 3.16, when the `.exe` ends.
 **The original question:** what should the Solo docs (SOLO 10) and the USB stick (SOLO 11)
 tell a user to install for `PY_*`, and does it work offline? Python is optional:
