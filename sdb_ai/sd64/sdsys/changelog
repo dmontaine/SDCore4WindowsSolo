@@ -3,6 +3,13 @@ S1.1-0 - SD Core Solo, in progress
 A personal SD Core for one Windows user. NOTHING IN THIS SECTION HAS BEEN
 RELEASED.
 
+26 Sep 26  THE CLIENT LIBRARIES ARE GPL.
+
+           The client libraries (sdclilib, qmclilib) and their headers,
+           tests and tools now carry the GNU General Public License,
+           version 3 or later, like the rest of SD, with no linking
+           exception. The licence text shipped with SD says the same.
+
 25 Sep 26  YOUR ACCOUNT HAS A PASSWORD.
 
            SD Core Solo asks for your account password every time it
@@ -2885,8 +2892,8 @@ previous one.
            replaced entirely; nothing in SD Core carries that licence and no
            source file ever mentioned it.  The line is gone.
 
-           What is left is correct and unchanged: most of SD is GPL v3.0, the
-           API is LGPL v3.0, and anything not marked otherwise is GPL v3.0.
+           What is left: SD, including the API, is GPL v3.0, and anything not
+           marked otherwise is GPL v3.0.
 
 26 Aug 26  THERE ARE FULL-SCREEN EDITORS AGAIN: EDIT AND MICRO.
 
