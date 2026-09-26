@@ -54,7 +54,10 @@ param(
     [switch]$Api,
     [switch]$ApiNetwork,
     [ValidateSet('open', 'restrict', 'leave')] [string]$SshScope = 'leave',
-    [switch]$SshIntoSd
+    [switch]$SshIntoSd,
+    # Ruling 17: Microsoft's OpenSSH MSI from the release folder, installed
+    # first so the ssh steps below have a server to work on.  Install only.
+    [string]$SshMsi = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -116,6 +119,7 @@ Note ('for user     : ' + $ForUser + $(if ($me.Name -ieq $ForUser) { '   (approv
 Note ('app dir      : ' + $AppDir)
 Note ('sd.exe       : ' + $sdexe + '   exists: ' + (Test-Path -LiteralPath $sdexe))
 Note ('choices      : api=' + [bool]$Api + ' apinetwork=' + [bool]$ApiNetwork + ' sshscope=' + $SshScope + ' sshintosd=' + [bool]$SshIntoSd)
+Note ('ssh msi      : ' + $(if ($SshMsi) { $SshMsi + '   exists: ' + (Test-Path -LiteralPath $SshMsi) } else { 'none - not installing an ssh server' }))
 
 $refuse = @()
 if (-not $elev) { $refuse += 'not elevated' }
@@ -214,6 +218,48 @@ function Set-SshBlock([bool]$Want) {
     else { Fail ('sshd_config block present=' + $present + ', wanted ' + $Want) }
 }
 
+# ---- the OpenSSH MSI (ruling 17) ------------------------------------------------
+# msiexec /qn is Windows Installer's own quiet switch; ADDLOCAL=Server is from
+# Microsoft's Win32-OpenSSH MSI page.  NOT MEASURED, so each is checked and
+# reported rather than assumed: whether the MSI makes the firewall rule (made
+# here, under Microsoft's name, when it did not - ssh-firewall.ps1 then finds
+# it), and whether sshd_config exists before sshd first starts (sshd writes it
+# on first start, so it is started and waited for).
+function Install-SshMsi([string]$Msi) {
+    if (-not (Test-Path -LiteralPath $Msi)) { Fail ('the OpenSSH MSI is not at ' + $Msi); return }
+    $existing = Find-Sshd
+    if ($existing) { Note ('  an ssh server is already here (' + $existing + '); the MSI was not run'); return }
+    Note ('  msi sha256 : ' + (Get-FileHash -LiteralPath $Msi -Algorithm SHA256).Hash + '   ' + (Get-Item -LiteralPath $Msi).Length + ' bytes')
+    $log = Join-Path $env:TEMP 'sd-solo-openssh-msi.log'
+    $msiexec = Join-Path $env:SystemRoot 'System32\msiexec.exe'
+    $margs = @('/i', ('"' + $Msi + '"'), '/qn', 'ADDLOCAL=Server', '/l*v', ('"' + $log + '"'))
+    Note ('$ msiexec ' + ($margs -join ' '))
+    $p = Start-Process -FilePath $msiexec -ArgumentList $margs -Wait -PassThru
+    Note ('  exit ' + $p.ExitCode + '   (0 done, 3010 done and a restart wanted; log ' + $log + ')')
+    if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { Fail ('the OpenSSH MSI exited ' + $p.ExitCode); return }
+    $sshd = Find-Sshd
+    $svc = Get-Service sshd -ErrorAction SilentlyContinue
+    Note ('  after      : sshd.exe ' + $(if ($sshd) { $sshd } else { 'NOT FOUND' }) + '   service ' + $(if ($svc) { [string]$svc.Status + ', ' + $svc.StartType } else { 'NONE' }))
+    if (-not $sshd -or -not $svc) { Fail 'the OpenSSH MSI reported success but left no sshd.exe or sshd service'; return }
+    $rule = @(Get-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -ErrorAction SilentlyContinue) +
+            @(Get-NetFirewallRule -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'OpenSSH SSH Server*' -and $_.Direction -eq 'Inbound' })
+    if ($rule.Count -gt 0) { Note ('  firewall   : the MSI made ' + $rule[0].Name) }
+    else {
+        New-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -DisplayName 'OpenSSH SSH Server (sshd)' -Direction Inbound `
+            -Protocol TCP -LocalPort 22 -Action Allow -Enabled True | Out-Null
+        Note '  firewall   : the MSI made no rule; OpenSSH-Server-In-TCP created for port 22'
+    }
+    $cfg = Join-Path $env:ProgramData 'ssh\sshd_config'
+    if (-not (Test-Path -LiteralPath $cfg)) {
+        Start-Service sshd
+        $deadline = (Get-Date).AddSeconds(15)
+        while (-not (Test-Path -LiteralPath $cfg) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 250 }
+    }
+    Note ('  sshd_config: ' + $cfg + '   exists: ' + (Test-Path -LiteralPath $cfg))
+    if (-not (Test-Path -LiteralPath $cfg)) { Fail 'sshd started but wrote no sshd_config within 15 s' }
+    else { Note '  PASS  OpenSSH server installed' }
+}
+
 # ---- the startup task ---------------------------------------------------------
 function Register-SoloTask {
     if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
@@ -279,6 +325,12 @@ try {
         elseif ($Action -eq 'Install' -and $Api) { $c = Invoke-Shipped 'api-firewall.ps1' @('-Restrict') }
         else { $c = Invoke-Shipped 'api-firewall.ps1' @('-Remove') }
         if ($c -ne 0) { Fail ('api-firewall.ps1 exited ' + $c) }
+    }
+
+    if ($Action -eq 'Install' -and $SshMsi) {
+        Note ''
+        Note '--- OpenSSH server (MSI)'
+        Install-SshMsi $SshMsi
     }
 
     if ($Action -eq 'Install') {

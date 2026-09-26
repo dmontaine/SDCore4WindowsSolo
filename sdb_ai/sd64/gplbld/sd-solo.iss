@@ -22,6 +22,13 @@
 ;      wherever OpenSSH is found, the sshd_config block that lands this user in
 ;      SD (ruling 5) with sshd set to start at boot - not a choice.
 ;
+; RULING 17 (25 Sep 2026): optional installs of the packages the release puts
+; beside this file - <src>\python\python-3*-amd64.exe, per-user and unelevated
+; (step 0), and <src>\ssh-server\*.msi, inside the elevated step before its ssh
+; work (solo-machine.ps1 -SshMsi).  Offered only when the package is there and
+; nothing equivalent is installed.  The uninstaller leaves both alone: they are
+; separate products with their own entries in Apps.
+;
 ; WHAT IS NOT HERE YET (SOLO 8 in PROJECT_STATUS.md): the opt-in data removal
 ; at uninstall (5.9.1 - the data is always kept for now), ruling 13's deletion
 ; of the gpl.bp source at the end of install, and dropping the multi-user
@@ -96,6 +103,15 @@ Name: "api"; Description: "Provide the SD Core API (port 4243)"; Flags: unchecke
 Name: "api\network"; Description: "Let other computers reach it"; Flags: unchecked dontinheritcheck
 Name: "sshnetwork"; Description: "Let other computers reach this computer's ssh server"; \
     Flags: unchecked; Check: SshRulePresent
+; 25 Sep 26 - RULING 17: the release carries Microsoft's OpenSSH MSI and
+; python.org's Python .exe beside this installer (ssh-server\, python\), and
+; each is installed only when it is there AND nothing equivalent already is -
+; both optional, owner's ruling.  Read from {src}, never copied: the release is
+; also a read-only USB stick (ruling 9).
+Name: "installssh"; Description: "Install the OpenSSH server"; Check: SshMsiOffered
+Name: "installssh\network"; Description: "Let other computers reach it"; \
+    Flags: unchecked dontinheritcheck; Check: SshMsiOffered
+Name: "installpython"; Description: "Install Python for me"; Check: PythonExeOffered
 ; 25 Sep 26 - NO BOX FOR "ssh lands in SD".  Ruling 5 makes it the product, not
 ; a choice; the box that was here ("Start SD Core Solo when I sign in over
 ; ssh") read to the owner as starting the SERVER on sign-in, which it never
@@ -144,6 +160,10 @@ var
     passwords are not (the tree already has them - ruling 15). }
   SoloWasInstalled: Boolean;
   SshServerWasFound, SshRuleWasFound, SshRuleWasOpen: Boolean;
+  { Ruling 17: the packages beside the installer ('' when absent), and whether
+    a usable Python is already registered.  Sampled once, like the rest. }
+  SshMsiPath, PythonExePath: String;
+  PythonWasFound: Boolean;
   ModePage: TInputOptionWizardPage;
   AdminPage, GlobalPage: TInputQueryWizardPage;
 
@@ -182,6 +202,48 @@ begin
   Result := GetEnv('USERDOMAIN') + '\' + GetUserNameString;
 end;
 
+(* The first file matching Pattern in {src}\Dir, or ''.  Written as a
+   paren-star comment because a brace comment ends at the first closing
+   brace, and the source-folder constant contains one. *)
+function FindBeside(Dir, Pattern: String): String;
+var
+  F: TFindRec;
+begin
+  Result := '';
+  if FindFirst(ExpandConstant('{src}\') + Dir + '\' + Pattern, F) then
+  begin
+    Result := ExpandConstant('{src}\') + Dir + '\' + F.Name;
+    FindClose(F);
+  end;
+end;
+
+{ A 64-bit Python 3.13 or later registered under Root (PEP 514) - the helper's
+  floor (build-sdpy.ps1: stable ABI, 3.13).  Key names are "3.14", "3.13-32". }
+function PythonInHive(Root: Integer): Boolean;
+var
+  Names: TArrayOfString;
+  I, Dot, Minor: Integer;
+  N: String;
+begin
+  Result := False;
+  if not RegGetSubkeyNames(Root, 'Software\Python\PythonCore', Names) then
+    Exit;
+  for I := 0 to GetArrayLength(Names) - 1 do
+  begin
+    N := Names[I];
+    Dot := Pos('.', N);
+    if (Copy(N, 1, 2) = '3.') and (Pos('-32', N) = 0) and (Dot = 2) then
+    begin
+      Minor := StrToIntDef(Copy(N, 3, Length(N) - 2), 0);
+      if Minor >= 13 then
+      begin
+        Log('SD Core Solo: Python ' + N + ' already registered');
+        Result := True;
+      end;
+    end;
+  end;
+end;
+
 function InitializeSetup: Boolean;
 var
   ScopeFile: String;
@@ -218,6 +280,11 @@ begin
       SshRuleWasOpen := Trim(String(Scope)) = 'open';
     end;
   end;
+  SshMsiPath := FindBeside('ssh-server', '*.msi');
+  PythonExePath := FindBeside('python', 'python-3*-amd64.exe');
+  PythonWasFound := PythonInHive(HKCU) or PythonInHive(HKLM64) or PythonInHive(HKLM32);
+  Log('SD Core Solo: beside the installer: msi="' + SshMsiPath + '" python="' +
+      PythonExePath + '"; Python 3.13+ already registered=' + IntToStr(Ord(PythonWasFound)));
   Log('SD Core Solo: data tree absent=' + IntToStr(Ord(DataTreeWasAbsent)) +
       ' installed=' + IntToStr(Ord(SoloWasInstalled)) +
       ' sshd=' + IntToStr(Ord(SshServerWasFound)) +
@@ -235,9 +302,14 @@ begin
   Result := not DataTreeWasAbsent;
 end;
 
-function SshServerPresent: Boolean;
+function SshMsiOffered: Boolean;
 begin
-  Result := SshServerWasFound;
+  Result := (SshMsiPath <> '') and not SshServerWasFound;
+end;
+
+function PythonExeOffered: Boolean;
+begin
+  Result := (PythonExePath <> '') and not PythonWasFound;
 end;
 
 function SshRulePresent: Boolean;
@@ -417,6 +489,29 @@ begin
     Exit;
   Failed := '';
 
+  { 0. Python, per-user, unelevated (ruling 17).  InstallLauncherAllUsers=0, or
+    the launcher alone would want elevation.  PrependPath=1: the helper finds
+    python3.dll by PATH (SOLO 14).  Judged by the exit code AND by a Python
+    3.13+ being registered afterwards. }
+  if (not SoloWasInstalled) and PythonExeOffered and WizardIsTaskSelected('installpython') then
+  begin
+    ReportPath := ExpandConstant('{app}\python-install.log');
+    Params := '/quiet InstallAllUsers=0 InstallLauncherAllUsers=0 PrependPath=1 ' +
+              'Include_test=0 /log "' + ReportPath + '"';
+    Log('SD Core Solo: ' + PythonExePath + ' ' + Params);
+    if not Exec(PythonExePath, Params, '', SW_HIDE, ewWaitUntilTerminated, Code) then
+      Code := -1;
+    SaveStringToFile(ExpandConstant('{tmp}\python.txt'),
+      'installer : ' + PythonExePath + #13#10 +
+      'arguments : ' + Params + #13#10 +
+      'exit      : ' + IntToStr(Code) + #13#10 +
+      'registered afterwards (HKCU PythonCore 3.13+): ' + IntToStr(Ord(PythonInHive(HKCU))) + #13#10 +
+      'its own log: ' + ReportPath + #13#10, False);
+    AppendSummary('python (exit ' + IntToStr(Code) + ')', ExpandConstant('{tmp}\python.txt'));
+    if (Code <> 0) or not PythonInHive(HKCU) then
+      Failed := Failed + '  Python' + #13#10;
+  end;
+
   { 1. The account and, on a new tree, the passwords - unelevated. }
   ReportPath := ExpandConstant('{tmp}\solo-setup.txt');
   Params := '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}') +
@@ -454,13 +549,24 @@ begin
       Extra := Extra + ' -Api';
     if WizardIsTaskSelected('api\network') then
       Extra := Extra + ' -ApiNetwork';
-    if not SshRuleWasFound then
-      Extra := Extra + ' -SshScope leave'
-    else if WizardIsTaskSelected('sshnetwork') then
-      Extra := Extra + ' -SshScope open'
+    if SshRuleWasFound then
+    begin
+      if WizardIsTaskSelected('sshnetwork') then
+        Extra := Extra + ' -SshScope open'
+      else
+        Extra := Extra + ' -SshScope restrict';
+    end
+    else if SshMsiOffered and WizardIsTaskSelected('installssh') then
+    begin
+      Extra := Extra + ' -SshMsi "' + SshMsiPath + '"';
+      if WizardIsTaskSelected('installssh\network') then
+        Extra := Extra + ' -SshScope open'
+      else
+        Extra := Extra + ' -SshScope restrict';
+    end
     else
-      Extra := Extra + ' -SshScope restrict';
-    if SshServerWasFound then
+      Extra := Extra + ' -SshScope leave';
+    if SshServerWasFound or (SshMsiOffered and WizardIsTaskSelected('installssh')) then
       Extra := Extra + ' -SshIntoSd';
     Code := RunMachineStep('Install', Extra);
   end;
