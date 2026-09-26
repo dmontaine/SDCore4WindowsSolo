@@ -195,6 +195,17 @@ its own beyond that account's. **Assume one copy per computer.** Product name
     is chosen by the installer; changing it means reinstalling (an upgrade keeps
     the data). No verb sets or clears the global password. (Declined: switching
     both ways behind the gate; (a)→(b) only.)
+17. **(25 Sep 2026) SUPERSEDES RULING 8's "installs no ssh server" AND "the MSI is
+    never in the zip".** *"We will ship the python installer exe with solo the
+    same way we are doing the ssh server msi file — and the installer will
+    manage the installation of those two packages."* So the release (SOLO 11)
+    carries Microsoft's OpenSSH MSI and python.org's single-file Python `.exe`,
+    and Solo's installer runs both. **Not yet ruled:** whether each is optional.
+    **Documented, not measured:** both install with no interaction —
+    `msiexec /i <msi> /qn ADDLOCAL=Server` (per-machine: the elevated step);
+    `python-3.x-amd64.exe /quiet InstallAllUsers=0|1 PrependPath=1
+    Include_test=0 /log <file>` (per-user needs no elevation). The `.exe` is
+    deprecated since 3.14 and not produced from 3.16 (python.org docs).
 
 **What this retires, found in the 24 Sep review** — the multi-user model is in every
 layer: `sdsvc.exe` running the daemon as `LocalSystem`; API sessions proved by SCRAM
@@ -475,6 +486,12 @@ for Solo.
 
 ### SOLO 11 · one release folder that is both the SourceForge download and a USB stick (ruling 9)
 
+***RULING 17 (25 Sep 2026) REVERSES THE `ssh-server\` README-ONLY PLAN BELOW:***
+the release carries the OpenSSH MSI and the Python `.exe`, and `sd-solo.iss`
+installs both (SOLO 8). **Owed, measured:** each quiet install offline from a
+stick; what the MSI leaves (firewall rule, `sshd` startup type, `sshd_config`
+before first start) — the installer's ssh steps read all three.
+
 **The layout** (a plan): the release zip unpacks to a folder that can be copied
 whole onto a stick — the Solo installer, the README with checksums, the
 **documentation tree** (the HTML tree as well as the bound PDFs, so it can be read
@@ -502,7 +519,11 @@ alternative.
 
 ### SOLO 14 · which Python installs Solo's Python helper can use (owner, 25 Sep 2026)
 
-**The question:** what should the Solo docs (SOLO 10) and the USB stick (SOLO 11)
+**Ruling 17 narrows it:** Solo ships python.org's `.exe` and installs it — so the
+question is which of ITS modes (per-user or all-users, `PrependPath`) the
+helper can use from a local session, an ssh session and the task-started
+server, offline; the manager routes below matter from 3.16, when the `.exe` ends.
+**The original question:** what should the Solo docs (SOLO 10) and the USB stick (SOLO 11)
 tell a user to install for `PY_*`, and does it work offline? Python is optional:
 without it every `PY_*` answers `-12040` and SD runs (§5.27, `build-sdpy.ps1`).
 **Known:** `sdpy.exe` links `python3.dll` (stable ABI, 3.13 floor, ran on 3.14.7)
