@@ -49,65 +49,57 @@ or *"— PRE_RELEASE_FIXES.md"*; grep the number there.
 What it lists as owed is also an entry under OPEN TASKS — if the two disagree,
 OPEN TASKS wins.
 
-***HANDOFF 25 Sep 2026 (later) — SOLO 8's installer BUILT AND COMPILED, NOT YET
-INSTALLED.*** SOLO 8's entry says what was measured and what was not.
+***HANDOFF 26 Sep 2026 (end of session).*** Done and witnessed since the last
+handoff, each in its OPEN TASKS entry: **SOLO 8** installer (installed, upgraded,
+uninstalled by the owner; ssh lands in `sd`; optional OpenSSH/Python installs,
+ruling 17); **SOLO 3 steps 1-4** (docs/SOLO_API.md: relay on a restricted own
+token, no handover, the account password, the global password on the same name —
+rulings 18-20); **SOLO 15 pieces 1-3** (ruling 21: API password → account password
+and `SET.PASSWORD`; `@USRDIR/<name>` so a copied tree works; `login` requires the
+password); **`SDConnectLocal` disabled** (owner); **the client libraries are GPL,
+not LGPL**, linking exception removed (owner, 26 Sep; `f484e8e`).
 
-***OWNER'S ORDER, 25 Sep 2026: "both, installer first".***
-- **FIRST: finish witnessing the installer** — installed and upgraded, SD running
-  from the task (SOLO 8). ***`ssh don@localhost` landed in `sd` — owner, 25 Sep
-  2026*** (so `Match User "don"` matches). Owed: a reboot starts SD with nobody signed in; an uninstall-then-install
-  exercises `sshd -t` 64-bit and `-Action Remove`. Installer:
-  `C:\Users\Don\SDCoreProject\SDCore4WindowsSolo\stage\sd-solo-setup-S1.1-0.exe`
-  (built 25 Sep 17:59 from a clean stage; a running installed SD must be stopped
-  before restaging — SOLO 8's semaphore trap; rebuild with `stage.py --force
-  --bootstrap` then ISCC if the stage has moved). Then read
-  `C:\Users\Don\SDCoreSolo\install-summary.log` (both helpers' full reports),
-  and from an ordinary prompt `C:\Users\Don\SDCoreSolo\usr\bin\sd.exe` should land
-  in account `don`. A reboot then tests the startup trigger (SOLO 3).
-- **THEN: the API — design drafted in [docs/SOLO_API.md](docs/SOLO_API.md), every
-  decision taken (rulings 18-20); build in its §5 order once approved.** Was:
-  the API design for SOLO 3's remainder + SOLO 6 — write it for the
-  owner's approval BEFORE building: API sessions need no identity switch in Solo
-  (the relay's S4U logon needs SYSTEM, which the daemon is not), and ruling 3's
-  Windows-password login is a new mode in BOTH client libraries, so the Linux
-  side is involved (through the owner — no mailbox).
+**Start here, in order:**
+1. **SOLO 15 piece 4 is HALF-BUILT on branch `wip-solo15-piece4`** (`2bb4deb`,
+   pushed, NOT compiled): `gplsrc/win32dpapi.c` and the base64 wrappers in
+   `sd_scram.c/.h`. Rebase onto `main` first (main since touched only licence
+   comments in `sdclilib`). Still to do: `SD_DPAPI_PROTECT` 111 /
+   `SD_DPAPI_UNPROTECT` 112 in `gplsrc/keys.h` and `sdsys/syscom/keys.h`;
+   `op_sdext.c` cases after `SD_TLS_CBIND`, refused unless `HDR_INTERNAL`,
+   `sodium_memzero` the plaintext; `-lcrypt32` in the Makefile's `L_FLAGS`;
+   `solo_password ACCOUNT` and `set_password` write `$cred\$STORED` (account,
+   blob); `login`'s one-shot path tries it before its input. *Unmeasured:* whether
+   an S4U scheduled task can use CurrentUser DPAPI at all.
+2. **Then SOLO 15 piece 5** (rename the account for a new Windows user), **then
+   SOLO 3 step 5** (the retirement list is in SOLO 6's entry).
+3. **Owed from the owner's hands:** a FRESH install — delete `C:\Users\Don\SDCoreSolo`
+   first (it has a BOM'd `$ADMIN`, an absolute `ACC$PATH` and no account password)
+   — with the installer REBUILT (the one in `stage\` predates the licence change);
+   then at a real console: `sd` asks for the password (3 tries), a one-shot `sd
+   WHERE` at the console is refused; a reboot starts SD with nobody signed in; ssh
+   lands in `sd` and asks for the account password.
+4. **Flags for the owner, not acted on:** `sdb_ai/LICENSE` line 1 is a stray
+   `[Press 'q' to exit]`; its header names the "Black Oak" licence while the text
+   at the end of all four licence files is the **Blue** Oak Model License, and the
+   26 Aug changelog says the Black Oak line was removed — `sdb_ai/LICENSE` still
+   has it. The LGPL→GPL change presumably applies to `sd4windows` and
+   `SDCore4Linux` too (no mailbox — through the owner).
 
-**Start here:**
-1. **The agent can cycle the tree itself, unelevated**: from MSYS2 bash in
-   `sdb_ai/sd64`, `python3 gplbld/stage.py --stage <repo>/stage --force --bootstrap`
-   then `python3 gplbld/probe-solo-stage.py --stage <repo>/stage` (23 legs).
-   `bin\` rebuilt 25 Sep with `make -o sdpy sd` (`sdpy.exe` is 21 Sep's).
-   ***A daemon started NATIVELY and a session started from MSYS2 are in different
-   process tables*** (SOLO 13) — the segment is found either way now, but drive an
-   admin-token test natively (`probe-solo-dropadmin.ps1` shows how).
-   `SD_DROP_ADMIN_TEST=1` forces the token re-launch unelevated.
-2. **Rulings 10-16 (25 Sep)** are in "WHAT SD CORE SOLO IS".
-3. **Notes left in `sd4windows` and `SDCore4Linux`** (owner pushed them): SOLO 12's
-   defects exist in both trees.
-4. **The API is the next hard part**: sessions are still handed to an S4U relay
-   that needs SYSTEM (`win32relay.c`, `win32s4u.c`); in Solo the daemon is the
-   user, so API sessions should need no identity switch (SOLO 3) and log in with
-   the Windows password (SOLO 6) — design first, it touches the Linux client.
+**State of this machine at handoff:** no SD installed (the owner uninstalled 25 Sep
+18:03; data kept in `C:\Users\Don\SDCoreSolo`); no SD process running; `stage\`
+bootstrapped and clean (no test passwords) from `main` before the licence change;
+free tier 51 pass / 0 fail. ***DO NOT RUN `cycle.ps1`*** — it installs the
+multi-user layout.
 
-**State of this machine, measured at handoff:**
-- **No SD of any kind is installed.** So `test-sysmsg-units.ps1` reports NO TREE —
-  expected; free tier otherwise 51 pass / 0 fail (25 Sep, after SOLO 13).
-- `<repo>\stage` holds a bootstrapped tree with the probe's account `don` and its
-  test passwords; `stage.py --force` rebuilds it. No SD process is running.
-- ***DO NOT RUN `cycle.ps1`.*** It still stages and installs the multi-user
-  layout (`sd.iss`, `C:\Program Files\SD`, the service, SDSYS), and since SOLO 2
-  that install should not start: `sd.exe` in `C:\Program Files\SD\usr\bin` would
-  look for `C:\Program Files\SD\sd.conf` and `...\SD\sdsys`, which that installer
-  does not create. *Read from the code, not run.* It becomes Solo's cycle in
-  SOLO 8/9.
-- The spike leftovers are removed; the five `probe-solo-*` files in `gplbld` are
-  the working pattern for SOLO 3 and 8.
-
-**Tooling:** ISCC is a per-user install at
-`C:\Users\Don\AppData\Local\Programs\Inno Setup 6\ISCC.exe` — compile a spike to
-scratch with `/O`. The owner's shells: elevated opens in `C:\WINDOWS\system32`; he
-runs unelevated probes from an ordinary prompt when asked. **No Linux mailbox for
-Solo** (owner) — the copied memory note says so too.
+**How this session worked, reusable:** stage and bootstrap unelevated from MSYS2
+bash in `sdb_ai/sd64`: `python3 gplbld/stage.py --stage <repo>/stage --force
+--bootstrap` (stop any installed Solo SD first — the semaphores are machine-wide).
+Drive sessions natively (cmd, output to a file, stdin as ASCII bytes with a
+preamble-free `[Console]::InputEncoding` — the BOM trap); API witnesses with
+`gplbld/scram-probe.py` need `<stage>\SDCoreSolo\sd-tls` created (the installer
+makes it). Build C with `make -o sdpy sd` in MSYS2 bash. ISCC is per-user at
+`C:\Users\Don\AppData\Local\Programs\Inno Setup 6\ISCC.exe`; the build refuses a
+stage holding test passwords. **No Linux mailbox for Solo.**
 
 The multi-user CURRENT PICKUP and OPEN TASKS are `git show e311adc:PROJECT_STATUS.md`
 lines 46-913; `sd4windows` keeps them live.
