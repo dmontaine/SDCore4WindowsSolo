@@ -328,9 +328,11 @@ its own multi-user security descriptor; `win32sem.c` now grants SYSTEM + the use
 built, next is its §4 build order.** **Step 1 (the relay on ruling 20's token)
 DONE AND WITNESSED 25 Sep** — the relay sd.exe started read back live as
 privileges 0 / Low / 3 restricting SIDs, and a real TLS 1.3 login reached
-request 47; details in docs/SOLO_API.md §4. **Next: step 2, no handover** — a
-successful API login cannot work until it lands (the handover pipe needs a
-right this token lacks, and its S4U spawn needs SeTcb). It covers SOLO 3's API remainder. **D3's option (b) MEASURED 25
+request 47; details in docs/SOLO_API.md §4. **Step 2 (no handover) DONE AND
+WITNESSED 25 Sep** — the first successful Solo API login: `scram-probe.py` →
+VERIFIED, account `don` entered, `WHO`/`WHERE` answered, served by the front
+itself; wrong password, `$admin` and `sdsys` refused. **Next: step 3's
+installer page** (the server half and `solo-setup.ps1`'s API step are done). It covers SOLO 3's API remainder. **D3's option (b) MEASURED 25
 Sep** (`gplbld/probe-relayrestrict.c`, the real relay, unelevated): a restricted
 own token with restricting SIDs Everyone/Users/RESTRICTED at Low passes every
 relay-run row of `test-tlsrelay-units.py` and is DENIED the user's files
@@ -453,6 +455,22 @@ into a probe, found both packages in a fake release folder (and NOT the
 machine (3.13, 3.14). **This machine cannot exercise either install** — it has
 sshd and both Pythons, so neither box shows; that needs a clean machine (the
 laptop) or a VM, with the real MSI and `.exe` in the release layout.
+***DEFECT FOUND AND FIXED 25 Sep 2026: EVERY PASSWORD `solo-setup.ps1` STORED
+CARRIED A UTF-8 BYTE-ORDER MARK.*** Found when a SCRAM login with the right
+password was refused as `wrong password`: `$cred\DON` and `$cred\$ADMIN` both
+match **EF BB BF + password** exactly (recomputed), and a test program showed
+`INPUT HIDDEN` receiving `abc` as 6 bytes, `EFBBBF616263`. .NET's stdin writer
+writes `[Console]::InputEncoding`'s preamble AT PROCESS START, so writing raw
+bytes alone did not stop it (measured). Fixed twice: `solo-setup.ps1` sets a
+preamble-free encoding before `Start()`, refuses to send if the writer still has
+one, and writes raw ASCII; `solo_password` refuses any character outside 33-126
+out loud (control: a deliberate BOM refused, `code 239 at position 1`, nothing
+stored). ***THE EARLIER "`sd ADMIN` with each stored one UNLOCKED" WAS A FALSE
+WITNESS*** — that check fed its passwords through the same .NET pipe, BOM
+included, so both sides matched. ***THE OWNER'S KEPT TREE `C:\Users\Don\SDCoreSolo`
+HAS A BOM'd `$ADMIN`***: typing that admin password at `ADMIN` would be refused.
+It needs a fresh tree (delete `C:\Users\Don\SDCoreSolo` before the next install
+— the owner's call, it is his data) or a reset; an upgrade does not rewrite it.
 **Unmeasured and could be wrong:** that `ExtractTemporaryFile('ssh-firewall.ps1')`
 finds a file taken in by the wildcard `[Files]` entry (the first install's ssh
 scope step ran, so it probably does); that Win32-OpenSSH's `Match User` matches

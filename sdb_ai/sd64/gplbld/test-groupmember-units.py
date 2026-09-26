@@ -83,15 +83,13 @@ USERS = "S-1-5-32-545"
 # reason says why that is acceptable THERE.  A site in neither fails, so a new
 # caller cannot be written without somebody deciding which it is.
 READS_STATUS = {
-    ("apisrvr", "acc.member = is_grp_member(kernel(K$USERNAME, 0), acc.group)"):
-        "vb.account: acc.told = status() on the next line; branch=4 splits "
-        "group.lookup.failed from not.in.group in the audit trail",
+    # 25 Sep 26 - SD Core Solo (SOLO 3 step 2, docs/SOLO_API.md): apisrvr's
+    # vb.account site is gone - the account test is now "the user's own
+    # account, never SDSYS", with no Windows group to ask about.
 }
 FAIL_CLOSED = {
-    ("apisrvr", "if not(is_grp_member(scram.user, 'sdapi')) then"):
-        "the sdapi gate at SCRAM: an access check fails closed; the refusal "
-        "reason 'not in sdapi' does not tell a failed lookup from a real no "
-        "(the same conflation vb.account no longer has - see NOTES)",
+    # 25 Sep 26 - SD Core Solo: apisrvr's sdapi gate at SCRAM is gone too (no
+    # groups; the credential record is the gate).
     ("cproc", "if not(is_grp_member(@logname,acc.record<ACC$GROUP>)) then"):
         "the logto gate: an access check fails closed with 10003",
     # 25 Sep 26 - SD Core Solo (SOLO 4): LOGIN's sdusers gate, and every site in
@@ -281,7 +279,9 @@ def static_rows():
                 sites.append((name, i, s))
     # 25 Sep 26 - floor 5 -> 3, the count measured after SOLO 4 deleted
     # createa, granta and modifya.  It moves with the tree or it is no floor.
-    check(len(sites) >= 3,
+    # 25 Sep 26, later - 3 -> 1: SOLO 3 step 2 removed apisrvr's two sites;
+    # cproc's logto gate is the one left (measured: the walk found 1).
+    check(len(sites) >= 1,
           "control: the walk found real call sites (%d)" % len(sites))
     unclassified = []
     for name, i, s in sites:

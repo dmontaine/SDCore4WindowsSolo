@@ -19,6 +19,14 @@
 *
 *
 * START-HISTORY:
+* 25 Sep 26 SD Core Solo - SOLO 3 step 2 (docs/SOLO_API.md): NO HANDOVER - a
+*           successful SCRAM login sets logged.in and this process serves the
+*           session; the K$HANDOFF prepare/commit and scram.handoff are gone.
+*           The sdapi group test is gone (no groups; the credential is the
+*           gate).  A login name starting with $ is refused before $cred is
+*           read, so $ADMIN/$GLOBAL are never API logins (ruling 18).
+*           vb.account: the only enterable account is the user's own, never
+*           SDSYS (rulings 10, 11), replacing the Windows-group test.
 * 22 Sep 26 Windows port - RELEASE_1.1 101.  SDSYS IS ENTERED OVER SDConnectLocal
 *   AND OVER NOTHING ELSE.  vb.local.login records the transport (local.session);
 *   vb.account admits SDSYS on that transport, the process owner being the
@@ -369,10 +377,7 @@ scram.serverkey = ''   ;* From $cred, base64
 * handlers goes through that one exit.
 scram.audit.name = ''   ;* Name as PRESENTED, sanitised - see scram.clean.name
 scram.refuse.reason = '';* Why this exchange was refused; '' = not refused
-* 17 Sep 26 Windows port - RELEASE_1.1 55 slice 6.  Set by vb.scram.final on
-* success; read once, right after the reply below reaches the wire, to hand
-* this connection off to a new session running as the authenticated user.
-scram.handoff = @false
+* (scram.handoff, RELEASE_1.1 55's flag, is gone: SD Core Solo has no handover.)
 
 loop
    unload.object               ;* Unload inactive object code
@@ -474,52 +479,12 @@ return.status.set: ;* Return to here if ST already set
       writeseq '< ' : s[1,4] : ' ' : s[5,8] : ' ' : s[13,1000] to log.f else null
    end
 
-* RELEASE_1.1 57.  THE PREPARE, BEFORE THE SERVER-FINAL GOES OUT.  The '<FM>P'
-*   call asks the relay for the handover pipe and nothing else, and asking is
-*   what stops the relay reading the net (sdtlsrelay.c).  Run here, before the
-*   writepkt below, no byte the client sends in reply to the server-final can
-*   be read off the net and forwarded to this front, which is past its last
-*   read.  b194 measured the other order: asked at the tail, a C-speed
-*   client's first post-login request arrived first and was dropped here -
-*   test-tlsrelay-units.py, test_handover_pre_request_byte.  scram.handoff is
-*   set only by vb.scram.final's success path, immediately above.
-   if scram.handoff then
-      handoff.ready = kernel(K$HANDOFF, scram.user : @FM : 'P')
-      if not(handoff.ready) then
-         void kernel(K$AUDIT, 'API HANDOVER FAILED user=' : scram.user : ' - the relay would not stand up the handover pipe; see syslog')
-      end
-   end
-
+* 25 Sep 26 SD Core Solo - THE K$HANDOFF PREPARE AND COMMIT THAT STOOD AROUND
+*   THIS writepkt ARE GONE: a successful SCRAM login sets logged.in and this
+*   same process serves the session (vb.scram.final).  RELEASE_1.1 57's race -
+*   a client byte read off the net before the cutover - cannot arise, because
+*   nothing cuts over.  HISTORY.md keeps RELEASE_1.1 55 and 57.
    writepkt iconv(server.error, 'ISL'):iconv(st, 'ILL'):response
-
-* 17 Sep 26 Windows port - RELEASE_1.1 55 slice 6, split by 57.  THE COMMIT,
-*   AFTER THE SERVER-FINAL IS ON THE WIRE.  The prepare above has already
-*   stood the handover pipe up - which is what stops the relay reading the
-*   net, so a client byte sent in reply to this very writepkt cannot be
-*   forwarded to this front.  K$HANDOFF's own refusal is syslogged with the
-*   username (op_kernel.c) - there is nowhere left on the wire for a reason,
-*   the client is already past the last reply this session will ever send.
-*   done = @true either way: on success the new session has the connection,
-*   on failure closed is the only safe end for a session that just told
-*   K$HANDOFF to give this connection away.
-   if scram.handoff then
-      scram.handoff = @false
-* 17 Sep 26 Windows port - RELEASE_1.1 55.  THE RETURN IS TAKEN, AND A FAILED
-*   HANDOFF IS AUDITED.  K$HANDOFF syslogs its own reason (op_kernel.c), but
-*   that was measured SILENT for two whole runs while this path still had
-*   K$ASSUME.USER in front of it - syslog from a process that is no longer
-*   LocalSystem does not arrive - so the one record that says "this connection
-*   was given away and the handover refused" goes to the audit trail, which
-*   worked throughout.  On success nothing is written: the new session's own
-*   LOGIN record is the evidence, and this runs on every API login.
-      if handoff.ready then
-         handoff.ok = kernel(K$HANDOFF, scram.user)
-         if not(handoff.ok) then
-            void kernel(K$AUDIT, 'API HANDOVER FAILED user=' : scram.user : ' - see syslog; the connection is closed')
-         end
-      end
-      done = @true
-   end
 until done
 repeat
 
@@ -743,12 +708,9 @@ end
 * 21 Aug 26 Windows port - the declaration that stood here moved to the top of
 *   the program; vb.scram.final needs it too now.  See the note beside it.
 
-if acc.group = '' then
-   void kernel(K$AUDIT, 'ACCOUNT REFUSED branch=3 no.group.in.register')
-   server.error = SV$ERROR
-   error.msg = sysmsg(10003) ;* User not allowed in requested account
-   goto revert.to.old.account
-end
+* 25 Sep 26 SD Core Solo - BRANCH 3 IS GONE: Solo's register names no Windows
+*   group (solo_account writes none, and there are no groups).  Branch 4 below
+*   is Solo's own test.
 
 * 17 Sep 26 Windows port - RELEASE_1.1 55.  ***"COULD NOT TELL" IS NOT "NO",
 *   AND READING IT AS ONE COST SEVEN RUNS.***  is_grp_member answers @false
@@ -810,18 +772,16 @@ end
 *   vb.scram.final, on the SCRAM path only, so a grant has no meaning here -
 *   which is what makes MODIFY.ACCOUNT's refusal of SDSYS (12001) consistent
 *   rather than contradictory: there is nothing for it to grant.
-if new.account = 'SDSYS' then
-   acc.who = upcase(kernel(K$USERNAME, 0))
-   if index(acc.who, '\', 1) > 0 then acc.who = field(acc.who, '\', dcount(acc.who, '\'))
-   acc.member = local.session and (acc.who = 'SDSYS') and kernel(K$ADMINISTRATOR, -1)
-   acc.told = 0
-   if not(acc.member) then
-      void kernel(K$AUDIT, 'ACCOUNT REFUSED branch=4 sdsys.not.local.elevated user=' : acc.who : ' local=' : local.session)
-   end
-end else
-   acc.member = is_grp_member(kernel(K$USERNAME, 0), acc.group)
-   acc.told = status()
-end
+* 25 Sep 26 SD Core Solo - BRANCH 4 IS SOLO'S RULE, REPLACING THE SDSYS CASE
+*   AND THE WINDOWS-GROUP TEST ABOVE.  The one enterable account is the user's
+*   own, named after the Windows user (ruling 10, solo_account downcases it);
+*   SDSYS is never a target (ruling 11), whatever the transport.  The name is
+*   the one the session holds - the SCRAM-proven login for the API, the
+*   process owner for SDConnectLocal - with any DOMAIN\ prefix dropped.
+acc.who = upcase(kernel(K$USERNAME, 0))
+if index(acc.who, '\', 1) > 0 then acc.who = field(acc.who, '\', dcount(acc.who, '\'))
+acc.member = (new.account # 'SDSYS') and (new.account = acc.who)
+acc.told = 0
 
 if acc.told # 0 then
    void kernel(K$AUDIT, 'ACCOUNT REFUSED branch=4 group.lookup.failed user=' : kernel(K$USERNAME, 0) : ' group=' : acc.group)
@@ -831,7 +791,7 @@ if acc.told # 0 then
 end
 
 if not(acc.member) then
-   void kernel(K$AUDIT, 'ACCOUNT REFUSED branch=4 not.in.group user=' : kernel(K$USERNAME, 0) : ' group=' : acc.group)
+   void kernel(K$AUDIT, 'ACCOUNT REFUSED branch=4 not.own.account user=' : acc.who : ' account=' : new.account)
    server.error = SV$ERROR
    error.msg = sysmsg(10003) ;* User not allowed in requested account
    goto revert.to.old.account
@@ -1532,6 +1492,17 @@ vb.scram.first:
                   goto scram.bad.cred
                end
 
+* 25 Sep 26 SD Core Solo - ruling 18: THE ADMINISTRATOR PASSWORD IS NOT AN API
+*   LOGIN.  $cred is keyed by upcase(name), and it also holds $ADMIN and
+*   $GLOBAL (solo_password), so a client naming itself "$admin" would be
+*   checked against the administrator password.  No account name can start
+*   with $ (solo_account: a letter first), so every such name is refused here,
+*   before the record is read, with the same indistinct answer as a guess.
+               if username[1,1] = '$' then
+                  scram.refuse.reason = 'reserved name'
+                  goto scram.bad.cred
+               end
+
                openpath @sdsys:@ds:'$cred' to scram.cred.f else
                   scram.refuse.reason = 'cannot open $cred'
                   abort.message = sysmsg(5274) ;* Authentication service unavailable
@@ -1737,15 +1708,10 @@ vb.scram.final:
 *   gplbld/sync-route-groups.ps1 did not run has no API at all.  Same rule as
 *   os_permitted()'s "missing file or missing record means no" (op_sh.c), and
 *   the opposite of NEWVOC's tier lists - do not carry that convention across.
-               if not(is_grp_member(scram.user, 'sdapi')) then
-                  * THE RECORD IS WRITTEN AT exit.vb.scram.fail LIKE EVERY OTHER
-                  * REFUSAL NOW.  This used to call K$AUDIT here and was the only
-                  * refusal that reached the trail at all.
-                  scram.refuse.reason = 'not in sdapi'
-                  abort.message = sysmsg(10073, scram.user) ;* %1 is not permitted to use the API
-                  server.error = SV$ON.ERROR
-                  goto exit.vb.scram.fail
-               end
+* 25 Sep 26 SD Core Solo - THE sdapi TEST ABOVE IS GONE (docs/SOLO_API.md).
+*   Solo has no Windows groups, and a missing sdapi refused everybody.  The
+*   gate is now the credential itself: only the one account the installer
+*   gave an API password (solo_password API) has a record to prove against.
 
 * 18 Sep 26 Windows port - RELEASE_1.1 64.  THE ADMINISTRATOR REMOTE-API GATE
 *   IS GONE WITH THE TIERS.  There is no SD administrator tier to test any
@@ -1839,15 +1805,15 @@ vb.scram.final:
 *   needs a "succeeded but could not become you" refusal, 5277 is the wording
 *   already written for it.
 
-* 17 Sep 26 Windows port - RELEASE_1.1 55 slice 6, order fixed by 57.  NOT
-*   logged.in - this session's job ends with the handover.  The handoff
-*   itself still cannot happen here: nothing in this gosub can send the
-*   server-final, and the prepare must precede it - the dispatcher makes
-*   the prepare call before the writepkt at return.status.set and the
-*   commit after it, win or lose - see the header there.  scram.handoff
-*   is only the flag that says both belong to this login.
+* 25 Sep 26 SD Core Solo - LOGGED IN, IN THIS PROCESS: NO HANDOVER.  RELEASE_1.1
+*   55 handed the connection to a new sd started as the user, because this
+*   front was LocalSystem.  In Solo the front already IS the user at a
+*   standard token (ruling 16), so it simply carries on as the session - the
+*   pre-55 shape - and the relay keeps relaying over its socketpair.  The
+*   handover could not run here anyway: its S4U spawn needs SeTcb, and the
+*   relay's restricted token cannot create the pipe (docs/SOLO_API.md).
                response = 'v=' : scram.ssig
-               scram.handoff = @true
+               logged.in = @true
 
                return
 

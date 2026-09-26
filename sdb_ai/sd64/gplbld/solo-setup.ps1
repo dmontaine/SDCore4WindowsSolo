@@ -56,8 +56,11 @@ function Save-Report {
 # Read and clear the passwords before anything else can inherit them.
 $adminPw  = [Environment]::GetEnvironmentVariable('SD_SOLO_ADMIN_PW', 'Process')
 $globalPw = [Environment]::GetEnvironmentVariable('SD_SOLO_GLOBAL_PW', 'Process')
+# 25 Sep 26 - ruling 18: the user's own API password (solo_password API).
+$apiPw    = [Environment]::GetEnvironmentVariable('SD_SOLO_API_PW', 'Process')
 [Environment]::SetEnvironmentVariable('SD_SOLO_ADMIN_PW', $null, 'Process')
 [Environment]::SetEnvironmentVariable('SD_SOLO_GLOBAL_PW', $null, 'Process')
+[Environment]::SetEnvironmentVariable('SD_SOLO_API_PW', $null, 'Process')
 # SOLO 2: the tree finds itself from sd.exe's location; a stray SD_CONFIG would
 # point it somewhere else.
 [Environment]::SetEnvironmentVariable('SD_CONFIG', $null, 'Process')
@@ -71,6 +74,7 @@ Note ('user         : ' + $User)
 Note ('passwords    : ' + $(if ($Passwords) { 'ADMIN' + $(if ($Global) { ' and GLOBAL' } else { '' }) } else { 'not set by this run' }))
 Note ('admin pw     : ' + $(if ($adminPw) { 'given (' + $adminPw.Length + ' characters)' } else { 'NOT given' }))
 Note ('global pw    : ' + $(if ($globalPw) { 'given (' + $globalPw.Length + ' characters)' } else { 'NOT given' }))
+Note ('api pw       : ' + $(if ($apiPw) { 'given (' + $apiPw.Length + ' characters)' } else { 'NOT given' }))
 
 # The null cases, refused out loud.
 $refuse = @()
@@ -93,7 +97,7 @@ if ($refuse.Count -gt 0) {
 $work = Join-Path $env:TEMP ('sd-solo-setup-' + $PID)
 New-Item -ItemType Directory -Force -Path $work | Out-Null
 $script:n = 0
-$secrets = @($adminPw, $globalPw) | Where-Object { $_ }
+$secrets = @($adminPw, $globalPw, $apiPw) | Where-Object { $_ }
 
 # Run sd.exe with $SdArgs; $InputText (may be empty) is written to its standard
 # input, which is then closed so a read at end of input cannot wait forever.
@@ -115,8 +119,30 @@ function Invoke-Sd([string]$SdArgs, [string]$InputText) {
     $psi.UseShellExecute = $false
     $psi.RedirectStandardInput = $true
     $psi.WorkingDirectory = $work
+    # NO BYTE-ORDER MARK ON sd's INPUT.  Measured 25 Sep 2026: INPUT received
+    # EF BB BF + the password and solo_password stored THAT, so a SCRAM login
+    # with the right password was refused as "wrong password" (the stored key
+    # matched BOM + password exactly) - every password this script had stored
+    # carried it.  Process builds its stdin writer from [Console]::InputEncoding
+    # and writes that encoding's PREAMBLE AT START, before any byte of ours -
+    # so writing raw bytes alone did not stop it (measured the same day:
+    # solo_password refused code 239 at position 1).  Set a preamble-free
+    # encoding first, and refuse to send anything if the writer still has one.
+    try { [Console]::InputEncoding = New-Object Text.ASCIIEncoding } catch { }
     $p = [Diagnostics.Process]::Start($psi)
-    if ($InputText) { $p.StandardInput.Write($InputText + "`n") }
+    $pre = $p.StandardInput.Encoding.GetPreamble().Length
+    if ($pre -ne 0) {
+        Note ('  REFUSED: the stdin writer (' + $p.StandardInput.Encoding.WebName + ') writes a ' + $pre + '-byte preamble; nothing sent')
+        $InputText = ''
+    }
+    # Raw ASCII bytes to the base stream: the installer allows printable ASCII
+    # only, so ASCII is exact.
+    if ($InputText) {
+        $bytes = [Text.Encoding]::ASCII.GetBytes($InputText + "`n")
+        $p.StandardInput.BaseStream.Write($bytes, 0, $bytes.Length)
+        $p.StandardInput.BaseStream.Flush()
+        [Array]::Clear($bytes, 0, $bytes.Length)
+    }
     $p.StandardInput.Close()
     if (-not $p.WaitForExit(120000)) {
         try { $p.Kill() } catch { }
@@ -178,6 +204,10 @@ try {
             $t = Invoke-Sd '-internal RUN gpl.bp solo_password GLOBAL' $globalPw
             Judge 'global password set' $t '^SOLO PASSWORD SET GLOBAL\s*$'
         }
+        if ($apiPw) {
+            $t = Invoke-Sd ('-internal RUN gpl.bp solo_password API ' + $acct) $apiPw
+            Judge 'API password set' $t '^SOLO PASSWORD SET API\s*$'
+        }
     }
 }
 catch {
@@ -185,7 +215,7 @@ catch {
     $fails += 'exception'
 }
 finally {
-    $adminPw = $null; $globalPw = $null; $secrets = $null
+    $adminPw = $null; $globalPw = $null; $apiPw = $null; $secrets = $null
     [void](Invoke-Sd '-stop' '')
     Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
 }
