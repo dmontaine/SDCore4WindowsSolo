@@ -78,12 +78,12 @@ not LGPL**, linking exception removed (owner, 26 Sep; `f484e8e`).
    then at a real console: `sd` asks for the password (3 tries), a one-shot `sd
    WHERE` at the console is refused; a reboot starts SD with nobody signed in; ssh
    lands in `sd` and asks for the account password.
-4. **Flags for the owner, not acted on:** `sdb_ai/LICENSE` line 1 is a stray
-   `[Press 'q' to exit]`; its header names the "Black Oak" licence while the text
-   at the end of all four licence files is the **Blue** Oak Model License, and the
-   26 Aug changelog says the Black Oak line was removed — `sdb_ai/LICENSE` still
-   has it. The LGPL→GPL change presumably applies to `sd4windows` and
-   `SDCore4Linux` too (no mailbox — through the owner).
+4. **Flag for the owner, not acted on:** the LGPL→GPL change presumably applies
+   to `sd4windows` and `SDCore4Linux` too (no mailbox — through the owner).
+   *(Fixed 26 Sep at the owner's word: `sdb_ai/LICENSE`'s stray `[Press 'q' to
+   exit]` line, and its "Black Oak" → "Blue Oak", matching the licence text it
+   carries. The 26 Aug changelog entry still says "Black Oak" because it quotes
+   the old shipped wording.)*
 
 **State of this machine at handoff:** no SD installed (the owner uninstalled 25 Sep
 18:03; data kept in `C:\Users\Don\SDCoreSolo`); no SD process running; `stage\`
