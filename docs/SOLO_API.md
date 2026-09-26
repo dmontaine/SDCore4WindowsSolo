@@ -122,9 +122,25 @@ already; its SDSYS/elevation test is multi-user and is retargeted, not removed.
 2. **No handover** (`apisrvr`, `op_kernel.c`, `sd_tlssrv.c`): the session
    continues in the front. `test-tlsrelay-units.py` is adapted; a real SCRAM
    login with the unchanged client against a staged tree is the witness.
+   ***BUILT AND WITNESSED 25 Sep 2026*** (with step 3's server half, which the
+   witness needed): `apisrvr` sets `logged.in` on SCRAM success, the
+   `K$HANDOFF` prepare/commit are gone, the `sdapi` test is gone, a login name
+   starting `$` is refused before `$cred` is read, and `vb.account` admits only
+   the user's own account, never SDSYS; `solo_password API <account>` stores the
+   API password; `solo-setup.ps1` takes `SD_SOLO_API_PW`. **Witness, staged
+   tree, `scram-probe.py` (the real wire protocol):** the right API password →
+   `server signature VERIFIED`, `account don: entered`, `WHO` = `1 DON`,
+   `WHERE` = `/user_accounts/don`, served by the one `sd.exe -n -q` that took
+   the connection (its child the restricted relay; no second sd); wrong
+   password → refused at 48; `$admin` + the admin password → refused at 47;
+   the right login asking for `sdsys` → `User not allowed in requested
+   account`. *Kernel side still present, retired in step 5:* `K$HANDOFF`,
+   `win32session.c`, the relay's control channel and pipe code.
 3. **The user's API password**: installer page and a `solo_password API` step
    storing it with the account's salt; the verb to change it; login refused for
-   any other name.
+   any other name. *Server half done in step 2; left: the installer page
+   (`sd-solo.iss` → `SD_SOLO_API_PW`), the verb to change it, and the shared
+   salt (step 4).*
 4. **The second password on the same name**: `$GLOBAL` stored with the same
    salt; `apisrvr` checks the proof against both, `K$ADMINISTRATOR` on the
    global match; standalone mode has only the one. Witness: the unchanged client
