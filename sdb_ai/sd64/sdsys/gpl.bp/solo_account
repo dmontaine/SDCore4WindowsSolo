@@ -18,6 +18,10 @@
 *
 *
 * START-HISTORY:
+* 25 Sep 26 SD Core Solo - the register stores @USRDIR/<name>, not an absolute
+*           path (ruling 21, a portable tree); an old absolute record whose
+*           folder is gone while the account's folder is in this tree is
+*           rewritten to the token form.
 * 25 Sep 26 SD Core Solo - new, SOLO 4.
 * END-HISTORY
 *
@@ -94,6 +98,10 @@ $include err.h
       stop
    end
    pathname = ospath(usr.dir : @ds : acc.name, OS$FULLPATH)
+*  25 Sep 26 - ruling 21: what the register STORES is the token form, never
+*  the absolute path above, so a tree copied elsewhere still finds its account
+*  (pathtkn expands @USRDIR from config('USRDIR'), which follows the tree).
+   reg.path = '@USRDIR' : @ds : acc.name
 
    openpath @sdsys : @ds : 'accounts' to acc.f else
       display 'solo_account: cannot open the account register.'
@@ -104,7 +112,19 @@ $include err.h
       if ospath(parse.pathname.tokens(acc.rec<ACC$PATH>), OS$EXISTS) then
          display 'solo_account: ' : acc.name : ' is already in the register; nothing to do.'
          @system.return.code = 0
-         display 'SOLO ACCOUNT READY ' : acc.name : ' ' : acc.rec<ACC$PATH>
+         display 'SOLO ACCOUNT READY ' : acc.name : ' ' : parse.pathname.tokens(acc.rec<ACC$PATH>)
+         stop
+      end
+*     A register path that is gone while the account's folder IS in this
+*     tree is a moved tree with an old, absolute record: point the record at
+*     the tree.  Anything else is still refused.
+      if ospath(pathname, OS$EXISTS) then
+         display 'solo_account: the register named ' : acc.rec<ACC$PATH> : ', which is gone; it now names ' : reg.path
+         acc.rec<ACC$PATH> = reg.path
+         write acc.rec to acc.f, acc.name
+         close acc.f
+         @system.return.code = 0
+         display 'SOLO ACCOUNT READY ' : acc.name : ' ' : pathname
          stop
       end
       display 'solo_account: the register names ' : acc.name : ' but its directory is missing: ' : acc.rec<ACC$PATH>
@@ -131,7 +151,7 @@ $include err.h
    gosub make.account
 
    acc.rec = ''
-   acc.rec<ACC$PATH> = pathname
+   acc.rec<ACC$PATH> = reg.path
    write acc.rec to acc.f, acc.name
    close acc.f
 

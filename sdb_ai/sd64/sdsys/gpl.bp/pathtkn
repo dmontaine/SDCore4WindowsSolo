@@ -18,6 +18,10 @@
 * 
 * 
 * START-HISTORY:
+* 25 Sep 26 SD Core Solo - @USRDIR, the accounts folder (config USRDIR, which
+*           SOLO 2 derives from the tree's own location).  solo_account stores
+*           an account's path as @USRDIR/<name>, so a tree copied to another
+*           folder, user or computer still finds its account (ruling 21).
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
 * END-HISTORY
 *
@@ -37,6 +41,8 @@ $catalogue !pathtkn
          null
       case u.path[1,6] = '@SDSYS'
          path = @sdsys:path[7,9999]
+      case u.path[1,7] = '@USRDIR'
+         path = config('USRDIR'):path[8,9999]
       case u.path[1,4] = '@TMP'
          path = config('TEMPDIR'):path[5,9999]
       case u.path[1,5] = '@HOME'

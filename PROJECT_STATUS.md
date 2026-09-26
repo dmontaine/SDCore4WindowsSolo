@@ -641,6 +641,15 @@ tree (was: only with the API box). Witness (`scram-probe.py`, staged tree): the
 account password logs in; `SET.API.PASSWORD` "is not in your VOC"; `SET.PASSWORD`
 refuses without ADMIN and changes with it, the salt still shared with
 `$GLOBAL`; the global password still gives an administrator session.
+***(2) DONE AND WITNESSED 25 Sep:*** `pathtkn` expands a new token `@USRDIR`
+(`config('USRDIR')`, which follows the tree — SOLO 2); `solo_account` stores
+`@USRDIR/<name>` and rewrites an old absolute record whose folder is gone when
+the account's folder is in this tree; `_voc_ref` now expands register paths
+(it read them raw — latent for `@SDSYS` too). **Witness: the whole staged tree
+copied to `C:\Users\Don\sdmv`** (no API listener there): its session ran in
+`C:\Users\Don\sdmv\SDCoreSolo\user_accounts\don` (`SH pwd`); CONTROL — a
+planted absolute record `C:/nowhere/...` broke it ("Unable to change to
+directory"); the installer's account step repaired it and the copy worked again.
 **The rest is a plan.** *Would each part hold? Stated with what would falsify it.*
 - **Every session asks.** LOGIN (not internal, not a phantom — a phantom inherits
   its parent's authentication; not the daemon's `-start`, which is no session)
