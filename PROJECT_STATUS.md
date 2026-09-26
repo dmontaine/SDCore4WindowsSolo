@@ -331,8 +331,10 @@ privileges 0 / Low / 3 restricting SIDs, and a real TLS 1.3 login reached
 request 47; details in docs/SOLO_API.md §4. **Step 2 (no handover) DONE AND
 WITNESSED 25 Sep** — the first successful Solo API login: `scram-probe.py` →
 VERIFIED, account `don` entered, `WHO`/`WHERE` answered, served by the front
-itself; wrong password, `$admin` and `sdsys` refused. **Next: step 3's
-installer page** (the server half and `solo-setup.ps1`'s API step are done). It covers SOLO 3's API remainder. **D3's option (b) MEASURED 25
+itself; wrong password, `$admin` and `sdsys` refused. **Step 3's installer
+page built** (ISCC clean; a fresh install shows it — the owner's kept tree has a
+BOM'd `$ADMIN` anyway). **Open: the verb that changes the API password — its
+gate (ADMIN unlocked, or the current API password) and name are the owner's.** It covers SOLO 3's API remainder. **D3's option (b) MEASURED 25
 Sep** (`gplbld/probe-relayrestrict.c`, the real relay, unelevated): a restricted
 own token with restricting SIDs Everyone/Users/RESTRICTED at Low passes every
 relay-run row of `test-tlsrelay-units.py` and is DENIED the user's files

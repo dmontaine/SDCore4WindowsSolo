@@ -138,9 +138,11 @@ already; its SDSYS/elevation test is multi-user and is retargeted, not removed.
    `win32session.c`, the relay's control channel and pipe code.
 3. **The user's API password**: installer page and a `solo_password API` step
    storing it with the account's salt; the verb to change it; login refused for
-   any other name. *Server half done in step 2; left: the installer page
-   (`sd-solo.iss` → `SD_SOLO_API_PW`), the verb to change it, and the shared
-   salt (step 4).*
+   any other name. *Server half done in step 2.* **Installer page BUILT 25 Sep,
+   ISCC clean, not yet seen in a run:** `ApiPage` after the tasks page, shown on
+   a new data tree with the API box ticked, refuses a password equal to the
+   global one (ruling 19's order), passed as `SD_SOLO_API_PW`. *Left: the verb
+   to change it (its gate is the owner's call), and the shared salt (step 4).*
 4. **The second password on the same name**: `$GLOBAL` stored with the same
    salt; `apisrvr` checks the proof against both, `K$ADMINISTRATOR` on the
    global match; standalone mode has only the one. Witness: the unchanged client
