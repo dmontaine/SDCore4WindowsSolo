@@ -80,14 +80,10 @@ exception" paragraph in the 8 files `f484e8e` missed).
    then at a real console: `sd` asks for the password (3 tries), a one-shot `sd
    WHERE` at the console is refused; a reboot starts SD with nobody signed in; ssh
    lands in `sd` and asks for the account password.
-4. **Flag for the owner, not acted on:** the LGPL→GPL change presumably applies
-   to `SDCore4Linux` too (no mailbox — through the owner). *`sd4windows` is done,
-   26 Sep 2026, by a session there: GPL, no linking exception, Blue Oak, the
-   W1.1-0 zip rebuilt and re-tagged.*
-   *(Fixed 26 Sep at the owner's word: `sdb_ai/LICENSE`'s stray `[Press 'q' to
-   exit]` line, and its "Black Oak" → "Blue Oak", matching the licence text it
-   carries. The 26 Aug changelog entry still says "Black Oak" because it quotes
-   the old shipped wording.)*
+4. *(Licensing, closed 26 Sep 2026: `sd4windows` was fixed by a session there
+   (GPL, no linking exception, Blue Oak, W1.1-0 zip rebuilt and re-tagged), and
+   the owner checked `SDCore4Linux` on the Linux computer. The 26 Aug changelog
+   entry here still says "Black Oak" because it quotes the old shipped wording.)*
 
 **State of this machine at handoff:** no SD installed (the owner uninstalled 25 Sep
 18:03; data kept in `C:\Users\Don\SDCoreSolo`); no SD process running; `stage\`
