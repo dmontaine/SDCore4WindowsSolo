@@ -398,6 +398,25 @@ session 0, owner `ace\Don`.*** Not exercised by an upgrade: the ssh block and
 semaphore names are machine-wide, not per tree (the shm segment is). Stop the
 installed SD first (`C:\Users\Don\SDCoreSolo\usr\bin\sd.exe -stop`, unelevated,
 works); the installer's upgrade path restarts it. Matters for SOLO 9.
+***UNINSTALL WITNESSED, owner, 25 Sep 18:03:*** `solo-machine Remove` PASS, elevated,
+64-bit — task gone, `SD-API-In-TCP` removed, the `sshd_config` block removed with
+`sshd -t` accepting the result (the first 64-bit `sshd -t`), sshd restarted;
+`sdsys`, `user_accounts`, `sd.conf` kept. So nothing Solo is installed now.
+***RULING 17 BUILT, 25 Sep 18:29, NOT RUN:*** optional tasks `installssh` (+
+`\network`) and `installpython`, shown only when `<src>\ssh-server\*.msi` /
+`<src>\python\python-3*-amd64.exe` is beside the installer AND no sshd / no
+64-bit Python 3.13+ in HKCU/HKLM PythonCore. Python: step 0, unelevated, `/quiet
+InstallAllUsers=0 InstallLauncherAllUsers=0 PrependPath=1 Include_test=0 /log
+{app}\python-install.log`, judged by exit code AND an HKCU registration after.
+MSI: `solo-machine.ps1 -SshMsi`, before the ssh steps — `msiexec /i /qn
+ADDLOCAL=Server /l*v`, then checks sshd.exe + service, makes
+`OpenSSH-Server-In-TCP` if the MSI did not, starts sshd until `sshd_config`
+exists. **Measured:** ISCC clean; the two detection functions, copied verbatim
+into a probe, found both packages in a fake release folder (and NOT the
+`-webinstall` exe), nothing in an empty one, and HKCU=1/HKLM=1 matching this
+machine (3.13, 3.14). **This machine cannot exercise either install** — it has
+sshd and both Pythons, so neither box shows; that needs a clean machine (the
+laptop) or a VM, with the real MSI and `.exe` in the release layout.
 **Unmeasured and could be wrong:** that `ExtractTemporaryFile('ssh-firewall.ps1')`
 finds a file taken in by the wildcard `[Files]` entry (the first install's ssh
 scope step ran, so it probably does); that Win32-OpenSSH's `Match User` matches
