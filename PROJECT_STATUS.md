@@ -665,9 +665,14 @@ of ours); no records → 12020; the API still logs in by SCRAM (control — firs
 run failed only because the test tree lacked `sd-tls`, which the installer
 creates). **Not witnessed: the terminal prompt and its 3 tries, and a one-shot
 at a console being refused — both need the owner at a real console.**
-**Open: `SDConnectLocal`** (the client library's local connection) sends no
-password and the libraries stay unchanged (ruling 18) — today it is not asked
-at all (mode 1, `vb.local.login`); the owner's call whether it stays exempt.
+**`SDConnectLocal` DISABLED (owner, 25 Sep 2026: *"disable sdconnectlocal,
+they can login with sdconnect instead"*)** — it sends no password and the
+libraries stay unchanged: `apisrvr`'s request 25 refuses like retired request
+24, message 12021, audited; its old body is unreachable and goes with step 5.
+Witnessed with the real `local-connect-test.exe` against a staged tree:
+`REFUSED: SDConnectLocal is not available in SD Core Solo - connect with
+SDConnect and the account password`, audit `API REFUSED request=25`.
+`verify-localconnect.ps1` / `verify-sdsyslocal.ps1` are dead with it (SOLO 9).
 **The rest is a plan.** *Would each part hold? Stated with what would falsify it.*
 - **Every session asks.** LOGIN (not internal, not a phantom — a phantom inherits
   its parent's authentication; not the daemon's `-start`, which is no session)

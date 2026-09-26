@@ -11,6 +11,10 @@ RELEASED.
            command given on the sd command line reads the password from
            its input and never stops to ask.
 
+           SDConnectLocal is not available: it cannot send a password.
+           Programs on the same computer connect with SDConnect and the
+           account password, like any other.
+
            The installer asks for an account password. Programs log in
            over the API with your account name and that password, using
            the same client libraries as every SD Core. To change it,
