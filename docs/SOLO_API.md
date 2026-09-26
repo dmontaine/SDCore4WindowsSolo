@@ -106,6 +106,19 @@ already; its SDSYS/elevation test is multi-user and is retargeted, not removed.
 
 1. **Relay on a restricted own token** (`win32relay.c`): started without S4U;
    probe that it handshakes; free guard for the token (privileges 0, Low).
+   ***BUILT AND WITNESSED 25 Sep 2026.*** `win32relay.c` `relay_token()`
+   (restricting SIDs Everyone/Users/RESTRICTED, every privilege removed —
+   measured first with the probe's `-strip` mode — Low, default DACL SY/user/RC;
+   no environment block, cwd System32, desktop inherited); `win32tls.c`
+   `win32_owner_only()` also admits the process's own user; `SD_RELAY_ACCOUNT`
+   gone; `sd-solo.iss` creates `{app}\sd-tls`. `make -o sdpy sd` 0 warnings.
+   **Witness, staged tree, unelevated:** the relay `sd.exe` itself started,
+   read live by `probe-relayrestrict --inspect`: **privileges 0, Low,
+   restricting SIDs 3**; `scram-probe.py` completed **TLS 1.3** with the
+   binding and reached request 47 (refused — no API password exists yet).
+   *Not yet:* a free guard for the token (the probe is the check for now); the
+   successful-login path, which needs step 2 — until then the handover pipe
+   this token cannot create (error 5) is still asked for.
 2. **No handover** (`apisrvr`, `op_kernel.c`, `sd_tlssrv.c`): the session
    continues in the front. `test-tlsrelay-units.py` is adapted; a real SCRAM
    login with the unchanged client against a staged tree is the witness.

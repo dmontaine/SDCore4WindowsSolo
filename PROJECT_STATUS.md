@@ -325,7 +325,12 @@ its own multi-user security descriptor; `win32sem.c` now grants SYSTEM + the use
 ### SOLO 6 · API authentication (rulings 3 and 4)
 
 **DESIGN DRAFTED, 25 Sep 2026: [docs/SOLO_API.md](docs/SOLO_API.md) — ALL DECIDED 25 Sep (D5, D2, D3: rulings 18, 19, 20); nothing
-built, next is its §4 build order, step 1 the relay.** It covers SOLO 3's API remainder. **D3's option (b) MEASURED 25
+built, next is its §4 build order.** **Step 1 (the relay on ruling 20's token)
+DONE AND WITNESSED 25 Sep** — the relay sd.exe started read back live as
+privileges 0 / Low / 3 restricting SIDs, and a real TLS 1.3 login reached
+request 47; details in docs/SOLO_API.md §4. **Next: step 2, no handover** — a
+successful API login cannot work until it lands (the handover pipe needs a
+right this token lacks, and its S4U spawn needs SeTcb). It covers SOLO 3's API remainder. **D3's option (b) MEASURED 25
 Sep** (`gplbld/probe-relayrestrict.c`, the real relay, unelevated): a restricted
 own token with restricting SIDs Everyone/Users/RESTRICTED at Low passes every
 relay-run row of `test-tlsrelay-units.py` and is DENIED the user's files

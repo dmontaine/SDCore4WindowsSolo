@@ -1,6 +1,7 @@
 /* WIN32RELAY.C
- * Native Windows half of the API's TLS relay: start sdtlsrelay.exe as the
- * bare relay account, at Low integrity, with exactly two inherited handles.
+ * Native Windows half of the API's TLS relay: start sdtlsrelay.exe on a
+ * restricted copy of this process's own token, at Low integrity, with exactly
+ * three inherited handles.
  * Copyright (c) String Database
  *
  * This program is free software; you can redistribute it and/or modify
@@ -14,6 +15,11 @@
  * GNU General Public License for more details.
  *
  * START-HISTORY:
+ * 25 Sep 26 SD Core Solo - SOLO 3, ruling 20: the relay's token is a
+ *           RESTRICTED COPY OF OUR OWN, not an S4U logon of sdrelay - Solo's
+ *           daemon is the user at a standard token and holds no SeTcb.  No
+ *           account argument, no environment block from the token, the
+ *           working directory is System32, the desktop is inherited.
  * 17 Sep 26 Windows port - RELEASE_1.1 55: a THIRD inherited descriptor, the
  *           control socketpair the front uses to have the relay stand up the
  *           authenticated session's pipe.  It is passed the same way as the
@@ -27,27 +33,41 @@
  * and win32sem.c do and for the same reason.  Its interface is in sd_tls.h
  * with no Windows type in it; sd_tlssrv.c calls it with Cygwin descriptors.
  *
- * THE DROP, IN ORDER.  sd - LocalSystem, in the session process - is the
- * only party that can do any of this, which is why the relay is spawned and
- * not fork()ed: Cygwin's seteuid to another account needs SeTcb (gplbld/
- * probe-svcimp), and a Cygwin child cannot start at Low while sd holds the
- * runtime (probe-lowmsys).  So:
+ * THE DROP, IN ORDER (SD Core Solo, ruling 20).  The relay parses an
+ * unauthenticated peer's bytes, so a flaw in the TLS code must land in a
+ * process that can reach nothing.  Multi-user SD started it as a separate
+ * account (S4U, which needs SeTcb); Solo's sd is the user at a standard token
+ * (ruling 16) and cannot.  Instead, every step allowed on one's OWN token:
  *
- *   1. win32_s4u_logon(SD_RELAY_ACCOUNT)   the bare account's token, minted
- *                                          on sd's own SeTcb - no password
- *                                          exists for it, none is needed
- *   2. DuplicateTokenEx -> primary         CreateProcessAsUser wants one
- *   3. AdjustTokenPrivileges, REMOVED      every privilege, permanently -
- *                                          removed, not disabled, so the
- *                                          child cannot re-enable one
- *   4. TokenIntegrityLevel = Low           RELEASE_1.1 53: at Medium an
- *                                          ordinary account can open the SD
- *                                          runtime's shared section for
- *                                          write; at Low it cannot
- *   5. CreateProcessAsUser, SeAssignPrimaryToken, which LocalSystem holds
+ *   1. CreateRestrictedToken(own token)   DISABLE_MAX_PRIVILEGE, and
+ *                                          RESTRICTING SIDs Everyone, Users,
+ *                                          RESTRICTED: every access must also
+ *                                          pass that list, and the user's
+ *                                          files grant none of the three
+ *   2. AdjustTokenPrivileges, REMOVED      every privilege, SeChangeNotify
+ *                                          too - removed, not disabled
+ *   3. TokenIntegrityLevel = Low           no write to anything at Medium
+ *   4. TokenDefaultDacl                    SYSTEM, the user and RESTRICTED,
+ *                                          so the child can open its OWN
+ *                                          process and thread objects
+ *   5. CreateProcessAsUser                 a restricted copy of the caller's
+ *                                          own primary token needs no
+ *                                          privilege to assign
  *
- * Every step measured by gplbld/probe-relaydrop.c iteration 5, owner-
- * elevated: child ran as the bare account, privilege count 0, Low.
+ * MEASURED 25 Sep 2026, gplbld/probe-relayrestrict.c (mode b-users-strip),
+ * unelevated, the real sdtlsrelay.exe: child token privileges 0, Low,
+ * restricting SIDs 3; test-tlsrelay-units.py's TLS rows all pass (handshake,
+ * binding equal to the client's exporter, 256 KB both ways, refusals); READ
+ * DENIED on the user's sd.conf, $cred\$ADMIN and .ssh; System32 readable.
+ * RESTRICTED alone as the list kills the relay (0xC0000409).  ONE THING IT
+ * CANNOT DO: create the multi-user handover pipe (error 5) - Solo has no
+ * handover (docs/SOLO_API.md), so nothing asks it to.
+ *
+ * NO ENVIRONMENT BLOCK, AND System32 AS THE WORKING DIRECTORY.  The child
+ * inherits sd's environment (the same user's), and a working directory in
+ * the user's tree is one the child could not open.  The DESKTOP is
+ * inherited: the relay loads no user32, and naming winsta0 from a session-0
+ * S4U daemon asks for a window station that is not its own.
  *
  * THE HANDLE LIST IS CORRECTNESS, NOT HYGIENE.  Every socket handle Cygwin
  * creates carries HANDLE_FLAG_INHERIT (measured, gplbld/probe-relaysp.c), so
@@ -69,18 +89,15 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <sddl.h>
-#include <userenv.h>
 #include <io.h>                        /* _get_osfhandle: a Cygwin fd's HANDLE */
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "win32s4u.h"                  /* win32_s4u_logon(); no SD header */
-
 /* Declared in sd_tls.h; repeated so this file includes no SD header. */
-int win32_relay_spawn(const char* account, int net_fd, int sp_fd, int ctl_fd,
-                      int timeout_ms, void** proc, char* why, size_t whylen);
+int win32_relay_spawn(int net_fd, int sp_fd, int ctl_fd, int timeout_ms,
+                      void** proc, char* why, size_t whylen);
 int win32_relay_exit_code(void* proc, int wait_ms);
 int win32_my_sid(char* out, size_t outlen, char* why, size_t whylen);
 
@@ -157,9 +174,90 @@ static int set_low_integrity(HANDLE tok, char* why, size_t whylen) {
   return ok;
 }
 
-/* The relay's path: beside this executable.  dir gets the directory, which
-   is also the child's working directory - a place the bare account can at
-   least read (Program Files grants Users), where sd's own cwd may not be. */
+/* 25 Sep 26 SD Core Solo - ruling 20.  The relay's primary token: a
+   restricted copy of this process's own, steps 1-4 of the description.  The
+   restricting list is the MEASURED one; RESTRICTED alone is not enough for
+   the relay to start. */
+static HANDLE relay_token(char* why, size_t whylen) {
+  static const char* restricting[3] = {
+      "S-1-1-0",      /* Everyone */
+      "S-1-5-32-545", /* BUILTIN\Users */
+      "S-1-5-12"      /* RESTRICTED */
+  };
+  SID_AND_ATTRIBUTES rs[3];
+  HANDLE own = NULL;
+  HANDLE tok = NULL;
+  BYTE ubuf[512];
+  DWORD len = 0;
+  char* user = NULL;
+  char sddl[256];
+  PSECURITY_DESCRIPTOR sd = NULL;
+  BOOL present = FALSE, defaulted = FALSE;
+  PACL dacl = NULL;
+  TOKEN_DEFAULT_DACL tdd;
+  int i;
+  int ok = 0;
+
+  ZeroMemory(rs, sizeof(rs));
+  for (i = 0; i < 3; i++) {
+    if (!ConvertStringSidToSidA(restricting[i], &rs[i].Sid)) {
+      win_error("ConvertStringSidToSid(restricting)", why, whylen);
+      goto done;
+    }
+  }
+  if (!OpenProcessToken(GetCurrentProcess(),
+                        TOKEN_DUPLICATE | TOKEN_QUERY | TOKEN_ASSIGN_PRIMARY |
+                            TOKEN_ADJUST_DEFAULT | TOKEN_ADJUST_PRIVILEGES,
+                        &own)) {
+    win_error("OpenProcessToken", why, whylen);
+    goto done;
+  }
+  if (!CreateRestrictedToken(own, DISABLE_MAX_PRIVILEGE, 0, NULL, 0, NULL, 3,
+                             rs, &tok)) {
+    win_error("CreateRestrictedToken", why, whylen);
+    goto done;
+  }
+  if (!strip_privileges(tok, why, whylen) || !set_low_integrity(tok, why, whylen))
+    goto done;
+
+  /* Step 4: the child's own objects must pass the restricted check too. */
+  if (!GetTokenInformation(own, TokenUser, ubuf, sizeof(ubuf), &len) ||
+      !ConvertSidToStringSidA(((TOKEN_USER*)ubuf)->User.Sid, &user)) {
+    win_error("the user's SID", why, whylen);
+    goto done;
+  }
+  snprintf(sddl, sizeof(sddl), "D:(A;;GA;;;SY)(A;;GA;;;%s)(A;;GA;;;RC)", user);
+  if (!ConvertStringSecurityDescriptorToSecurityDescriptorA(
+          sddl, SDDL_REVISION_1, &sd, NULL) ||
+      !GetSecurityDescriptorDacl(sd, &present, &dacl, &defaulted) || !dacl) {
+    win_error("the relay's default DACL", why, whylen);
+    goto done;
+  }
+  tdd.DefaultDacl = dacl;
+  if (!SetTokenInformation(tok, TokenDefaultDacl, &tdd, sizeof(tdd))) {
+    win_error("SetTokenInformation(default DACL)", why, whylen);
+    goto done;
+  }
+  ok = 1;
+
+done:
+  for (i = 0; i < 3; i++)
+    if (rs[i].Sid)
+      LocalFree(rs[i].Sid);
+  if (user)
+    LocalFree(user);
+  if (sd)
+    LocalFree(sd);
+  if (own)
+    CloseHandle(own);
+  if (!ok && tok) {
+    CloseHandle(tok);
+    tok = NULL;
+  }
+  return tok;
+}
+
+/* The relay's path: beside this executable.  dir gets the directory. */
 static int relay_path(char* dir, size_t dirlen, char* out, size_t outlen,
                       char* why, size_t whylen) {
   DWORD n = GetModuleFileNameA(NULL, dir, (DWORD)dirlen);
@@ -199,12 +297,12 @@ static int dup_inheritable(HANDLE h, HANDLE* out, const char* what, char* why,
 /* ======================================================================
    win32_relay_spawn()                                                    */
 
-int win32_relay_spawn(const char* account, int net_fd, int sp_fd, int ctl_fd,
-                      int timeout_ms, void** proc, char* why, size_t whylen) {
+int win32_relay_spawn(int net_fd, int sp_fd, int ctl_fd, int timeout_ms,
+                      void** proc, char* why, size_t whylen) {
   char dir[MAX_PATH];
+  char sysdir[MAX_PATH];
   char exe[MAX_PATH + 32];
   char cmd[MAX_PATH + 160];
-  HANDLE imp = NULL;
   HANDLE prim = NULL;
   HANDLE net = INVALID_HANDLE_VALUE;
   HANDLE sp = INVALID_HANDLE_VALUE;
@@ -216,7 +314,6 @@ int win32_relay_spawn(const char* account, int net_fd, int sp_fd, int ctl_fd,
   STARTUPINFOEXA six;
   PROCESS_INFORMATION pi;
   SIZE_T alen = 0;
-  void* env = NULL;
   int ok = 0;
 
   *proc = NULL;
@@ -225,6 +322,10 @@ int win32_relay_spawn(const char* account, int net_fd, int sp_fd, int ctl_fd,
 
   if (!relay_path(dir, sizeof(dir), exe, sizeof(exe), why, whylen))
     return 0;
+  if (GetSystemDirectoryA(sysdir, sizeof(sysdir)) == 0) {
+    win_error("GetSystemDirectory", why, whylen);
+    return 0;
+  }
 
   net = (HANDLE)_get_osfhandle(net_fd);
   sp = (HANDLE)_get_osfhandle(sp_fd);
@@ -238,21 +339,9 @@ int win32_relay_spawn(const char* account, int net_fd, int sp_fd, int ctl_fd,
   }
 
   /* 1-4: the token. */
-  imp = (HANDLE)win32_s4u_logon(account);
-  if (imp == NULL) {
-    snprintf(why, whylen,
-             "cannot log the relay account %s on: does it exist (install-service.ps1), "
-             "and is this process LocalSystem?", account);
+  prim = relay_token(why, whylen);
+  if (prim == NULL)
     return 0;
-  }
-  if (!DuplicateTokenEx(imp, TOKEN_ALL_ACCESS, NULL, SecurityImpersonation,
-                        TokenPrimary, &prim)) {
-    win_error("DuplicateTokenEx(primary)", why, whylen);
-    goto done;
-  }
-  if (!strip_privileges(prim, why, whylen) ||
-      !set_low_integrity(prim, why, whylen))
-    goto done;
 
   /* The three handles, and ONLY the three (description block). */
   if (!dup_inheritable(net, &netInh, "DuplicateHandle(connection)", why,
@@ -276,23 +365,17 @@ int win32_relay_spawn(const char* account, int net_fd, int sp_fd, int ctl_fd,
     goto done;
   }
   six.StartupInfo.cb = sizeof(six);
-  six.StartupInfo.lpDesktop = (char*)"winsta0\\default";
+  /* lpDesktop left NULL - inherited (description block). */
 
   snprintf(cmd, sizeof(cmd), "\"%s\" %llu %llu %llu %d", exe,
            (unsigned long long)(uintptr_t)netInh,
            (unsigned long long)(uintptr_t)spInh,
            (unsigned long long)(uintptr_t)ctlInh, timeout_ms);
 
-  /* The account's own environment block: without one the child has no
-     SystemRoot, and the UCRT refuses to start. */
-  if (!CreateEnvironmentBlock(&env, prim, FALSE))
-    env = NULL;
-
-  /* 5. */
+  /* 5.  Environment inherited (NULL): sd's own, the same user's. */
   if (!CreateProcessAsUserA(prim, exe, cmd, NULL, NULL, TRUE,
-                            CREATE_NO_WINDOW | EXTENDED_STARTUPINFO_PRESENT |
-                                (env ? CREATE_UNICODE_ENVIRONMENT : 0),
-                            env, dir, &six.StartupInfo, &pi)) {
+                            CREATE_NO_WINDOW | EXTENDED_STARTUPINFO_PRESENT,
+                            NULL, sysdir, &six.StartupInfo, &pi)) {
     win_error("CreateProcessAsUser(sdtlsrelay)", why, whylen);
     goto done;
   }
@@ -313,12 +396,8 @@ done:
     DeleteProcThreadAttributeList(six.lpAttributeList);
     HeapFree(GetProcessHeap(), 0, six.lpAttributeList);
   }
-  if (env)
-    DestroyEnvironmentBlock(env);
   if (prim)
     CloseHandle(prim);
-  if (imp)
-    CloseHandle(imp);
   return ok;
 }
 

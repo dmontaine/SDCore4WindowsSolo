@@ -12,6 +12,9 @@
  * GNU General Public License for more details.
  *
  * START-HISTORY:
+ * 25 Sep 26 SD Core Solo - SOLO 3, ruling 20: win32_relay_spawn() takes no
+ *           account - the relay runs on a restricted copy of sd's own token;
+ *           the identity directory may also be the user's (win32_owner_only).
  * 17 Sep 26 Windows port - RELEASE_1.1 55: a second socketpair is made before
  *           the spawn and kept as the CONTROL channel to the relay, and
  *           sd_tls_relay_pipe() is the front's one use of it - stand up the
@@ -41,9 +44,12 @@
  *   the relay    sdtlsrelay.exe, per connection, gets the connection and one
  *                end of a socketpair, does the TLS handshake, sends sd the
  *                channel binding, then copies bytes both ways until either
- *                side ends.  It runs as SD_RELAY_ACCOUNT at Low with no
- *                privilege - the Linux "nobody" - so a flaw in the TLS code
- *                hands an attacker a bare account, not LocalSystem.
+ *                side ends.  In SD Core Solo it runs on a RESTRICTED copy
+ *                of sd's own token - restricting SIDs, no privilege, Low
+ *                (ruling 20, win32relay.c) - so a flaw in the TLS code
+ *                hands an attacker a process that can read none of the
+ *                user's files.  (Multi-user SD ran it as the bare account
+ *                sdrelay, the Linux "nobody".)
  *   sd           keeps the other end of the socketpair as descriptors 0 and
  *                1, reads the binding, and carries on exactly as before.
  *
@@ -186,7 +192,7 @@ static bool private_to_me(const char* path, const struct stat* st,
              is_dir ? "directory" : "regular file");
     return false;
   }
-  return win32_admin_only(path, errmsg, errlen) != 0;
+  return win32_owner_only(path, errmsg, errlen) != 0;
 }
 
 static bool create_identity(const char* path, char* errmsg, size_t errlen) {
@@ -321,7 +327,7 @@ static bool load_identity(const char* dir, unsigned char** pem, size_t* pemlen,
      here with whatever ACL the parent hands down. */
   if (lstat(dir, &st) != 0) {
     snprintf(errmsg, errlen,
-             "%s is missing: the installer creates it (secure-tls.ps1); "
+             "%s is missing: the installer creates it (sd-solo.iss [Dirs]); "
              "until it exists no API connection is accepted", dir);
     return false;
   }
@@ -504,11 +510,11 @@ int sd_tls_relay_start(const char* identity_dir, int timeout_ms,
      party to this connection's handover. */
   (void)fcntl(ctl[0], F_SETFD, FD_CLOEXEC);
 
-  /* The spawn: token minted, stripped, Low, three handles inherited and no
-     other (win32relay.c).  Descriptor 0 is the connection until the dup2
-     below. */
-  if (!win32_relay_spawn(SD_RELAY_ACCOUNT, 0, sp[1], ctl[1], timeout_ms, &proc,
-                         why, sizeof(why))) {
+  /* The spawn: our own token restricted, stripped, Low (ruling 20), three
+     handles inherited and no other (win32relay.c).  Descriptor 0 is the
+     connection until the dup2 below. */
+  if (!win32_relay_spawn(0, sp[1], ctl[1], timeout_ms, &proc, why,
+                         sizeof(why))) {
     syslog(LOG_ERR, "SD API TLS: cannot start the relay: %s", why);
     snprintf(errmsg, errlen, "cannot start the TLS relay (see syslog)");
     close(sp[0]);
