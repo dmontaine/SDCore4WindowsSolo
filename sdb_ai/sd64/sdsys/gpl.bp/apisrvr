@@ -29,6 +29,8 @@
 *           SDSYS (rulings 10, 11), replacing the Windows-group test.
 *           The version-1 refusal names SET.API.PASSWORD: MODIFY.PASSWORD is
 *           retired (owner, 25 Sep 2026).
+* 25 Sep 26 SD Core Solo - request 25 (SDConnectLocal) is refused: it sends no
+*           password and ruling 21 requires one (owner: use SDConnect).
 * 25 Sep 26 SD Core Solo - SET.API.PASSWORD is SET.PASSWORD (ruling 21): the
 *           version-1 refusal names the new verb.
 * 25 Sep 26 SD Core Solo - SOLO 3 step 4, ruling 19: one login name, two
@@ -1369,6 +1371,18 @@ vb.login:
                * Login user for SDLocal connection
 
 vb.local.login:
+* 25 Sep 26 SD Core Solo - SDConnectLocal IS DISABLED (owner, 25 Sep 2026:
+*   "disable sdconnectlocal, they can login with sdconnect instead").  Ruling
+*   21 makes every session prove the account password; this request carries
+*   none and the client libraries stay unchanged (ruling 18), so it cannot be
+*   made to ask.  Refused the way retired request 24 is, with one message
+*   naming what to use instead, audited, and the connection ends.  The old
+*   body below is unreachable and goes with SOLO 3 step 5.
+               abort.message = sysmsg(12021) ;* SDConnectLocal is not available... use SDConnect
+               server.error = SV$ON.ERROR
+               void kernel(K$AUDIT, 'API REFUSED request=25 SDConnectLocal - disabled in SD Core Solo')
+               done = @true
+               return
               * dsm 20240612 openpath @sdsys:@ds:'$LOGINS' to lgn.f else
               * dsm 20240612    abort.message = sysmsg(6050) ;* Cannot open $LOGINS register
               * dsm 20240612    server.error = SV$ON.ERROR
