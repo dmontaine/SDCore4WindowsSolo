@@ -53,12 +53,13 @@ OPEN TASKS wins.
 INSTALLED.*** SOLO 8's entry says what was measured and what was not.
 
 ***OWNER'S ORDER, 25 Sep 2026: "both, installer first".***
-- **FIRST: the owner reruns the Solo installer** (installed once 16:06, see
-  SOLO 8; the installed SD was stopped by the agent to restage, and this run —
-  an upgrade — restarts it) — double-click, as himself, NOT
-  "Run as administrator": `C:\Users\Don\SDCoreProject\SDCore4WindowsSolo\stage\sd-solo-setup-S1.1-0.exe`
-  (built 25 Sep 17:59 from a clean stage; the 17:55 run's elevated step did
-  not start, so SD is stopped until this run; rebuild with `stage.py --force
+- **FIRST: finish witnessing the installer** — installed and upgraded, SD running
+  from the task (SOLO 8). Owed: `ssh don@localhost` lands in `sd` with the Windows
+  password; a reboot starts SD with nobody signed in; an uninstall-then-install
+  exercises `sshd -t` 64-bit and `-Action Remove`. Installer:
+  `C:\Users\Don\SDCoreProject\SDCore4WindowsSolo\stage\sd-solo-setup-S1.1-0.exe`
+  (built 25 Sep 17:59 from a clean stage; a running installed SD must be stopped
+  before restaging — SOLO 8's semaphore trap; rebuild with `stage.py --force
   --bootstrap` then ISCC if the stage has moved). Then read
   `C:\Users\Don\SDCoreSolo\install-summary.log` (both helpers' full reports),
   and from an ordinary prompt `C:\Users\Don\SDCoreSolo\usr\bin\sd.exe` should land
@@ -374,7 +375,12 @@ Measured with a probe installer (`ShellExec 'open'`, 64-bit mode): `{sys}` →
 32-bit, sshd invisible; `{sysnative}` → 64-bit. **So `PowerShellExe` is `{sys}`
 again and `solo-machine.ps1` re-launches itself 64-bit via Sysnative** (seen from a
 32-bit host: report says `64-bit: True`, `-Api`/`-SshScope open` passed through);
-a 32-bit host that cannot re-launch is refused. Rebuilt 17:59; not yet re-run.
+a 32-bit host that cannot re-launch is refused. ***WITNESSED, owner's third run
+(upgrade), 25 Sep 18:01: `solo-machine Upgrade` PASS — `elevated: True   64-bit:
+True` (the re-launch), task re-registered and run (0x0), `sdwind.exe` pid 17412,
+session 0, owner `ace\Don`.*** Not exercised by an upgrade: the ssh block and
+`sshd -t` under 64-bit (the block from the first install is in place, unchecked by
+`sshd -t`); a fresh install or uninstall-then-install exercises them.
 **Trap, found restaging after that install:** a running installed Solo makes
 `stage.py --bootstrap` fail — *"Semaphores are already present"* — the Win32
 semaphore names are machine-wide, not per tree (the shm segment is). Stop the
