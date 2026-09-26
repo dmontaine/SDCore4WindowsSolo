@@ -220,6 +220,21 @@ its own beyond that account's. **Assume one copy per computer.** Product name
     Buildable server-side only: both credentials share the account's salt, so
     SCRAM's server-first fits either, and the proof is checked against each
     (docs/SOLO_API.md §3).
+21. **(25 Sep 2026) THE ACCOUNT PASSWORD IS ALWAYS REQUIRED, AND THE TREE IS
+    PORTABLE.** *"the local password should always be required and it should be
+    possible to move the whole sd tree to another user account, even on another
+    computer and use it as long as the password is known."* Answers the same day:
+    **(a)** the password is the account's own — ruling 18's API password, now
+    *the account password* — for every session: **local, ssh, API and one-shot
+    `sd <command>`** (*"if there is some way for one shot to supply one of the
+    two passwords"* — the account's or, reading "two" as ruling 19's pair, the
+    global one; the mechanism is not chosen yet, SOLO 15). **(b)** A tree moved to
+    another Windows user is **renamed to that user** on first use. **Changes
+    ruling 10** (the account still carries the Windows user's name, but by rename
+    rather than by being created for them) **and the premise "needs no security
+    of its own beyond that account's"** — the password is now the gate; Windows
+    sign-in alone no longer lands anyone in SD. Admin and global passwords
+    (rulings 12, 19) are unchanged.
 20. **(25 Sep 2026) THE TLS RELAY RUNS ON A RESTRICTED COPY OF THE USER'S TOKEN**
     (D3 option b): Low, no privileges, restricting SIDs Everyone, Users and
     RESTRICTED — measured to run the real relay and to be denied the user's
@@ -241,7 +256,7 @@ conflicts with this section, this section wins.**
 
 ## OPEN TASKS — SD CORE SOLO S1.1-0
 
-New ids are **`SOLO <n>`**; the next is **SOLO 15** (SOLO 12, 13 closed 25 Sep, HISTORY.md). `RELEASE_1.1 <n>` and
+New ids are **`SOLO <n>`**; the next is **SOLO 16** (SOLO 12, 13 closed 25 Sep, HISTORY.md). `RELEASE_1.1 <n>` and
 `PRE_RELEASE <n>` citations in source and in §5/§6 name multi-user entries —
 grep HISTORY.md, or `sd4windows`, for them. **Each entry says which parts are
 built and measured; the rest is a plan**, and names what would change it.
@@ -607,6 +622,36 @@ SourceForge — and every file unpacked from that zip by Explorer — carries th
 runs, from the stick too. The fix is a code-signing certificate, a cost and an
 owner's decision; documenting the "More info → Run anyway" step is the free
 alternative.
+
+### SOLO 15 · the account password on every session; a portable tree (ruling 21)
+
+**A plan, nothing built.** *Would each part hold? Stated with what would falsify it.*
+- **Every session asks.** LOGIN (not internal, not a phantom — a phantom inherits
+  its parent's authentication; not the daemon's `-start`, which is no session)
+  checks the account password with `!CRED_VERIFY` before landing. Today LOGIN
+  lands `@logname` with no password, and `login`'s old `require.credential`
+  (dead in Solo) is the nearest existing code. The API already asks (SCRAM).
+  **ssh** asks twice by design: sshd the Windows password, SD its own.
+- **One-shot `sd <command>`** needs a way to supply the password with no
+  prompt — **the owner's choice, not yet made**: candidates are the password on
+  standard input, an environment variable, or a file readable only by the user
+  (DPAPI-protected, so a scheduled job under the same user can read it). *The
+  internal door (`sd -internal` + marker) stays exempt: the installer uses it.*
+- **The account moves with the tree.** Already true: SD finds the tree from
+  `sd.exe`'s location (SOLO 2) and the passwords are in the tree's `$cred`.
+  **Not true yet:** the register's `ACC$PATH` is ABSOLUTE (`solo_account` wrote
+  `C:/Users/Don/.../user_accounts/don`) — it must become relative to the tree
+  (or be re-derived at login) or a moved tree cannot find its account.
+- **Rename on first use by another Windows user**, after the password verifies:
+  register key, `user_accounts\<old>` → `<new>`, and the `$cred` record's key
+  (keeping its salt, so ruling 19's pairing with `$GLOBAL` holds). *Falsified if*
+  anything else caches the account name — VOC F-records pointing into the old
+  directory, `@who`-keyed state, the audit trail's history (fine to keep).
+  **The master server logs in by account name (ruling 19), so after a move it
+  must be told the new name.**
+- **Machine setup does not move:** the startup task, firewall and sshd block are
+  the new computer's; running the installer over the copied tree redoes them
+  (the kept-tree reinstall path). The ssh `Match User` names the Windows user.
 
 ### SOLO 14 · which Python installs Solo's Python helper can use (owner, 25 Sep 2026)
 
