@@ -56,11 +56,12 @@ function Save-Report {
 # Read and clear the passwords before anything else can inherit them.
 $adminPw  = [Environment]::GetEnvironmentVariable('SD_SOLO_ADMIN_PW', 'Process')
 $globalPw = [Environment]::GetEnvironmentVariable('SD_SOLO_GLOBAL_PW', 'Process')
-# 25 Sep 26 - ruling 18: the user's own API password (solo_password API).
-$apiPw    = [Environment]::GetEnvironmentVariable('SD_SOLO_API_PW', 'Process')
+# 25 Sep 26 - rulings 18, 21: the account password, asked by every session
+# (solo_password ACCOUNT).  Was SD_SOLO_API_PW until the owner made it global.
+$accountPw = [Environment]::GetEnvironmentVariable('SD_SOLO_ACCOUNT_PW', 'Process')
 [Environment]::SetEnvironmentVariable('SD_SOLO_ADMIN_PW', $null, 'Process')
 [Environment]::SetEnvironmentVariable('SD_SOLO_GLOBAL_PW', $null, 'Process')
-[Environment]::SetEnvironmentVariable('SD_SOLO_API_PW', $null, 'Process')
+[Environment]::SetEnvironmentVariable('SD_SOLO_ACCOUNT_PW', $null, 'Process')
 # SOLO 2: the tree finds itself from sd.exe's location; a stray SD_CONFIG would
 # point it somewhere else.
 [Environment]::SetEnvironmentVariable('SD_CONFIG', $null, 'Process')
@@ -74,7 +75,7 @@ Note ('user         : ' + $User)
 Note ('passwords    : ' + $(if ($Passwords) { 'ADMIN' + $(if ($Global) { ' and GLOBAL' } else { '' }) } else { 'not set by this run' }))
 Note ('admin pw     : ' + $(if ($adminPw) { 'given (' + $adminPw.Length + ' characters)' } else { 'NOT given' }))
 Note ('global pw    : ' + $(if ($globalPw) { 'given (' + $globalPw.Length + ' characters)' } else { 'NOT given' }))
-Note ('api pw       : ' + $(if ($apiPw) { 'given (' + $apiPw.Length + ' characters)' } else { 'NOT given' }))
+Note ('account pw   : ' + $(if ($accountPw) { 'given (' + $accountPw.Length + ' characters)' } else { 'NOT given' }))
 
 # The null cases, refused out loud.
 $refuse = @()
@@ -97,7 +98,7 @@ if ($refuse.Count -gt 0) {
 $work = Join-Path $env:TEMP ('sd-solo-setup-' + $PID)
 New-Item -ItemType Directory -Force -Path $work | Out-Null
 $script:n = 0
-$secrets = @($adminPw, $globalPw, $apiPw) | Where-Object { $_ }
+$secrets = @($adminPw, $globalPw, $accountPw) | Where-Object { $_ }
 
 # Run sd.exe with $SdArgs; $InputText (may be empty) is written to its standard
 # input, which is then closed so a read at end of input cannot wait forever.
@@ -204,9 +205,9 @@ try {
             $t = Invoke-Sd '-internal RUN gpl.bp solo_password GLOBAL' $globalPw
             Judge 'global password set' $t '^SOLO PASSWORD SET GLOBAL\s*$'
         }
-        if ($apiPw) {
-            $t = Invoke-Sd ('-internal RUN gpl.bp solo_password API ' + $acct) $apiPw
-            Judge 'API password set' $t '^SOLO PASSWORD SET API\s*$'
+        if ($accountPw) {
+            $t = Invoke-Sd ('-internal RUN gpl.bp solo_password ACCOUNT ' + $acct) $accountPw
+            Judge 'account password set' $t '^SOLO PASSWORD SET ACCOUNT\s*$'
         }
     }
 }
@@ -215,7 +216,7 @@ catch {
     $fails += 'exception'
 }
 finally {
-    $adminPw = $null; $globalPw = $null; $apiPw = $null; $secrets = $null
+    $adminPw = $null; $globalPw = $null; $accountPw = $null; $secrets = $null
     [void](Invoke-Sd '-stop' '')
     Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
 }

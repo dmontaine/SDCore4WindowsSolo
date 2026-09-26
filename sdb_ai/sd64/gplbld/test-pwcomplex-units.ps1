@@ -233,9 +233,10 @@ Section '4. the partition: every prompt that sets a password runs the rule'
 # invisible to every row above.  Each site is named with what it sets.
 $sites = @(
     # 25 Sep 26 - SD Core Solo: MODIFY.PASSWORD (set_acc_password) is retired
-    # (owner); SET.API.PASSWORD sets the SD credential now, and sd-solo.iss's
-    # three password pages set the admin, global and API passwords.
-    @{ File = "$sd64/sdsys/gpl.bp/set_api_password"; Pat = 'pw_complex\(pw1\)'; What = 'SET.API.PASSWORD, the API credential' }
+    # (owner); SET.PASSWORD sets the SD credential now (it was SET.API.PASSWORD
+    # until ruling 21 made the account password global), and sd-solo.iss's
+    # three password pages set the admin, global and account passwords.
+    @{ File = "$sd64/sdsys/gpl.bp/set_password"; Pat = 'pw_complex\(pw1\)'; What = 'SET.PASSWORD, the account credential' }
     @{ File = "$sd64/gplbld/sd-solo.iss";            Pat = 'not PasswordComplex\(A\)'; What = "the Solo installer's password pages" }
     # 25 Sep 26 - set_passwd (CREATE.ACCOUNT's Windows password) deleted with SOLO 4.
     @{ File = "$sd64/sdsys/gpl.bp/login";            Pat = 'pw_complex\(pw1\)'; What = "LOGIN's credential prompt" }
@@ -250,7 +251,7 @@ foreach ($s in $sites) {
 }
 # And each BASIC caller must DECLARE the function, or the call is a subroutine
 # name the compiler resolves to nothing recognisable.
-foreach ($f in @('set_api_password', 'login')) {
+foreach ($f in @('set_password', 'login')) {
     $t = Get-Content -LiteralPath "$sd64/sdsys/gpl.bp/$f" -Raw
     Check ("$f declares deffun pw_complex") ($t -match "deffun\s+pw_complex\(pw\)\s+calling\s+'!pw_complex'") $null
 }

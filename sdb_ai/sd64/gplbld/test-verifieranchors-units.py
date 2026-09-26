@@ -38,7 +38,7 @@ SD64 = os.path.dirname(HERE)
 RETIRED = [
     # 25 Sep 26 - SD Core Solo: the one row here, SET_ACC_PASSWORD's success
     # line ('Password set for account' -> 'Password accepted.'), went with
-    # MODIFY.PASSWORD itself - retired by the owner, SET.API.PASSWORD replaces
+    # MODIFY.PASSWORD itself - retired by the owner, SET.PASSWORD replaces
     # it.  The ten verify-*.ps1 that ran it are multi-user and die with SOLO 9.
     # The canary rows below still prove the scanner; add a row here the next
     # time a line a verifier matches on is reworded.

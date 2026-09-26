@@ -170,7 +170,7 @@ var
   SshMsiPath, PythonExePath: String;
   PythonWasFound: Boolean;
   ModePage: TInputOptionWizardPage;
-  AdminPage, GlobalPage, ApiPage: TInputQueryWizardPage;
+  AdminPage, GlobalPage, AccountPage: TInputQueryWizardPage;
 
 function SetEnvironmentVariable(lpName: String; lpValue: String): BOOL;
   external 'SetEnvironmentVariableW@kernel32.dll stdcall';
@@ -350,13 +350,15 @@ begin
   GlobalPage.Add('Password:', True);
   GlobalPage.Add('Confirm password:', True);
 
-  { 25 Sep 26 - ruling 18: the user's own API password, the SCRAM login the
-    unchanged client libraries use.  After the tasks page, so it is asked only
-    when the API box is ticked (ShouldSkipPage). }
-  ApiPage := CreateInputQueryPage(wpSelectTasks, 'API password',
-    'Programs use this password to connect to SD Core Solo.', '');
-  ApiPage.Add('Password:', True);
-  ApiPage.Add('Confirm password:', True);
+  { 25 Sep 26 - rulings 18 and 21: THE ACCOUNT PASSWORD.  Every session asks
+    for it - local, ssh, API and one-shot - so it is asked on every new tree,
+    whether or not the API box is ticked (it was the API password, after the
+    tasks page, until the owner made it global).  After the global page, so
+    the two can be compared (ruling 19). }
+  AccountPage := CreateInputQueryPage(GlobalPage.ID, 'Account password',
+    'SD Core Solo asks for this password whenever it is used.', '');
+  AccountPage.Add('Password:', True);
+  AccountPage.Add('Confirm password:', True);
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
@@ -366,8 +368,8 @@ begin
     Result := not DataTreeWasAbsent
   else if PageID = GlobalPage.ID then
     Result := (not DataTreeWasAbsent) or (not Managed)
-  else if PageID = ApiPage.ID then
-    Result := (not DataTreeWasAbsent) or (not WizardIsTaskSelected('api'))
+  else if PageID = AccountPage.ID then
+    Result := not DataTreeWasAbsent
   else if PageID = wpSelectTasks then
     Result := SoloWasInstalled;
 end;
@@ -447,12 +449,12 @@ begin
     if (Problem = '') and (GlobalPage.Values[0] = AdminPage.Values[0]) then
       Problem := 'Use a password different from the administrator password.';
   end
-  else if CurPageID = ApiPage.ID then
+  else if CurPageID = AccountPage.ID then
   begin
     { Ruling 19: one login name, two passwords, the user's checked first - an
       equal global password would land the master in an ordinary session. }
-    Problem := PasswordProblem(ApiPage.Values[0], ApiPage.Values[1]);
-    if (Problem = '') and Managed and (ApiPage.Values[0] = GlobalPage.Values[0]) then
+    Problem := PasswordProblem(AccountPage.Values[0], AccountPage.Values[1]);
+    if (Problem = '') and Managed and (AccountPage.Values[0] = GlobalPage.Values[0]) then
       Problem := 'Use a password different from the global password.';
   end;
   if Problem <> '' then
@@ -584,14 +586,13 @@ begin
       Params := Params + ' -Global';
       SetEnvironmentVariable('SD_SOLO_GLOBAL_PW', GlobalPage.Values[0]);
     end;
-    if WizardIsTaskSelected('api') then
-      SetEnvironmentVariable('SD_SOLO_API_PW', ApiPage.Values[0]);
+    SetEnvironmentVariable('SD_SOLO_ACCOUNT_PW', AccountPage.Values[0]);
   end;
   if not Exec(PowerShellExe, Params, ExpandConstant('{app}'), SW_HIDE, ewWaitUntilTerminated, Code) then
     Code := -1;
   SetEnvironmentVariable('SD_SOLO_ADMIN_PW', '');
   SetEnvironmentVariable('SD_SOLO_GLOBAL_PW', '');
-  SetEnvironmentVariable('SD_SOLO_API_PW', '');
+  SetEnvironmentVariable('SD_SOLO_ACCOUNT_PW', '');
   AppendSummary('solo-setup (exit ' + IntToStr(Code) + ')', ReportPath);
   if Code <> 0 then
     Failed := Failed + '  account and passwords' + #13#10;
