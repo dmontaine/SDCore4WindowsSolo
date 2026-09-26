@@ -57,7 +57,8 @@ INSTALLED.*** SOLO 8's entry says what was measured and what was not.
   SOLO 8; the installed SD was stopped by the agent to restage, and this run —
   an upgrade — restarts it) — double-click, as himself, NOT
   "Run as administrator": `C:\Users\Don\SDCoreProject\SDCore4WindowsSolo\stage\sd-solo-setup-S1.1-0.exe`
-  (built 25 Sep 16:11 from a clean stage; rebuild with `stage.py --force
+  (built 25 Sep 17:59 from a clean stage; the 17:55 run's elevated step did
+  not start, so SD is stopped until this run; rebuild with `stage.py --force
   --bootstrap` then ISCC if the stage has moved). Then read
   `C:\Users\Don\SDCoreSolo\install-summary.log` (both helpers' full reports),
   and from an ordinary prompt `C:\Users\Don\SDCoreSolo\usr\bin\sd.exe` should land
@@ -366,8 +367,14 @@ lists every `sd*.exe` from the install and passes on `sdwind.exe` as the user.
 (2) *"sshd.exe: none found"* — Setup is 32-bit and `ShellExec` does not honour
 64-bit mode, so `{sys}` started 32-bit PowerShell, which sees System32 as
 SysWOW64 (measured: 32-bit `Test-Path ...\System32\OpenSSH\sshd.exe` = False),
-so `sshd -t` was skipped. Now `{sysnative}`, and `solo-machine.ps1` refuses a
-32-bit host (seen). Rebuilt 16:11; not yet re-run.
+so `sshd -t` was skipped. ***`{sysnative}` WAS TRIED AND FAILED*** (owner's second
+install, 17:55: *"the elevated step did not start, code 3"* — under `runas` the
+path is resolved by the 64-bit elevation service, which has no Sysnative).
+Measured with a probe installer (`ShellExec 'open'`, 64-bit mode): `{sys}` →
+32-bit, sshd invisible; `{sysnative}` → 64-bit. **So `PowerShellExe` is `{sys}`
+again and `solo-machine.ps1` re-launches itself 64-bit via Sysnative** (seen from a
+32-bit host: report says `64-bit: True`, `-Api`/`-SshScope open` passed through);
+a 32-bit host that cannot re-launch is refused. Rebuilt 17:59; not yet re-run.
 **Trap, found restaging after that install:** a running installed Solo makes
 `stage.py --bootstrap` fail — *"Semaphores are already present"* — the Win32
 semaphore names are machine-wide, not per tree (the shm segment is). Stop the
