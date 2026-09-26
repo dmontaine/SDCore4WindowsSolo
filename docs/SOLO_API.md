@@ -138,6 +138,33 @@ Owed from SOLO 3 regardless: an API and an ssh session reaching the daemon from
   DLLs it needs; **(c)** an AppContainer, Windows' own app sandbox (Edge's
   renderers use it) — designed for this, no elevation needed, more code.
   (b) and (c) need a probe before anyone can promise them.
+
+  ***MEASURED 25 Sep 2026 — `gplbld/probe-relayrestrict.c`, unelevated, the
+  REAL `bin\sdtlsrelay.exe`.*** A launcher builds each token from the caller's
+  own (no privilege needed), starts the child with `CreateProcessAsUser`, and
+  reads the child's token back: Low, 1 privilege (`DISABLE_MAX_PRIVILEGE` keeps
+  SeChangeNotify), restricting SIDs 0 / 3 / 1.
+
+  | the relay's code could... | (a) Low, no privileges | (b) + Everyone, Users, RESTRICTED | (b) + RESTRICTED only |
+  |---|---|---|---|
+  | read `SDCoreSolo\sd.conf`, `sdsys\$cred\$ADMIN` | **yes** | denied (5) | denied |
+  | open `Documents`, `.ssh`, other profile files | **yes** | denied | denied |
+  | read System32 DLLs | yes | yes | denied |
+  | open `C:\Users\Public` | yes | denied | denied |
+  | create a file (tested in the user's temp tree) | denied | denied | denied |
+  | `test-tlsrelay-units.py` (TLS 1.3 handshake, binding = client's exporter, 256 KB both ways, EOF, the identity/silent/plaintext refusals, even the handover pipe) | 51 of 59 | **51 of 59** | 22 of 51 — the relay dies `0xC0000409` |
+
+  **The 8 rows that fail under (a) and (b) are the launcher's, not the token's:**
+  they are "started wrongly" rows, and in every one the relay never ran — the
+  launcher refused the arity (2) or `CreateProcessAsUser` rejected the harness's
+  deliberately bogus handles (error 87). Baseline without the launcher: 59/59.
+  **So (b) with Everyone/Users/RESTRICTED gives a relay that works and can read
+  none of the user's files — roughly the multi-user separation back.**
+  *Not measured yet:* the relay started by `win32relay.c` from `sd.exe`
+  rather than by this launcher; removing SeChangeNotify too (`win32relay.c`'s
+  `strip_privileges` removes every privilege today); and it can still read what
+  Windows grants to Users or Everyone (system files, not the user's).
+  **Recommended: (b), with that list.**
 - *(D1 key pinning and D4 the 32-bit libraries were withdrawn with the client
   changes.)*
 
