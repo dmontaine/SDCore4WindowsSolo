@@ -57,7 +57,9 @@ token, no handover, the account password, the global password on the same name �
 rulings 18-20); **SOLO 15 pieces 1-3** (ruling 21: API password → account password
 and `SET.PASSWORD`; `@USRDIR/<name>` so a copied tree works; `login` requires the
 password); **`SDConnectLocal` disabled** (owner); **the client libraries are GPL,
-not LGPL**, linking exception removed (owner, 26 Sep; `f484e8e`).
+not LGPL**, linking exception removed (owner, 26 Sep; `f484e8e` removed the
+LGPL-worded one, the follow-up commit the "Linking exception: As a special
+exception" paragraph in the 8 files `f484e8e` missed).
 
 **Start here, in order:**
 1. **SOLO 15 piece 4 is HALF-BUILT on branch `wip-solo15-piece4`** (`2bb4deb`,
@@ -79,7 +81,9 @@ not LGPL**, linking exception removed (owner, 26 Sep; `f484e8e`).
    WHERE` at the console is refused; a reboot starts SD with nobody signed in; ssh
    lands in `sd` and asks for the account password.
 4. **Flag for the owner, not acted on:** the LGPL→GPL change presumably applies
-   to `sd4windows` and `SDCore4Linux` too (no mailbox — through the owner).
+   to `SDCore4Linux` too (no mailbox — through the owner). *`sd4windows` is done,
+   26 Sep 2026, by a session there: GPL, no linking exception, Blue Oak, the
+   W1.1-0 zip rebuilt and re-tagged.*
    *(Fixed 26 Sep at the owner's word: `sdb_ai/LICENSE`'s stray `[Press 'q' to
    exit]` line, and its "Black Oak" → "Blue Oak", matching the licence text it
    carries. The 26 Aug changelog entry still says "Black Oak" because it quotes
