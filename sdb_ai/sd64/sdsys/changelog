@@ -12,6 +12,10 @@ RELEASED.
            password must differ from the global password. MODIFY.PASSWORD
            is gone; SET.API.PASSWORD replaces it.
 
+           In managed mode the SD Core server logs in with the same
+           account name and the global password, and its session has
+           the administrator commands unlocked.
+
            Every password - administrator, global and API - needs at
            least 8 characters, with a lower-case letter, an upper-case
            letter, a digit and a symbol.

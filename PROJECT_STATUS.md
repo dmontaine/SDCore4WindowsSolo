@@ -342,8 +342,14 @@ installer's three password pages now run the password rule (`pw_complex`,
 10920; witnessed: `short1!` refused), `test-pwcomplex-units` names both.
 *An upgraded account keeps its old VOC entry, which now points at nothing* —
 fine for a fresh install, which this tree needs anyway (BOM). **SOLO 9:** ten
-`verify-*.ps1` run `MODIFY.PASSWORD` and are dead with it. **Next: step 4,**
-the global password on the same login name (shared salt). It covers SOLO 3's API remainder. **D3's option (b) MEASURED 25
+`verify-*.ps1` run `MODIFY.PASSWORD` and are dead with it. **Step 4 (ruling
+19, one name two passwords) DONE AND WITNESSED 25 Sep** — docs/SOLO_API.md §4.
+**Next: step 5, the retirements** (`sdsvc.exe`, `win32s4u.c`,
+`win32session.c`'s spawn, `K$HANDOFF`/`K$ASSUME.USER`, the relay's control
+channel and pipe, the `is_grp_member` declaration and dead `group.lookup.failed`
+branch in `apisrvr`, `login`'s dead `require.credential`, and `op_sh.c`'s
+socket refusal — lift that one only after witnessing `SH` over the API).
+Installer rebuilt 25 Sep ~21:00 from a clean stage. It covers SOLO 3's API remainder. **D3's option (b) MEASURED 25
 Sep** (`gplbld/probe-relayrestrict.c`, the real relay, unelevated): a restricted
 own token with restricting SIDs Everyone/Users/RESTRICTED at Low passes every
 relay-run row of `test-tlsrelay-units.py` and is DENIED the user's files
