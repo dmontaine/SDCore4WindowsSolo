@@ -170,7 +170,7 @@ var
   SshMsiPath, PythonExePath: String;
   PythonWasFound: Boolean;
   ModePage: TInputOptionWizardPage;
-  AdminPage, GlobalPage: TInputQueryWizardPage;
+  AdminPage, GlobalPage, ApiPage: TInputQueryWizardPage;
 
 function SetEnvironmentVariable(lpName: String; lpValue: String): BOOL;
   external 'SetEnvironmentVariableW@kernel32.dll stdcall';
@@ -349,6 +349,14 @@ begin
     'The SD Core server uses this password to manage this computer.', '');
   GlobalPage.Add('Password:', True);
   GlobalPage.Add('Confirm password:', True);
+
+  { 25 Sep 26 - ruling 18: the user's own API password, the SCRAM login the
+    unchanged client libraries use.  After the tasks page, so it is asked only
+    when the API box is ticked (ShouldSkipPage). }
+  ApiPage := CreateInputQueryPage(wpSelectTasks, 'API password',
+    'Programs use this password to connect to SD Core Solo.', '');
+  ApiPage.Add('Password:', True);
+  ApiPage.Add('Confirm password:', True);
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
@@ -358,6 +366,8 @@ begin
     Result := not DataTreeWasAbsent
   else if PageID = GlobalPage.ID then
     Result := (not DataTreeWasAbsent) or (not Managed)
+  else if PageID = ApiPage.ID then
+    Result := (not DataTreeWasAbsent) or (not WizardIsTaskSelected('api'))
   else if PageID = wpSelectTasks then
     Result := SoloWasInstalled;
 end;
@@ -368,8 +378,9 @@ begin
     WizardSelectTasks('sshnetwork');
 end;
 
-{ Letters, digits and punctuation: the password reaches sd's standard input
-  through .NET, and Windows PowerShell 5.1 cannot set that pipe's encoding. }
+{ Letters, digits and punctuation: solo-setup.ps1 sends the password to sd's
+  standard input as ASCII bytes, and solo_password refuses anything outside
+  33-126 (the byte-order-mark defect, PROJECT_STATUS.md SOLO 8). }
 function PasswordProblem(A, B: String): String;
 var
   I: Integer;
@@ -401,6 +412,14 @@ begin
     Problem := PasswordProblem(GlobalPage.Values[0], GlobalPage.Values[1]);
     if (Problem = '') and (GlobalPage.Values[0] = AdminPage.Values[0]) then
       Problem := 'Use a password different from the administrator password.';
+  end
+  else if CurPageID = ApiPage.ID then
+  begin
+    { Ruling 19: one login name, two passwords, the user's checked first - an
+      equal global password would land the master in an ordinary session. }
+    Problem := PasswordProblem(ApiPage.Values[0], ApiPage.Values[1]);
+    if (Problem = '') and Managed and (ApiPage.Values[0] = GlobalPage.Values[0]) then
+      Problem := 'Use a password different from the global password.';
   end;
   if Problem <> '' then
   begin
@@ -531,11 +550,14 @@ begin
       Params := Params + ' -Global';
       SetEnvironmentVariable('SD_SOLO_GLOBAL_PW', GlobalPage.Values[0]);
     end;
+    if WizardIsTaskSelected('api') then
+      SetEnvironmentVariable('SD_SOLO_API_PW', ApiPage.Values[0]);
   end;
   if not Exec(PowerShellExe, Params, ExpandConstant('{app}'), SW_HIDE, ewWaitUntilTerminated, Code) then
     Code := -1;
   SetEnvironmentVariable('SD_SOLO_ADMIN_PW', '');
   SetEnvironmentVariable('SD_SOLO_GLOBAL_PW', '');
+  SetEnvironmentVariable('SD_SOLO_API_PW', '');
   AppendSummary('solo-setup (exit ' + IntToStr(Code) + ')', ReportPath);
   if Code <> 0 then
     Failed := Failed + '  account and passwords' + #13#10;
