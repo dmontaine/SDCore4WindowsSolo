@@ -234,7 +234,12 @@ its own beyond that account's. **Assume one copy per computer.** Product name
     rather than by being created for them) **and the premise "needs no security
     of its own beyond that account's"** — the password is now the gate; Windows
     sign-in alone no longer lands anyone in SD. Admin and global passwords
-    (rulings 12, 19) are unchanged.
+    (rulings 12, 19) are unchanged. **Later the same day:** a one-shot `sd
+    <command>` may present the **account or the global** password; the account
+    password is kept in a **protected file encrypted with Windows DPAPI for the
+    Windows user**, which **the installer writes** and **`SET.PASSWORD`**
+    (renamed from `SET.API.PASSWORD` — *"since it is now global"*) **updates
+    automatically**.
 20. **(25 Sep 2026) THE TLS RELAY RUNS ON A RESTRICTED COPY OF THE USER'S TOKEN**
     (D3 option b): Low, no privileges, restricting SIDs Everyone, Users and
     RESTRICTED — measured to run the real relay and to be denied the user's
@@ -632,10 +637,16 @@ alternative.
   lands `@logname` with no password, and `login`'s old `require.credential`
   (dead in Solo) is the nearest existing code. The API already asks (SCRAM).
   **ssh** asks twice by design: sshd the Windows password, SD its own.
-- **One-shot `sd <command>`** needs a way to supply the password with no
-  prompt — **the owner's choice, not yet made**: candidates are the password on
-  standard input, an environment variable, or a file readable only by the user
-  (DPAPI-protected, so a scheduled job under the same user can read it). *The
+- **One-shot `sd <command>`** — **decided (ruling 21):** the account password
+  from a DPAPI-protected file (CurrentUser scope), written by `solo-setup.ps1`
+  at install and rewritten by `SET.PASSWORD` (the renamed verb) through a small
+  C DPAPI call in `sd.exe`, so the password crosses no command line or script.
+  A scheduled job under the same Windows user reads it; nobody else can.
+  **Proposed, not yet ruled:** the global password (the other one a one-shot
+  may present) is NOT stored — it is the master's — and is given on standard
+  input when wanted; and the first interactive login of a new Windows user on a
+  moved tree rewrites the file for them. *Accepted cost, stated:* anything that
+  runs as that Windows user can run one-shot SD commands without typing. *The
   internal door (`sd -internal` + marker) stays exempt: the installer uses it.*
 - **The account moves with the tree.** Already true: SD finds the tree from
   `sd.exe`'s location (SOLO 2) and the passwords are in the tree's `$cred`.
