@@ -18,6 +18,10 @@
 * 
 * 
 * START-HISTORY:
+* 25 Sep 26 SD Core Solo - SOLO 15 piece 3, ruling 21: every mode-0 session
+*           that is not a phantom or internal proves the account password
+*           (or the global one, which unlocks ADMIN) - require.password.  A
+*           one-shot command takes it from its input and never prompts.
 * 25 Sep 26 SD Core Solo - SOLO 4: no sdusers gate, no SDSYS landing, SDSYS
 *           refused as a login target, no batch gate (rulings 11, 12).
 * 25 Sep 26 SD Core Solo - the banner names SD Core Solo (SOLO 2).
@@ -1106,14 +1110,19 @@ deffun pw_complex(pw) calling '!pw_complex'
 *   signing in gets a password set so the account is reachable from the API
 *   and from another machine.  Nothing here lets anybody IN; it asks for a
 *   password to be SET.
+* 25 Sep 26 SD Core Solo - RULING 21: EVERY SESSION PROVES THE ACCOUNT PASSWORD.
+*   Replaces the call above to require.credential (which SET a first password
+*   and only for an elevated session; dead in Solo, left for SOLO 3 step 5 to
+*   delete).  The same three exemptions hold for the same reasons: mode 1 is
+*   the API (SCRAM, apisrvr), a phantom inherits its parent's login, and the
+*   internal door is the installer's.  require.password below has the rules,
+*   including the one-shot command that must never stop at a prompt.
    if mode = 0 and not(is.phantom) and not(kernel(K$INTERNAL,-1)) then
       batch.command = trim(system(1026))
-      if kernel(K$ADMINISTRATOR,-1) and kernel(K$TTY,0) # '' and batch.command = '' then
-         gosub require.credential
-         if not(cred.ok) then
-            audit.reason = 'the account has no password and none was set'
-            goto terminate.connection
-         end
+      gosub require.password
+      if not(pw.ok) then
+         audit.reason = pw.why
+         goto terminate.connection
       end
    end
 
@@ -1336,6 +1345,89 @@ internal.gate:
       end
       if announce then display sysmsg(12000, gate.writer) ;* Internal session admitted (opened by %1)
    end
+   return
+
+*
+* ======================================================================
+* REQUIRE.PASSWORD  -  the session proves the account password.  Sets pw.ok,
+* and pw.why when it is false.  25 Sep 26 SD Core Solo, ruling 21.
+*
+* WHICH PASSWORDS.  The account's own ($cred, keyed by the account name) or,
+* in managed mode, the global one ($GLOBAL) - the owner's pair, the same two
+* the API takes (ruling 19).  The global password unlocks the administrator
+* commands for the session, as ADMIN does with it.
+*
+* WHERE IT COMES FROM, AND THE RULE THAT DECIDES IT:
+*   an interactive "sd" (no command)    asked for; three tries on a terminal,
+*                                       one on a pipe (a script's first line)
+*   a one-shot "sd <command>"          NEVER A PROMPT - the console case that
+*                                       hung for a day (see the call site's
+*                                       24 Aug note).  From its input when
+*                                       that is not a terminal; refused at
+*                                       once when it is.  SOLO 15 piece 4 adds
+*                                       the DPAPI-protected stored password,
+*                                       tried first.
+*
+* NO RECORD TO CHECK AGAINST IS SAID PLAINLY, not reported as a wrong
+* password: the account has no password only if an install went wrong, and
+* the way out is to install again.  !CRED_VERIFY fails closed on it anyway.
+* The password is never displayed, stored or logged; the outcome is audited.
+
+require.password:
+   pw.ok = @false
+   pw.why = ''
+   pw.via = ''
+   pw.interactive = (batch.command = '')
+   pw.on.tty = (kernel(K$TTY,0) # '')
+
+   pw.has.cred = @false
+   openpath @sdsys:@ds:'$cred' to pw.cred.f then
+      read pw.rec from pw.cred.f, initial.account then pw.has.cred = @true
+      read pw.rec from pw.cred.f, '$GLOBAL' then pw.has.cred = @true
+      close pw.cred.f
+   end
+   pw.rec = ''
+   if not(pw.has.cred) then
+      display sysmsg(12020) ;* This account has no password - install SD Core Solo again...
+      pw.why = 'the account has no password'
+      return
+   end
+
+   if not(pw.interactive) and pw.on.tty then
+      display sysmsg(12017) ;* A command given on the sd command line needs the password on its input
+      pw.why = 'one-shot command with no password source'
+      return
+   end
+
+   if pw.interactive and pw.on.tty then pw.tries = 3 else pw.tries = 1
+   for pw.t = 1 to pw.tries
+      if pw.on.tty then display sysmsg(12018) : ' ' :  ;* Password:
+      input pw.text HIDDEN
+      if pw.on.tty then display
+      if pw.text # '' then
+         pw.match = @false
+         call !CRED_VERIFY(initial.account, pw.text, pw.match)
+         if pw.match then
+            pw.via = 'account'
+         end else
+            call !CRED_VERIFY('$GLOBAL', pw.text, pw.match)
+            if pw.match then pw.via = 'global'
+         end
+      end
+      pw.text = ''
+      if pw.via # '' then exit
+      display sysmsg(12019) ;* Wrong password
+   next pw.t
+
+   if pw.via = '' then
+      pw.why = 'wrong or missing account password'
+      void kernel(K$AUDIT, 'LOGIN REFUSED account=' : initial.account : ' - wrong or missing password')
+      return
+   end
+
+   if pw.via = 'global' then void kernel(K$ADMINISTRATOR, 1)
+   void kernel(K$AUDIT, 'LOGIN PASSWORD account=' : initial.account : ' via=' : pw.via)
+   pw.ok = @true
    return
 
 *

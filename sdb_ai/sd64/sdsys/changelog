@@ -5,6 +5,12 @@ RELEASED.
 
 25 Sep 26  YOUR ACCOUNT HAS A PASSWORD.
 
+           SD Core Solo asks for your account password every time it
+           starts, at the keyboard and over ssh. The global password is
+           accepted too, and unlocks the administrator commands. A
+           command given on the sd command line reads the password from
+           its input and never stops to ask.
+
            The installer asks for an account password. Programs log in
            over the API with your account name and that password, using
            the same client libraries as every SD Core. To change it,

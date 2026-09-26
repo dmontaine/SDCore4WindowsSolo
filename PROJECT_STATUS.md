@@ -650,6 +650,24 @@ copied to `C:\Users\Don\sdmv`** (no API listener there): its session ran in
 `C:\Users\Don\sdmv\SDCoreSolo\user_accounts\don` (`SH pwd`); CONTROL — a
 planted absolute record `C:/nowhere/...` broke it ("Unable to change to
 directory"); the installer's account step repaired it and the copy worked again.
+***(3) DONE, WITNESSED ON PIPES, 25 Sep:*** `login` `require.password` (called
+where the dead `require.credential` was; that block stays for step 5): mode-0,
+non-phantom, non-internal sessions prove the account password or `$GLOBAL`
+(which sets `K$ADMINISTRATOR`); interactive asks (3 tries on a terminal, 1 on a
+pipe); a one-shot `sd <command>` NEVER prompts — its input's first line when not
+a terminal, refused at once on one; no record → 12020 "install again".
+Messages 12017-12020. **Witness (piped, staged tree):** account password lands
+and runs `WHERE`; wrong one refused before `WHERE`; global → ADMIN "already
+unlocked"; account → SET.PASSWORD "requires administrator privileges"; one-shot
+with the password on input runs, with a wrong one is refused, with NO input
+ends in ~1 s (SD's own "Process terminated" at EOF — no hang, but no audit line
+of ours); no records → 12020; the API still logs in by SCRAM (control — first
+run failed only because the test tree lacked `sd-tls`, which the installer
+creates). **Not witnessed: the terminal prompt and its 3 tries, and a one-shot
+at a console being refused — both need the owner at a real console.**
+**Open: `SDConnectLocal`** (the client library's local connection) sends no
+password and the libraries stay unchanged (ruling 18) — today it is not asked
+at all (mode 1, `vb.local.login`); the owner's call whether it stays exempt.
 **The rest is a plan.** *Would each part hold? Stated with what would falsify it.*
 - **Every session asks.** LOGIN (not internal, not a phantom — a phantom inherits
   its parent's authentication; not the daemon's `-start`, which is no session)
