@@ -18,6 +18,10 @@
 *
 *
 * START-HISTORY:
+* 25 Sep 26 SD Core Solo - ruling 19: the salt and iteration count are the
+*           record's own, else its partner's ($GLOBAL <-> the account), else
+*           fresh - so the account and global records always share them and
+*           apisrvr can check one proof against both.
 * 19 Aug 26 Windows port - writes a version 2 SCRAM record.  The Argon2
 *           verifier is gone: SCRAM needs material a client can prove
 *           knowledge of without sending the password, and a one-way verifier
@@ -83,15 +87,59 @@ deffun ps_script(script) calling '!ps_script'
       return
    end
 
+*  25 Sep 26 SD Core Solo - RULING 19: ONE SALT PER ACCOUNT.  The master server
+*  logs in under the account's own name with the global password, so apisrvr
+*  checks one SCRAM proof against TWO records - and SCRAM tells the client the
+*  salt and iteration count BEFORE the proof, so both records must share them.
+*  The salt therefore comes, in order, from: this record's own (a password
+*  change keeps it); its PARTNER's ($GLOBAL for the account record, the
+*  account record for $GLOBAL); and only then a fresh one.  A version-1
+*  record has no SCRAM salt and is never reused.
    salt = ''
-   call !SD_GET_SALT(salt)
+   iter = ''
+   read old.rec from cred.f, account then
+      if old.rec<CRED$VERSION> = SCRAM$CRED.VERSION then
+         salt = old.rec<CRED$SALT>
+         iter = old.rec<CRED$ITER>
+      end
+   end
+   if salt = '' or iter = '' then
+      salt = ''
+      iter = ''
+      partner = ''
+      begin case
+         case account = '$GLOBAL'
+            select cred.f to 9
+            loop
+               readnext id from 9 else exit
+               if id[1,1] # '$' then
+                  partner = id
+                  exit
+               end
+            repeat
+            clearselect 9
+         case account[1,1] # '$'
+            partner = '$GLOBAL'
+      end case
+      if partner # '' then
+         read p.rec from cred.f, partner then
+            if p.rec<CRED$VERSION> = SCRAM$CRED.VERSION then
+               salt = p.rec<CRED$SALT>
+               iter = p.rec<CRED$ITER>
+            end
+         end
+      end
+   end
+   if salt = '' or iter = '' then
+      salt = ''
+      call !SD_GET_SALT(salt)
+      iter = SCRAM$ITERATIONS
+   end
    if salt = '' then
       close cred.f
       set.status ER$ARGS
       return
    end
-
-   iter = SCRAM$ITERATIONS
 
    salted = SDEXT(password : @FM : salt : @FM : iter : @FM : SCRAM$KEY.LEN, @TRUE, SD_PBKDF2)
    if salted = '' then

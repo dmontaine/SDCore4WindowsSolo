@@ -157,6 +157,19 @@ already; its SDSYS/elevation test is multi-user and is retargeted, not removed.
    salt; `apisrvr` checks the proof against both, `K$ADMINISTRATOR` on the
    global match; standalone mode has only the one. Witness: the unchanged client
    logs in with each password, and a wrong one is refused naming neither.
+   ***BUILT AND WITNESSED 25 Sep 2026.*** `cred_set`: the salt is the record's
+   own, else its partner's (`$GLOBAL` ↔ the account), else fresh. `apisrvr`:
+   `vb.scram.first` reads both records and keeps `$GLOBAL`'s keys only when its
+   salt and count match (else an audited note); `scram.check.proof` runs the
+   old single check per key; a global match signs with `$GLOBAL`'s ServerKey
+   and sets `K$ADMINISTRATOR` (audited `via=global`); with no API password the
+   master may log in under a REGISTERED account's name. **Witness,
+   `scram-probe.py`, staged tree:** records share salt/iter; API password →
+   `SET.API.PASSWORD` says `Command requires administrator privileges`;
+   global password, same name → `ADMIN` says `already unlocked`; wrong refused;
+   after `SET.API.PASSWORD` the salt is unchanged, the new API password and the
+   global both log in, the old is refused; with the account's record removed
+   the global still logs in as `don`, and is refused as `zzsomebody`.
 5. **Retire** `sdsvc.exe`, `win32s4u.c`, `win32session.c`'s spawn, `K$HANDOFF`,
    `K$ASSUME.USER`, the control channel, the `sdrelay` account, the `sdapi`
    test — and lift `op_sh.c`'s socket refusal.

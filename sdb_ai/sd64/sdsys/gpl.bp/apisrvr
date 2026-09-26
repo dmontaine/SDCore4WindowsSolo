@@ -29,6 +29,10 @@
 *           SDSYS (rulings 10, 11), replacing the Windows-group test.
 *           The version-1 refusal names SET.API.PASSWORD: MODIFY.PASSWORD is
 *           retired (owner, 25 Sep 2026).
+* 25 Sep 26 SD Core Solo - SOLO 3 step 4, ruling 19: one login name, two
+*           passwords.  vb.scram.first reads the account's record and $GLOBAL
+*           (same salt, !CRED_SET); vb.scram.final checks the proof against
+*           each (scram.check.proof); a global match sets K$ADMINISTRATOR.
 * 22 Sep 26 Windows port - RELEASE_1.1 101.  SDSYS IS ENTERED OVER SDConnectLocal
 *   AND OVER NOTHING ELSE.  vb.local.login records the transport (local.session);
 *   vb.account admits SDSYS on that transport, the process owner being the
@@ -372,6 +376,9 @@ scram.sfirst = ''      ;* server-first, exactly as it went out
 scram.nonce = ''       ;* Combined nonce, client's then ours
 scram.storedkey = ''   ;* From $cred, base64
 scram.serverkey = ''   ;* From $cred, base64
+scram.gstored = ''     ;* $GLOBAL's StoredKey, when it shares the salt (ruling 19)
+scram.gserver = ''     ;* $GLOBAL's ServerKey, likewise
+scram.via = ''         ;* 'user' or 'global': which record the proof matched
 * THE AUDIT TRAIL'S TWO VARIABLES.  scram.refuse.reason is the whole mechanism:
 * '' means "this exchange has not been refused", and any other value is written
 * once at exit.vb.scram.fail.  Keeping it here with the rest of the state is
@@ -1512,34 +1519,89 @@ vb.scram.first:
                   goto exit.vb.scram.fail
                end
 
-               read scram.cred from scram.cred.f, upcase(username) else
-                  close scram.cred.f
-                  scram.refuse.reason = 'no credential'
-                  goto scram.bad.cred      ;* no credential - fail closed
+* 25 Sep 26 SD Core Solo - RULING 19: ONE LOGIN NAME, TWO PASSWORDS.  The
+*   account's own record (the user's API password) and $GLOBAL (the master
+*   server's) are both read here; !CRED_SET gives them the same salt and
+*   iteration count, so the server-first below is right for either, and
+*   vb.scram.final checks the proof against the user's key and then the
+*   global one.  The global key is used only when its salt and count really
+*   match - a record that disagrees could never verify, and saying so beats
+*   refusing the master for a reason nobody can see.  With no API password
+*   set, the master may still log in under the name, but only the name of an
+*   account in the register (the one Solo account, ruling 10).
+               scram.gstored = ''
+               scram.gserver = ''
+               have.user = @false
+               read scram.cred from scram.cred.f, upcase(username) then
+                  have.user = @true
+               end else
+                  scram.cred = ''
+               end
+               have.global = @false
+               read scram.gcred from scram.cred.f, '$GLOBAL' then
+                  if scram.gcred<CRED$VERSION> = SCRAM$CRED.VERSION then have.global = @true
+               end else
+                  scram.gcred = ''
                end
                close scram.cred.f
 
-               * A version 1 record holds an Argon2 verifier and no StoredKey.
-               * It cannot drive a SCRAM exchange and cannot be converted - the
-               * plaintext was never stored, by design - so the account has to
-               * run MODIFY.PASSWORD again.  !CRED_VERIFY refuses it the same way.
-               if scram.cred<CRED$VERSION> # SCRAM$CRED.VERSION then
-                  scram.cred = ''
-                  scram.refuse.reason = 'credential is version 1 - run SET.API.PASSWORD'
-                  goto scram.bad.cred
+               if have.user then
+                  * A version 1 record holds an Argon2 verifier and no StoredKey.
+                  * It cannot drive a SCRAM exchange and cannot be converted -
+                  * the plaintext was never stored, by design - so the account
+                  * has to set its password again.  !CRED_VERIFY refuses it too.
+                  if scram.cred<CRED$VERSION> # SCRAM$CRED.VERSION then
+                     scram.cred = ''
+                     scram.gcred = ''
+                     scram.refuse.reason = 'credential is version 1 - run SET.API.PASSWORD'
+                     goto scram.bad.cred
+                  end
+                  scram.salt = scram.cred<CRED$SALT>
+                  scram.iter = scram.cred<CRED$ITER>
+                  scram.storedkey = scram.cred<CRED$STOREDKEY>
+                  scram.serverkey = scram.cred<CRED$SERVERKEY>
+                  if scram.storedkey = '' or scram.serverkey = '' then
+                     scram.storedkey = ''
+                     scram.serverkey = ''
+                  end
+               end else
+                  in.register = @false
+                  if have.global then
+                     openpath @sdsys:@ds:'accounts' to scram.acc.f then
+                        read scram.acc.rec from scram.acc.f, downcase(username) then in.register = @true
+                        close scram.acc.f
+                     end
+                  end
+                  if not(in.register) then
+                     scram.gcred = ''
+                     scram.refuse.reason = 'no credential'
+                     goto scram.bad.cred      ;* no credential - fail closed
+                  end
+                  scram.salt = scram.gcred<CRED$SALT>
+                  scram.iter = scram.gcred<CRED$ITER>
+                  scram.storedkey = ''
+                  scram.serverkey = ''
                end
-
-               scram.salt = scram.cred<CRED$SALT>
-               scram.iter = scram.cred<CRED$ITER>
-               scram.storedkey = scram.cred<CRED$STOREDKEY>
-               scram.serverkey = scram.cred<CRED$SERVERKEY>
+               if have.global then
+                  if scram.gcred<CRED$SALT> = scram.salt and scram.gcred<CRED$ITER> = scram.iter then
+                     scram.gstored = scram.gcred<CRED$STOREDKEY>
+                     scram.gserver = scram.gcred<CRED$SERVERKEY>
+                     if scram.gstored = '' or scram.gserver = '' then
+                        scram.gstored = ''
+                        scram.gserver = ''
+                     end
+                  end else
+                     void kernel(K$AUDIT, 'API NOTE user=' : scram.audit.name : ' - $GLOBAL does not share this account''s salt, so the global password cannot log in under this name (ruling 19)')
+                  end
+               end
                scram.cred = ''
+               scram.gcred = ''
 
                if scram.salt = '' or scram.iter = '' then
                   scram.refuse.reason = 'credential incomplete'
                   goto scram.bad.cred
                end
-               if scram.storedkey = '' or scram.serverkey = '' then
+               if scram.storedkey = '' and scram.gstored = '' then
                   scram.refuse.reason = 'credential incomplete'
                   goto scram.bad.cred
                end
@@ -1639,28 +1701,36 @@ vb.scram.final:
                * so the caller is talking about a real exchange; whether the
                * proof was malformed, the wrong length or simply wrong is its
                * own business and telling it apart helps nobody but a guesser.
-               scram.csig = SDEXT(scram.storedkey : @FM : scram.authmsg, @TRUE, SD_HMACSHA256)
-               if scram.csig = '' then goto scram.crypto.failed
-
-               scram.ckey = SDEXT(scram.proof : @FM : scram.csig, @TRUE, SD_XORBYTES)
-               if scram.ckey = '' then
-                  scram.refuse.reason = 'client key derivation failed'
-                  goto scram.bad.cred
+* 25 Sep 26 SD Core Solo - RULING 19: the proof is checked against the user's
+*   StoredKey and, only if that fails, against $GLOBAL's (vb.scram.first kept
+*   it only when it shares the salt).  scram.check.proof is the single check
+*   that used to stand here, run once per key; a global match signs with the
+*   global ServerKey and marks the session for K$ADMINISTRATOR below.
+               scram.via = ''
+               scram.check.crypto = @false
+               if scram.storedkey # '' then
+                  scram.check.key = scram.storedkey
+                  gosub scram.check.proof
+                  if scram.check.ok then scram.via = 'user'
                end
-
-               scram.derived = SDEXT(scram.ckey, @TRUE, SD_SHA256)
-               scram.ckey = ''
-               if scram.derived = '' then
-                  scram.refuse.reason = 'stored key derivation failed'
-                  goto scram.bad.cred
+               if scram.via = '' and scram.gstored # '' and not(scram.check.crypto) then
+                  scram.check.key = scram.gstored
+                  gosub scram.check.proof
+                  if scram.check.ok then
+                     scram.via = 'global'
+                     scram.serverkey = scram.gserver
+                  end
                end
+               scram.check.key = ''
+               scram.gstored = ''
+               scram.gserver = ''
+               if scram.check.crypto then goto scram.crypto.failed
 
-               * Constant time, as !CRED_VERIFY is.  The primitive was written
-               * for this call as much as for that one.
-               if SDEXT(scram.derived : @FM : scram.storedkey, @TRUE, SD_CTEQUAL) # '1' then
+               if scram.via = '' then
                   * THE WRONG PASSWORD, and the one the trail most needs to
                   * name: it is the only refusal here that means somebody knows
-                  * the account exists.
+                  * the account exists.  (A malformed or wrong-length proof
+                  * lands here too; it was never a separate answer on the wire.)
                   scram.refuse.reason = 'wrong password'
                   goto scram.bad.cred
                end
@@ -1816,6 +1886,18 @@ vb.scram.final:
 *   relay's restricted token cannot create the pipe (docs/SOLO_API.md).
                response = 'v=' : scram.ssig
                logged.in = @true
+
+* 25 Sep 26 SD Core Solo - RULING 19 (with 12): THE GLOBAL PASSWORD IS THE
+*   MASTER SERVER'S, AND IT CARRIES THE ADMINISTRATOR COMMANDS - as ADMIN does
+*   when given the global password.  This program is $internal, which is what
+*   K$ADMINISTRATOR requires to be set (op_kernel.c).  Audited both ways.
+               if scram.via = 'global' then
+                  if kernel(K$ADMINISTRATOR, 1) then
+                     void kernel(K$AUDIT, 'API LOGIN user=' : scram.user : ' via=global - administrator commands unlocked')
+                  end else
+                     void kernel(K$AUDIT, 'API LOGIN user=' : scram.user : ' via=global - administrator flag NOT set')
+                  end
+               end
 
                return
 
@@ -2398,6 +2480,30 @@ vb.mark.mapping:
 
                                                                      mark.mapping files(fno), oconv(cmnd[3,2], 'ISL')
 
+                                                                     return
+
+                                                                     * ======================================================================
+                                                                     * scram.check.proof - does scram.proof prove the password behind
+                                                                     * scram.check.key (a StoredKey)?  25 Sep 26 SD Core Solo, ruling 19:
+                                                                     * vb.scram.final's single check, lifted out so it can be run once
+                                                                     * per key.  Constant time, as !CRED_VERIFY is.
+                                                                     *
+                                                                     * Out: scram.check.ok     @true only on a match
+                                                                     *      scram.check.crypto @true if HMAC failed - a fault, not a guess
+
+scram.check.proof:
+                                                                     scram.check.ok = @false
+                                                                     scram.csig = SDEXT(scram.check.key : @FM : scram.authmsg, @TRUE, SD_HMACSHA256)
+                                                                     if scram.csig = '' then
+                                                                        scram.check.crypto = @true
+                                                                        return
+                                                                     end
+                                                                     scram.ckey = SDEXT(scram.proof : @FM : scram.csig, @TRUE, SD_XORBYTES)
+                                                                     if scram.ckey = '' then return
+                                                                     scram.derived = SDEXT(scram.ckey, @TRUE, SD_SHA256)
+                                                                     scram.ckey = ''
+                                                                     if scram.derived = '' then return
+                                                                     if SDEXT(scram.derived : @FM : scram.check.key, @TRUE, SD_CTEQUAL) = '1' then scram.check.ok = @true
                                                                      return
 
                                                                      * ======================================================================
