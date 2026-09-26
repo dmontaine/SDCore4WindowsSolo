@@ -324,8 +324,7 @@ its own multi-user security descriptor; `win32sem.c` now grants SYSTEM + the use
 
 ### SOLO 6 · API authentication (rulings 3 and 4)
 
-**DESIGN DRAFTED, 25 Sep 2026: [docs/SOLO_API.md](docs/SOLO_API.md), awaiting the
-owner's approval — ALL DECIDED 25 Sep (D5, D2, D3: rulings 18, 19, 20); nothing
+**DESIGN DRAFTED, 25 Sep 2026: [docs/SOLO_API.md](docs/SOLO_API.md) — ALL DECIDED 25 Sep (D5, D2, D3: rulings 18, 19, 20); nothing
 built, next is its §4 build order, step 1 the relay.** It covers SOLO 3's API remainder. **D3's option (b) MEASURED 25
 Sep** (`gplbld/probe-relayrestrict.c`, the real relay, unelevated): a restricted
 own token with restricting SIDs Everyone/Users/RESTRICTED at Low passes every
