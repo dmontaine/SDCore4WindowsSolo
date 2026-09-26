@@ -1,6 +1,7 @@
 # SD Core Solo — the API design (SOLO 3's remainder, SOLO 6)
 
-**Status: a PLAN for the owner's approval, 25 Sep 2026. Nothing below is built.**
+**Status: a PLAN, 25 Sep 2026. Nothing below is built. D5 and D2 decided by the
+owner (rulings 18, 19); D3 open.**
 Every step names what would falsify it. Rulings cited are in PROJECT_STATUS.md,
 "WHAT SD CORE SOLO IS".
 
@@ -57,29 +58,37 @@ and `SDConnectWindows` are withdrawn with it.
 Two parties may log in over the network, and nobody else. Both use SCRAM 47/48
 exactly as every SD does, so the unchanged clients work.
 
-**(A) The user.** Ruling 3's option A — the Windows password checked by
-`LogonUserW` at every login — **cannot be built with unchanged clients**: SCRAM
-never lets the server see the password, and the client has no other login. So
-the user's API login needs a SCRAM credential in `$cred\<user>`, and **which
-password it holds is the owner's decision D5**:
+**ONE LOGIN NAME, TWO PASSWORDS (rulings 18 and 19, owner, 25 Sep 2026).** Both
+parties log in as the one Solo account (ruling 10), with SCRAM:
 
-- **(a) an API password of the user's own**, asked for by the installer (a page
-  like the administrator password's) and changed later by a verb. Separate from
-  Windows, so it never goes stale. One more password.
-- **(b) the Windows password, enrolled** (ruling 3's option B, declined 24 Sep
-  for staleness): the installer asks for it, checks it with `LogonUserW`
-  (measured in SOLO 1), and stores its SCRAM verifier. **After a Windows
-  password change the OLD Windows password keeps opening the API** until the
-  user re-enrols — the opposite of what the change was for.
+- **the user, with an API password of its own** (D5a) — asked for by the
+  installer, a page like the administrator password's, and changed later by a
+  verb. Not the Windows password: option A cannot be built with unchanged
+  clients, and an enrolled Windows password would go on working after a Windows
+  password change.
+- **the master server, with the global password** (managed mode only, ruling
+  15) — the same account name; a session it opens has `K$ADMINISTRATOR` set, as
+  `ADMIN` does (ruling 12).
 
-*Recommended: (a).* Either way the login is refused unless the name is the one
-Solo user's (ruling 10), and refusals are audited as today.
+**How one name takes two passwords, server-side only.** SCRAM's server-first
+message carries the account's salt and iteration count *before* the client
+proves anything, and the client derives its keys from its password and that
+salt. So **both credentials are stored with the SAME salt and iteration count**
+— today `!CRED_SET` draws a fresh salt per credential (`cred_set:87`); setting
+either of these reuses the account's existing salt instead. The server then
+checks the client's proof against the user's StoredKey and, only if that
+fails, against the global one (two HMACs and a hash each — the server never
+runs PBKDF2 at login, `apisrvr:1463`), and signs server-final with the
+matching ServerKey. **The client cannot tell** — it sees one ordinary SCRAM
+exchange. *Would be falsified if* the SCRAM verification in `apisrvr` could not
+be run against a second record without changing what goes on the wire — read
+from the code, it can; unmeasured until built.
+**Cost, stated:** the two passwords must differ (the installer already refuses a
+global password equal to the administrator one; the same check applies here),
+and an impostor collecting a proof can test guesses against both.
 
-**(B) The master server, with the global password (ruling 4b).** SCRAM against
-`$cred\$GLOBAL` (SOLO 5 stores it there), under a **reserved login name**
-(decision D2). It lands in the user's account with `K$ADMINISTRATOR` set, as
-`ADMIN` does (ruling 12). Refused in standalone mode, where no `$GLOBAL` exists
-(ruling 15).
+Refusals are audited as today, naming which record (neither, user, global) the
+proof failed against.
 
 **The administrator password is not an API login.** A logged-in user unlocks
 the admin verbs with `ADMIN` inside the session, as locally (ruling 12).
@@ -100,10 +109,13 @@ already; its SDSYS/elevation test is multi-user and is retargeted, not removed.
 2. **No handover** (`apisrvr`, `op_kernel.c`, `sd_tlssrv.c`): the session
    continues in the front. `test-tlsrelay-units.py` is adapted; a real SCRAM
    login with the unchanged client against a staged tree is the witness.
-3. **The user's credential** (per D5): installer page and `solo_password`-style
-   step to store it; the verb to change it; login refused for any other name.
-4. **The master's reserved name → `$GLOBAL`**, landing with `K$ADMINISTRATOR`;
-   refused in standalone mode.
+3. **The user's API password**: installer page and a `solo_password API` step
+   storing it with the account's salt; the verb to change it; login refused for
+   any other name.
+4. **The second password on the same name**: `$GLOBAL` stored with the same
+   salt; `apisrvr` checks the proof against both, `K$ADMINISTRATOR` on the
+   global match; standalone mode has only the one. Witness: the unchanged client
+   logs in with each password, and a wrong one is refused naming neither.
 5. **Retire** `sdsvc.exe`, `win32s4u.c`, `win32session.c`'s spawn, `K$HANDOFF`,
    `K$ASSUME.USER`, the control channel, the `sdrelay` account, the `sdapi`
    test — and lift `op_sh.c`'s socket refusal.
@@ -113,13 +125,19 @@ Owed from SOLO 3 regardless: an API and an ssh session reaching the daemon from
 
 ## 5. Decisions for the owner
 
-- **D5 — the user's API password** (above): (a) its own, or (b) the Windows
-  password enrolled. *Recommended: (a).* Either way ruling 3 changes, since
-  option A is not buildable with unchanged clients.
-- **D2 — the master server's login name.** (a) a reserved name such as
-  `$global`; (b) any name, where the password alone decides. *Recommended: (a).*
-- **D3 — relay confinement.** (a) Low with no privileges now, restricting SIDs
-  measured later; (b) block the build on restricting SIDs. *Recommended: (a).*
+- **D5 — DECIDED (a)**, an API password of its own (ruling 18).
+- **D2 — DECIDED**: the same login name, two passwords (ruling 19).
+- **D3 — relay confinement: OPEN, the owner asked for more information.** The
+  relay is the one process that reads raw network bytes from anyone, before any
+  login. The question is what code an attacker got running in it could do.
+  Multi-user answer: nothing to the user's files (another account). Solo's
+  options: **(a)** the user's token, no privileges, Low — cannot change the
+  user's files, CAN read them and send them out on its socket; **(b)** (a) plus
+  restricting SIDs — every access must also pass a second, near-empty SID list,
+  so it could open almost nothing, but may also be unable to load the Windows
+  DLLs it needs; **(c)** an AppContainer, Windows' own app sandbox (Edge's
+  renderers use it) — designed for this, no elevation needed, more code.
+  (b) and (c) need a probe before anyone can promise them.
 - *(D1 key pinning and D4 the 32-bit libraries were withdrawn with the client
   changes.)*
 
