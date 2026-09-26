@@ -322,7 +322,12 @@ its own multi-user security descriptor; `win32sem.c` now grants SYSTEM + the use
 
 **DESIGN DRAFTED, 25 Sep 2026: [docs/SOLO_API.md](docs/SOLO_API.md), awaiting the
 owner's decision D3 (relay confinement; D5, D2 decided — rulings 18, 19) —
-nothing built.** It covers SOLO 3's API remainder.
+nothing built.** It covers SOLO 3's API remainder. **D3's option (b) MEASURED 25
+Sep** (`gplbld/probe-relayrestrict.c`, the real relay, unelevated): a restricted
+own token with restricting SIDs Everyone/Users/RESTRICTED at Low passes every
+relay-run row of `test-tlsrelay-units.py` and is DENIED the user's files
+(`sd.conf`, `$cred`, Documents, `.ssh`); RESTRICTED alone kills the relay
+(`0xC0000409`). Table in docs/SOLO_API.md §5.
 ***OWNER, 25 Sep 2026: THE CLIENT LIBRARIES STAY UNCHANGED*** (*"they are used to
 log into all versions of sd"*). So the wire is SCRAM 47/48 only, the server never
 sees a password, and **ruling 3's option A cannot be built** — the user's API
