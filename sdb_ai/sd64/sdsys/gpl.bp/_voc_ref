@@ -18,6 +18,9 @@
 * 
 * 
 * START-HISTORY:
+* 25 Sep 26 SD Core Solo - a Q-pointer's account path goes through
+*           parse.pathname.tokens like every other reader: register paths are
+*           tokens now (@USRDIR/<name>, ruling 21), and @SDSYS already was.
 * 25 Aug 26 Windows port - removed the branch that skipped absolutising a
 *           VFS: pathname.  VFS is gone; every pathname is absolutised.
 * 19 Aug 26 Windows port - SDSYS accounts, and a Q-pointer target account's voc,
@@ -238,7 +241,7 @@ parse.as.q.pointer:
                   if len(qpath) < 64 then
                      openpath @sdsys:@ds:'accounts' to acc.f then
                         read acc.rec from acc.f, qpath then
-                           qpath = acc.rec<ACC$PATH>
+                           qpath = parse.pathname.tokens(acc.rec<ACC$PATH>)
                         end
                      end
                   end
