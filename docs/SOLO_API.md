@@ -141,8 +141,18 @@ already; its SDSYS/elevation test is multi-user and is retargeted, not removed.
    any other name. *Server half done in step 2.* **Installer page BUILT 25 Sep,
    ISCC clean, not yet seen in a run:** `ApiPage` after the tasks page, shown on
    a new data tree with the API box ticked, refuses a password equal to the
-   global one (ruling 19's order), passed as `SD_SOLO_API_PW`. *Left: the verb
-   to change it (its gate is the owner's call), and the shared salt (step 4).*
+   global one (ruling 19's order), passed as `SD_SOLO_API_PW`.
+   **`SET.API.PASSWORD` BUILT AND WITNESSED 25 Sep** (owner: that name, gated
+   by ADMIN): `gpl.bp/set_api_password` (`$SETAPIPW`), messages 12009-12016,
+   `newvoc/set.api.password`. Witness, staged tree: refused without ADMIN
+   (2001); after ADMIN refused a mismatched confirmation (12011) and the
+   global password (12014), the old API password still logging in after
+   both; then changed (12012, audited), `scram-probe.py` VERIFIED with the new
+   password and REFUSED with the old. **Open, the owner's call:**
+   `MODIFY.PASSWORD` (`set_acc_password`) is still in `newvoc` and writes the
+   same record — own password with only the current one, and a FIRST one with
+   no check at all — so it bypasses the ADMIN gate. *Left: the shared salt
+   (step 4).*
 4. **The second password on the same name**: `$GLOBAL` stored with the same
    salt; `apisrvr` checks the proof against both, `K$ADMINISTRATOR` on the
    global match; standalone mode has only the one. Witness: the unchanged client

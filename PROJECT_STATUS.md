@@ -333,8 +333,11 @@ WITNESSED 25 Sep** — the first successful Solo API login: `scram-probe.py` →
 VERIFIED, account `don` entered, `WHO`/`WHERE` answered, served by the front
 itself; wrong password, `$admin` and `sdsys` refused. **Step 3's installer
 page built** (ISCC clean; a fresh install shows it — the owner's kept tree has a
-BOM'd `$ADMIN` anyway). **Open: the verb that changes the API password — its
-gate (ADMIN unlocked, or the current API password) and name are the owner's.** It covers SOLO 3's API remainder. **D3's option (b) MEASURED 25
+BOM'd `$ADMIN` anyway). **`SET.API.PASSWORD` (owner: that name, ADMIN-gated)
+BUILT AND WITNESSED 25 Sep** — docs/SOLO_API.md step 3. **Open, the owner's
+call: `MODIFY.PASSWORD` bypasses that gate** (same record; own password with the
+current one, a first one with no check) — retire it from Solo? **Next: step 4,**
+the global password on the same login name (shared salt). It covers SOLO 3's API remainder. **D3's option (b) MEASURED 25
 Sep** (`gplbld/probe-relayrestrict.c`, the real relay, unelevated): a restricted
 own token with restricting SIDs Everyone/Users/RESTRICTED at Low passes every
 relay-run row of `test-tlsrelay-units.py` and is DENIED the user's files
