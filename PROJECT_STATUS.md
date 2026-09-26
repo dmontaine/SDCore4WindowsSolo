@@ -54,8 +54,8 @@ INSTALLED.*** SOLO 8's entry says what was measured and what was not.
 
 ***OWNER'S ORDER, 25 Sep 2026: "both, installer first".***
 - **FIRST: finish witnessing the installer** — installed and upgraded, SD running
-  from the task (SOLO 8). Owed: `ssh don@localhost` lands in `sd` with the Windows
-  password; a reboot starts SD with nobody signed in; an uninstall-then-install
+  from the task (SOLO 8). ***`ssh don@localhost` landed in `sd` — owner, 25 Sep
+  2026*** (so `Match User "don"` matches). Owed: a reboot starts SD with nobody signed in; an uninstall-then-install
   exercises `sshd -t` 64-bit and `-Action Remove`. Installer:
   `C:\Users\Don\SDCoreProject\SDCore4WindowsSolo\stage\sd-solo-setup-S1.1-0.exe`
   (built 25 Sep 17:59 from a clean stage; a running installed SD must be stopped
