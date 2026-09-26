@@ -64,8 +64,8 @@ INSTALLED.*** SOLO 8's entry says what was measured and what was not.
   `C:\Users\Don\SDCoreSolo\install-summary.log` (both helpers' full reports),
   and from an ordinary prompt `C:\Users\Don\SDCoreSolo\usr\bin\sd.exe` should land
   in account `don`. A reboot then tests the startup trigger (SOLO 3).
-- **THEN: the API — design drafted in [docs/SOLO_API.md](docs/SOLO_API.md), waiting
-  on the owner's decision D3 (D5, D2 decided: rulings 18, 19); build in its §5 order once approved.** Was:
+- **THEN: the API — design drafted in [docs/SOLO_API.md](docs/SOLO_API.md), every
+  decision taken (rulings 18-20); build in its §5 order once approved.** Was:
   the API design for SOLO 3's remainder + SOLO 6 — write it for the
   owner's approval BEFORE building: API sessions need no identity switch in Solo
   (the relay's S4U logon needs SYSTEM, which the daemon is not), and ruling 3's
@@ -220,6 +220,10 @@ its own beyond that account's. **Assume one copy per computer.** Product name
     Buildable server-side only: both credentials share the account's salt, so
     SCRAM's server-first fits either, and the proof is checked against each
     (docs/SOLO_API.md §3).
+20. **(25 Sep 2026) THE TLS RELAY RUNS ON A RESTRICTED COPY OF THE USER'S TOKEN**
+    (D3 option b): Low, no privileges, restricting SIDs Everyone, Users and
+    RESTRICTED — measured to run the real relay and to be denied the user's
+    files (`gplbld/probe-relayrestrict.c`, docs/SOLO_API.md §5).
 
 **What this retires, found in the 24 Sep review** — the multi-user model is in every
 layer: `sdsvc.exe` running the daemon as `LocalSystem`; API sessions proved by SCRAM
@@ -321,8 +325,8 @@ its own multi-user security descriptor; `win32sem.c` now grants SYSTEM + the use
 ### SOLO 6 · API authentication (rulings 3 and 4)
 
 **DESIGN DRAFTED, 25 Sep 2026: [docs/SOLO_API.md](docs/SOLO_API.md), awaiting the
-owner's decision D3 (relay confinement; D5, D2 decided — rulings 18, 19) —
-nothing built.** It covers SOLO 3's API remainder. **D3's option (b) MEASURED 25
+owner's approval — ALL DECIDED 25 Sep (D5, D2, D3: rulings 18, 19, 20); nothing
+built, next is its §4 build order, step 1 the relay.** It covers SOLO 3's API remainder. **D3's option (b) MEASURED 25
 Sep** (`gplbld/probe-relayrestrict.c`, the real relay, unelevated): a restricted
 own token with restricting SIDs Everyone/Users/RESTRICTED at Low passes every
 relay-run row of `test-tlsrelay-units.py` and is DENIED the user's files

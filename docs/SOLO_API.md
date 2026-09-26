@@ -1,7 +1,7 @@
 # SD Core Solo — the API design (SOLO 3's remainder, SOLO 6)
 
-**Status: a PLAN, 25 Sep 2026. Nothing below is built. D5 and D2 decided by the
-owner (rulings 18, 19); D3 open.**
+**Status: a PLAN, 25 Sep 2026, every decision taken (D5, D2, D3 — rulings 18,
+19, 20). Nothing below is built; build in §4's order.**
 Every step names what would falsify it. Rulings cited are in PROJECT_STATUS.md,
 "WHAT SD CORE SOLO IS".
 
@@ -127,7 +127,9 @@ Owed from SOLO 3 regardless: an API and an ssh session reaching the daemon from
 
 - **D5 — DECIDED (a)**, an API password of its own (ruling 18).
 - **D2 — DECIDED**: the same login name, two passwords (ruling 19).
-- **D3 — relay confinement: OPEN, the owner asked for more information.** The
+- **D3 — DECIDED (b), owner, 25 Sep 2026**: restricted own token at Low with
+  restricting SIDs Everyone, Users, RESTRICTED (ruling 20). The explanation
+  and the measurement it was decided on: The
   relay is the one process that reads raw network bytes from anyone, before any
   login. The question is what code an attacker got running in it could do.
   Multi-user answer: nothing to the user's files (another account). Solo's
