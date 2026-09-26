@@ -65,7 +65,7 @@ INSTALLED.*** SOLO 8's entry says what was measured and what was not.
   and from an ordinary prompt `C:\Users\Don\SDCoreSolo\usr\bin\sd.exe` should land
   in account `don`. A reboot then tests the startup trigger (SOLO 3).
 - **THEN: the API — design drafted in [docs/SOLO_API.md](docs/SOLO_API.md), waiting
-  on the owner's decisions D1-D4; build in its §5 order once approved.** Was:
+  on the owner's decisions D5, D2, D3 (client libraries unchanged, owner); build in its §5 order once approved.** Was:
   the API design for SOLO 3's remainder + SOLO 6 — write it for the
   owner's approval BEFORE building: API sessions need no identity switch in Solo
   (the relay's S4U logon needs SYSTEM, which the daemon is not), and ruling 3's
@@ -310,10 +310,13 @@ its own multi-user security descriptor; `win32sem.c` now grants SYSTEM + the use
 ### SOLO 6 · API authentication (rulings 3 and 4)
 
 **DESIGN DRAFTED, 25 Sep 2026: [docs/SOLO_API.md](docs/SOLO_API.md), awaiting the
-owner's decisions D1-D4 — nothing built.** It covers SOLO 3's API remainder too.
-Its finding that changes ruling 3's cost: both client libraries use
-`SSL_VERIFY_NONE`, so option A (the Windows password inside TLS) would hand the
-password to a man in the middle — server-key pinning (D1) is a precondition.
+owner's decisions D5, D2, D3 — nothing built.** It covers SOLO 3's API remainder.
+***OWNER, 25 Sep 2026: THE CLIENT LIBRARIES STAY UNCHANGED*** (*"they are used to
+log into all versions of sd"*). So the wire is SCRAM 47/48 only, the server never
+sees a password, and **ruling 3's option A cannot be built** — the user's API
+login needs a SCRAM credential, its password an API password of its own (D5a,
+recommended) or the Windows password enrolled (D5b, stale after a change). The
+first draft's request 49 and key pinning are withdrawn.
 
 - **The user:** Windows password inside TLS 1.3, checked by `LogonUserW` per login.
   A new login mode in `sdclilib` (Windows) and in the Linux client library.
