@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 25 Sep 26 SD Core Solo - the DPAPI declarations (ruling 21).
  * 19 Aug 26 Windows port - written for the API SCRAM exchange.
  *           docs/SCRAM_AUTH.md
  * END-HISTORY
@@ -63,6 +64,16 @@ char* sd_scram_xor(const char* b64_a, const char* b64_b);
 /* 1 equal, 0 different, -1 malformed.  Constant time over the compared bytes.
    A caller deciding whether to admit a login must treat -1 as "no". */
 int sd_scram_ct_equal(const char* b64_a, const char* b64_b);
+
+/* 25 Sep 26 SD Core Solo - ruling 21, the stored account password.  DPAPI in
+   CurrentUser scope (win32dpapi.c, which carries windows.h so this header need
+   not); the two sd_dpapi_* wrap it in base64 for BASIC.  protect: base64 of
+   the blob, or NULL.  unprotect: the plaintext, or NULL when this Windows user
+   cannot open the blob.  Both malloc; the caller frees (and wipes plaintext). */
+int win32_dpapi_protect(const char* text, unsigned char** blob, size_t* bloblen);
+char* win32_dpapi_unprotect(const unsigned char* blob, size_t bloblen);
+char* sd_dpapi_protect_b64(const char* text);
+char* sd_dpapi_unprotect_b64(const char* b64);
 
 #endif
 
