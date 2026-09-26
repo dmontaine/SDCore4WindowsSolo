@@ -212,7 +212,7 @@ conflicts with this section, this section wins.**
 
 ## OPEN TASKS — SD CORE SOLO S1.1-0
 
-New ids are **`SOLO <n>`**; the next is **SOLO 14** (SOLO 12, 13 closed 25 Sep, HISTORY.md). `RELEASE_1.1 <n>` and
+New ids are **`SOLO <n>`**; the next is **SOLO 15** (SOLO 12, 13 closed 25 Sep, HISTORY.md). `RELEASE_1.1 <n>` and
 `PRE_RELEASE <n>` citations in source and in §5/§6 name multi-user entries —
 grep HISTORY.md, or `sd4windows`, for them. **Each entry says which parts are
 built and measured; the rest is a plan**, and names what would change it.
@@ -500,6 +500,31 @@ runs, from the stick too. The fix is a code-signing certificate, a cost and an
 owner's decision; documenting the "More info → Run anyway" step is the free
 alternative.
 
+### SOLO 14 · which Python installs Solo's Python helper can use (owner, 25 Sep 2026)
+
+**The question:** what should the Solo docs (SOLO 10) and the USB stick (SOLO 11)
+tell a user to install for `PY_*`, and does it work offline? Python is optional:
+without it every `PY_*` answers `-12040` and SD runs (§5.27, `build-sdpy.ps1`).
+**Known:** `sdpy.exe` links `python3.dll` (stable ABI, 3.13 floor, ran on 3.14.7)
+and at run time finds it by the ordinary DLL search — PATH — not the registry
+(HISTORY.md, RELEASE_1.1 23 leg C). `python-detect.ps1` accepts only
+`HKLM\SOFTWARE\Python\PythonCore`, a MULTI-USER rule (LocalSystem and SD accounts
+cannot reach a per-user install); **in Solo the server and sessions run as the
+user, so a per-user (HKCU) Python may now be usable — revisit that rule.**
+**python.org, per docs.python.org/3/using/windows.html, read 25 Sep 2026:** the
+Python install manager comes as MSIX (default; also the Store copy — the two
+differ and cannot coexist) or MSI (for Server 2019; per-machine, no UI). Either
+installs the MANAGER, which then fetches a Python (`py install 3.14`); offline is
+`py install --download=<dir> <ver>` on a connected machine, then `py install
+--source=<dir>\index.json <ver>`. The single-file `.exe` installer is deprecated
+since 3.14 and not produced from 3.16.
+**To measure, per install route** (`.exe` per-user and all-users, manager MSI,
+manager MSIX/Store): which hive it registers, where `python3.dll` lands, whether
+it is on the PATH that (a) a local session, (b) an ssh session and (c) the
+task-started server in session 0 see, and whether `PY_INITIALIZE` returns 0 in
+each. *Would change the plan:* a route whose `python3.dll` is on no PATH the S4U
+server sees — then the helper would need to find Python itself (PEP 514) rather
+than rely on PATH.
 
 ---
 
