@@ -630,7 +630,18 @@ alternative.
 
 ### SOLO 15 · the account password on every session; a portable tree (ruling 21)
 
-**A plan, nothing built.** *Would each part hold? Stated with what would falsify it.*
+**Pieces, in order:** (1) rename API password → account password; (2) relative
+`ACC$PATH`; (3) LOGIN requires the password; (4) the DPAPI file for one-shot;
+(5) rename the account for a new Windows user.
+***(1) DONE AND WITNESSED 25 Sep:*** `SET.API.PASSWORD` → `SET.PASSWORD`
+(`gpl.bp/set_password`, `$SETPW`, `newvoc/set.password`), messages 12009-12016
+reworded, `solo_password ACCOUNT`, `SD_SOLO_ACCOUNT_PW`, and the installer's
+**Account password** page now follows the global page and shows on EVERY new
+tree (was: only with the API box). Witness (`scram-probe.py`, staged tree): the
+account password logs in; `SET.API.PASSWORD` "is not in your VOC"; `SET.PASSWORD`
+refuses without ADMIN and changes with it, the salt still shared with
+`$GLOBAL`; the global password still gives an administrator session.
+**The rest is a plan.** *Would each part hold? Stated with what would falsify it.*
 - **Every session asks.** LOGIN (not internal, not a phantom — a phantom inherits
   its parent's authentication; not the daemon's `-start`, which is no session)
   checks the account password with `!CRED_VERIFY` before landing. Today LOGIN

@@ -29,6 +29,8 @@
 *           SDSYS (rulings 10, 11), replacing the Windows-group test.
 *           The version-1 refusal names SET.API.PASSWORD: MODIFY.PASSWORD is
 *           retired (owner, 25 Sep 2026).
+* 25 Sep 26 SD Core Solo - SET.API.PASSWORD is SET.PASSWORD (ruling 21): the
+*           version-1 refusal names the new verb.
 * 25 Sep 26 SD Core Solo - SOLO 3 step 4, ruling 19: one login name, two
 *           passwords.  vb.scram.first reads the account's record and $GLOBAL
 *           (same salt, !CRED_SET); vb.scram.final checks the proof against
@@ -1553,7 +1555,7 @@ vb.scram.first:
                   if scram.cred<CRED$VERSION> # SCRAM$CRED.VERSION then
                      scram.cred = ''
                      scram.gcred = ''
-                     scram.refuse.reason = 'credential is version 1 - run SET.API.PASSWORD'
+                     scram.refuse.reason = 'credential is version 1 - run SET.PASSWORD'
                      goto scram.bad.cred
                   end
                   scram.salt = scram.cred<CRED$SALT>
@@ -1783,7 +1785,8 @@ vb.scram.final:
 * 25 Sep 26 SD Core Solo - THE sdapi TEST ABOVE IS GONE (docs/SOLO_API.md).
 *   Solo has no Windows groups, and a missing sdapi refused everybody.  The
 *   gate is now the credential itself: only the one account the installer
-*   gave an API password (solo_password API) has a record to prove against.
+*   gave an account password (solo_password ACCOUNT) has a record to prove
+*   against.
 
 * 18 Sep 26 Windows port - RELEASE_1.1 64.  THE ADMINISTRATOR REMOTE-API GATE
 *   IS GONE WITH THE TIERS.  There is no SD administrator tier to test any

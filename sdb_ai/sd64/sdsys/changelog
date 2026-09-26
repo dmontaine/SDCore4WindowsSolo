@@ -3,20 +3,20 @@ S1.1-0 - SD Core Solo, in progress
 A personal SD Core for one Windows user. NOTHING IN THIS SECTION HAS BEEN
 RELEASED.
 
-25 Sep 26  PROGRAMS CONNECT OVER THE API WITH AN API PASSWORD.
+25 Sep 26  YOUR ACCOUNT HAS A PASSWORD.
 
-           The installer asks for an API password when the API is
-           turned on. Programs log in with your account name and that
-           password, using the same client libraries as every SD Core.
-           To change it, type ADMIN, then SET.API.PASSWORD. The API
-           password must differ from the global password. MODIFY.PASSWORD
-           is gone; SET.API.PASSWORD replaces it.
+           The installer asks for an account password. Programs log in
+           over the API with your account name and that password, using
+           the same client libraries as every SD Core. To change it,
+           type ADMIN, then SET.PASSWORD. The account password must
+           differ from the global password. MODIFY.PASSWORD is gone;
+           SET.PASSWORD replaces it.
 
            In managed mode the SD Core server logs in with the same
            account name and the global password, and its session has
            the administrator commands unlocked.
 
-           Every password - administrator, global and API - needs at
+           Every password - administrator, global and account - needs at
            least 8 characters, with a lower-case letter, an upper-case
            letter, a digit and a symbol.
 
