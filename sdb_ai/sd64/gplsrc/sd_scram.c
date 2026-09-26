@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 25 Sep 26 SD Core Solo - sd_dpapi_protect_b64/sd_dpapi_unprotect_b64, the
+ *           base64 half of the stored account password (ruling 21).
  * 19 Aug 26 Windows port - written for the API SCRAM exchange.
  *           docs/SCRAM_AUTH.md
  * END-HISTORY
@@ -413,6 +415,37 @@ int sd_scram_ct_equal(const char* b64_a, const char* b64_b) {
     free(a);
     free(b);
     return same;
+}
+
+/* ======================================================================
+   sd_dpapi_protect_b64() / sd_dpapi_unprotect_b64()
+
+   25 Sep 26 SD Core Solo - ruling 21.  Base64 around win32dpapi.c, here only
+   because the base64 helpers above are this file's.  See sd_scram.h. */
+
+char* sd_dpapi_protect_b64(const char* text) {
+    unsigned char* blob = NULL;
+    size_t n = 0;
+    char* result;
+
+    if (!win32_dpapi_protect(text, &blob, &n))
+        return NULL;
+    result = b64_encode(blob, n);
+    free(blob);
+    return result;
+}
+
+char* sd_dpapi_unprotect_b64(const char* b64) {
+    unsigned char* blob;
+    size_t n = 0;
+    char* text;
+
+    blob = b64_decode(b64, &n);
+    if (blob == NULL)
+        return NULL;
+    text = win32_dpapi_unprotect(blob, n);
+    free(blob);
+    return text;
 }
 
 /* END-CODE */
