@@ -58,6 +58,27 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+# THE INSTALLER CAN ONLY START THE 32-BIT POWERSHELL (sd-solo.iss PowerShellExe
+# records the measurement), which sees System32 as SysWOW64.  So a 32-bit copy
+# of this script re-launches itself in the 64-bit PowerShell - Sysnative is
+# visible to a 32-bit process - with the same arguments, and passes its exit
+# code back.  The elevated token is inherited.  If that is impossible, the
+# refusal below says so rather than measuring through the redirection.
+if (-not [Environment]::Is64BitProcess -and [Environment]::Is64BitOperatingSystem) {
+    $ps64 = Join-Path $env:SystemRoot 'Sysnative\WindowsPowerShell\v1.0\powershell.exe'
+    if (Test-Path -LiteralPath $ps64) {
+        $relaunch = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath)
+        foreach ($k in $PSBoundParameters.Keys) {
+            $v = $PSBoundParameters[$k]
+            if ($v -is [System.Management.Automation.SwitchParameter]) { if ($v.IsPresent) { $relaunch += ('-' + $k) } }
+            else { $relaunch += @(('-' + $k), [string]$v) }
+        }
+        & $ps64 @relaunch
+        exit $LASTEXITCODE
+    }
+}
+
 $TaskName = 'SD Core Solo'
 $Begin = '# BEGIN SD Core Solo - added by its installer, removed by its uninstaller'
 $End   = '# END SD Core Solo'

@@ -158,14 +158,18 @@ begin
     ExpandConstant('{commonpf64}\WindowsPowerShell\Modules;{sys}\WindowsPowerShell\v1.0\Modules'));
 end;
 
-(* {sysnative}, NOT {sys}: Setup is a 32-bit program, and ShellExec does not
-   honour 64-bit install mode, so {sys} started the 32-bit PowerShell, which sees
-   System32 as SysWOW64 - the owner's first install (25 Sep 2026) reported
-   "sshd.exe: none found" and skipped sshd -t.  solo-machine.ps1 now refuses a
-   32-bit host rather than measure through the redirection. *)
+(* {sys} STARTS THE 32-BIT POWERSHELL, AND {sysnative} CANNOT BE USED INSTEAD.
+   Measured 25 Sep 2026 with a probe installer in 64-bit mode: ShellExec 'open'
+   of {sys}\...\powershell.exe gave a 32-bit PowerShell that cannot see
+   System32\OpenSSH\sshd.exe (the owner's first install: "sshd.exe: none
+   found", sshd -t skipped); {sysnative} gave 64-bit.  But under 'runas' the
+   path is resolved by the elevation service, which is 64-bit and has no
+   Sysnative: the owner's second install failed to start with code 3 (path not
+   found).  So this stays {sys}, and solo-machine.ps1 re-launches itself in the
+   64-bit PowerShell through Sysnative, which a 32-bit process CAN see. *)
 function PowerShellExe: String;
 begin
-  Result := ExpandConstant('{sysnative}\WindowsPowerShell\v1.0\powershell.exe');
+  Result := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
 end;
 
 function SoloRoot: String;
