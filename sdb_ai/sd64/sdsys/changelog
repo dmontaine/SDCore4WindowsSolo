@@ -3,6 +3,18 @@ S1.1-0 - SD Core Solo, in progress
 A personal SD Core for one Windows user. NOTHING IN THIS SECTION HAS BEEN
 RELEASED.
 
+25 Sep 26  PROGRAMS CONNECT OVER THE API WITH AN API PASSWORD.
+
+           The installer asks for an API password when the API is
+           turned on. Programs log in with your account name and that
+           password, using the same client libraries as every SD Core.
+           To change it, type ADMIN, then SET.API.PASSWORD. The API
+           password must differ from the global password.
+
+           Fixed: passwords set by the installer were stored with three
+           hidden characters in front, so typing them was refused. A
+           computer installed before this fix needs a fresh install.
+
 25 Sep 26  SD NEVER SERVES A REMOTE SESSION WITH ADMINISTRATOR RIGHTS.
 
            When SD Core Solo's server is started, or an ssh session
