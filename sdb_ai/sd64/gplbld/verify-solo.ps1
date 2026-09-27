@@ -33,7 +33,14 @@
 #      bp as ZZBASICFUNCS, then removed; its coverage of BCOMP's intrinsics
 #      table checked first.  Ported from the multi-user verify-basicfuncs.ps1
 #      (git show 3776c66:sdb_ai/sd64/gplbld/verify-basicfuncs.ps1).
-#   8. the daemon runs on a standard token: Medium integrity, Administrators
+#   8. record ids are case insensitive (RELEASE_1.1 5 D2): a probe in the
+#      account's bp reads FL$NOCASE (FILEINFO 1008) = 1 on BP and on VOC, with
+#      FL$TYPE 4 and 3 as the control that the values are per file, and
+#      SYSTEM(91) = 1; then READs VOC's WHERE by 'where' and 'WhErE' (both
+#      found - a hashed file finds a mixed-case id only if case is folded
+#      before hashing) and a missing id (not found - the control that READ
+#      can fail).  Ported from verify-nocase.ps1 (git show 3776c66:...).
+#   9. the daemon runs on a standard token: Medium integrity, Administrators
 #      deny-only or absent                                         (ruling 16)
 # Not measured here, because they need hands or another machine: ssh landing in
 # sd, SD starting at boot with nobody signed in, remote access while signed out.
@@ -515,7 +522,78 @@ try {
 
     # -----------------------------------------------------------------------
     Say ''
-    Say '== 8. the daemon runs on a standard token'
+    Say '== 8. record ids are case insensitive'
+    $ncName = 'ZZNOCASE'
+    $ncDest = Join-Path $bpDir $ncName
+    Say ('    into  ' + $ncDest + '   bp exists: ' + (Test-Path -LiteralPath $bpDir) + '   bp.out exists before: ' + (Test-Path -LiteralPath $outDir))
+    if (-not (Test-Path -LiteralPath $bpDir)) {
+        Check 'the NOCASE leg could run' $false 'the account bp is missing'
+    }
+    elseif (@(Get-ChildItem -LiteralPath $bpDir -File | Where-Object { $_.Name -ieq $ncName }).Count) {
+        Check 'the NOCASE leg could run' $false ($ncName + ' is already in bp - left by an earlier run?  Delete it and its bp.out object by hand.')
+    }
+    else {
+        # 1008 is FL$NOCASE and 3 FL$TYPE (SYSCOM KEYS.H), literal so the probe
+        # needs no include path from a user account.
+        $ncSrc = @(
+            '* ZZNOCASE - written by gplbld/verify-solo.ps1, leg 8.  Safe to delete.'
+            "      OPEN 'BP' TO F.DIR ELSE STOP 'cannot open BP'"
+            "      OPEN 'VOC' TO F.DH ELSE STOP 'cannot open VOC'"
+            "      CRT 'DIRFILE=':FILEINFO(F.DIR, 1008)"
+            "      CRT 'DHFILE=':FILEINFO(F.DH, 1008)"
+            "      CRT 'DIRTYPE=':FILEINFO(F.DIR, 3)"
+            "      CRT 'DHTYPE=':FILEINFO(F.DH, 3)"
+            "      CRT 'ISWIN=':SYSTEM(91)"
+            "      READ R FROM F.DH, 'where' THEN CRT 'READ.LOWER=1' ELSE CRT 'READ.LOWER=0'"
+            "      READ R FROM F.DH, 'WhErE' THEN CRT 'READ.MIXED=1' ELSE CRT 'READ.MIXED=0'"
+            "      READ R FROM F.DH, 'zz.no.such.record' THEN CRT 'READ.MISSING=1' ELSE CRT 'READ.MISSING=0'"
+            "      CRT 'NOCASE.DONE'"
+            '   END'
+        ) -join "`n"
+        $madeOut = -not (Test-Path -LiteralPath $outDir)
+        try {
+            [IO.File]::WriteAllText($ncDest, $ncSrc + "`n", [Text.Encoding]::ASCII)
+            $t = Invoke-Sd 'nocase-compile' ('BASIC BP ' + $ncName) '' 'none'
+            $L = Get-Lines $t
+            $compiled = ((CountOf $L '^0 error\(s\)') -ge 1) -and ((CountOf $L '^[1-9][0-9]* error') -eq 0) -and ($t -notmatch '(?i)Compilation error')
+            Check 'the NOCASE probe compiles' $compiled 'want "0 error(s)" and no error count or "Compilation error"'
+            if ($compiled) {
+                $t = Invoke-Sd 'nocase-run' ('RUN BP ' + $ncName) '' 'none'
+                $L = Get-Lines $t
+                $v = @{}
+                foreach ($k in @('DIRFILE', 'DHFILE', 'DIRTYPE', 'DHTYPE', 'ISWIN', 'READ.LOWER', 'READ.MIXED', 'READ.MISSING')) {
+                    $m = @($L | Where-Object { $_ -match ('^' + [regex]::Escape($k) + '=(\d+)$') })
+                    $v[$k] = $(if ($m.Count -eq 1) { ($m[0] -split '=')[1] } else { '(' + $m.Count + ' lines)' })
+                }
+                Say ('    read: ' + (($v.GetEnumerator() | Sort-Object Name | ForEach-Object { $_.Name + '=' + $_.Value }) -join '  '))
+                Check 'the probe ran to its end' ((CountOf $L '^NOCASE\.DONE$') -eq 1) 'want NOCASE.DONE - a probe that stopped early measured nothing'
+                Check 'BP (a directory file) is NOCASE' ($v['DIRFILE'] -eq '1') ('FILEINFO 1008 = ' + $v['DIRFILE'])
+                Check 'VOC (a hashed file) is NOCASE' ($v['DHFILE'] -eq '1') ('FILEINFO 1008 = ' + $v['DHFILE'])
+                Check 'CONTROL: the values are per file (FL$TYPE 4 for BP, 3 for VOC)' ($v['DIRTYPE'] -eq '4' -and $v['DHTYPE'] -eq '3') ('FL$TYPE ' + $v['DIRTYPE'] + ' and ' + $v['DHTYPE'])
+                Check 'SYSTEM(91) answers Windows' ($v['ISWIN'] -eq '1') ('SYSTEM(91) = ' + $v['ISWIN'])
+                Check 'VOC finds WHERE as ''where'' and as ''WhErE''' ($v['READ.LOWER'] -eq '1' -and $v['READ.MIXED'] -eq '1') ('lower ' + $v['READ.LOWER'] + ', mixed ' + $v['READ.MIXED'])
+                Check 'CONTROL: a missing id is not found' ($v['READ.MISSING'] -eq '0') ('READ.MISSING = ' + $v['READ.MISSING'])
+            }
+        }
+        finally {
+            $objs = @()
+            if (Test-Path -LiteralPath $outDir) { $objs = @(Get-ChildItem -LiteralPath $outDir -File | Where-Object { $_.Name -ieq $ncName }) }
+            foreach ($f in (@(Get-Item -LiteralPath $ncDest -ErrorAction SilentlyContinue) + $objs)) {
+                if ($f) { Remove-Item -LiteralPath $f.FullName -Force -ErrorAction SilentlyContinue }
+            }
+            if ($madeOut -and (Test-Path -LiteralPath $outDir) -and @(Get-ChildItem -LiteralPath $outDir -Force).Count -eq 0) {
+                Remove-Item -LiteralPath $outDir -Force -ErrorAction SilentlyContinue
+            }
+            $leftS = @(Get-ChildItem -LiteralPath $bpDir -File | Where-Object { $_.Name -ieq $ncName }).Count
+            $leftO = $(if (Test-Path -LiteralPath $outDir) { @(Get-ChildItem -LiteralPath $outDir -File | Where-Object { $_.Name -ieq $ncName }).Count } else { 0 })
+            Say ('    cleanup: source left ' + $leftS + ', object left ' + $leftO + ', bp.out ' + $(if (Test-Path -LiteralPath $outDir) { 'present' } else { 'absent' }) + $(if ($madeOut) { ' (this leg made it)' } else { ' (was there before)' }))
+            Check 'the NOCASE probe is removed from the account' ($leftS -eq 0 -and $leftO -eq 0) ('delete ' + $ncName + ' from bp and bp.out by hand')
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    Say ''
+    Say '== 9. the daemon runs on a standard token'
     $winds = @(Get-Process -Name sdwind -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $WindExe })
     Say ('    sdwind.exe from this tree: ' + $winds.Count)
     Check 'the daemon is still running after the legs' ($winds.Count -ge 1) 'no sdwind.exe from this tree'
