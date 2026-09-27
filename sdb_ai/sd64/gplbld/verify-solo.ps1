@@ -45,7 +45,17 @@
 #      (one heading, no prompt); LIST ONLY VOC answered S at its first prompt
 #      must list the same count with no clear-screen and no heading after the
 #      prompt.  Ported from verify-pagesuppress.ps1 (git show 3776c66:...).
-#  10. the daemon runs on a standard token: Medium integrity, Administrators
+#  10. ENTER at a prompt with a default takes the default (RELEASE_1.1 6, 27,
+#      33), each with a control proving the prompt was live: a lower-case name
+#      deletes an upper-case file with no prompt (D2) and the reverse (27);
+#      DELETE.FILE 6135/6140 through a second VOC pointer; CATALOG 3033/3034;
+#      CPROC's .D 5040; the select-list 2050 before CT; DELETE.FILE 6133 on a
+#      multifile (Enter and C cancel, N deletes the dictionary only).  It makes
+#      and removes ZZPROMPT* files, a catalogue entry and VOC records in the
+#      account, and checks every one gone.  Ported from verify-promptenter.ps1
+#      (git show 3776c66:...); its sessions add ADMIN only for COPY into VOC
+#      and DELETE VOC, the two gated writes (ruling 14).
+#  11. the daemon runs on a standard token: Medium integrity, Administrators
 #      deny-only or absent                                         (ruling 16)
 # Not measured here, because they need hands or another machine: ssh landing in
 # sd, SD starting at boot with nobody signed in, remote access while signed out.
@@ -175,6 +185,18 @@ function Invoke-Sd([string]$Label, [string]$SdArgs, [string]$InputText, [string]
     # ESC shown as ^[ - printed raw, a session's clear-screen clears this console.
     foreach ($l in ($text -split "`n")) { if ($l.Trim()) { Say ('    | ' + ($l -replace [char]27, '^[')) } }
     return $text
+}
+
+# One interactive session for leg 10: the account password, ADMIN + the
+# administrator password when a step writes the VOC directly (COPY into VOC,
+# DELETE VOC - ruling 14), TERM 200,9999 so nothing pages, the commands, OFF.
+# An empty command is Enter at a prompt, shown as <Enter>.
+function Invoke-Pe([string]$Label, [string[]]$Cmds, [switch]$Admin) {
+    $lines = @($acctPw); $shown = @('account password')
+    if ($Admin) { $lines += @('ADMIN', $adminPw); $shown += @('ADMIN', 'administrator password') }
+    $lines += @('TERM 200,9999') + $Cmds + @('OFF')
+    $shown += @('TERM 200,9999') + @($Cmds | ForEach-Object { if ($_ -eq '') { '<Enter>' } else { $_ } }) + @('OFF')
+    return (Invoke-Sd $Label '' (($lines -join "`n") + "`n") ($shown -join ', '))
 }
 
 # One scram-probe.py run: the real wire, TLS 1.3 + SCRAM.  The password goes in
@@ -663,7 +685,159 @@ try {
 
     # -----------------------------------------------------------------------
     Say ''
-    Say '== 10. the daemon runs on a standard token'
+    Say '== 10. ENTER at a prompt takes its default'
+    $acctDir = Join-Path $Root ('user_accounts\' + $Acct)
+    $pE = 'ZZPROMPTE'; $pL = 'ZZPROMPTL'; $fD = 'zzpromptd'; $fX = 'zzpromptx'
+    $pP = 'ZZPROMPTP'; $sV = 'zzpromptv'; $mM = 'zzpromptm'
+    $to0 = $script:timeouts
+    $who = '(?m)^\s*\d+\s+' + [regex]::Escape($Acct) + '\b'
+    try {
+        # --- leftovers of an earlier run (every name is this leg's own) -----
+        $null = Invoke-Pe 'pe-left-1' @("DELETE.FILE $pE", 'Y', 'Y', 'Y')
+        $null = Invoke-Pe 'pe-left-2' @("DELETE.FILE $($pL.ToLower())", 'Y', 'Y', 'Y')
+
+        # --- a: a lower-case name deletes an upper-case file, no prompt (D2) --
+        $t = Invoke-Pe 'pe-a-make' @('OPTION CREATE.FILE.UPCASE', "CREATE.FILE $pE")
+        $upOk = ($t -match "Created DATA part as $pE") -and (@(Get-ChildItem -LiteralPath $acctDir -Directory | Where-Object { $_.Name -ceq $pE }).Count -eq 1)
+        Check "a: setup - $pE made with its directory upper case" $upOk 'OPTION CREATE.FILE.UPCASE did not keep the case, so the leg cannot start from an upper-case record'
+        if ($upOk) {
+            $lo = $pE.ToLower()
+            $t = Invoke-Pe 'pe-a-delete' @("DELETE.FILE $lo")
+            Check 'a: no 6130 - found as typed' ($t -notmatch 'No VOC record found') 'DELETEF printed 6130'
+            Check 'a: no 6131 prompt' ($t -notmatch 'Use file') 'DELETEF asked 6131 on a case-insensitive VOC'
+            Check "a: VOC entry '$lo' deleted (6144, any case)" ($t -match "VOC entry '$lo' deleted") 'no 6144 success line'
+            $t = Invoke-Pe 'pe-a-gone' @("CT VOC $lo")
+            Check "a: $pE is gone - VOC and directory" (($t -match "Record '$lo' not found") -and -not (Test-Path -LiteralPath (Join-Path $acctDir $pE))) 'the VOC record or the directory survived'
+        }
+
+        # --- b: RELEASE_1.1 27, a lower-case id deleted by its upper name -----
+        $loL = $pL.ToLower()
+        $t = Invoke-Pe 'pe-b-make' @("CREATE.FILE $pL")
+        $isLower = ($t -match "Created DATA part as $loL") -and (@(Get-ChildItem -LiteralPath $acctDir -Directory | Where-Object { $_.Name -ceq $loL }).Count -eq 1)
+        Check "b: setup - $pL stored as $loL" $isLower 'no directory named exactly lower case, so the lower-case tier is not what is measured'
+        if ($isLower) {
+            $t = Invoke-Pe 'pe-b-delete' @("DELETE.FILE $pL")
+            Check 'b: no 6130 - the lower-case tier found it' ($t -notmatch 'No VOC record found') 'DELETEF printed 6130'
+            Check 'b: no 6131 prompt' ($t -notmatch 'Use file') 'DELETEF asked'
+            Check "b: VOC entry '$loL' deleted (6144, any case)" ($t -match "VOC entry '$loL' deleted") 'no 6144 success line'
+            $t = Invoke-Pe 'pe-b-gone' @("CT VOC $loL")
+            Check 'b: the VOC record is gone' ($t -match "Record '$loL' not found") "CT VOC $loL still finds it"
+        }
+
+        # --- c: DELETE.FILE 6135 + 6140 through a second VOC pointer -------------
+        $dDir = Join-Path $acctDir $fD; $dDic = Join-Path $acctDir ($fD + '.DIC')
+        $null = Invoke-Pe 'pe-c-left-1' @("DELETE VOC $fX") -Admin
+        $null = Invoke-Pe 'pe-c-left-2' @("DELETE.FILE $fD", 'Y', 'Y', 'Y')
+        $t = Invoke-Pe 'pe-c-make' @("CREATE.FILE $fD", "COPY FROM VOC $fD,$fX", "CT VOC $fX") -Admin
+        $ptrOk = ($t -match '1 record\(s\) copied') -and ($t -cmatch "(?m)^\s*2: $fD\s*$")
+        Check "c: setup - $fX is a VOC pointer to $fD" $ptrOk 'COPY did not make the pointer, so DELETEF would not ask'
+        if ($ptrOk) {
+            $t = Invoke-Pe 'pe-c-enter' @("DELETE.FILE $fX", '', '')
+            Check 'c: the transcript is a sane size' ($t.Length -lt 200000) ('' + $t.Length + ' bytes')
+            Check 'c: prompt 6135 reached, showing (y/<n>)' ($t -match "OK to delete DATA portion '$fD' \(y/<n>\)\?") 'no 6135 prompt'
+            Check 'c: prompt 6140 reached, showing (y/<n>)' ($t -match "OK to delete DICT portion '$fD\.DIC' \(y/<n>\)\?") 'no 6140 prompt'
+            Check 'c: ENTER at both deleted nothing' (($t -notmatch "portion '[^']*' deleted") -and ($t -notmatch "VOC entry '[^']*' deleted")) 'a deletion was reported - Enter taken as YES'
+            Check 'c: both portions survive on disk' ((Test-Path -LiteralPath $dDir) -and (Test-Path -LiteralPath $dDic)) 'a portion is gone after Enter'
+            $t = Invoke-Pe 'pe-c-yes' @("DELETE.FILE $fX", 'Y', 'Y')
+            Check "c: CONTROL - Y deletes DATA portion '$fD'" ($t -match "DATA portion '$fD' deleted") 'no 6136'
+            Check "c: CONTROL - Y deletes DICT portion '$fD.DIC'" ($t -match "DICT portion '$fD\.DIC' deleted") 'no 6141'
+            Check 'c: CONTROL - both portions are gone from disk' (-not (Test-Path -LiteralPath $dDir) -and -not (Test-Path -LiteralPath $dDic)) 'a portion survived an explicit Y'
+        }
+
+        # --- d: CATALOG 3033 + 3034 ------------------------------------------
+        $catRec = Join-Path (Join-Path $acctDir 'cat') $pP
+        [IO.File]::WriteAllText((Join-Path $bpDir $pP), ("* $pP - written by verify-solo.ps1 leg 10.  Safe to delete.`n   crt '$pP-RAN'`nend`n"), [Text.Encoding]::ASCII)
+        $t = Invoke-Pe 'pe-d-make' @("BASIC BP $pP", "CATALOG BP $pP LOCAL", "CT VOC $pP")
+        $localOk = ($t -match "$pP added to local catalogue") -and ($t -cmatch '(?m)^\s*2: CS\s*$')
+        Check "d: setup - $pP compiled and in the LOCAL catalogue (V / CS)" $localOk 'not locally catalogued, so 3033 could not be reached'
+        if ($localOk) {
+            $t = Invoke-Pe 'pe-d-3033-enter' @("CATALOG BP $pP", '', "CT VOC $pP")
+            Check 'd: prompt 3033 reached, showing (y/<n>)' ($t -match 'Program is also in local catalogue\. Remove \(y/<n>\)\?') 'no 3033 prompt'
+            Check 'd: ENTER at 3033 kept the LOCAL entry' ($t -cmatch '(?m)^\s*2: CS\s*$') 'the V/CS record is gone after Enter'
+            Check 'd: and the private entry was written' (Test-Path -LiteralPath $catRec) ('no ' + $catRec + ', so 3034 could not be reached')
+            $t = Invoke-Pe 'pe-d-3034-enter' @("CATALOG BP $pP LOCAL", '')
+            Check 'd: prompt 3034 reached, showing (y/<n>)' ($t -match 'Program is also in private catalogue\. Remove \(y/<n>\)\?') 'no 3034 prompt'
+            Check 'd: ENTER at 3034 kept the private entry' (Test-Path -LiteralPath $catRec) 'the private record is gone after Enter'
+            $t = Invoke-Pe 'pe-d-3034-yes' @("CATALOG BP $pP LOCAL", 'Y')
+            Check 'd: CONTROL - Y at 3034 removes the private entry' (($t -match 'Program is also in private catalogue') -and -not (Test-Path -LiteralPath $catRec)) 'it survived an explicit Y, or no prompt'
+            $t = Invoke-Pe 'pe-d-3033-yes' @("CATALOG BP $pP", 'Y', "CT VOC $pP")
+            Check 'd: CONTROL - Y at 3033 removes the LOCAL entry' (($t -match 'Program is also in local catalogue') -and ($t -match "Record '$pP' not found")) 'it survived an explicit Y, or no prompt'
+        }
+
+        # --- e: CPROC's .D prompt 5040 -----------------------------------------
+        $null = Invoke-Pe 'pe-e-left' @("DELETE VOC $sV") -Admin
+        $sRx = '(?m)^[ \t]*001[ \t]+S[ \t]*$'
+        $t = Invoke-Pe 'pe-e-make' @(".S $sV 1", ".L $sV")
+        $sentOk = $t -match $sRx
+        Check "e: setup - .S wrote $sV as an S-type record" $sentOk 'no "001  S" line, so .D would never ask 5040'
+        if ($sentOk) {
+            $t = Invoke-Pe 'pe-e-enter' @(".D $sV", '', ".L $sV")
+            Check 'e: the transcript is a sane size' ($t.Length -lt 200000) ('' + $t.Length + ' bytes')
+            Check 'e: prompt 5040 reached, showing (y/<n>)' ($t -match "Delete VOC record '$sV' \(y/<n>\)\?") 'no 5040 prompt'
+            Check 'e: ENTER kept the sentence' (($t -match $sRx) -and ($t -notmatch "'$sV' not found in VOC")) 'gone after Enter - taken as YES'
+            $t = Invoke-Pe 'pe-e-yes' @(".D $sV", 'Y', ".L $sV")
+            Check 'e: CONTROL - Y deleted the sentence' (($t -match "Delete VOC record '$sV'") -and ($t -match "'$sV' not found in VOC")) '.L still lists it after an explicit Y, or no prompt'
+        }
+
+        # --- f: the select-list prompt 2050, then CT ---------------------------
+        $t = Invoke-Pe 'pe-f-enter' @('SSELECT VOC SAMPLE 1', 'CT VOC', '', 'WHO')
+        $first = [regex]::Match($t, "First item '([^']+)'")
+        Check 'f: prompt 2050 reached, showing (y/<n>)' ($t -match "Use active select list \(First item '[^']+'\) \(y/<n>\)\?") 'no 2050 prompt carrying (y/<n>)'
+        if ($first.Success) {
+            $id = $first.Groups[1].Value
+            Check "f: ENTER displayed nothing (no 'VOC $id')" ($t -notmatch ('(?m)^VOC ' + [regex]::Escape($id) + '\s*$')) 'the record was displayed - Enter taken as YES'
+            Check 'f: the session went on to WHO' ($t -match $who) 'WHO did not answer - the prompt swallowed it'
+            $t = Invoke-Pe 'pe-f-yes' @('SSELECT VOC SAMPLE 1', 'CT VOC', 'Y')
+            Check "f: CONTROL - Y displays 'VOC $id'" ($t -match ('(?m)^VOC ' + [regex]::Escape($id) + '\s*$')) 'Y did not display it'
+        }
+
+        # --- g: DELETE.FILE 6133 on a multifile --------------------------------
+        $mDir = Join-Path $acctDir $mM; $mDic = Join-Path $acctDir ($mM + '.DIC')
+        $null = Invoke-Pe 'pe-g-left' @("DELETE.FILE $mM", 'Y', 'Y', 'Y')
+        $t = Invoke-Pe 'pe-g-make' @("CREATE.FILE $($mM.ToUpper()),C1", "CREATE.FILE $($mM.ToUpper()),C2", "CT VOC $mM")
+        $multiOk = ($t -match "Created DATA part as $mM/c2") -and (Test-Path -LiteralPath (Join-Path $mDir 'c1')) -and (Test-Path -LiteralPath (Join-Path $mDir 'c2')) -and (Test-Path -LiteralPath $mDic)
+        Check "g: setup - $mM is a multifile (c1, c2) with a dictionary" $multiOk 'not built, so 6133 could not be reached'
+        if ($multiOk) {
+            foreach ($ans in @(@{ Label = 'ENTER'; Line = '' }, @{ Label = 'C'; Line = 'C' })) {
+                $t = Invoke-Pe ('pe-g-' + $ans.Label) @("DELETE.FILE $mM", $ans.Line, 'WHO')
+                Check ('g (' + $ans.Label + '): prompt 6133 reached, showing (y/n/<c>)') ($t -match 'Delete all data components of multifile.*\(y/n/<c>\)\?') 'no 6133 prompt'
+                Check ('g (' + $ans.Label + '): nothing was deleted') (($t -notmatch "portion '[^']*' deleted") -and ($t -notmatch "VOC entry '[^']*' deleted")) 'cancel did not cancel'
+                Check ('g (' + $ans.Label + '): c1, c2 and the dictionary survive') ((Test-Path -LiteralPath (Join-Path $mDir 'c1')) -and (Test-Path -LiteralPath (Join-Path $mDir 'c2')) -and (Test-Path -LiteralPath $mDic)) 'a part is gone'
+                Check ('g (' + $ans.Label + '): the session went on to WHO') ($t -match $who) 'WHO did not answer'
+            }
+            $t = Invoke-Pe 'pe-g-no' @("DELETE.FILE $mM", 'N')
+            Check "g: CONTROL - N deletes the dictionary only" (($t -match "DICT portion '$mM\.DIC' deleted") -and -not (Test-Path -LiteralPath $mDic) -and (Test-Path -LiteralPath (Join-Path $mDir 'c1'))) 'N did not delete exactly the dictionary'
+        }
+    }
+    finally {
+        # VOC RECORDS FIRST, THEN ANY FOLDER - the other order leaves a dangling
+        # pointer (PROJECT_STATUS.md 6, the bp.out trap).  Every answer given.
+        $null = Invoke-Pe 'pe-clean-1' @("DELETE.FILE $pE", 'Y', 'Y', 'Y')
+        $null = Invoke-Pe 'pe-clean-2' @("DELETE.FILE $($pL.ToLower())", 'Y', 'Y', 'Y')
+        $null = Invoke-Pe 'pe-clean-3' @("DELETE.FILE $fD", 'Y', 'Y', 'Y')
+        $null = Invoke-Pe 'pe-clean-4' @("DELETE.FILE $mM", 'Y', 'Y', 'Y')
+        $null = Invoke-Pe 'pe-clean-5' @("DELETE.CATALOG $pP")
+        $names = @($fX, $fD, $pP, $sV, $mM, $pE.ToLower(), $pL.ToLower())
+        $null = Invoke-Pe 'pe-clean-voc' @($names | ForEach-Object { "DELETE VOC $_" }) -Admin
+        $t = Invoke-Pe 'pe-clean-check' @($names | ForEach-Object { "CT VOC $_" })
+        foreach ($n in $names) { Check ("cleanup: no VOC record '" + $n + "' left") ($t -match "Record '$n' not found") ('CT VOC ' + $n + ' still finds it') }
+        foreach ($p in @($fD, ($fD + '.DIC'), $mM, ($mM + '.DIC'), $pE, ($pE + '.DIC'), $pL.ToLower(), ($pL.ToLower() + '.DIC'))) {
+            $q = Join-Path $acctDir $p
+            if ((Test-Path -LiteralPath $q) -and ($t -match "Record '$([regex]::Escape($p -replace '\.DIC$',''))' not found")) { Remove-Item -LiteralPath $q -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+        foreach ($q in @((Join-Path $bpDir $pP), (Join-Path $outDir $pP), $catRec)) {
+            if ($q -and (Test-Path -LiteralPath $q)) { Remove-Item -LiteralPath $q -Force -ErrorAction SilentlyContinue }
+        }
+        $left = @(@((Join-Path $acctDir $fD), (Join-Path $acctDir ($fD + '.DIC')), (Join-Path $acctDir $mM), (Join-Path $acctDir ($mM + '.DIC')),
+                    (Join-Path $acctDir $pE), (Join-Path $acctDir $pL.ToLower()), (Join-Path (Join-Path $acctDir 'cat') $pP),
+                    (Join-Path $bpDir $pP), (Join-Path $outDir $pP)) | Where-Object { Test-Path -LiteralPath $_ })
+        Check 'cleanup: no ZZPROMPT file, folder, catalogue record or source left' ($left.Count -eq 0) ($left -join ', ')
+        Check 'no leg-10 session timed out' ($script:timeouts -eq $to0) ('' + ($script:timeouts - $to0) + ' timed out - a prompt re-asked for ever')
+    }
+
+    # -----------------------------------------------------------------------
+    Say ''
+    Say '== 11. the daemon runs on a standard token'
     $winds = @(Get-Process -Name sdwind -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $WindExe })
     Say ('    sdwind.exe from this tree: ' + $winds.Count)
     Check 'the daemon is still running after the legs' ($winds.Count -ge 1) 'no sdwind.exe from this tree'
