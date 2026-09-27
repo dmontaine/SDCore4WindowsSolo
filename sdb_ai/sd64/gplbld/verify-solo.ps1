@@ -40,7 +40,12 @@
 #      found - a hashed file finds a mixed-case id only if case is folded
 #      before hashing) and a missing id (not found - the control that READ
 #      can fail).  Ported from verify-nocase.ps1 (git show 3776c66:...).
-#   9. the daemon runs on a standard token: Medium integrity, Administrators
+#   9. "Suppress pagination" at a query's page prompt behaves like NO.PAGE
+#      (RELEASE_1.1 28): at TERM 80,12, LIST ONLY VOC NO.PAGE is the control
+#      (one heading, no prompt); LIST ONLY VOC answered S at its first prompt
+#      must list the same count with no clear-screen and no heading after the
+#      prompt.  Ported from verify-pagesuppress.ps1 (git show 3776c66:...).
+#  10. the daemon runs on a standard token: Medium integrity, Administrators
 #      deny-only or absent                                         (ruling 16)
 # Not measured here, because they need hands or another machine: ssh landing in
 # sd, SD starting at boot with nobody signed in, remote access while signed out.
@@ -167,7 +172,8 @@ function Invoke-Sd([string]$Label, [string]$SdArgs, [string]$InputText, [string]
         try { $text = (New-Object IO.StreamReader($fs, [Text.Encoding]::GetEncoding(28591))).ReadToEnd() } finally { $fs.Close() }
     }
     $text = Mask ($text -replace "`r", '')
-    foreach ($l in ($text -split "`n")) { if ($l.Trim()) { Say ('    | ' + $l) } }
+    # ESC shown as ^[ - printed raw, a session's clear-screen clears this console.
+    foreach ($l in ($text -split "`n")) { if ($l.Trim()) { Say ('    | ' + ($l -replace [char]27, '^[')) } }
     return $text
 }
 
@@ -616,7 +622,48 @@ try {
 
     # -----------------------------------------------------------------------
     Say ''
-    Say '== 9. the daemon runs on a standard token'
+    Say '== 9. "Suppress pagination" at a page prompt behaves like NO.PAGE'
+    # Decisive rows count only what follows the first prompt: the sign-on and a
+    # paginated LIST's page 1 clear the screen whatever S does (measured
+    # 13 Sep 2026).  A heading repeats the sentence; the gap before "Page" is
+    # spaces only, so the echoed command line cannot match.
+    $esc = [char]27
+    $clear = "$esc[H$esc[J"
+    $heading = 'LIST ONLY VOC(?: NO\.PAGE)? {2,}Page +\d+'
+    $measure = {
+        param([string]$t)
+        $pi = $t.IndexOf('Action (')
+        $tail = $(if ($pi -ge 0) { $t.Substring($pi) } else { '' })
+        $m = [regex]::Match($t, '(\d+) record\(s\) listed')
+        return @{ Clears = [regex]::Matches($t, [regex]::Escape($clear)).Count
+                  ClearsAfter = [regex]::Matches($tail, [regex]::Escape($clear)).Count
+                  Headings = [regex]::Matches($t, $heading).Count
+                  HeadingsAfter = [regex]::Matches($tail, $heading).Count
+                  Prompts = [regex]::Matches($t, [regex]::Escape('Action (')).Count
+                  Listed = $(if ($m.Success) { [int]$m.Groups[1].Value } else { -1 }) }
+    }
+    $t = Invoke-Sd 'page-control' '' ($acctPw + "`nTERM 80,12`nLIST ONLY VOC NO.PAGE`nOFF`n") 'the account password, TERM 80,12, LIST ONLY VOC NO.PAGE, OFF'
+    $a = & $measure $t
+    Say ('    control: listed ' + $a.Listed + ', clear-screens ' + $a.Clears + ', headings ' + $a.Headings + ', prompts ' + $a.Prompts)
+    $ctlOk = ($a.Listed -ge 40 -and $a.Prompts -eq 0)
+    Check 'CONTROL: NO.PAGE listed a multi-page report without a prompt' $ctlOk ('listed ' + $a.Listed + ' (want 40 or more), prompts ' + $a.Prompts + ' (want 0)')
+    if ($ctlOk) {
+        # keycode() takes the S alone; the newline after it reaches TCL as an
+        # empty command, which is harmless.
+        $t = Invoke-Sd 'page-suppress' '' ($acctPw + "`nTERM 80,12`nLIST ONLY VOC`nS`nOFF`n") 'the account password, TERM 80,12, LIST ONLY VOC, S, OFF'
+        $b = & $measure $t
+        Say ('    S leg  : listed ' + $b.Listed + ', clear-screens ' + $b.Clears + ' (' + $b.ClearsAfter + ' after the prompt), headings ' + $b.Headings + ' (' + $b.HeadingsAfter + ' after), prompts ' + $b.Prompts)
+        Check 'the page prompt was reached exactly once' ($b.Prompts -eq 1) ('' + $b.Prompts + ' prompt(s): 0 means S was never offered, more than 1 means S did not stop the prompts')
+        Check 'the S leg listed every record the control listed' ($b.Listed -eq $a.Listed) ('S leg ' + $b.Listed + ', control ' + $a.Listed)
+        Check 'CONTROL: NO.PAGE draws the heading once' ($a.Headings -eq 1) ('NO.PAGE drew ' + $a.Headings)
+        Check 'page 1 was drawn before the prompt' (($b.Headings - $b.HeadingsAfter) -eq 1) ('' + ($b.Headings - $b.HeadingsAfter) + ' heading(s) before the prompt')
+        Check 'after S, no further page headings' ($b.HeadingsAfter -eq 0) ('' + $b.HeadingsAfter + ' after S')
+        Check 'after S, no further clear-screens' ($b.ClearsAfter -eq 0) ('' + $b.ClearsAfter + ' after S - a terminal would show only the last page')
+    }
+
+    # -----------------------------------------------------------------------
+    Say ''
+    Say '== 10. the daemon runs on a standard token'
     $winds = @(Get-Process -Name sdwind -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $WindExe })
     Say ('    sdwind.exe from this tree: ' + $winds.Count)
     Check 'the daemon is still running after the legs' ($winds.Count -ge 1) 'no sdwind.exe from this tree'
