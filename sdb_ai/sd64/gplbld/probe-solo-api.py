@@ -83,6 +83,7 @@ def scram(password, commands):
     print('\n    $ %s   [SD_SCRAM_PASSWORD from the environment, not shown]' % ' '.join(cmd))
     env = dict(os.environ)
     env['SD_SCRAM_PASSWORD'] = password
+    env['PYTHONIOENCODING'] = 'utf-8'   # session output is not always cp1252
     r = subprocess.run(cmd, env=env, capture_output=True, timeout=90)
     out = (r.stdout + r.stderr).decode('latin-1').replace('\r', '')
     show(out)
@@ -130,6 +131,35 @@ try:
     out = sd_in(['-N', '-H'], 'WHO\n')
     verdict('refused as unrecognised', "unrecognised argument '-h'" in out.lower(), "Unrecognised argument '-H'")
     verdict('and served nothing', not any(l.startswith('1 ') for l in lines(out)) and ACCDIR.lower() not in lines(out), 'no WHO/WHERE answer')
+
+    print('\n== 4. the operating system from an API session (SOLO 3 step 5 E)')
+    # WHOSE TOKEN.  PowerShell's own answers, NOT whoami.exe: in a session of
+    # the staged tree a native .exe run from SH prints nothing, and in a pipe
+    # PowerShell calls it "a document" (measured 26 Sep, pre-existing, not
+    # this change's).  So: the token's name, and whether Administrators is
+    # ENABLED in it (IsInRole(544) is False when it is deny-only or absent).
+    # The integrity level is not readable this way and is not claimed here -
+    # ruling 16's own witness read the daemon at Medium (SOLO 3).
+    out = scram(PW, ['SH Write-Output ("TOKEN-NAME " + [Security.Principal.WindowsIdentity]::GetCurrent().Name)',
+                     'SH Write-Output ("TOKEN-ADMIN " + ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(544))'])
+    L = lines(out)
+    me = (os.environ.get('USERNAME', '') or getpass.getuser()).strip().lower()
+    names = [l for l in L if 'token-name ' in l]
+    print('  expected user %r; token lines %r' % (me, names + [l for l in L if 'token-admin ' in l]))
+    verdict('SH over the API runs as the user', any(l.endswith(chr(92) + me) for l in names), 'TOKEN-NAME <domain>\\%s' % me)
+    verdict('with Administrators not enabled', any(l.endswith('token-admin false') for l in L), 'TOKEN-ADMIN False')
+    # A USER PROGRAM'S OS.EXECUTE, the path op_sh.c's socket exception gates.
+    src = '\n'.join(["os.execute 'Write-Output (\"OSX-RAN-\" + $env:USERNAME)' capturing o",
+                     'crt "OSX " : change(o, @fm, " | ")', 'end', ''])
+    with open(os.path.join(ACCDIR, 'bp', 'probeosx'), 'w', encoding='ascii', newline='\n') as f:
+        f.write(src)
+    out = sd_in(['BASIC', 'bp', 'probeosx'], PW + '\n')
+    verdict('test program compiles', '0 error(s)' in lines(out), "want '0 error(s)'")
+    out = scram(PW, ['RUN bp probeosx'])
+    # scram-probe prints each response line as "| <line>".
+    verdict('OS.EXECUTE from a user program over the API runs', any(l.startswith('| osx osx-ran-') for l in lines(out)) and 'not permitted' not in out.lower(), "a line '| OSX OSX-RAN-...', no 10054")
+    out = sd_in(['RUN', 'bp', 'probeosx'], PW + '\n')
+    verdict('CONTROL: the same program runs locally', any(l.startswith('osx osx-ran-') for l in lines(out)), "a line 'OSX OSX-RAN-<user>'")
 finally:
     B.sd(SDEXE, ENV, ['-stop'], expect_fail=True)
 

@@ -12,6 +12,8 @@
  * GNU General Public License for more details.
  *
  * START-HISTORY:
+ * 26 Sep 26 SD Core Solo - SOLO 3 step 5: the control channel section is
+ *           gone; the relay has two handles again (<net> <sp> <timeout>).
  * 25 Sep 26 SD Core Solo - SOLO 3, ruling 20: SD_RELAY_ACCOUNT is gone and
  *           win32_relay_spawn() takes no account; win32_admin_only() is
  *           win32_owner_only(), which also admits this process's own user.
@@ -148,76 +150,19 @@ int win32_owner_only(const char* path, char* why, size_t whylen);
 #define SD_RELAY_EXIT_BINDING   5
 #define SD_RELAY_EXIT_USAGE     6    /* bad argv or handles: a bug, not a peer */
 
-/* ---- The front <-> relay CONTROL channel (RELEASE_1.1 55) ------------- */
-
-/* A SECOND socketpair, made by sd before the spawn and inherited by the relay
-   beside the connection and the app-side pair.  The app-side pair is the
-   session's byte stream and has to stay one - a word said IN it would be a
-   word the client could say too.  The handover needs exactly one word said
-   out of band, so it gets a channel of its own.
-
-   WHAT IT IS FOR.  55 spawns the authenticated session AS the user and takes
-   the LocalSystem front out of the data path, so the relay must move its app
-   side from the front's socketpair to a pipe the session holds.  The relay is
-   the pipe's SERVER: it outlives the front, and a pipe instance dies with its
-   last server handle.  Only the front knows, after SCRAM, that there is going
-   to be a session at all - hence one message each way:
-
-     front -> relay   SD_RELAY_CTL_PIPE, payload the pipe's name, a NUL, and
-                      the SID (SDDL text) that may open the CLIENT end.
-                      "Create this as a single-instance server, let that one
-                      party in, and be ready to cut over to it."
-     relay -> front   SD_RELAY_CTL_READY, empty payload: it exists, open the
-                      client end now.  Or SD_RELAY_CTL_FAILED with the reason
-                      as text, and the front fails the login CLOSED rather
-                      than handing the session a pipe nothing is listening on.
-
-   The CUTOVER itself needs no message: the front closes its app-side
-   descriptors gracefully when it has finished with them, and that EOF is the
-   signal (gplbld/probe-relaycutover.c measured it, and measured that a
-   forcible close instead makes the far side read ECOMM, not EOF).
-
-   FRAMING is the refusal frame's, both ways and in both processes: one opcode
-   byte, a u16 big-endian length, then that many bytes.  Uniform, so an empty
-   payload is a length of zero rather than a special case. */
-#define SD_RELAY_CTL_PIPE       1    /* front -> relay */
-#define SD_RELAY_CTL_READY      2    /* relay -> front */
-#define SD_RELAY_CTL_FAILED     3    /* relay -> front */
-#define SD_RELAY_CTL_MAX      512    /* longest payload either way */
-
-/* The handover pipe's name begins with this and the relay refuses one that
-   does not - the front is the only writer on the control channel, so this is
-   a bound on a bug rather than on an attacker, and it also refuses the empty
-   name that a truncated frame would otherwise present as a valid one. */
-#define SD_RELAY_PIPE_PREFIX  "\\\\.\\pipe\\sd-api-"
-
-/* WHY THE SID TRAVELS RATHER THAN BEING "SY" IN THE RELAY.  The only party
-   that opens the client end is the front, and the front is LocalSystem, so
-   the relay COULD assume it.  It reads the SID out of its own token instead
-   and sends it, for two reasons: an assumption that is never checked is one
-   nothing reports when it stops holding, and a hard-coded SY makes the
-   handover reachable only by a test running as LocalSystem - so the cutover
-   would have had no free guard at all.  The relay validates the SID parses
-   before it reaches the DACL. */
-int win32_my_sid(char* out, size_t outlen, char* why, size_t whylen);
-
-/* sd_tlssrv.c, the front's half.  Have the relay stand up the handover pipe
-   and wait for its answer; non-zero when the pipe exists and the client end
-   may be opened, with pipename filled in, zero with why when it does not.
-   Called once, by the handover, after SCRAM has named the user.  The NAME IS
-   MADE THERE rather than passed in - see the function.  Refuses in a session
-   that has no control channel: there is no such thing as a handover that
-   quietly did nothing. */
-int sd_tls_relay_pipe(char* pipename, size_t namelen, int timeout_ms,
-                      char* why, size_t whylen);
+/* 26 Sep 26 SD Core Solo - SOLO 3 step 5: the front <-> relay CONTROL
+   channel (RELEASE_1.1 55: SD_RELAY_CTL_*, the handover pipe, win32_my_sid,
+   sd_tls_relay_pipe) is gone.  It existed to hand an authenticated
+   connection to a session spawned as the user; a Solo front already is the
+   user and serves the session itself, so the relay has one other end. */
 
 /* win32relay.c (windows.h, no SD header).  Restrict a copy of our own token
    (SD Core Solo, ruling 20: restricting SIDs, no privileges, Low), and start
-   exe (beside sd.exe) with the three Cygwin descriptors as its only inherited
+   exe (beside sd.exe) with the two Cygwin descriptors as its only inherited
    handles.  Non-zero on success, with *proc an opaque handle for
    win32_relay_exit_code(); zero with why on failure.  The relay's argv is:
-     <net handle> <sp handle> <control handle> <timeout ms>.               */
-int win32_relay_spawn(int net_fd, int sp_fd, int ctl_fd, int timeout_ms,
+     <net handle> <sp handle> <timeout ms>.                                */
+int win32_relay_spawn(int net_fd, int sp_fd, int timeout_ms,
                       void** proc, char* why, size_t whylen);
 /* The exit code if the relay has ended, or -1 while it runs; releases the
    handle either way (the caller asks once, at the end of the preamble).     */

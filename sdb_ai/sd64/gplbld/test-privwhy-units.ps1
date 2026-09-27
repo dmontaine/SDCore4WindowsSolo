@@ -194,8 +194,15 @@ if ($null -ne $permBody) {
 }
 Check 'os_user_permitted() does NOT test HDR_INTERNAL (the test that admits every PY_* caller)' $false `
       (($null -ne $osBody) -and ($osBody -match 'HDR_INTERNAL'))
-Check 'os_user_permitted() keeps the USR_ADMIN test (an administrator always may)' $true `
-      (($null -ne $osBody) -and ($osBody -match 'USR_ADMIN'))
+# 26 Sep 26 SD Core Solo - SOLO 3 step 5.  Was "keeps the USR_ADMIN test (an
+# administrator always may)", the multi-user rule; in Solo the one user always
+# may (SOLO 4), and the last exception - a socket session, whose test was the
+# USR_ADMIN one - was lifted once an API session was witnessed running as the
+# user (gplbld/probe-solo-api.py).
+Check 'os_user_permitted() answers TRUE (Solo: the one user may)' $true `
+      (($null -ne $osBody) -and ($osBody -match 'return\s+TRUE\s*;'))
+Check 'os_user_permitted() no longer excepts a socket session' $false `
+      (($null -ne $osBody) -and ($osBody -match 'CN_SOCKET'))
 
 $wrapBody = Get-Body $shText 'bool sd_os_permitted(PRIV_WHY* why) {'
 Check 'sd_os_permitted() body was found' $true ($null -ne $wrapBody)

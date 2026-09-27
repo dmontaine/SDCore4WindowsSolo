@@ -1,7 +1,7 @@
 /* WIN32RELAY.C
  * Native Windows half of the API's TLS relay: start sdtlsrelay.exe on a
  * restricted copy of this process's own token, at Low integrity, with exactly
- * three inherited handles.
+ * two inherited handles.
  * Copyright (c) String Database
  *
  * This program is free software; you can redistribute it and/or modify
@@ -15,6 +15,8 @@
  * GNU General Public License for more details.
  *
  * START-HISTORY:
+ * 26 Sep 26 SD Core Solo - SOLO 3 step 5: the third (control) handle and
+ *           win32_my_sid() are gone with the handover; two handles again.
  * 25 Sep 26 SD Core Solo - SOLO 3, ruling 20: the relay's token is a
  *           RESTRICTED COPY OF OUR OWN, not an S4U logon of sdrelay - Solo's
  *           daemon is the user at a standard token and holds no SeTcb.  No
@@ -29,8 +31,8 @@
  *
  * START-DESCRIPTION:
  *
- * This file includes windows.h and NO SD header, as win32tls.c, win32s4u.c
- * and win32sem.c do and for the same reason.  Its interface is in sd_tls.h
+ * This file includes windows.h and NO SD header, as win32tls.c and
+ * win32sem.c do and for the same reason.  Its interface is in sd_tls.h
  * with no Windows type in it; sd_tlssrv.c calls it with Cygwin descriptors.
  *
  * THE DROP, IN ORDER (SD Core Solo, ruling 20).  The relay parses an
@@ -59,9 +61,9 @@
  * restricting SIDs 3; test-tlsrelay-units.py's TLS rows all pass (handshake,
  * binding equal to the client's exporter, 256 KB both ways, refusals); READ
  * DENIED on the user's sd.conf, $cred\$ADMIN and .ssh; System32 readable.
- * RESTRICTED alone as the list kills the relay (0xC0000409).  ONE THING IT
- * CANNOT DO: create the multi-user handover pipe (error 5) - Solo has no
- * handover (docs/SOLO_API.md), so nothing asks it to.
+ * RESTRICTED alone as the list kills the relay (0xC0000409).  (It could not
+ * create the multi-user handover pipe either - error 5 - and that code is
+ * gone: Solo has no handover, SOLO 3 step 5.)
  *
  * NO ENVIRONMENT BLOCK, AND System32 AS THE WORKING DIRECTORY.  The child
  * inherits sd's environment (the same user's), and a working directory in
@@ -75,7 +77,7 @@
  * relay - and a socket with a live handle in another process does not close.
  * In that probe's first run the relay had inherited the client's own end,
  * and the client's close never reached sd.  PROC_THREAD_ATTRIBUTE_HANDLE_LIST
- * names the three the relay may have, and nothing else crosses.
+ * names the two the relay may have, and nothing else crosses.
  *
  * WHERE THE RELAY IS: beside sd.exe, from GetModuleFileName - the native
  * answer exepath.c's header names.  exe_directory() is not used because it
@@ -96,10 +98,9 @@
 #include <string.h>
 
 /* Declared in sd_tls.h; repeated so this file includes no SD header. */
-int win32_relay_spawn(int net_fd, int sp_fd, int ctl_fd, int timeout_ms,
+int win32_relay_spawn(int net_fd, int sp_fd, int timeout_ms,
                       void** proc, char* why, size_t whylen);
 int win32_relay_exit_code(void* proc, int wait_ms);
-int win32_my_sid(char* out, size_t outlen, char* why, size_t whylen);
 
 #define RELAY_EXE_NAME "sdtlsrelay.exe"        /* SD_RELAY_EXE in sd_tls.h */
 
@@ -297,7 +298,7 @@ static int dup_inheritable(HANDLE h, HANDLE* out, const char* what, char* why,
 /* ======================================================================
    win32_relay_spawn()                                                    */
 
-int win32_relay_spawn(int net_fd, int sp_fd, int ctl_fd, int timeout_ms,
+int win32_relay_spawn(int net_fd, int sp_fd, int timeout_ms,
                       void** proc, char* why, size_t whylen) {
   char dir[MAX_PATH];
   char sysdir[MAX_PATH];
@@ -306,11 +307,9 @@ int win32_relay_spawn(int net_fd, int sp_fd, int ctl_fd, int timeout_ms,
   HANDLE prim = NULL;
   HANDLE net = INVALID_HANDLE_VALUE;
   HANDLE sp = INVALID_HANDLE_VALUE;
-  HANDLE ctl = INVALID_HANDLE_VALUE;
   HANDLE netInh = NULL;
   HANDLE spInh = NULL;
-  HANDLE ctlInh = NULL;
-  HANDLE list[3];
+  HANDLE list[2];
   STARTUPINFOEXA six;
   PROCESS_INFORMATION pi;
   SIZE_T alen = 0;
@@ -329,12 +328,9 @@ int win32_relay_spawn(int net_fd, int sp_fd, int ctl_fd, int timeout_ms,
 
   net = (HANDLE)_get_osfhandle(net_fd);
   sp = (HANDLE)_get_osfhandle(sp_fd);
-  ctl = (HANDLE)_get_osfhandle(ctl_fd);
-  if (net == INVALID_HANDLE_VALUE || sp == INVALID_HANDLE_VALUE ||
-      ctl == INVALID_HANDLE_VALUE) {
-    snprintf(why, whylen,
-             "no Windows handle behind descriptor %d, %d or %d", net_fd, sp_fd,
-             ctl_fd);
+  if (net == INVALID_HANDLE_VALUE || sp == INVALID_HANDLE_VALUE) {
+    snprintf(why, whylen, "no Windows handle behind descriptor %d or %d",
+             net_fd, sp_fd);
     return 0;
   }
 
@@ -343,15 +339,13 @@ int win32_relay_spawn(int net_fd, int sp_fd, int ctl_fd, int timeout_ms,
   if (prim == NULL)
     return 0;
 
-  /* The three handles, and ONLY the three (description block). */
+  /* The two handles, and ONLY the two (description block). */
   if (!dup_inheritable(net, &netInh, "DuplicateHandle(connection)", why,
                        whylen) ||
-      !dup_inheritable(sp, &spInh, "DuplicateHandle(socketpair)", why, whylen) ||
-      !dup_inheritable(ctl, &ctlInh, "DuplicateHandle(control)", why, whylen))
+      !dup_inheritable(sp, &spInh, "DuplicateHandle(socketpair)", why, whylen))
     goto done;
   list[0] = netInh;
   list[1] = spInh;
-  list[2] = ctlInh;
 
   InitializeProcThreadAttributeList(NULL, 1, 0, &alen);
   six.lpAttributeList =
@@ -367,10 +361,9 @@ int win32_relay_spawn(int net_fd, int sp_fd, int ctl_fd, int timeout_ms,
   six.StartupInfo.cb = sizeof(six);
   /* lpDesktop left NULL - inherited (description block). */
 
-  snprintf(cmd, sizeof(cmd), "\"%s\" %llu %llu %llu %d", exe,
+  snprintf(cmd, sizeof(cmd), "\"%s\" %llu %llu %d", exe,
            (unsigned long long)(uintptr_t)netInh,
-           (unsigned long long)(uintptr_t)spInh,
-           (unsigned long long)(uintptr_t)ctlInh, timeout_ms);
+           (unsigned long long)(uintptr_t)spInh, timeout_ms);
 
   /* 5.  Environment inherited (NULL): sd's own, the same user's. */
   if (!CreateProcessAsUserA(prim, exe, cmd, NULL, NULL, TRUE,
@@ -390,49 +383,12 @@ done:
     CloseHandle(netInh);
   if (spInh)
     CloseHandle(spInh);
-  if (ctlInh)
-    CloseHandle(ctlInh);
   if (six.lpAttributeList) {
     DeleteProcThreadAttributeList(six.lpAttributeList);
     HeapFree(GetProcessHeap(), 0, six.lpAttributeList);
   }
   if (prim)
     CloseHandle(prim);
-  return ok;
-}
-
-/* ======================================================================
-   win32_my_sid()  -  this process's own user SID, as SDDL text
-
-   RELEASE_1.1 55.  The front tells the relay which SID may open the handover
-   pipe's client end, and the answer is the front's own: it is the only party
-   that opens it, and it then hands the HANDLE to the session it spawned,
-   which is not an access check.  Read rather than assumed - see sd_tls.h. */
-
-int win32_my_sid(char* out, size_t outlen, char* why, size_t whylen) {
-  HANDLE tok = NULL;
-  BYTE buf[1024];
-  DWORD len = 0;
-  char* text = NULL;
-  int ok = 0;
-
-  if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &tok)) {
-    win_error("OpenProcessToken", why, whylen);
-    return 0;
-  }
-  if (!GetTokenInformation(tok, TokenUser, buf, sizeof(buf), &len)) {
-    win_error("GetTokenInformation(TokenUser)", why, whylen);
-  } else if (!ConvertSidToStringSidA(((TOKEN_USER*)buf)->User.Sid, &text)) {
-    win_error("ConvertSidToStringSid", why, whylen);
-  } else if (strlen(text) >= outlen) {
-    snprintf(why, whylen, "no room for the SID %s", text);
-  } else {
-    strcpy(out, text);
-    ok = 1;
-  }
-  if (text)
-    LocalFree(text);
-  CloseHandle(tok);
   return ok;
 }
 

@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 26 Sep 26 SD Core Solo - SOLO 3 step 5: the socket-session exception is
+ *           lifted; an API session is the user and may reach the OS.
  * 25 Sep 26 SD Core Solo - SOLO 4: os.users is gone; the one user may reach
  *           the OS (a socket session excepted until SOLO 3)
  * 17 Sep 26 Windows port - sd_powershell_path() lifted out of sh_execute()
@@ -239,13 +241,11 @@ Private bool os_user_permitted(PRIV_WHY* why) {
      operating system is theirs already (PROJECT_STATUS.md, "WHAT SD CORE SOLO
      IS").  The multi-user record read is in sd4windows' history.
 
-     EXCEPT A SOCKET SESSION, FOR NOW.  Until SOLO 3 moves the daemon off the
-     multi-user wiring, an API session's process can still carry the
-     daemon's token rather than the user's (kernel.c's 21 Aug note), so it
-     keeps the old answer for an unlisted user: no.  SOLO 3 removes this.  */
-  if (connection_type == CN_SOCKET)
-    return ((my_uptr->flags & USR_ADMIN) != 0);
-
+     26 Sep 26 SD Core Solo - SOLO 3 step 5: AN API SESSION MAY TOO.  The
+     socket exception that stood here kept a LocalSystem API session off the
+     OS; a Solo API session is the user (witnessed before this was lifted:
+     SH over the API reported the user's own token name, with Administrators
+     not enabled - gplbld/probe-solo-api.py), so it gets the same answer.  */
   return TRUE;
 }
 
