@@ -241,16 +241,11 @@ WRITERS = {
     "probe-solo-dpapi.py": "os.path.join(SDSYS, '$internal')",
     "probe-solo-rename.py": "os.path.join(SDSYS, '$internal')",
     "probe-solo-api.py": "os.path.join(SDSYS, '$internal')",
-    "sdsys-seat.ps1": "Set-SdInternalMarker",
-    "verify-accountrules.ps1": "Set-SdInternalMarker",
-    "verify-createfilecase.ps1": "Set-SdInternalMarker",
-    "verify-deadlock.ps1": "Set-SdInternalMarker",
-    "verify-realupgrade.ps1": "Set-SdInternalMarker",
+    # 26 Sep 26 - SOLO 9: sdsys-seat.ps1 and the verify-* writers deleted.
 }
 NON_WRITERS = {
-    # gplbld/verify-internalgate.ps1 STARTS internal sessions with and WITHOUT a marker on purpose
-    # (legs A, C and D measure the refusal), so it controls the marker explicitly, leg by leg.
-    "verify-internalgate.ps1": "the witness controls the marker itself; legs A, C, D need it absent",
+    # 26 Sep 26 - SOLO 9: verify-internalgate.ps1 (the witness that started sessions with and
+    # without a marker) is deleted.  probe-solo-stage.py's door leg now measures the refusal.
 }
 # gplsrc/sd.c is outside gplbld and holds the "-INTERNAL" argument PARSER, not a session start.
 
@@ -317,16 +312,8 @@ gone.pop("bootstrap.py", None)
 row(any("bootstrap.py" in x and "stale" in x for x in partition_problems(gone)),
     "MUTANT: a declaration that no longer matches a session start is caught (stale declaration)")
 
-# the seat's callers: anything using the seat's -Internal switch is covered by the seat's writer
-seat_users = []
-for name in sorted(os.listdir(HERE)):
-    if name.startswith("test-") or not name.endswith(".ps1"):
-        continue
-    if re.search(r"(Invoke-SdSeatText|Invoke-SdViaSeat|Assert-SdSeat)[^\n]*-Internal", read(os.path.join(HERE, name))):
-        seat_users.append(name)
-row(len(seat_users) >= 4 and "sdsys-seat.ps1" in WRITERS,
-    "the seat's -Internal callers are covered by the seat's own writer (%d scripts)" % len(seat_users),
-    ", ".join(seat_users))
+# 26 Sep 26 - SOLO 9: the seat-callers row went with sdsys-seat.ps1.  A NEW caller of an
+# SDSYS seat would still have to be declared above, like any other internal session start.
 
 # ---------------------------------------------------------------------------
 # 3. the contract between the gate and every writer
@@ -335,18 +322,12 @@ print("")
 print("== 3. the contract: file name, first line, encoding, and the strings the witness asserts")
 marker_ps1 = read(os.path.join(HERE, "internal-marker.ps1"))
 bootstrap = read(os.path.join(HERE, "bootstrap.py"))
-witness = read(os.path.join(HERE, "verify-internalgate.ps1"))
 row("'$internal'" in marker_ps1 and "'$internal'" in bootstrap, "the writers name the file $internal, as LOGIN does")
 row("UTF8Encoding($false)" in marker_ps1, "the PowerShell writer is UTF-8 WITHOUT a BOM (LOGIN reads line 1 with READSEQ)")
 row("encoding='ascii'" in bootstrap and "pid=%d" in bootstrap, "the Python writer is ASCII and writes 'pid='")
 row("pid={1}" in marker_ps1, "the PowerShell writer writes 'pid='")
-row(("messages" + chr(92) + "12000") in witness and "ANNOUNCED" in witness,
-    "the witness reads message 12000 from the install and scores the announcement (R4)")
-for phrase in ("no internal marker", "the internal marker had expired", "INTERNAL SESSION ADMITTED account=SDSYS"):
-    row(phrase in witness, "the witness (verify-internalgate.ps1) asserts the exact audit wording: " + phrase)
-code_only = "\n".join(ln for ln in witness.splitlines() if not ln.lstrip().startswith("#"))
-row(("messages" + chr(92) + "5024") in code_only and "$termText" in code_only and "Connection terminated" not in code_only,
-    "the witness reads the refusal text from message 5024 (in its code, not just its comments) rather than typing it")
+# 26 Sep 26 - SOLO 9: the rows over verify-internalgate.ps1's assertions (message 12000,
+# the audit wording, message 5024) went with that witness.
 
 # the shipped scripts find the helper beside them: it must be staged with them
 stage = read(os.path.join(HERE, "stage.py"))

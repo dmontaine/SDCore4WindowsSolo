@@ -42,8 +42,10 @@ $NeedsBuild = @{
 $all = @(Get-ChildItem -LiteralPath $G -File |
          Where-Object { $_.Name -match '^test-.*-units\.(ps1|py)$' } | Sort-Object Name)
 $tests = @($all | Where-Object { -not $NeedsBuild.ContainsKey($_.Name) })
-if ($tests.Count -lt 40) {
-    Write-Host ("REFUSED: only {0} test-*-units files under {1}; expected well over 40." -f $tests.Count, $G)
+# 26 Sep 26 SD Core Solo - SOLO 9: was 40; the guards over the deleted
+# multi-user suite went with it (36 left).  Still refuses an empty directory.
+if ($tests.Count -lt 20) {
+    Write-Host ("REFUSED: only {0} test-*-units files under {1}; expected well over 20." -f $tests.Count, $G)
     exit 2
 }
 if ($Only.Count -gt 0) {

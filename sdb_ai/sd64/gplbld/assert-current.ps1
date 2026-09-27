@@ -197,20 +197,22 @@ Note ("  installed at: {0}" -f $installed.ToString('dd MMM HH:mm:ss'))
 # that were exempt became watched, and nine probe .c files that were watched
 # (and so could have raised a false stale) became exempt.
 $harnessFamily = '^(verify|test|probe|check|clean)-'
+# 26 Sep 26 SD Core Solo - SOLO 9: the deleted suite's names are out of this list
+# (VerifyInstall1/2, suite-only, elevate-once, sdtestuser*, sdsys-seat/-run,
+# interop-account, stage-apiremote, apiadminprobe/apiosexecprobe.sb, testsdcli.bp,
+# relay-hold.py).
 $neverShipped = @(
-    # suite runners and guards
-    'VerifyInstall1.ps1', 'VerifyInstall2.ps1', 'assert-current.ps1', 'cycle.ps1',
-    'stale-binaries.ps1', 'strip-comments.ps1', 'suite-only.ps1', 'transcript-whole.ps1',
-    'elevate-once.ps1', 'diff-capture.ps1', 'capture-state.ps1',
-    # helpers the harness dot-sources or drives
-    'sdtestuser.ps1', 'sdtestuser-admin.ps1', 'sdsys-seat.ps1', 'sdsys-run.ps1',
-    'interop-account.ps1', 'stage-apiremote.ps1', 'python-detect.ps1',
+    # runners and guards
+    'assert-current.ps1', 'cycle.ps1',
+    'stale-binaries.ps1', 'strip-comments.ps1', 'transcript-whole.ps1',
+    'diff-capture.ps1', 'capture-state.ps1',
+    # helpers the harness drives
+    'python-detect.ps1',
     # generators and build tools that run from source
     'build-sdpy.ps1', 'build-sdpyclient.ps1', 'gen_includes.py', 'mkbasicsyntax.py',
     'mkvocdoc.py', 'checksyntax.py', 'scan-msgdiff.py', 'reword-yn-prompts.ps1',
     # fixtures and measurement stubs without the probe- prefix
-    'apiadminprobe.sb', 'apiosexecprobe.sb', 'basicfuncs.sb', 'testsdcli.bp',
-    'relay-hold.py', 'sample-sdstate.ps1', 'scram-probe.py',
+    'basicfuncs.sb', 'sample-sdstate.ps1', 'scram-probe.py',
     'internal-state-test.exe', 'smoke-test.exe', 'sdpy.exe',
     # VM rig and mailbox
     'vm-clone.ps1', 'vm-shares.ps1', 'vm-type.ps1', 'mail.sh')

@@ -184,16 +184,19 @@ Write-Output ''
 Write-Output '== the live tree'
 $files = @(Get-ChildItem -LiteralPath $Gplbld -Filter '*.ps1' -File | Where-Object { $_.Name -notlike 'test-*' } | Sort-Object Name)
 Write-Output ('  scripts scanned : ' + $files.Count)
-if ($files.Count -lt 100) { Write-Output 'REFUSED: fewer than 100 scripts - the directory is wrong.'; exit 2 }
+# 26 Sep 26 - SOLO 9: was 100; the multi-user suite was deleted.
+if ($files.Count -lt 30) { Write-Output 'REFUSED: fewer than 30 scripts - the directory is wrong.'; exit 2 }
 
 $all = @()
 foreach ($f in $files) { $all += @(Find-Generators ([IO.File]::ReadAllText($f.FullName)) $f.Name) }
 $byShape = @{}; foreach ($g in $all) { $byShape[$g.Shape] = 1 + [int]$byShape[$g.Shape] }
 Write-Output ('  generators found: ' + $all.Count + '   (' + (($byShape.Keys | Sort-Object | ForEach-Object { $_ + '=' + $byShape[$_] }) -join ', ') + ')')
-Check 'the finder found generators at all (>= 25 in the tree as measured 20 Sep 2026)' ($all.Count -ge 25) ("found " + $all.Count + ' - a finder that finds nothing passes everything')
-foreach ($s in 'GeneratePassword', 'base64-alnum', 'guid') {
-    Check ("the finder found at least one '" + $s + "' generator") ([int]$byShape[$s] -ge 1) 'a shape vanished, so its check is vacuous'
-}
+# 26 Sep 26 SD Core Solo - SOLO 9.  Was ">= 25 generators" and "at least one of
+# each shape": nearly every generator was in the multi-user verify suite, which
+# is deleted (1 left).  The CONTROL rows above drive each shape through the
+# finder on synthetic text, so a live-tree count is no longer what proves the
+# finder works; what remains here is that it still finds the one left.
+Check 'the finder found generators at all (>= 1 in the tree, 26 Sep 2026)' ($all.Count -ge 1) ("found " + $all.Count + ' - a finder that finds nothing passes everything')
 
 $weak = @()
 foreach ($g in $all) {

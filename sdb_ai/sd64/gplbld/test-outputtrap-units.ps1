@@ -127,7 +127,9 @@ foreach ($f in $files) {
     foreach ($h in $r.Hits) { $bad += ($f.Name + ':' + $h) }
 }
 # THE NULL CASE, refused out loud: a scan that looked at nothing must not read as "no hits".
-Check ("CONTROL: the scan really read the harness ({0} scripts, {1} functions)" -f $scanned, $fnCount) (($scanned -gt 100) -and ($fnCount -gt 200)) "scanned=$scanned functions=$fnCount"
+# 26 Sep 26 - SOLO 9: was > 100 scripts / > 200 functions; the multi-user suite
+# (about 90 scripts) was deleted, so the null-case floor drops with it.
+Check ("CONTROL: the scan really read the harness ({0} scripts, {1} functions)" -f $scanned, $fnCount) (($scanned -gt 30) -and ($fnCount -gt 60)) "scanned=$scanned functions=$fnCount"
 Check 'every script parsed (a file the parser could not read was not scanned)' ($unparsed.Count -eq 0) ($unparsed -join ', ')
 Check 'NO function in the harness prints with Write-Output AND returns a value' ($bad.Count -eq 0) ($bad -join ' | ')
 
