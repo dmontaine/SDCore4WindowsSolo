@@ -97,6 +97,8 @@ function Skip([string]$Label, [string]$Why) {
     Say ('  SKIP  ' + $Label + '   (' + $Why + ')'); $script:skips += $Label
 }
 function Refuse([string]$Why) {
+    if ($script:oldInEnc) { try { [Console]::InputEncoding = $script:oldInEnc } catch { } }
+    Remove-Item -LiteralPath $Work -Recurse -Force -ErrorAction SilentlyContinue
     Say ('REFUSED: ' + $Why)
     Say 'VERDICT: REFUSED - nothing was measured'
     Save-Log
@@ -346,11 +348,32 @@ do { $wrongPw = 'zz-Not-The-Password-' + (Get-Random -Minimum 100000 -Maximum 99
 $script:secrets = @($acctPw, $adminPw, $globalPw, $wrongPw) | Where-Object { $_ }
 Say ('  account ' + $acctPw.Length + ' characters, administrator ' + $adminPw.Length + $(if ($managed) { ', global ' + $globalPw.Length } else { '' }) + '; the wrong one is generated')
 
-$oldInEnc = [Console]::InputEncoding
+$script:oldInEnc = [Console]::InputEncoding
 New-Item -ItemType Directory -Force -Path $Work | Out-Null
+# A preamble-free input encoding BEFORE any sd starts (the BOM trap).
+try { [Console]::InputEncoding = New-Object Text.ASCIIEncoding } catch { }
+
+# THE ACCOUNT PASSWORD IS CHECKED ONCE BEFORE ANY LEG USES IT.  27 Sep 2026: a
+# mistyped one failed legs 2, 4 and 5 - twelve rows - while $STORED (leg 1)
+# still logged in, so the product was fine and the run said nothing about it.
+# Refused, it is asked again (3 tries), then the run REFUSES (exit 2) with the
+# session shown: a mistyped password and a broken login look the same from
+# here, and the output is how to tell them apart.
+Say ''
+Say '== the account password, checked before any leg'
+$pwOk = $false
+for ($try = 1; $try -le 3; $try++) {
+    $t = Invoke-Sd ('password-check-' + $try) '' ($acctPw + "`nWHERE`nOFF`n") 'the account password, WHERE, OFF'
+    if (Lands $t) { $pwOk = $true; Say '    accepted'; break }
+    if ($try -eq 3) { break }
+    Say ('    refused (try ' + $try + ' of 3) - asking again')
+    try { $acctPw = Read-Password ('Account password for ' + $Acct + ' - try ' + ($try + 1) + ' of 3') } catch { break }
+    if (-not (Printable $acctPw)) { break }
+    $script:secrets = @($script:secrets + $acctPw) | Where-Object { $_ }
+}
+if (-not $pwOk) { Refuse 'the account password was refused (the session is shown above) - mistyped, or login is broken.  Nothing else was measured.' }
+
 try {
-    # A preamble-free input encoding BEFORE any sd starts (the BOM trap).
-    try { [Console]::InputEncoding = New-Object Text.ASCIIEncoding } catch { }
 
     # -----------------------------------------------------------------------
     Say ''
@@ -510,9 +533,11 @@ try {
             foreach ($f in (@(Get-Item -LiteralPath $bfDest -ErrorAction SilentlyContinue) + $objs)) {
                 if ($f) { Remove-Item -LiteralPath $f.FullName -Force -ErrorAction SilentlyContinue }
             }
-            if ($madeOut -and (Test-Path -LiteralPath $outDir) -and @(Get-ChildItem -LiteralPath $outDir -Force).Count -eq 0) {
-                Remove-Item -LiteralPath $outDir -Force -ErrorAction SilentlyContinue
-            }
+            # NEVER REMOVE bp.out, even one this leg made.  BASIC creates it WITH a
+            # VOC F-record; deleting the folder alone leaves the pointer dangling,
+            # and every later BASIC in the account then fails "DATA part of file
+            # already exists / Unable to open newly created output file" (27 Sep
+            # 2026: this leg did exactly that, and broke the next run's compiles).
             $leftS = @(Get-ChildItem -LiteralPath $bpDir -File | Where-Object { $_.Name -ieq $bfName }).Count
             $leftO = $(if (Test-Path -LiteralPath $outDir) { @(Get-ChildItem -LiteralPath $outDir -File | Where-Object { $_.Name -ieq $bfName }).Count } else { 0 })
             Say ('    cleanup: source left ' + $leftS + ', object left ' + $leftO + ', bp.out ' + $(if (Test-Path -LiteralPath $outDir) { 'present' } else { 'absent' }) + $(if ($madeOut) { ' (this leg made it)' } else { ' (was there before)' }))
@@ -581,9 +606,7 @@ try {
             foreach ($f in (@(Get-Item -LiteralPath $ncDest -ErrorAction SilentlyContinue) + $objs)) {
                 if ($f) { Remove-Item -LiteralPath $f.FullName -Force -ErrorAction SilentlyContinue }
             }
-            if ($madeOut -and (Test-Path -LiteralPath $outDir) -and @(Get-ChildItem -LiteralPath $outDir -Force).Count -eq 0) {
-                Remove-Item -LiteralPath $outDir -Force -ErrorAction SilentlyContinue
-            }
+            # bp.out stays - see leg 7's cleanup for why.
             $leftS = @(Get-ChildItem -LiteralPath $bpDir -File | Where-Object { $_.Name -ieq $ncName }).Count
             $leftO = $(if (Test-Path -LiteralPath $outDir) { @(Get-ChildItem -LiteralPath $outDir -File | Where-Object { $_.Name -ieq $ncName }).Count } else { 0 })
             Say ('    cleanup: source left ' + $leftS + ', object left ' + $leftO + ', bp.out ' + $(if (Test-Path -LiteralPath $outDir) { 'present' } else { 'absent' }) + $(if ($madeOut) { ' (this leg made it)' } else { ' (was there before)' }))
@@ -608,7 +631,7 @@ catch {
     $script:fails += 'exception'
 }
 finally {
-    try { [Console]::InputEncoding = $oldInEnc } catch { }
+    try { [Console]::InputEncoding = $script:oldInEnc } catch { }
     $acctPw = $null; $adminPw = $null; $globalPw = $null; $script:secrets = @()
     Remove-Item -LiteralPath $Work -Recurse -Force -ErrorAction SilentlyContinue
 }
