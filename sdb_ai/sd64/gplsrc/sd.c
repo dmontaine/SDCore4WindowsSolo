@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 26 Sep 26 SD Core Solo - -H (pre-authenticated API session) removed with
+ *           the handover (SOLO 3 step 5)
  * 25 Sep 26 SD Core Solo - SOLO 3, ruling 16: -START, -RESTART and an ssh
  *           session re-launch on a standard token (win32token.c)
  * 25 Sep 26 SD Core Solo - --version names SD Core Solo (SOLO 2)
@@ -428,20 +430,10 @@ Private bool comlin(int argc, char *argv[]) {
           dump_sysseg(TRUE);
           exit(0);
 
-/* 17 Sep 26 Windows port - RELEASE_1.1 55.  PRE-AUTHENTICATED API SESSION.
-   The LocalSystem front (a "sd -N -Q" that did the TLS relay and SCRAM) spawns
-   this process AS the authenticated user with the plaintext pipe already on 0
-   and 1 (win32session.c hands it over as std handles, not a socket).  -H marks
-   that: it is an API server session like -Q (same binary telnet modes), but
-   pre-authenticated - it starts no relay and sends no ACK (linuxio.c) and runs
-   no SCRAM (APISRVR); it is already the user it runs as.  It rides with -N,
-   which sets CN_SOCKET.                                                      */
-        case 'H': /* Pre-authenticated API session (RELEASE_1.1 55) */
-          is_sdApiSrvr = TRUE;
-          api_preauth = TRUE;
-          telnet_binary_mode_in = TRUE;
-          telnet_binary_mode_out = TRUE;
-          break;
+/* 26 Sep 26 SD Core Solo - SOLO 3 step 5: -H, the PRE-AUTHENTICATED API
+   session the multi-user handover spawned (RELEASE_1.1 55), is gone and is
+   refused as unrecognised.  It ran no SCRAM and took its name from its own
+   token, so under ruling 21 it was a way in without the password. */
 
         case 'K': /* Kill user */
           check_admin();

@@ -27,6 +27,8 @@
  * 25 Aug 26 Windows port - VFS stripped: the C never implemented it
  * 29 Aug 26 Windows port - K_OS_ADMINISTRATOR added.  PRE_RELEASE_FIXES 56
  * 26 Sep 26 SD Core Solo - SD_DPAPI_PROTECT 111, SD_DPAPI_UNPROTECT 112
+ * 26 Sep 26 SD Core Solo - K_ASSUME_USER 61, K_IMPERSONATING 62, K_HANDOFF 66,
+ *           K_API_PREAUTH 67 retired (SOLO 3 step 5)
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -182,19 +184,10 @@
    reader.  See op_kernel.c for the HDR_INTERNAL gate.                       */
 #define K_SET_USERNAME       60
 
-/* 23 Aug 26 Windows port - PROJECT_STATUS.md 7 step 14, shape (b).  Take on
-   the authenticated user's Windows identity, no password held.  $internal
-   only, and it FAILS CLOSED: 0 means the thread was not changed and the
-   caller must refuse the login.  win32s4u.c.                                */
-#define K_ASSUME_USER        61
-
-/* 24 Aug 26 Windows port - PROJECT_STATUS.md 7 step 14, shape (b).  Ask what
-   Windows identity this thread is ACTUALLY running as, and what SD believes,
-   as two fields so they can be compared.  Read-only, so unlike K_ASSUME_USER
-   it is NOT gated on HDR_INTERNAL: it reports the session's own identity,
-   which @logname already exposes, and a diagnostic no ordinary program may
-   run is one nobody runs.                                                   */
-#define K_IMPERSONATING      62
+/* 26 Sep 26 SD Core Solo - SOLO 3 step 5.  61 (K_ASSUME_USER), 62
+   (K_IMPERSONATING), 66 (K_HANDOFF) and 67 (K_API_PREAUTH) are RETIRED with
+   S4U and the API handover: a Solo session already IS the user (ruling 16).
+   Keep the numbers unused - int$keys.h and the Linux port still know them.  */
 
 /* 29 Aug 26 Windows port - PRE_RELEASE_FIXES 56, the owner's access model.
    IS THE SIGNED-IN PERSON AN ADMINISTRATOR?  Not "is this session elevated",
@@ -261,54 +254,7 @@
    TRUE for it without the guard.  Read-only, so NOT gated on HDR_INTERNAL.   */
 #define K_OS_ELEVATED        65
 
-/* 17 Sep 26 Windows port - RELEASE_1.1 55.  HAND THIS CONNECTION OVER TO A
-   SESSION THAT IS THE USER.  It replaces K_ASSUME_USER for the API and is the
-   whole of 55's fix: K_ASSUME_USER adopts the user IN PLACE with seteuid, so
-   the process's REAL token stays LocalSystem's underneath and SeTcb with it.
-   This spawns a NEW process as the user - nothing of LocalSystem in it, the
-   Linux port's setuid session - and moves the connection to it.
-
-   Three steps, and it is 0 unless all three happen: have the relay stand up
-   the handover pipe, open its client end, and CreateProcessAsUser sd on it.
-   $internal only, like K_ASSUME_USER, and FAILS CLOSED for the same reason -
-   a front that carried on after a failed handover would be the LocalSystem
-   session 55 exists to abolish.  The caller refuses the login on 0.
-
-   TWO CALLS SINCE RELEASE_1.1 57: the PREPARE - argument "<user><FM>P" -
-   has the relay stand the pipe up and must be made BEFORE the SCRAM
-   server-final is written; the COMMIT - plain "<user>" - spawns the
-   session on the standing pipe and may follow the server-final.  Asked
-   any later than before it, the relay is still reading the net when the
-   client answers the server-final, and a fast client's first request is
-   forwarded to a front that is past its last read and dropped - b194,
-   measured by test-tlsrelay-units.py's test_handover_pre_request_byte.
-   A commit with no standing pipe refuses.
-
-   K_ASSUME_USER STAYS: ssh and the other callers still use it, and only the
-   API stops.  See op_kernel.c, sd_tlssrv.c and win32session.c.             */
-#define K_HANDOFF            66
-
-/* 17 Sep 26 Windows port - RELEASE_1.1 55, the other side of K_HANDOFF.  AM I
-   A PRE-AUTHENTICATED SESSION, AND WHO AM I?  The session K_HANDOFF spawns
-   runs sd -N -H: the front already ran SCRAM, so this session must NOT run it
-   again, and it has to set its own name without being told over a wire.
-
-   TWO FIELDS, for K_IMPERSONATING's reason - one value cannot carry both
-   answers and the pair is what makes the failure legible:
-
-     <1>  1 if this session was started pre-authenticated, 0 if not
-     <2>  its Windows user name, bare, from its OWN PROCESS TOKEN
-
-   Field 1 = 1 with field 2 empty is a session that cannot name itself, and
-   APISRVR must refuse it rather than carry on unnamed.  Folding the two into
-   "the name, or empty" would make that case indistinguishable from an
-   ordinary session, which would then be asked to run SCRAM on a pipe.
-
-   ProcessUserName(), NOT ImpersonatingUser(): this session is not
-   impersonating, it IS the user, and win32s4u.h says what that costs to get
-   wrong.  Read-only, so NOT gated on HDR_INTERNAL - it reports this process's
-   own identity, which @logname already exposes.                            */
-#define K_API_PREAUTH        67
+/* 66 (K_HANDOFF) and 67 (K_API_PREAUTH): retired, see the note at 61. */
 
 /* 17 Sep 26 Windows port - RELEASE_1.1 55.  IS A NAMED USER IN A NAMED LOCAL
    GROUP?  A live SAM query with no child process (win32group.c).

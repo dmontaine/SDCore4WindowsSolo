@@ -18,6 +18,9 @@
 * 
 * 
 * START-HISTORY:
+* 26 Sep 26 SD Core Solo - SOLO 3 step 5: require.credential (the multi-user
+*           prompt to SET a first password) deleted, with cred.ok and the
+*           pw_complex declaration only it used.
 * 26 Sep 26 SD Core Solo - SOLO 15 piece 5, ruling 21(b): a tree moved to
 *           another Windows user - one account, not this user's name - is
 *           renamed to this user once its password is proved
@@ -224,8 +227,6 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
 *   within a normal session" - is untouched: this is not within a session, it
 *   is what decides which account the session begins in.
 deffun elevate(action,arg) calling '!elevate'
-* 19 Sep 26 Windows port - RELEASE_1.1 75's rule, shared with the Linux port.
-deffun pw_complex(pw) calling '!pw_complex'
 
    ok = @false
    admin.login = @false
@@ -245,13 +246,6 @@ deffun pw_complex(pw) calling '!pw_complex'
 *   bootstrap.  '' is also the value that means "no command was given", which
 *   is the interactive session and the common case.
    batch.command = ''
-
-* 21 Aug 26 Windows port - and cred.ok for the same reason and in the same
-*   place: require.credential assigns it, and it is READ at the call site,
-*   which BCOMP sees textually above the subroutine.  @true is also the value
-*   that means "nothing to do", so a path added later that skips the test lets
-*   the login through rather than refusing it silently.
-   cred.ok = @true
 
 * 20 Sep 26 Windows port - RELEASE_1.1 82 (D2').  gate.ok for the same reason: internal.gate
 *   assigns it and the call site READS it, and BCOMP sees the call site textually first.
@@ -1617,191 +1611,9 @@ require.password:
 
 *
 * ======================================================================
-* REQUIRE.CREDENTIAL  -  the account must have a password.  Sets cred.ok.
-*
-* Reached only from an elevated, interactive, non-phantom, non-internal
-* session; the call site carries the whole of why.
-*
-* IT DOES NOT ASK FOR A CURRENT PASSWORD, because there is not one - having
-* none is the entire condition for being here.  That is the same branch
-* SET_ACC_PASSWORD takes when its has.cred is false.
-*
-* THE WORDING IS DELIBERATELY MODIFY.PASSWORD'S.  That verb is where a password
-* is set every other time, and somebody who meets both should not have to work
-* out whether they are the same act.
-
-require.credential:
-   cred.ok = @true
-
-*  A VERSION 1 RECORD READS AS "NO CREDENTIAL", exactly as it does in
-*  SET_ACC_PASSWORD: it holds an Argon2 verifier and no StoredKey, cannot be
-*  checked by !CRED_VERIFY and cannot be converted without the plaintext, which
-*  was never stored.  So the first login after the upgrade replaces it.
-   has.cred = @false
-   openpath @sdsys:@ds:'$cred' to cred.f then
-      read cred.rec from cred.f, initial.account then
-         if cred.rec<CRED$STOREDKEY> # '' then has.cred = @true
-      end
-      close cred.f
-   end else
-*     FAIL OPEN, AND ONLY HERE.  An unreadable register means the install did
-*     not finish or its ACL is wrong, and refusing every elevated login for
-*     that takes away the one session that could put it right.  It grants
-*     nothing the console does not already have - the console has never asked
-*     for a password.  The API fails CLOSED on the same condition, in
-*     !CRED_VERIFY, which is the door where it matters.
-      display sysmsg(10088)  ;* Cannot open the credential register...
-      return
-   end
-
-   if has.cred then return
-
-   display sysmsg(10089, initial.account) ;* Account %1 needs a password...
-
-*  22 Aug 26 Windows port - A BLANK LINE BETWEEN THE EXPLANATION AND THE PROMPT.
-*  Owner, 22 Aug 2026, on seeing the paragraph land hard against "New password:".
-*  It is here rather than as a trailing line break in the message because 10089
-*  is a paragraph and this is spacing between two separate things - a message
-*  that ends in blank lines invites the next editor to trim them as trailing
-*  whitespace.
-   display
-
-* 26 Aug 26 Windows port - THREE ATTEMPTS, NOT AN UNBOUNDED LOOP.  Owner,
-*   26 Aug 2026, after mistyping the password during an install and finding the
-*   session had left with none set.
-*
-*   WHAT HE ACTUALLY HIT, BECAUSE THE LOOP ALREADY RE-PROMPTED AND WOULD HAVE
-*   DONE SO FOR EVER.  After "The passwords do not match" it asked "New
-*   password:" again - and 10089's paragraph, which explains that Enter on an
-*   empty line means "no password for now", had scrolled away several lines
-*   earlier.  Pressing Enter there is the documented way out and at that moment
-*   it does not look like one.  So the count below is half the fix; SAYING
-*   WHICH ATTEMPT THIS IS, in 10092, is the half that stops somebody reaching
-*   for Enter to escape a loop they believe is endless.
-*
-*   AND BOUNDING IT RETIRES THE ORIGINAL REASON FOR THE EMPTY-LINE EXIT, which
-*   the note below gives as "otherwise a session that cannot set a credential
-*   would loop with no way to leave but killing the process".  That cannot
-*   happen now.
-*
-* 02 Sep 26 Windows port - AND THE EXIT IS NO LONGER OFFERED AS A CHOICE.
-*   PRE_RELEASE_FIXES.md 130.  This note used to end "the exit stays because
-*   10089 offers it as a deliberate choice, not because it is the only way
-*   out", and 10089 described the account you would get: usable at the
-*   keyboard, from an elevated session, just not over ssh or the API.
-*
-*   THAT ACCOUNT CANNOT EXIST, AND IT WAS THE OWNER WHO RULED THE WORDING OUT
-*   RATHER THAN THE BEHAVIOUR IN.  This prompt fires on every login until a
-*   credential is set, and every route through it without one lands on
-*   sysmsg(10095) and ends the session - so there is no way to REACH a
-*   passwordless account that works anywhere.  Walked into on a guest,
-*   2 Sep 2026, at the keyboard in an elevated session: exactly the case the
-*   old text said still worked.
-*
-*   SO THE BEHAVIOUR IS UNCHANGED AND ONLY THE MESSAGES MOVED.  The empty line
-*   still ends the session; 10089, 10095 and 10101 now say that is what it
-*   does.  Do not restore the offer without making it true first.
-*
-* 19 Sep 26 Windows port - THE PARAGRAPH ABOVE IS NOW FALSE AND IS KEPT FOR THE
-*   RECORD RATHER THAN DELETED.  RELEASE_1.1 69.  "THAT ACCOUNT CANNOT EXIST"
-*   rested on "this prompt fires on every login", which was true when it was
-*   written and is not true now:
-*
-*     * RELEASE_1.1 64 left the gate at :1080-1089 asking only when
-*       K$ADMINISTRATOR answers true - an ELEVATED session - and this routine
-*       has no other call site, so an UNELEVATED console login is never asked;
-*     * RELEASE_1.1 66 then creates the installing user's account with NO
-*       $cred on purpose, so a passwordless account is now the normal state of
-*       a freshly installed machine rather than an unreachable corner.
-*
-*   THE OWNER MEASURED IT ON HIS OWN MACHINE on 19 Sep 2026 - unelevated,
-*   straight in, no password - and nothing in this tree reported it first.
-*   THE BEHAVIOUR IS STILL RIGHT AND ONLY THE WORDING MOVED, again: 10089 and
-*   10101 no longer claim the account is unusable at the keyboard, because it
-*   is not.  What a missing credential costs is the REMOTE doors, ssh and the
-*   API, which is what those messages now say.
-*
-*   DO NOT RE-DERIVE THE OLD CLAIM FROM THE OLD PARAGRAPH.  It reads as
-*   authoritative and it is a gravestone.
-   cred.max.tries = 3
-   cred.tries = 0
-
-   loop
-      cred.tries += 1
-      display sysmsg(10090) :  ;* New password:
-      input pw1 HIDDEN
-      display
-
-*     AN EMPTY PASSWORD IS THE WAY OUT, and it needs to be one: without it a
-*     session that cannot set a credential - a wrong ACL, a full disk - would
-*     loop with no way to leave but killing the process.
-      if pw1 = '' then exit
-
-* 19 Sep 26 Windows port - RELEASE_1.1 75.  SD'S OWN RULE, BEFORE THE REPEAT IS
-*   ASKED FOR.  Owner's ruling, taken on the Linux side and binding in both
-*   ports.  A weak entry counts as one of the three attempts, like a mismatch.
-*
-*   AFTER THE EMPTY TEST, NEVER BEFORE IT.  An empty line is the documented way
-*   out of this prompt and an empty string fails the rule too, so checking
-*   first would answer somebody leaving with a complaint about length.
-*
-*   WRITTEN OUT RATHER THAN SHARING THE MISMATCH ARM'S TAIL, and the three
-*   duplicated lines are the cheaper of two bad options.  The alternative was a
-*   CONTINUE inside a block IF, which the note below records this file as
-*   deliberately not using; a flag threaded through the arm below would make
-*   the common path harder to read to save three lines on the rare one.
-      if not(pw_complex(pw1)) then
-         display sysmsg(10920)  ;* A password needs at least 8 characters...
-         display sysmsg(10921, cred.tries, cred.max.tries) ;* That was attempt %1 of %2
-         if cred.tries >= cred.max.tries then
-            cred.ok = @false
-            display sysmsg(10101, cred.max.tries)
-            return
-         end
-      end else
-
-      display sysmsg(10091) :  ;* Repeat new password:
-      input pw2 HIDDEN
-      display
-
-*     WRITTEN AS if-match RATHER THAN if-mismatch-then-CONTINUE, deliberately.
-*     CONTINUE inside a LOOP is demonstrated in update.voc below, but only as a
-*     single-line "then continue" in the loop body itself; putting one inside a
-*     block IF would be the first of its kind here, and this needs no new form.
-      if pw1 = pw2 then
-*        A COPY, NOT initial.account ITSELF.  BASIC passes by reference and
-*        !CRED_SET assigns upcase(trim()) to its first argument, so handing it
-*        the variable the rest of this routine and the audit record below are
-*        keyed on would let a change there reach back into this one.
-         cred.acc = initial.account
-         cred.ok = @false
-         call !CRED_SET(cred.acc, pw1, cred.ok)
-         if cred.ok then
-            display sysmsg(10093, initial.account) ;* Password set for account %1
-            return
-         end
-
-         display sysmsg(10094, status()) ;* Unable to set the password, status %1
-      end else
-*        Attempt N of M, so the loop is visibly finite from inside it.
-         display sysmsg(10092, cred.tries, cred.max.tries)
-
-         if cred.tries >= cred.max.tries then
-            cred.ok = @false
-*           A DIFFERENT MESSAGE FROM THE EMPTY-LINE EXIT BELOW, because they
-*           are different things: one is a choice, this is running out of
-*           tries.  Both end the session, and 10101 says so and says that the
-*           next login will ask again.
-            display sysmsg(10101, cred.max.tries)
-            return
-         end
-      end
-      end  ;* the complexity arm above
-   repeat
-
-   cred.ok = @false
-   display sysmsg(10095) ;* No password was set...
-   return
+* REQUIRE.CREDENTIAL was here: the multi-user login's prompt to SET a first
+* password on an elevated console.  26 Sep 26 SD Core Solo, SOLO 3 step 5 -
+* deleted; it had no caller since require.password (ruling 21) replaced it.
 
 *
 * ======================================================================

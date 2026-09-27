@@ -83,10 +83,8 @@ win32sem
 win32audit
 win32tls
 win32relay
-win32s4u
 win32pipe
 win32vt
-win32session
 win32group
 win32token
 win32dpapi

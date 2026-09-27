@@ -25,6 +25,8 @@
  *           CN_SOCKET guard.  PRE_RELEASE_FIXES 56.
  * 05 Sep 26 Windows port - K_INTERACTIVE added.  How the session ARRIVED,
  *           where the two above ask who and what.  PRE_RELEASE_FIXES 167.
+ * 26 Sep 26 SD Core Solo - K_ASSUME_USER, K_HANDOFF, K_API_PREAUTH and
+ *           K_IMPERSONATING removed with S4U and the handover (SOLO 3 step 5).
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -45,12 +47,8 @@
 #include "options.h"
 #include "dh_int.h"
 #include "locks.h"
-/* 23 Aug 26 Windows port - K_ASSUME_USER, PROJECT_STATUS.md 7 step 14. */
-#include "win32s4u.h"
-/* 17 Sep 26 Windows port - K_HANDOFF, RELEASE_1.1 55.  Neither header brings
-   windows.h in: win32session.h declares the spawn with a void*, and sd_tls.h
-   is careful to carry no Windows type (its own note says why). */
-#include "win32session.h"
+/* 26 Sep 26 SD Core Solo - win32s4u.h and win32session.h went with
+   K_ASSUME_USER and K_HANDOFF (SOLO 3 step 5). */
 #include "win32group.h"   /* K_GROUP_MEMBER's live SAM query */
 #include "sd_tls.h"
 
@@ -282,137 +280,12 @@ void op_kernel() {
       k_put_c_string(process.username, &result);
       break;
 
-    /* 23 Aug 26 Windows port - PROJECT_STATUS.md 7 step 14, shape (b).
-       Become the user this session has just authenticated as.
-
-       IT ANSWERS 1 OR 0 AND NOTHING ELSE, and 0 must be treated as fatal by
-       the caller: a session that carries on believing it is the user while
-       holding LocalSystem's token is worse than one that never started.
-       APISRVR refuses the login on 0.
-
-       $internal ONLY, like K_SET_USERNAME above.  The gate is what stops an
-       ordinary BASIC program asking to become somebody else - it would fail
-       anyway for want of SeTcbPrivilege in an interactive session, but a
-       refusal that depends on a privilege the process happens not to hold is
-       not a control.
-
-       NO WAY BACK IS OFFERED TO BASIC.  RevertUserIdentity() exists in
-       win32s4u.c and is deliberately not reachable from here: the session
-       becomes the user once, at the point SCRAM succeeds, and stays that way
-       until it ends.  A verb that could drop back to LocalSystem would undo
-       the whole of this step.                                               */
-    case K_ASSUME_USER:
-      {
-        char uname[MAX_USERNAME_LEN + 1];
-
-        result.data.value = 0;
-        if ((k_get_c_string(descr, uname, MAX_USERNAME_LEN) > 0) &&
-            (process.program.flags & HDR_INTERNAL)) {
-          if (AssumeUserIdentity(uname))
-            result.data.value = 1;
-        }
-      }
-      break;
-
-/* 17 Sep 26 Windows port - RELEASE_1.1 55.  K_HANDOFF.  keys.h carries the
-   reasoning; this is the mechanism, in the order it has to happen:
-
-     1. the relay stands up the handover pipe and says READY (sd_tlssrv.c)
-     2. the pipe's client end is opened and handed to a NEW sd, started as the
-        authenticated user, on its std handles (win32session.c)
-     3. the caller sends nothing more and exits, which closes the app-side
-        socketpair - and THAT is what makes the relay cut over to the pipe
-
-   TWO CALLS, AND THE SPLIT IS THE POINT (RELEASE_1.1 57).  Step 1 is made
-   by a PREPARE call - the argument "<user><FM>P" - and steps 2-3 by the
-   COMMIT call, plain "<user>".  The caller MUST prepare BEFORE the SCRAM
-   server-final goes out: asking the relay for the pipe is what stops it
-   reading the net, so asked any later (as APISRVR did until 57) a fast
-   client's first post-login request is read off the net and forwarded to
-   THIS front, which is past its last read and drops it -
-   test-tlsrelay-units.py's test_handover_pre_request_byte measures exactly
-   that window.  Prepared first, no client byte can exist before the request:
-   the client cannot speak until it has seen the server-final, which is
-   written after the prepare.  The commit may come after the server-final;
-   only the caller's exit (step 3) closes the app side, and by then the pipe
-   stands.  A commit with no prepare refuses, because that order cannot end
-   anywhere safe.
-
-   IT FAILS CLOSED AND SAYS WHY IN syslog.  The BASIC caller gets 1 or 0 for
-   each call and nothing else - there is nowhere for a reason to go on the
-   wire, because the client is mid-login - so every refusal is syslogged with
-   the username.  A handover that returned 0 silently would present as a
-   connection that closed for no reason, with the operator's only clue being
-   that it happened at login.  syslog goes to the Windows Application log,
-   provider sd_Log.
-
-   NOTE THE ASYMMETRY WITH K_ASSUME_USER: that one changes THIS process, so
-   its 1 means "I am now the user".  This one's 1 means "somebody else is, and
-   the connection is theirs" - this process is still LocalSystem and its only
-   remaining job is to stop.                                                 */
-    case K_HANDOFF:
-      {
-        char uname[MAX_USERNAME_LEN + 4];
-        char pipename[256];
-        char why[512];
-        static char handoff_pipe[256];  /* the pipe the "<FM>P" call stood up */
-        void* proc = NULL;
-        unsigned long spawned = 0;
-        char* mode;
-
-        result.data.value = 0;
-        if ((k_get_c_string(descr, uname, MAX_USERNAME_LEN + 3) <= 0) ||
-            !(process.program.flags & HDR_INTERNAL)) {
-          syslog(LOG_ERR, "SD API: handover refused: %s",
-                 (process.program.flags & HDR_INTERNAL)
-                     ? "no user name was given"
-                     : "the caller is not an $internal program");
-          break;
-        }
-        mode = strchr(uname, FIELD_MARK);
-        if (mode != NULL)
-          *mode++ = '\0';
-        if (mode != NULL && strcmp(mode, "P") == 0) {
-          /* PREPARE.  Stand the pipe up and remember it; the commit below
-             spawns on it.  syslog on refusal, 0 to the caller. */
-          if (!sd_tls_relay_pipe(pipename, sizeof(pipename),
-                                 SD_TLS_HANDSHAKE_MS, why, sizeof(why))) {
-            syslog(LOG_ERR, "SD API: cannot stand up %s's handover pipe: %s",
-                   uname, why);
-            break;
-          }
-          snprintf(handoff_pipe, sizeof(handoff_pipe), "%s", pipename);
-          result.data.value = 1;
-          break;
-        }
-        if (mode != NULL) {
-          syslog(LOG_ERR, "SD API: handover refused for %s: unknown mode",
-                 uname);
-          break;
-        }
-        /* COMMIT.  Spawn the session on the pipe the prepare stood up. */
-        if (handoff_pipe[0] == '\0') {
-          syslog(LOG_ERR, "SD API: handover refused for %s: no handover pipe "
-                 "stands - the prepare must precede the server-final",
-                 uname);
-          break;
-        }
-        if (!win32_session_spawn(uname, handoff_pipe, &proc, &spawned, why,
-                                 sizeof(why))) {
-          syslog(LOG_ERR, "SD API: cannot start %s's session: %s", uname, why);
-          handoff_pipe[0] = '\0';
-          break;
-        }
-        /* Nothing waits on it: this process is about to exit, and the session
-           lives as long as the connection does.  The handle is closed so the
-           front leaves nothing of itself behind. */
-        win32_session_close(proc);
-        syslog(LOG_INFO, "SD API: session for %s started as pid %lu on %s",
-               uname, spawned, handoff_pipe);
-        handoff_pipe[0] = '\0';
-        result.data.value = 1;
-      }
-      break;
+    /* 26 Sep 26 SD Core Solo - SOLO 3 step 5: K_ASSUME_USER (61) and
+       K_HANDOFF (66) were here - the S4U adoption of the authenticated user
+       and the spawn of a session as that user.  A Solo session already IS the
+       user (ruling 16), so both went with win32s4u.c and win32session.c; the
+       numbers fall through to the unknown-key answer.  K_API_PREAUTH (67) and
+       K_IMPERSONATING (62), below, likewise. */
 
 /* 17 Sep 26 Windows port - RELEASE_1.1 55.  K_GROUP_MEMBER.  keys.h carries
    the reasoning; this is the mechanism.  The argument is "user<FM>group" so
@@ -450,49 +323,6 @@ void op_kernel() {
           snprintf(note, sizeof(note), "GROUP.MEMBER could not tell: %s", why);
           audit_message(note);
         }
-      }
-      break;
-
-/* 17 Sep 26 Windows port - RELEASE_1.1 55.  K_API_PREAUTH, the other side of
-   K_HANDOFF.  keys.h carries the reasoning, including why it is two fields and
-   why the name comes from ProcessUserName() rather than ImpersonatingUser().
-
-   The pair is deliberately independent: field 1 comes from how this process
-   was STARTED (sd.c's -H) and field 2 from what Windows says its token IS, so
-   a session that was spawned pre-authenticated but cannot name itself reports
-   1 and an empty name instead of quietly looking like an ordinary session. */
-    case K_API_PREAUTH:
-      {
-        char who[MAX_USERNAME_LEN + 1];
-        char both[MAX_USERNAME_LEN + 8];
-
-        if (!api_preauth || !ProcessUserName(who, sizeof(who)))
-          who[0] = '\0';
-        snprintf(both, sizeof(both), "%d%c%s", api_preauth ? 1 : 0, FIELD_MARK,
-                 who);
-        k_put_c_string(both, &result);
-      }
-      break;
-
-/* 24 Aug 26 Windows port - PROJECT_STATUS.md 7 step 14 (b).  TWO FIELDS, and
-   the pair is the whole point: field 1 is the identity Windows says this
-   thread is running as, field 2 is whether SD still holds an S4U token for it.
-   Reading either alone is what made step 14 hard to see - the old
-   ImpersonatingUser() returned only the belief and would have reported "still
-   impersonating" at the moment the identity was gone.
-
-   Field 1 empty with field 2 = 1 is the defect: SD thinks it is the user and
-   the thread is not.                                                        */
-    case K_IMPERSONATING:
-      {
-        char who[256];
-        char both[300];
-
-        if (!ImpersonatingUser(who, sizeof(who)))
-          who[0] = '\0';
-        snprintf(both, sizeof(both), "%s%c%d", who, FIELD_MARK,
-                 HoldingUserToken());
-        k_put_c_string(both, &result);
       }
       break;
 

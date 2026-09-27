@@ -82,8 +82,10 @@ COMP     := gcc
 #   LookupAccountSid halves are advapi32, already above.
 # 26 Sep 26 SD Core Solo - SOLO 15 piece 4: -lcrypt32 is for win32dpapi.c's
 #   CryptProtectData/CryptUnprotectData, the stored account password.
+# 26 Sep 26 SD Core Solo - SOLO 3 step 5: -lsecur32 is gone with win32s4u.c,
+#   its only user (the note above, 23 Aug).
 OPENSSL_LIBS ?= -lssl -lcrypto
-L_FLAGS    := -lm -lcrypt -ldl -lbsd -L$(LIBSODIUM) -lsodium -ladvapi32 -lsecur32 -luserenv -lnetapi32 -lcrypt32 $(OPENSSL_LIBS)
+L_FLAGS    := -lm -lcrypt -ldl -lbsd -L$(LIBSODIUM) -lsodium -ladvapi32 -luserenv -lnetapi32 -lcrypt32 $(OPENSSL_LIBS)
 
 RM       := rm
 
@@ -168,7 +170,7 @@ sd: BITSIZE := 64
 #           ignored with a warning on this target).  Added the libsodium
 #           include path now that it lives under /usr/local.
 sd: C_FLAGS  :=  -std=gnu17 -Wall -Wformat=2 -Wno-format-nonliteral -D_FILE_OFFSET_BITS=64 -I$(GPLSRC) -I$(SODIUM) -DGPL -g $(ARCH)
-sd: $(SDOBJS) sdclilib sdsvc sdtlsrelay sdpy sdtic sdfix sdconv sdidx sdwind terminfo
+sd: $(SDOBJS) sdclilib sdtlsrelay sdpy sdtic sdfix sdconv sdidx sdwind terminfo
 	@echo Linking $@
 	@cd $(GPLOBJ)
 # 13 Aug 26 Windows port - libraries must follow the objects that reference
@@ -198,7 +200,7 @@ UCRT_BIN := $(dir $(UCRT_CC))
 # Neither target names a file that make should test for.  Without this, VPATH
 # finds the gplsrc/sdclilib directory (and the generated terminfo directory)
 # and decides the target is already satisfied.
-.PHONY: sdclilib sdsvc sdtlsrelay sdpy terminfo check-local check-remote check-api-admin build-api-identity
+.PHONY: sdclilib sdtlsrelay sdpy terminfo check-local check-remote check-api-admin build-api-identity
 
 # 04 Sep 26 - ALL FOUR CLIENT DLLs, NOT ONE.  PRE_RELEASE_FIXES 161, the
 # owner's ruling: "let's get rid of the client installers all together and just
@@ -315,20 +317,10 @@ build-api-identity:
 	@PATH="$(UCRT_BIN):$$PATH" $(MAKE) --no-print-directory -C $(CLILIBDIR) CC=$(UCRT_CC) \
 	  build-api-identity
 
-# 15 Aug 26 - THE SERVICE IS NATIVE, AND ON PURPOSE.  A Windows service has to
-# call StartServiceCtrlDispatcher, and sd.exe is built against the MSYS2 POSIX
-# runtime where linuxlb.c records the decision to keep windows.h out.  So the
-# service wrapper is built with the UCRT64 compiler like the client DLL, and
-# never sees the POSIX runtime.  See gplsrc/sdsvc/sdsvc.c and 5.3.
-#
-# It lives in its own directory because SRCS is $(wildcard *.c) over gplsrc,
-# which would otherwise compile this with the POSIX flags and fail.
-SVCDIR   := $(GPLSRC)sdsvc
-
-sdsvc:
-	@echo Building native service wrapper
-	@PATH="$(UCRT_BIN):$$PATH" $(UCRT_CC) -std=gnu17 -Wall -Wformat=2 -O2 \
-	    $(SVCDIR)/sdsvc.c -ladvapi32 -o $(GPLBIN)sdsvc.exe
+# 26 Sep 26 SD Core Solo - SOLO 3 step 5: the sdsvc target (the native
+# Windows service wrapper, gplsrc/sdsvc/) is gone.  Solo starts SD from a
+# scheduled task as the user (SOLO 8), and there is no service.  The notes
+# below that say "built like sdsvc" mean: native, UCRT64, own directory.
 
 # 16 Sep 26 Windows port - RELEASE_1.1 43: THE API's TLS RELAY IS NATIVE, AND
 # FOR A REASON THAT IS MEASURED RATHER THAN CHOSEN.  sd starts one per

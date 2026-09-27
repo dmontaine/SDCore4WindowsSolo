@@ -5,8 +5,9 @@
 #
 # WHY THERE ARE THREE COPIES AT ALL, because "just share it" is the first thing
 # a reader will ask:
-#   sdsys/gpl.bp/pw_complex        everything inside SD - MODIFY.PASSWORD,
-#                                  CREATE.ACCOUNT, LOGIN's credential prompt.
+#   sdsys/gpl.bp/pw_complex        everything inside SD - SET.PASSWORD now
+#                                  (MODIFY.PASSWORD, CREATE.ACCOUNT and LOGIN's
+#                                  credential prompt are gone in Solo).
 #   gplbld/finish-install.ps1      the SDSYS prompt, which sets a WINDOWS
 #                                  password with Set-LocalUser and never enters
 #                                  SD, so it cannot call the BASIC.
@@ -239,7 +240,8 @@ $sites = @(
     @{ File = "$sd64/sdsys/gpl.bp/set_password"; Pat = 'pw_complex\(pw1\)'; What = 'SET.PASSWORD, the account credential' }
     @{ File = "$sd64/gplbld/sd-solo.iss";            Pat = 'not PasswordComplex\(A\)'; What = "the Solo installer's password pages" }
     # 25 Sep 26 - set_passwd (CREATE.ACCOUNT's Windows password) deleted with SOLO 4.
-    @{ File = "$sd64/sdsys/gpl.bp/login";            Pat = 'pw_complex\(pw1\)'; What = "LOGIN's credential prompt" }
+    # 26 Sep 26 - LOGIN's credential prompt (require.credential) deleted with
+    # SOLO 3 step 5: LOGIN only CHECKS the password now (require.password).
     @{ File = $finish;                               Pat = 'Test-PasswordComplex'; What = 'the installer, the SDSYS Windows password' }
     @{ File = $instal;                               Pat = 'Test-GeneratedPasswordComplex'; What = 'the generated SDSYS password' }
 )
@@ -251,7 +253,7 @@ foreach ($s in $sites) {
 }
 # And each BASIC caller must DECLARE the function, or the call is a subroutine
 # name the compiler resolves to nothing recognisable.
-foreach ($f in @('set_password', 'login')) {
+foreach ($f in @('set_password')) {
     $t = Get-Content -LiteralPath "$sd64/sdsys/gpl.bp/$f" -Raw
     Check ("$f declares deffun pw_complex") ($t -match "deffun\s+pw_complex\(pw\)\s+calling\s+'!pw_complex'") $null
 }

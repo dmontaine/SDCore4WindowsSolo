@@ -140,8 +140,9 @@
       $define K$WINPATH         58       ;* POSIX pathname as a Windows one
       $define K$WINPID          59       ;* This session pid as Windows counts it
       $define K$SET.USERNAME    60       ;* Set the session user name ($internal)
-      $define K$ASSUME.USER     61       ;* Become the authenticated user ($internal)
-      $define K$IMPERSONATING   62       ;* <1> identity Windows says, <2> token held?
+* 26 Sep 26 SD Core Solo - SOLO 3 step 5: 61 (K$ASSUME.USER), 62
+*   (K$IMPERSONATING), 66 (K$HANDOFF) and 67 (K$API.PREAUTH) are RETIRED with
+*   S4U and the API handover.  Keep the numbers unused.  gplsrc/keys.h agrees.
 * 29 Aug 26 Windows port - PRE_RELEASE_FIXES 56.  IS THE SIGNED-IN PERSON AN
 *   ADMINISTRATOR - not "is this session elevated", which is K$ADMINISTRATOR
 *   (26) and is a different question with a near-identical name.  26 is the
@@ -167,22 +168,7 @@
 *   PROCESS's own elevation.  IMMUTABLE for the process life, so a LOGTO does not
 *   move it - which is why LOGTO SDSYS gates on this and not on the seed (26).
       $define K$OS.ELEVATED      65      ;* Did this process start elevated?
-* 17 Sep 26 Windows port - RELEASE_1.1 55.  HAND THIS CONNECTION OVER TO A
-*   SESSION THAT IS THE USER.  Replaces K$ASSUME.USER for the API and is the
-*   whole of 55's fix: 61 adopts the user in place with seteuid, so the real
-*   token stays LocalSystem's underneath; this spawns a NEW process as the user
-*   over the relay's handover pipe - the Linux port's setuid session.
-*   $internal only, and it FAILS CLOSED: 0 means no session was started and the
-*   caller must refuse the login.  61 stays, for ssh and the other callers.
-      $define K$HANDOFF          66      ;* Spawn the session AS the user ($internal)
-* 17 Sep 26 Windows port - RELEASE_1.1 55, the other side of 66.  AM I A
-*   PRE-AUTHENTICATED SESSION, AND WHO AM I?  The session 66 spawns runs
-*   sd -N -H: the front already ran SCRAM, so this one must not run it again and
-*   must set its own name from its OWN process token, not from the wire.
-*   <1> 1 if pre-authenticated, 0 if not.  <2> the bare Windows user name.
-*   <1>=1 with <2> empty is a session that cannot name itself - REFUSE it, do
-*   not carry on unnamed.  Read-only, so not $internal-only.
-      $define K$API.PREAUTH      67      ;* <1> pre-authenticated? <2> user name
+* 66 and 67: retired, see the note at 61.
 * 17 Sep 26 Windows port - RELEASE_1.1 55.  IS A NAMED USER IN A NAMED LOCAL
 *   GROUP?  A live SAM query with NO CHILD PROCESS, which is what a
 *   pre-authenticated session needs: one spawned AS the user by 66 cannot start

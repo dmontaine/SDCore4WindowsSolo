@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 26 Sep 26 SD Core Solo - api_preauth (sd -H) branches removed with the
+ *           handover (SOLO 3 step 5).
  * 15 Sep 26 Windows port - every API connection goes through a TLS 1.3 relay
  *           (sd_tlssrv.c), started after the peer is recorded; the Ack moved
  *           after it, inside TLS.  Identity in <sd.conf's dir>\sd-tls.
@@ -162,15 +164,8 @@ bool start_connection(int unused) {
          client still waits for it before speaking.                          */
     }
   /* 20240127 mab mods to handle IPv6 */
-    /* 17 Sep 26 Windows port - RELEASE_1.1 55: a PRE-AUTHENTICATED session has
-       a PIPE on descriptor 0, not a socket, so getsockname() and the peer
-       switch below do not apply - they would fall to the default and refuse.
-       The front already identified and admitted the peer; the session inherits
-       that decision.  ip_addr is a marker here (the real peer address is the
-       front's to plumb through if a per-request gate needs it).             */
-    if (api_preauth) {
-      strcpy(ip_addr, "pipe");
-    } else {
+    /* 26 Sep 26 SD Core Solo - the pre-authenticated session's "pipe" branch
+       that stood here went with sd -H (SOLO 3 step 5). */
     n = sizeof(sa);
     getsockname(0, (struct sockaddr *)&sa, &n);
     switch (sa.ss_family){
@@ -285,7 +280,6 @@ bool start_connection(int unused) {
           syslog (LOG_INFO,"Invalid Network Socket Type UNKNOW");
           return FALSE; /* Error */
     }
-    } /* end !api_preauth peer identification */
 
     /* 15 Sep 26 Windows port - S.19/RELEASE_1.1 41: EVERY API CONNECTION IS
        TLS 1.3.  AFTER the peer is recorded above: once descriptor 0 is the
@@ -293,13 +287,7 @@ bool start_connection(int unused) {
        relay.  BEFORE the ACK, so the ACK and everything after it travel
        inside TLS.  BEFORE bind_sysseg(), so the relay never maps SD's shared
        memory.  See sd_tlssrv.c.                                            */
-    /* 17 Sep 26 Windows port - RELEASE_1.1 55: a PRE-AUTHENTICATED session
-       (api_preauth, sd.c's -H) skips ALL of this.  Its LocalSystem front
-       already stood up the relay and ran SCRAM; descriptors 0 and 1 are the
-       plaintext pipe the relay cut over to, and the client is long past the
-       ACK.  Starting a second relay or sending a second ACK here would be
-       wrong on both counts.                                                  */
-    if (is_sdApiSrvr && !api_preauth) {
+    if (is_sdApiSrvr) {
       char tls_dir[MAX_PATHNAME_LEN + 16];
       char tls_err[512];
 

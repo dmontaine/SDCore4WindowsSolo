@@ -130,7 +130,8 @@ PROGRAM_FILES_BIN = [
     # and bcrypt, which are Windows' own.
     'qmclilib.dll',             # 32-bit, for older utility programs
     'qmclient.dll',             # the same library under the current name
-    'sdsvc.exe',                # native UCRT64, the service that starts SD
+    # 26 Sep 26 SD Core Solo - sdsvc.exe (the multi-user Windows service) is
+    # gone, SOLO 3 step 5: Solo starts SD from a scheduled task as the user.
     # 16 Sep 26 - RELEASE_1.1 43.  The API's TLS relay, one process per
     # connection, started by sd as the bare account sdrelay at Low integrity.
     # BESIDE sd.exe for the reason sdpy.exe is: win32relay.c finds it with
@@ -156,7 +157,6 @@ PROGRAM_FILES_BIN = [
 # if they come back (gplbld/probe-user32desk.c has the measurement).  Each
 # entry names the DLL-name prefixes that binary may not import.
 NATIVE_ONLY = {
-    'sdsvc.exe':      ['msys-'],
     'sdtlsrelay.exe': ['msys-', 'user32'],
 }
 

@@ -19,6 +19,10 @@
 *
 *
 * START-HISTORY:
+* 26 Sep 26 SD Core Solo - SOLO 3 step 5: the pre-authenticated session
+*           (K$API.PREAUTH, sd -H), check.identity (K$IMPERSONATING), the
+*           is_grp_member declaration, the dead group.lookup.failed branch and
+*           request 25's unreachable body are deleted.
 * 25 Sep 26 SD Core Solo - SOLO 3 step 2 (docs/SOLO_API.md): NO HANDOVER - a
 *           successful SCRAM login sets logged.in and this process serves the
 *           session; the K$HANDOFF prepare/commit and scram.handoff are gone.
@@ -213,12 +217,9 @@ logging             ;* Logging network traffic?
 *   shows the two together and it declares its functions after syscom.h's
 *   common, so that is the order known to compile.
 deffun valid_os_name(name) calling '!valid_os_name'
-* 21 Aug 26 Windows port - AND is_grp_member MOVED UP HERE FOR THE SAME REASON.
-*   It was declared beside vb.account's ACC$GROUP test, which was its only
-*   caller.  vb.scram.final now tests sdapi as well, and that is 700 lines
-*   EARLIER in the flow but LATER in the file - so leaving the declaration
-*   where it was would compile today and break the moment either routine moved.
-deffun is_grp_member(user,group) calling '!is_grp_member'
+* 26 Sep 26 SD Core Solo - SOLO 3 step 5: the is_grp_member declaration that
+*   stood here is gone; its callers (the ACC$GROUP and sdapi tests) went on
+*   25 Sep.
 
 * If this is the first time through, initialise various things in
 * the SYSCOM common block.
@@ -256,43 +257,12 @@ if not(kernel(K$CPROC.LEVEL,0)) then
    default.style.rec = ''
    logname = kernel(K$USERNAME, 0)
 
-* 22 Sep 26 Windows port - RELEASE_1.1 101.  WHICH TRANSPORT BROUGHT THIS
-*   SESSION IN, recorded once here and read only by vb.account's SDSYS test.
-*   @false until vb.local.login sets it, so every path that does NOT go through
-*   request 25 - SCRAM, and the pre-authenticated handover above - leaves it
-*   @false.  THAT DIRECTION IS THE SAFE ONE: a transport this program does not
-*   yet know about is not local.
-   local.session = @false
 
-* 17 Sep 26 Windows port - RELEASE_1.1 55 slice 6.  A PRE-AUTHENTICATED
-*   SESSION (sd -N -H, spawned by K$HANDOFF) SKIPS SCRAM ENTIRELY - it is
-*   already running as the authenticated user by its own PROCESS TOKEN
-*   (win32session.c), not by impersonation, so there is no proof left to run.
-*   K$API.PREAUTH's two fields are deliberately independent (op_kernel.c,
-*   int$keys.h): <1> is how this process was STARTED, <2> is what Windows
-*   says its token IS, read with ProcessUserName() rather than
-*   ImpersonatingUser() - which reports an impersonation and would answer 0
-*   with an empty name for exactly this session.  <1>=1 with <2>='' is that
-*   trap made visible: pre-authenticated but unable to name itself, refused
-*   here rather than left to enter the request loop with no identity.
-   api.preauth = kernel(K$API.PREAUTH, 0)
-   if api.preauth<1> = 1 then
-      if api.preauth<2> = '' then
-         abort.message = sysmsg(10189)
-         * Pre-authenticated session could not determine its user name
-         goto connection.failed
-      end
-
-      set.name = kernel(K$SET.USERNAME, api.preauth<2>)
-      if set.name # api.preauth<2> then
-         abort.message = sysmsg(10160)
-         * Authentication succeeded but the session could not take your user name
-         goto connection.failed
-      end
-
-      logname = api.preauth<2>
-      logged.in = @true
-   end
+* 26 Sep 26 SD Core Solo - SOLO 3 step 5: THE PRE-AUTHENTICATED SESSION
+*   (sd -N -H, K$API.PREAUTH) IS GONE WITH THE HANDOVER THAT SPAWNED IT.  It
+*   skipped SCRAM and took its name from its own token, so under ruling 21 it
+*   was a way in without the password for anything that could start sd.exe.
+*   Every API session now proves the password here (vb.scram.*).
 
    mat qproc.breakpoint.value = ''
    user.var.names = ''
@@ -576,19 +546,13 @@ end
 *   Accounts are reached by name, as they are at LOGTO.  See PROJECT_STATUS.md
 *   section 5.6.
 
-* 17 Aug 26 Windows port - acc.group is read HERE, inside the block where
-*   acc.rec is known to be assigned, and initialised to '' beside account.path
-*   above it.  Reading it after the close would be reachable with acc.rec
-*   never set - an unassigned reference is a compile-time WARNING and a
-*   run-time abort in a program that may not run until much later, which is
-*   the ERRGEN trap in PROJECT_STATUS.md section 6 and what bootstrap.py
-*   line 229 refuses a build for.
-
-* 18 Sep 26 Windows port - RELEASE_1.1 64.  acc.tier and its read below are
-*   gone with the tier fields; the suspension test reads ACC$SUSPENDED inside
-*   the same block, for the reason the acc.group note above gives.
+* 17 Aug 26 Windows port - register fields are read INSIDE the block where
+*   acc.rec is known to be assigned, and initialised to '' first.  Reading
+*   after the close would be reachable with acc.rec never set - an unassigned
+*   reference is a compile-time WARNING and a run-time abort, the ERRGEN trap
+*   in PROJECT_STATUS.md section 6.  (acc.group, read here for the Windows-group
+*   test, went with it - SOLO 3 step 5.)
 account.path = ''
-acc.group = ''
 acc.suspended = ''
 * 17 Sep 26 Windows port - RELEASE_1.1 55.  ***EVERY REFUSAL HERE NAMES ITS
 *   BRANCH ON THE AUDIT TRAIL, AND THAT IS KEPT RATHER THAN REMOVED WITH THE
@@ -604,7 +568,6 @@ acc.suspended = ''
 openpath @sdsys:@ds:'accounts' to acc.f then
    read acc.rec from acc.f, new.account then
       account.path = parse.pathname.tokens(acc.rec<ACC$PATH>)
-      acc.group = acc.rec<ACC$GROUP>
       acc.suspended = acc.rec<ACC$SUSPENDED>
    end
    close acc.f
@@ -794,14 +757,6 @@ end
 acc.who = upcase(kernel(K$USERNAME, 0))
 if index(acc.who, '\', 1) > 0 then acc.who = field(acc.who, '\', dcount(acc.who, '\'))
 acc.member = (new.account # 'SDSYS') and (new.account = acc.who)
-acc.told = 0
-
-if acc.told # 0 then
-   void kernel(K$AUDIT, 'ACCOUNT REFUSED branch=4 group.lookup.failed user=' : kernel(K$USERNAME, 0) : ' group=' : acc.group)
-   server.error = SV$ERROR
-   error.msg = sysmsg(10003) ;* User not allowed in requested account
-   goto revert.to.old.account
-end
 
 if not(acc.member) then
    void kernel(K$AUDIT, 'ACCOUNT REFUSED branch=4 not.own.account user=' : acc.who : ' account=' : new.account)
@@ -821,22 +776,10 @@ end
 *   routine's access rule now, and the identity note above it is why that is
 *   enough on this route.
 
-* 24 Aug 26 Windows port - PROJECT_STATUS.md 7 step 14.  RIGHT HERE, because
-*   is_grp_member is '!ps_script' and that fork()s (op_sh.c:379) - and a fork
-*   silently reverts this thread to the service's token.  Checking immediately
-*   after it is what separates "lost at the group check" from "lost later".
-* 17 Sep 26 Windows port - ***THE REASON ABOVE IS NOW STALE AND THE CHECK IS
-*   KEPT ANYWAY.***  RELEASE_1.1 55: is_grp_member no longer runs '!ps_script'
-*   and no longer forks - it asks K$GROUP.MEMBER - so nothing here reverts a
-*   thread's token any more.  But a PRE-AUTHENTICATED session is the user by
-*   its PROCESS token and has no impersonation to lose, while a forked
-*   LocalSystem session still does, and both routes reach this line.  Keeping
-*   it costs one call and still separates "lost at the group check" from
-*   "lost later"; deleting it because one of its two callers changed is how a
-*   check stops covering the caller that never did.
-
-id.point = 'LOGTO group check'
-gosub check.identity
+* 26 Sep 26 SD Core Solo - SOLO 3 step 5: the check.identity call that stood
+*   here is gone with S4U.  It watched for a forked LocalSystem session losing
+*   the user's impersonation; a Solo session IS the user by its process token
+*   and has nothing to lose.
 
 if not(ospath(account.path, OS$CD)) then
    server.error = SV$ERROR
@@ -1174,13 +1117,6 @@ vb.write:
                id.len = oconv(cmnd[3,2], 'ISL')
                id = cmnd[5,id.len]
 
-               * 24 Aug 26 Windows port - step 14.  The write is where b28 read
-               *   a record owned by SYSTEM, so the identity is checked at the
-               *   moment it matters and not only where it is believed to break.
-
-               id.point = 'record write'
-               gosub check.identity
-
                write cmnd[5 + id.len, 99999999] to files(fno), id
                on error server.error = SV$ON.ERROR
 
@@ -1376,56 +1312,13 @@ vb.local.login:
 *   21 makes every session prove the account password; this request carries
 *   none and the client libraries stay unchanged (ruling 18), so it cannot be
 *   made to ask.  Refused the way retired request 24 is, with one message
-*   naming what to use instead, audited, and the connection ends.  The old
-*   body below is unreachable and goes with SOLO 3 step 5.
+*   naming what to use instead, audited, and the connection ends.  Its old
+*   body, which took the caller's identity from the process that started
+*   sd.exe, is deleted (SOLO 3 step 5).
                abort.message = sysmsg(12021) ;* SDConnectLocal is not available... use SDConnect
                server.error = SV$ON.ERROR
                void kernel(K$AUDIT, 'API REFUSED request=25 SDConnectLocal - disabled in SD Core Solo')
                done = @true
-               return
-              * dsm 20240612 openpath @sdsys:@ds:'$LOGINS' to lgn.f else
-              * dsm 20240612    abort.message = sysmsg(6050) ;* Cannot open $LOGINS register
-              * dsm 20240612    server.error = SV$ON.ERROR
-              * dsm 20240612    return
-              * dsm 20240612 end
-
-               * mab 20240219  read security.rec from lgn.f, '$SECURE' then
-               * mab 20240219     = kernel(K$SECURE, security.rec<1>)
-               * mab 20240219  end
-
-               username = logname
-
-               * mab 20240219 if kernel(K$SECURE, -1) then
-               * dsm 20240612 readu lgn.rec from lgn.f, username else null
-               * 20240219 mab user must be member of sdusers           
-* 13 Aug 26 Windows port - removed the sdusers group test; SD no longer
-*   consults operating system groups.
-
-               * dsm 20240612 lgn.rec<LGN$DATE> = date()
-               * dsm 20240612 lgn.rec<LGN$TIME> = time()
-               * dsm 20240612 recordlocku lgn.f, username
-               * dsm 20240612 write lgn.rec to lgn.f, username
-
-               logname = username
-
-*              22 Sep 26 Windows port - RELEASE_1.1 101.  THIS SESSION CAME IN
-*              OVER SDConnectLocal, AND THAT IS A PROPERTY NO LATER CODE CAN
-*              RE-DERIVE.  There is no socket, so there is no peer address to
-*              read: sdclilib.c:1451 makes two anonymous pipes and starts sd.exe
-*              as a CHILD of the caller, which selects CN_PIPE (sd.c:469).
-*              vb.account reads this to decide whether SDSYS may be entered.
-               local.session = @true
-
-               * dsm 20240612 i = kernel(K$ADMINISTRATOR,lgn.rec<LGN$ADMIN>)
-               * mab 20240219    end else      ;* System is insecure
-               * mab 20240219      i = kernel(K$ADMINISTRATOR,1)    ;* All users are administrators
-               * mab 20240219    end
-
-exit.vb.local.login:
-               * dsm 20240612close lgn.f
-               if server.error = SV$OK then logged.in = @true
-               else done = @true
-
                return
 
                * ======================================================================
@@ -2522,36 +2415,6 @@ scram.check.proof:
                                                                      if scram.derived = '' then return
                                                                      if SDEXT(scram.derived : @FM : scram.check.key, @TRUE, SD_CTEQUAL) = '1' then scram.check.ok = @true
                                                                      return
-
-                                                                     * ======================================================================
-                                                                     * check.identity - has this session still got the caller's identity?
-                                                                     *
-                                                                     * 24 Aug 26 Windows port - PROJECT_STATUS.md 7 step 14 (b).
-                                                                     *
-                                                                     * IT REPORTS ONLY THE DISAGREEMENT, which is why it can stay in.
-                                                                     * K$IMPERSONATING returns two fields: <1> the identity WINDOWS says
-                                                                     * this thread runs as, <2> whether SD still holds an S4U token.
-                                                                     * Equal is healthy and says nothing.  Field 1 empty while field 2 is
-                                                                     * true is the defect - SD believes it is the user and the thread is
-                                                                     * not - and that is the only case that writes a line.
-                                                                     *
-                                                                     * READING EITHER FIELD ALONE IS WHAT HID THIS.  The old
-                                                                     * ImpersonatingUser() returned the BELIEF and nothing else, so it
-                                                                     * would have answered "still impersonating" at the exact moment the
-                                                                     * identity was gone.
-                                                                     *
-                                                                     * In:  id.point - where it was called from, for the log line
-
-check.identity:
-                                                                     if logged.in then
-                                                                        id.state = kernel(K$IMPERSONATING, 0)
-                                                                        if id.state<1> = '' and id.state<2> then
-                                                                           logmsg 'API IDENTITY LOST at ' : id.point : ' - session believes it is ' : scram.user : ' but the thread holds the service token'
-                                                                        end
-                                                                     end
-
-                                                                     return
-
 
                                                                      * ======================================================================
 check.file:
