@@ -12,7 +12,11 @@
 #                  sessions printed "SD has not been started" without it).
 #   2. sd -internal RUN gpl.bp solo_account <user>       (SOLO 4, ruling 10)
 #   3. -Passwords: solo_password ADMIN, and with -Global also GLOBAL  (SOLO 5)
-#   4. -Upgrade: sd -internal UPDATE.ACCOUNTS ALL   (SOLO 9, the
+#   4. -Upgrade: the dictionaries (SOLO 9, replacing upgrade-dicts.ps1) -
+#      {app}\gplbld\FILES_DICTS placed at sdsys\gplbld, sd -internal RUN gpl.bp
+#      WRITE_INSTALL_DICTS NO.PAGE (merges; every shipped record must be
+#      written), sd -internal THIRD.COMPILE, the placed copy removed.  Then
+#      sd -internal UPDATE.ACCOUNTS ALL   (SOLO 9, the
 #      upgrade-completeness gap left by retiring upgrade-voc.ps1).  An upgrade
 #      replaces NEWVOC but rebuilds no account's own live VOC, so a release
 #      that adds a verb would otherwise ship it to nobody.  "-internal" names
@@ -97,6 +101,18 @@ if ($Global -and -not $Passwords) { $refuse += '-Global without -Passwords' }
 if ($Global -and -not $globalPw) { $refuse += '-Global without a global password' }
 $markerLib = Join-Path $AppDir 'internal-marker.ps1'
 if (-not (Test-Path -LiteralPath $markerLib)) { $refuse += 'no internal-marker.ps1 under the app dir' }
+# The dictionary source: shipped to {app}\gplbld (stage.py), read by
+# WRITE_INSTALL_DICTS from @sdsys/gplbld while it runs (bootstrap.py does the
+# same placement).  Counted here so the transfer can be measured against it.
+$dictSrc = Join-Path $AppDir 'gplbld\FILES_DICTS'
+$dictDir = Join-Path $sdsys 'gplbld'
+$dictDst = Join-Path $dictDir 'FILES_DICTS'
+$dictWanted = 0
+if ($Upgrade) {
+    if (Test-Path -LiteralPath $dictSrc) { $dictWanted = @(Get-ChildItem -LiteralPath $dictSrc -File).Count }
+    Note ('dictionaries : ' + $dictSrc + '   ' + $dictWanted + ' record(s)')
+    if ($dictWanted -eq 0) { $refuse += '-Upgrade with no FILES_DICTS records under the app dir' }
+}
 if ($refuse.Count -gt 0) {
     foreach ($r in $refuse) { Note ('REFUSED      : ' + $r) }
     Note 'VERDICT      : REFUSED - nothing was run'
@@ -181,7 +197,12 @@ function Invoke-Sd([string]$SdArgs, [string]$InputText) {
 
 $disqualify = @('only the installer may run this', 'Connection terminated', 'has not been started',
                 'Cannot update every registered account from here', 'Command requires administrator privileges',
-                'Cannot open accounts register', 'does not take')
+                'Cannot open accounts register', 'does not take',
+                # WRITE_INSTALL_DICTS' refusals (and bootstrap.py's Invalid runfile)
+                'ERROR OPENING FILE', 'ERROR CANNOT OPEN', 'PROCESS ABORTED', 'READLIST EMPTY',
+                'NO DIRECTORY RECORDS FOUND', 'CANNOT READ TRANSFER_FILE', 'Invalid runfile',
+                # CD's (sysmsg 2975, 2976) and the ERRGEN trap's warning
+                'Compilation error in', 'has no expression', 'is not assigned a value')
 $fails = @()
 function Judge([string]$Label, [string]$Text, [string]$Pattern) {
     $hit = [bool]([regex]::IsMatch($Text, $Pattern, 'IgnoreCase, Multiline'))
@@ -197,6 +218,8 @@ function Judge([string]$Label, [string]$Text, [string]$Pattern) {
     }
 }
 
+$script:dictPlaced = $false
+$script:dictMadeDir = $false
 try {
     $script:leaked = $false
     [void](Invoke-Sd '-stop' '')          # a leftover daemon from an earlier run
@@ -226,6 +249,46 @@ try {
     }
 
     if ($Upgrade) {
+        # SDSYS's dictionaries are made by the bootstrap and named in no
+        # stage.py list, so upgrade.iss never reaches them.  Merge the shipped
+        # records (WRITE_INSTALL_DICTS writes per record, deletes nothing),
+        # then THIRD.COMPILE, as bootstrap.py does.  The placed copy is removed
+        # in the finally below whatever happens: the data tree keeps no build
+        # input.
+        $script:dictMadeDir = -not (Test-Path -LiteralPath $dictDir)
+        if (Test-Path -LiteralPath $dictDst) {
+            Note ('  ' + $dictDst + ' was left by an earlier run; replacing it')
+            Remove-Item -LiteralPath $dictDst -Recurse -Force
+        }
+        New-Item -ItemType Directory -Force -Path $dictDir | Out-Null
+        Copy-Item -LiteralPath $dictSrc -Destination $dictDst -Recurse -Force
+        $script:dictPlaced = $true
+        $placedN = @(Get-ChildItem -LiteralPath $dictDst -File).Count
+        Note ('  placed ' + $dictDst + ': ' + $placedN + ' of ' + $dictWanted + ' record(s)')
+
+        # NO.PAGE: without it the program pages and waits for a key.
+        $t = Invoke-Sd '-internal RUN gpl.bp WRITE_INSTALL_DICTS NO.PAGE' ''
+        $moved = @(($t -split "`n") | Where-Object { $_ -match '^\s*DICTIONARY:\s' }).Count
+        Note ('  ' + $moved + ' DICTIONARY line(s), ' + $dictWanted + ' record(s) shipped')
+        Judge 'dictionaries written' $t '^\s*COMPLETE\s*$'
+        if ($placedN -ne $dictWanted -or $moved -ne $dictWanted) {
+            Note ('  FAIL  dictionary count (placed ' + $placedN + ', written ' + $moved + ', shipped ' + $dictWanted + ')')
+            $script:fails += 'dictionary count'
+        }
+
+        # THIRD.COMPILE is SDSYS's paragraph of CD (COMPILE.DICT) commands.  CD
+        # prints "Compiling <item>" per I-type and has no summary line, so the
+        # anchor is at least one of those, and its failure wordings disqualify.
+        $t = Invoke-Sd '-internal THIRD.COMPILE' ''
+        $compiled = @(($t -split "`n") | Where-Object { $_ -match '^\s*Compiling\s+\S' }).Count
+        Note ('  ' + $compiled + ' Compiling line(s)')
+        Judge 'dictionaries compiled' $t '^\s*Compiling\s+\S'
+        $badErr = @(($t -split "`n") | Where-Object { $_.Trim() -match 'error\(s\)$' -and $_.Trim() -notmatch '^0 ' })
+        if ($badErr.Count) {
+            Note ('  FAIL  THIRD.COMPILE reported: ' + ($badErr -join '; '))
+            $script:fails += 'dictionary compile errors'
+        }
+
         # message 10171, "N account(s) had their VOC updated" - the same
         # anchor the retired upgrade-voc.ps1 used.  "0 account(s)" is refused
         # too: a walk that opened the register and visited nothing is not a
@@ -240,6 +303,17 @@ catch {
 }
 finally {
     $adminPw = $null; $globalPw = $null; $accountPw = $null; $secrets = $null
+    if ($script:dictPlaced) {
+        try {
+            Remove-Item -LiteralPath $dictDst -Recurse -Force -ErrorAction Stop
+            if ($script:dictMadeDir) { Remove-Item -LiteralPath $dictDir -Recurse -Force -ErrorAction Stop }
+            Note ('removed      : ' + $(if ($script:dictMadeDir) { $dictDir } else { $dictDst }))
+        }
+        catch {
+            Note ('COULD NOT REMOVE ' + $dictDst + ' - delete it by hand')
+            $fails += 'dictionary cleanup'
+        }
+    }
     [void](Invoke-Sd '-stop' '')
     Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
 }

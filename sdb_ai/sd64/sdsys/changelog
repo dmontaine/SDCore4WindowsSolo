@@ -3,6 +3,14 @@ S1.1-0 - SD Core Solo, in progress
 A personal SD Core for one Windows user. NOTHING IN THIS SECTION HAS BEEN
 RELEASED.
 
+27 Sep 26  AN UPGRADE BRINGS YOUR ACCOUNT UP TO THE NEW RELEASE.
+
+           Installing a new release over an existing SD Core Solo now
+           updates your account's VOC, so commands the release adds can
+           be typed straight away, and merges the release's changes into
+           the system dictionaries. Dictionary items you added yourself
+           are kept.
+
 26 Sep 26  SH AND OS.EXECUTE WORK OVER THE API.
 
            A session reached over the API runs as you, like one at the
