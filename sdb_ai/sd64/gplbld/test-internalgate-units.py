@@ -229,11 +229,9 @@ print("")
 print("== 2. every internal session start is a declared writer that really writes the marker")
 
 WRITERS = {
-    "attach-account.ps1": "Set-SdInternalMarker",
-    "finish-install.ps1": "Set-SdInternalMarker",
-    "upgrade-dicts.ps1": "Set-SdInternalMarker",
-    "upgrade-nocase.ps1": "Set-SdInternalMarker",
-    "upgrade-voc.ps1": "Set-SdInternalMarker",
+    # 26 Sep 26 - SOLO 9 phase 3: attach-account.ps1, finish-install.ps1,
+    # upgrade-dicts.ps1, upgrade-nocase.ps1 and upgrade-voc.ps1 deleted - each
+    # was reachable only from the deleted multi-user sd.iss/upgrade.iss.
     "bootstrap.py": "INTERNAL_MARKER_DIR",
     # 25 Sep 26 - SOLO 2's witness; sets bootstrap's INTERNAL_MARKER_DIR and uses its sd().
     "probe-solo-stage.py": "INTERNAL_MARKER_DIR",
@@ -291,18 +289,31 @@ def partition_problems(found):
 
 
 found = session_starters(HERE)
-row(len(found) >= 8, "CONTROL: the walk found the internal session starters (%d files)" % len(found),
+# 26 Sep 26 - SOLO 9 phase 3 dropped the floor from 8 to 5: the five deleted
+# writers (see WRITERS above) also carried the token, so their retirement
+# lowers the real count along with the declaration.
+row(len(found) >= 5, "CONTROL: the walk found the internal session starters (%d files)" % len(found),
     "found %d - the token or the directory is wrong, and the partition below would pass on nothing" % len(found))
 pp = partition_problems(found)
 row(not pp, "every internal session start is a declared writer that references the marker", " | ".join(pp))
 
 # mutants on the FOUND set: a writer with its marker call removed, and an undeclared starter
-if "upgrade-voc.ps1" in found:
-    n, text = found["upgrade-voc.ps1"]
+# 26 Sep 26 - SOLO 9 phase 3: retargeted from the deleted upgrade-voc.ps1 to
+# whichever declared writer the walk actually found, using ITS OWN required
+# string rather than a hardcoded one - the surviving writers do not all name
+# the marker the same way (bootstrap.py's is INTERNAL_MARKER_DIR, not
+# Set-SdInternalMarker).
+_mutTarget = next((n for n in WRITERS if n in found), None)
+if _mutTarget:
+    n, text = found[_mutTarget]
+    need = WRITERS[_mutTarget]
     bare = dict(found)
-    bare["upgrade-voc.ps1"] = (n, text.replace("Set-SdInternalMarker", "Set-SomethingElse"))
-    row(any("upgrade-voc.ps1" in x and "never references" in x for x in partition_problems(bare)),
-        "MUTANT: a writer whose marker call was removed is caught, by name")
+    bare[_mutTarget] = (n, text.replace(need, "Something-Else"))
+    row(any(_mutTarget in x and "never references" in x for x in partition_problems(bare)),
+        "MUTANT: a writer whose marker call was removed is caught, by name (%s)" % _mutTarget)
+else:
+    row(False, "MUTANT: a writer whose marker call was removed is caught, by name",
+        "no declared writer in WRITERS was found at all - the mutant has nothing to target")
 extra = dict(found)
 extra["brand-new-step.ps1"] = (1, "Start-Process sd -ArgumentList '-internal'")
 row(any("brand-new-step.ps1" in x and "not declared" in x for x in partition_problems(extra)),
@@ -332,7 +343,9 @@ row("pid={1}" in marker_ps1, "the PowerShell writer writes 'pid='")
 # the shipped scripts find the helper beside them: it must be staged with them
 stage = read(os.path.join(HERE, "stage.py"))
 row("'internal-marker.ps1'" in stage, "stage.py ships internal-marker.ps1 beside the scripts that dot-source it")
-for name in ("attach-account.ps1", "finish-install.ps1", "upgrade-dicts.ps1", "upgrade-nocase.ps1", "upgrade-voc.ps1"):
+# 26 Sep 26 - SOLO 9 phase 3: the five multi-user writers above are deleted;
+# solo-setup.ps1 is the one that dot-sources internal-marker.ps1 now.
+for name in ("solo-setup.ps1",):
     row("internal-marker.ps1" in read(os.path.join(HERE, name)), "%s dot-sources internal-marker.ps1" % name)
 
 # ---------------------------------------------------------------------------

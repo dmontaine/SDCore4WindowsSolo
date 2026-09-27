@@ -542,6 +542,47 @@ PF_RETIRED = [
     # adopt-account.ps1 in {app} forever.
     ('adopt-account.ps1',
      'RELEASE_1.1 64 deleted ADOPT with the tier teardown; install-sdsys.ps1 replaced it'),
+    # 26 Sep 26 - SD Core Solo, SOLO 9 phase 3.  Every script below shipped for
+    # the deleted multi-user sd.iss/upgrade.iss or the deleted sdsvc.exe
+    # service, and stage.py's own ship list (above) no longer names any of
+    # them - each was checked for a non-comment caller in sd-solo.iss, every
+    # live BASIC verb and every surviving gplbld script, and none was found.
+    # Named here so Inno deletes them from {app} on an upgrade of a tree an
+    # earlier Solo release installed.
+    ('deny-logon.ps1', 'SOLO 9 phase 3 - no caller; the group/deny-logon model retired with rulings 11/16'),
+    ('install-ssh.ps1', 'SOLO 9 phase 3 - the ssh.server verb it serves is not in newvoc'),
+    ('sync-route-groups.ps1', 'SOLO 9 phase 3 - its only caller, sd.iss, is deleted'),
+    ('remove-sdaccounts.ps1', 'SOLO 9 phase 3 - no caller; CREATE.ACCOUNT is retired'),
+    ('ssh-preflight.ps1', 'SOLO 9 phase 3 - its only caller, sd.iss, is deleted'),
+    ('api-listener.ps1', 'SOLO 9 phase 3 - the remote.api verb it serves is not in newvoc'),
+    ('restart-sd.ps1', 'SOLO 9 phase 3 - its only caller, remoteapi, is unreachable (remote.api not in newvoc)'),
+    ('remove-ssh.ps1', 'SOLO 9 phase 3 - the ssh.server verb it serves is not in newvoc'),
+    ('dism-capability.ps1', 'SOLO 9 phase 3 - dot-sourced only by install-ssh.ps1/remove-ssh.ps1, both retired'),
+    ('install-editors.ps1', 'SOLO 9 phase 3 - no caller; System32 edit.exe is unaffected'),
+    ('attach-account.ps1', 'SOLO 9 phase 3 - CREATEA install-only ATTACH door is retired'),
+    ('install-sdsys.ps1', 'SOLO 9 phase 3 - SDSYS is never a login target in Solo (ruling 11)'),
+    ('install-service.ps1', 'SOLO 9 phase 3 - no Windows service; the S4U task replaced it'),
+    ('check-install.ps1', 'SOLO 9 phase 3 - its only caller, finish-install.ps1, is retired'),
+    ('finish-install.ps1', 'SOLO 9 phase 3 - its only caller, sd.iss, is deleted'),
+    ('secure-audit.ps1', 'SOLO 9 phase 3 - no caller; ran from the deleted sd.iss'),
+    ('secure-cred.ps1', 'SOLO 9 phase 3 - no caller; ran from the deleted sd.iss'),
+    ('secure-log.ps1', 'SOLO 9 phase 3 - no caller; ran from the deleted sd.iss'),
+    ('secure-psdir.ps1', 'SOLO 9 phase 3 - no caller; ran from the deleted sd.iss'),
+    ('secure-osusers.ps1', 'SOLO 9 phase 3 - no caller; os.users/sdusers model is retired'),
+    ('secure-gcat.ps1', 'SOLO 9 phase 3 - no caller; ran from the deleted sd.iss'),
+    ('secure-tls.ps1', 'SOLO 9 phase 3 - no caller; ran from the deleted sd.iss'),
+    ('secure-dumps.ps1', 'SOLO 9 phase 3 - no caller; ran from the deleted sd.iss'),
+    ('restore-sshonly.ps1', 'SOLO 9 phase 3 - no caller; ran from the deleted sd.iss'),
+    ('secure-pcode.ps1', 'SOLO 9 phase 3 - no caller; ran from the deleted sd.iss'),
+    ('secure-sysdirs.ps1', 'SOLO 9 phase 3 - no caller; ran from the deleted sd.iss'),
+    ('secure-accounts.ps1', 'SOLO 9 phase 3 - no caller; ran from the deleted sd.iss'),
+    ('secure-account-dirs.ps1', 'SOLO 9 phase 3 - no caller; ran from the deleted sd.iss'),
+    ('upgrade-dicts.ps1', 'SOLO 9 phase 3 - its only caller, sd.iss upgrade path, is deleted'),
+    ('upgrade-voc.ps1', 'SOLO 9 phase 3 - its only caller, sd.iss upgrade path, is deleted'),
+    ('upgrade-nocase.ps1', 'SOLO 9 phase 3 - its only caller, sd.iss upgrade path, is deleted'),
+    ('secure-reclaim.ps1', 'SOLO 9 phase 3 - no caller; the sweep it locked down for is deleted'),
+    ('reclaim-profiles.ps1', 'SOLO 9 phase 3 - ran from sdsvc.exe at every boot; that service is deleted'),
+    ('reconcile-accounts.ps1', 'SOLO 9 phase 3 - ran from sdsvc.exe at every boot; that service is deleted'),
 ]
 
 SDSYS_PRESERVE = [
@@ -1342,76 +1383,13 @@ def main():
     # elevated helper runs.  gpl.bp/elevate reaches them with
     # kernel(K$WINPATH), because they are "/" to SD and "C:\Program Files\SD"
     # to PowerShell, which cannot open the first.
-    for script in ('deny-logon.ps1', 'install-ssh.ps1', 'allow-ssh-groups.ps1',
-                   'sync-route-groups.ps1',
+    for script in ('allow-ssh-groups.ps1',
                    'ssh-firewall.ps1',
-                   # 29 Aug 26 - remove-sdaccounts.ps1, PRE_RELEASE_FIXES 39's
-                   # ruling.  The uninstaller offers to take away the Windows
-                   # accounts CREATE.ACCOUNT made; until it did, uninstalling
-                   # left every one of them enabled while REMOVING the
-                   # sshd_config ForceCommand that confined them to SD.
-                   #
-                   # IT SHIPS, so assert-current watches it like the rest of
-                   # these - do NOT add it to that script's $neverShipped list.
-                   # sd.iss copies it to {tmp} at usUninstall, because the
-                   # prompt that runs it is at usPostUninstall by which time
-                   # this directory has gone.
-                   'remove-sdaccounts.ps1',
-                   # 25 Aug 26 - ssh-preflight.ps1 decides whether SD may
-                   # install here at all, and it is the one script the
-                   # installer runs BEFORE any file is written.  sd.iss
-                   # therefore also embeds it with Flags: dontcopy and
-                   # extracts it in InitializeSetup; this entry is what puts a
-                   # copy in C:\Program Files\SD so an administrator can re-run
-                   # the check by hand afterwards.  It SHIPS, so assert-current
-                   # watches it like the rest of these - do NOT add it to that
-                   # script's $neverShipped list.
-                   'ssh-preflight.ps1',
                    # 21 Aug 26 - the API faces the network now, so who may
                    # reach the port is a firewall rule SD owns.  Shipped, so
                    # it is watched by assert-current like the rest of these -
                    # do NOT add it to that script's $neverShipped list.
                    'api-firewall.ps1',
-                   # 30 Aug 26 - api-listener.ps1, PRE_RELEASE_FIXES 78.  The
-                   # half of "remote.api on|local|off" that edits sd.conf, split
-                   # out of the verb for the reason install-ssh.ps1 records: a
-                   # script can be parse-checked, byte-checked and run on its
-                   # own, and BASIC embedded in a verb cannot.
-                   #
-                   # THE TWO AXES ARE DELIBERATELY TWO SCRIPTS.  APIPORT decides
-                   # whether SD opens a socket; api-firewall.ps1 above decides
-                   # who may reach it.  Keeping them apart is what lets
-                   # "remote.api local" exist - listener on, firewall shut -
-                   # which is the state 75 removed from the installer and the
-                   # owner ruled back in on 30 Aug 2026.
-                   #
-                   # IT SHIPS, so assert-current watches it like the rest of
-                   # these - do NOT add it to that script's $neverShipped list.
-                   'api-listener.ps1',
-                   # 30 Aug 26 - restart-sd.ps1 and remove-ssh.ps1, the other
-                   # two halves of PRE_RELEASE_FIXES 78's three verbs.
-                   #
-                   # restart-sd.ps1 is NOT Restart-Service, and cycle.ps1:299
-                   # records why: "Stop-Service returns before the SCM has
-                   # finished and before sdwind has gone", and sdwind is what
-                   # holds the shared segment.  A Restart-Service here would
-                   # report success while the OLD configuration went on
-                   # running, which for "remote.api" means telling somebody the
-                   # API is on when no socket was reopened.
-                   #
-                   # remove-ssh.ps1 mirrors install-ssh.ps1 and exists mostly to
-                   # SAY things: the removal is staged behind a reboot, and
-                   # C:\ProgramData\ssh is left behind, which makes the next SD
-                   # install refuse if sshd_config outlives sshd_config_default.
-                   #
-                   # BOTH SHIP, so assert-current watches them - do NOT add
-                   # either to that script's $neverShipped list.
-                   'restart-sd.ps1', 'remove-ssh.ps1',
-                   # 24 Sep 26 - dism-capability.ps1, RELEASE_1.1 109.
-                   # Dot-sourced by install-ssh.ps1 and remove-ssh.ps1 from
-                   # their own directory, so it must sit beside them.  IT
-                   # SHIPS - do NOT add it to assert-current's $neverShipped.
-                   'dism-capability.ps1',
                    # 31 Aug 26 - sd-path.ps1, PRE_RELEASE_FIXES 89 and the
                    # owner's ruling of the same day.  An upgrade is to skip the
                    # tasks page and fire none of its actions, which left the
@@ -1433,17 +1411,9 @@ def main():
                    # these - do NOT add it to that script's $neverShipped list.
                    # Its unit test does NOT ship and IS on that list.
                    'sd-path.ps1',
-                   # 26 Aug 26 - the EDIT and MICRO verbs each need a
-                   # terminal full-screen editor.  Most machines already carry
-                   # Microsoft Edit (System32\edit.exe); micro is always a
-                   # winget install.  It SHIPS, so assert-current watches it
-                   # like the rest of these - do NOT add it to that script's
-                   # $neverShipped list.  Exit 2 means "an editor is missing
-                   # and could not be installed", which is not an install
-                   # failure: only that verb is unavailable, and ed is
-                   # unaffected.  It was install-edit.ps1 for part of one day,
-                   # before the second editor existed.
-                   'install-editors.ps1',
+                   # 26 Sep 26 - SOLO 9 phase 3: install-editors.ps1 (the
+                   # winget install for micro) retired - no caller left; ED is
+                   # System32\edit.exe and is unaffected.
                    # 27 Aug 26 - micro-home.ps1, PRE_RELEASE_FIXES #29.  It
                    # gives the calling user a micro configuration home they can
                    # WRITE to and prints where it is; gpl.bp/edit runs it before
@@ -1452,125 +1422,15 @@ def main():
                    # so assert-current watches it like the rest of these - do
                    # NOT add it to that script's $neverShipped list.
                    'micro-home.ps1',
-                   # 18 Sep 26 - RELEASE_1.1 66.  It gives the INSTALLING user
-                   # their own ordinary SD account, through CREATEA's
-                   # install-only ATTACH door.  CREATE.ACCOUNT refuses every
-                   # name that already has a Windows account (10038), and under
-                   # 64 nothing else mints one - so without this step the person
-                   # who installed SD can never have an account at all.
-                   #
-                   # IT SHIPS BECAUSE sd.iss RUNS IT FROM {app}, the same reason
-                   # as the rest of this list, and a script left out of it is a
-                   # call pointing at nothing.  THAT IS NOT A HYPOTHETICAL HERE:
-                   # the verb half was written, compiled and shipped on 18 Sep
-                   # while this line was missing, and the install silently made
-                   # no account.  So assert-current watches it like the rest -
-                   # do NOT add it to that script's $neverShipped list.
-                   'attach-account.ps1',
                    # 20 Sep 26 - RELEASE_1.1 82 (D2').  DOT-SOURCED by
-                   # attach-account, finish-install and the three upgrade-*
-                   # scripts, which write LOGIN's one-shot "sd -internal"
-                   # marker before each internal session.  It must sit beside
-                   # them, and assert-current watches it like the rest.
+                   # solo-setup.ps1, which writes LOGIN's one-shot "sd
+                   # -internal" marker before its own internal sessions
+                   # (solo_account, solo_password).  It must sit beside it, and
+                   # assert-current watches it like the rest.
+                   # 26 Sep 26 - SOLO 9 phase 3: the other four dot-sourcers
+                   # (attach-account, finish-install, the three upgrade-*
+                   # scripts) are retired - see PF_RETIRED.
                    'internal-marker.ps1',
-                   'install-sdsys.ps1', 'install-service.ps1',
-                   # 22 Aug 26 - the POST-INSTALL CHECK, offered as a
-                   # checkbox on the installer's last page.  It ships, so
-                   # assert-current watches it like the rest of these - do
-                   # NOT add it to that script's $neverShipped list.  It is
-                   # deliberately NOT one of the verify-*.ps1 development
-                   # scripts, none of which can run on a user's machine:
-                   # they compare the install against the SOURCE TREE.
-                   'check-install.ps1',
-                   # 22 Aug 26 - the finishing step: the password session
-                   # and the check, in that order, in one window, launched
-                   # from DeinitializeSetup once the wizard has gone.
-                   'finish-install.ps1',
-                   'secure-audit.ps1', 'secure-cred.ps1', 'secure-log.ps1',
-                   'secure-psdir.ps1', 'secure-osusers.ps1',
-                   'secure-gcat.ps1',
-                   # 15 Sep 26 - RELEASE_1.1 41 (Linux S.19).  The API's TLS
-                   # relay keeps its server key in {#DataDir}\sd-tls; this
-                   # locks that directory to SYSTEM and Administrators.  Ships
-                   # for the same reason as the rest - sd.iss runs it from
-                   # {app}.
-                   'secure-tls.ps1',
-                   # 02 Sep 26 - PRE_RELEASE_FIXES.md 28.  Ships for the same
-                   # reason as the rest: sd.iss runs it from {app}, so a script
-                   # left out of this list is a [Run] entry pointing at nothing.
-                   'secure-dumps.ps1',
-                   # 02 Sep 26 - PRE_RELEASE_FIXES.md 135.  sd.iss runs it from
-                   # {app} at ssPostInstall, so leaving it out of this list is a
-                   # call pointing at nothing - and this one fails toward an
-                   # account that is NOT confined, so it must ship or the step
-                   # reports its own absence in the closing box.
-                   'restore-sshonly.ps1',
-                   # 23 Aug 26 - section 7 step 15.  gcat decides WHICH
-                   # catalogued program runs; this locks what the interpreter
-                   # running it IS.  Both ship or neither is worth much.
-                   'secure-pcode.ps1',
-                   # 24 Aug 26 - section 7 step 15, the owner's ruling.  The
-                   # rest of the inherited sdusers:(M) list - accounts, $map,
-                   # messages, newvoc, bp, cat and sd.conf.  NOT $ipc, which
-                   # every session writes.  sd.iss names the seven; this only
-                   # has to put the mechanism where SecureSysdirs can run it.
-                   'secure-sysdirs.ps1',
-                   'secure-accounts.ps1', 'secure-account-dirs.ps1',
-                   # 25 Aug 26 - the dictionary step for an UPGRADE.  A first
-                   # install gets its dictionaries from the staged tree, which
-                   # the build's own bootstrap already wrote; an upgrade keeps
-                   # the user's data tree, dictionaries included, so a release
-                   # that edits FILES_DICTS would never reach it.  This runs
-                   # gpl.bp/write_install_dicts, which MERGES record by record
-                   # rather than replacing the file - see its header.  It
-                   # SHIPS, so assert-current watches it like the rest of
-                   # these - do NOT add it to that script's $neverShipped list.
-                   'upgrade-dicts.ps1',
-                   # 04 Sep 26 - the VOC step for an UPGRADE, and the same
-                   # argument as the dictionary one above.  PRE_RELEASE_FIXES
-                   # 70: an upgrade replaces newvoc (and, until 21 Sep 26,
-                   # voc_template - now removed by SDSYS_RETIRED) and
-                   # rebuilds no account's live VOC, so a verb this release
-                   # adds cannot be typed in any account that already existed.
-                   # This runs "sd -internal UPDATE.ACCOUNTS ALL", which is
-                   # LOGIN's own all-accounts walk with the question answered -
-                   # deliberately the SAME walk a person reaches by answering Y,
-                   # not a second copy of it.  It SHIPS, so assert-current
-                   # watches it like the rest of these - do NOT add it to that
-                   # script's $neverShipped list.
-                   'upgrade-voc.ps1',
-                   # 14 Sep 26 - RELEASE_1.1 5 D2's UPGRADE step.  A fresh
-                   # install makes every file NOCASE (gplsrc/op_dio1.c); an
-                   # upgrade keeps the user's case-sensitive data files, so
-                   # this runs "sd -internal RUN gpl.bp upgrade_nocase", which
-                   # scans every file for a case-only duplicate FIRST and
-                   # converts only the clean ones, naming any it leaves.  It
-                   # SHIPS, so assert-current watches it - do NOT add it to
-                   # that script's $neverShipped list.  test-upgradenocase-
-                   # units.ps1 does NOT ship and IS in $neverShipped.
-                   'upgrade-nocase.ps1',
-                   # 28 Aug 26 - PRE_RELEASE_FIXES #36, and this pair is the
-                   # half of that ruling that says something comes back for a
-                   # profile SD could not remove.  secure-reclaim.ps1 creates
-                   # the record store with an ACL of its own at install time -
-                   # inherited, it would be a list of directories every SD user
-                   # can edit and LocalSystem later deletes.  reclaim-profiles
-                   # is the sweep itself, and it is run by sdsvc.exe at every
-                   # service start, which is every boot: it MUST ship, or the
-                   # records DELETE_USER writes are never read by anything.
-                   # Both SHIP, so assert-current watches them like the rest of
-                   # these - do NOT add either to that script's $neverShipped
-                   # list.
-                   'secure-reclaim.ps1', 'reclaim-profiles.ps1',
-                   # 03 Sep 26 - PRE_RELEASE_FIXES #93 and #65, and it is the
-                   # same argument as the pair above.  sdsvc.exe runs it at
-                   # every service start, so it MUST ship or the account
-                   # register is never reconciled against Windows and LIST
-                   # ACCOUNTS goes on answering wrongly.  It needs no store of
-                   # its own - it reads the register, which is already there.
-                   # It SHIPS, so assert-current watches it like the rest of
-                   # these - do NOT add it to that script's $neverShipped list.
-                   'reconcile-accounts.ps1',
                    'sd-elevate.ps1', 'sd-elevate-helper.ps1',
                    # 25 Sep 26 - SOLO 8.  sd-solo.iss runs both from {app}:
                    # solo-setup.ps1 unelevated (account, passwords),

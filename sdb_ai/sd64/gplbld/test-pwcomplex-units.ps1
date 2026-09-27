@@ -1,19 +1,19 @@
 # test-pwcomplex-units.ps1 - RELEASE_1.1 75.  SD's password rule is written
-# THREE TIMES in this tree and once more on the Linux side.  This drives all
-# three local copies against ONE table - the table the Linux agent sent with the
-# ruling - so they cannot drift apart from each other or from the contract.
+# once in BASIC and once more in the Solo installer's Pascal, plus once on the
+# Linux side.  This drives the BASIC copy against ONE table - the table the
+# Linux agent sent with the ruling - and checks the installer's copy for
+# matching wording, so they cannot drift apart from each other or the contract.
 #
-# WHY THERE ARE THREE COPIES AT ALL, because "just share it" is the first thing
-# a reader will ask:
+# 26 Sep 26 SD Core Solo, SOLO 9 phase 3 - THE TWO WINDOWS-ACCOUNT COPIES ARE
+# RETIRED.  gplbld/finish-install.ps1 (the SDSYS Windows-account password
+# prompt) and gplbld/install-sdsys.ps1 (that account's generated password) had
+# no caller left - ruling 11 killed the SDSYS Windows account outright, and
+# sd-solo.iss never ran either script.  Only the surviving copy is checked here:
 #   sdsys/gpl.bp/pw_complex        everything inside SD - SET.PASSWORD now
 #                                  (MODIFY.PASSWORD, CREATE.ACCOUNT and LOGIN's
 #                                  credential prompt are gone in Solo).
-#   gplbld/finish-install.ps1      the SDSYS prompt, which sets a WINDOWS
-#                                  password with Set-LocalUser and never enters
-#                                  SD, so it cannot call the BASIC.
-#   gplbld/install-sdsys.ps1       the GENERATED password, drawn at
-#                                  ssPostInstall in a hidden window before
-#                                  either of the other two is reachable.
+#   gplbld/sd-solo.iss             the installer's admin/global/account
+#                                  password pages, PasswordComplex(A) in Pascal.
 #
 # ***THE BASIC IS CHECKED WITHOUT BEING RUN, AND THAT LIMIT IS THE POINT OF
 # SAYING IT.*** Nothing here can execute BASIC - that needs a cycle.  What it
@@ -37,16 +37,12 @@ $ErrorActionPreference = 'Continue'
 $gplbld = ($PSScriptRoot -replace '\\', '/')
 $sd64   = (Split-Path -Parent $PSScriptRoot) -replace '\\', '/'
 $bas    = "$sd64/sdsys/gpl.bp/pw_complex"
-$finish = "$gplbld/finish-install.ps1"
-$instal = "$gplbld/install-sdsys.ps1"
 $msg    = "$sd64/sdsys/messages/10920"
 
 Write-Host "test-pwcomplex-units: basic   $bas"
-Write-Host "test-pwcomplex-units: finish  $finish"
-Write-Host "test-pwcomplex-units: install $instal"
 Write-Host "test-pwcomplex-units: message $msg"
 
-foreach ($p in @($bas, $finish, $instal, $msg)) {
+foreach ($p in @($bas, $msg)) {
     if (-not (Test-Path -LiteralPath $p)) { Write-Host "not found: $p"; exit 2 }
 }
 
@@ -170,45 +166,12 @@ function Test-FromExtracted {
     return ($l -and $u -and $d -and $s)
 }
 
-# --------------------------------------------------------------------------
-# THE TWO POWERSHELL COPIES ARE LIFTED BY AST, NOT COPIED.  Same technique as
-# test-wraptext-units and test-editorver-units, and for the same reason: a copy
-# in here is a copy that can go stale, and staleness is the whole subject.
-function Get-Lifted([string] $Path, [string] $Name) {
-    $err = $null; $tok = $null
-    $ast = [System.Management.Automation.Language.Parser]::ParseFile($Path, [ref]$tok, [ref]$err)
-    if (@($err).Count -ne 0) { return $null }
-    $fn = $ast.FindAll({ param($n)
-        $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $Name
-    }, $true)
-    if (@($fn).Count -ne 1) { return $null }
-    return @($fn)[0].Extent.Text
-}
-
-Section '2. the three implementations agree with the table, row by row'
-$liftedFinish = Get-Lifted $finish 'Test-PasswordComplex'
-$liftedInstal = Get-Lifted $instal 'Test-GeneratedPasswordComplex'
-Check 'Test-PasswordComplex was lifted out of finish-install.ps1' ($null -ne $liftedFinish) `
-      'the function was renamed, removed, or the file no longer parses'
-Check 'Test-GeneratedPasswordComplex was lifted out of install-sdsys.ps1' ($null -ne $liftedInstal) `
-      'the function was renamed, removed, or the file no longer parses'
-
-if ($liftedFinish) { . ([scriptblock]::Create($liftedFinish)) }
-if ($liftedInstal) { . ([scriptblock]::Create($liftedInstal)) }
-
+Section '2. the surviving implementation agrees with the table, row by row'
 $drivenRows = 0
 foreach ($row in $TAB) {
     $shown = if ($row.P -eq '') { '(empty)' } else { ($row.P -replace "`t", '<TAB>') }
     $fromBas = Test-FromExtracted -Password $row.P -Min 8 -Lo 32 -Hi 126
     Check ("BASIC   '$shown' -> $($row.E)   [$($row.W)]") ($fromBas -eq $row.E) "got $fromBas"
-    if ($liftedFinish) {
-        $r = Test-PasswordComplex -Password $row.P
-        Check ("finish  '$shown' -> $($row.E)") ($r -eq $row.E) "got $r"
-    }
-    if ($liftedInstal) {
-        $r = Test-GeneratedPasswordComplex -Password $row.P
-        Check ("install '$shown' -> $($row.E)") ($r -eq $row.E) "got $r"
-    }
     $drivenRows++
 }
 Check ("every table row was driven (got $drivenRows of $($TAB.Count))") ($drivenRows -eq $TAB.Count) $null
@@ -216,13 +179,6 @@ Check ("every table row was driven (got $drivenRows of $($TAB.Count))") ($driven
 # --------------------------------------------------------------------------
 Section '3. the wording is ONE sentence, not two that drift'
 $msgText = (Get-Content -LiteralPath $msg -Raw).Trim()
-$psText  = ''
-$m = [regex]::Match((Get-Content -LiteralPath $finish -Raw), "PwRuleText\s*=\s*'([^']*)'")
-if ($m.Success) { $psText = $m.Groups[1].Value.Trim() }
-Check ('the PowerShell rule sentence was found') ($psText -ne '') `
-      '$script:PwRuleText is gone or is no longer a single-quoted literal'
-Check ('it is message 10920 word for word') ($psText -eq $msgText) `
-      ("10920: '" + $msgText + "'  PowerShell: '" + $psText + "'")
 # 25 Sep 26 - SD Core Solo: the installer's Pascal copy of the refusal too.
 $issText = Get-Content -LiteralPath "$sd64/gplbld/sd-solo.iss" -Raw
 Check ("sd-solo.iss's refusal is message 10920 word for word") ($issText.Contains("'" + $msgText + "'")) `
@@ -242,8 +198,8 @@ $sites = @(
     # 25 Sep 26 - set_passwd (CREATE.ACCOUNT's Windows password) deleted with SOLO 4.
     # 26 Sep 26 - LOGIN's credential prompt (require.credential) deleted with
     # SOLO 3 step 5: LOGIN only CHECKS the password now (require.password).
-    @{ File = $finish;                               Pat = 'Test-PasswordComplex'; What = 'the installer, the SDSYS Windows password' }
-    @{ File = $instal;                               Pat = 'Test-GeneratedPasswordComplex'; What = 'the generated SDSYS password' }
+    # 26 Sep 26 - SOLO 9 phase 3: finish-install.ps1 (the SDSYS Windows password)
+    # and install-sdsys.ps1 (its generated password) retired - no caller left.
 )
 foreach ($s in $sites) {
     $t = if (Test-Path -LiteralPath $s.File) { Get-Content -LiteralPath $s.File -Raw } else { '' }
