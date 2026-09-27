@@ -457,8 +457,9 @@ foreach ($f in $msgFiles) {
 }
 
 $scriptFiles = @()
-$issPath = "$gplbld/sd.iss"
-if (Test-Path -LiteralPath $issPath) { $scriptFiles += @{ Path = $issPath; Name = 'sd.iss'; Strip = 'iss' } }
+# 26 Sep 26 SD Core Solo - SOLO 9: sd-solo.iss is the installer (sd.iss deleted).
+$issPath = "$gplbld/sd-solo.iss"
+if (Test-Path -LiteralPath $issPath) { $scriptFiles += @{ Path = $issPath; Name = 'sd-solo.iss'; Strip = 'iss' } }
 foreach ($f in (Get-ChildItem -LiteralPath $gplbld -File -Filter '*.ps1')) {
     if ($f.Name -like 'test-*' -or $f.Name -like 'verify-*') { continue }
     # 20 Sep 26 - "hashblock", NOT "hash".  RELEASE_1.1 81.  "hash" truncates a
@@ -591,9 +592,12 @@ Check ("a nonsense token is NOT found ($($absent.Count) hit(s))") ($absent.Count
 # 20 Sep 26, LATER - IT MOVED A FIFTH TIME, to the sshd_config result ("... and port
 # forwarding is off. ' + 'Any existing sshd_config was kept ..."), because the
 # consolidation of the closing popups shortened the ssh report line it had moved to.
-$straddle = Find-Any 'port forwarding is off. Any existing sshd_config'
+# 26 Sep 26 SD Core Solo - SOLO 9: sd.iss is deleted, so the canary moved a sixth
+# time, to sd-solo.iss's Python install parameters ('... PrependPath=1 ' +
+# 'Include_test=0 ...', lines 561-562) - on no single source line.
+$straddle = Find-Any 'PrependPath=1 Include_test=0'
 Check ("a phrase STRADDLING a '+' break is found ($($straddle.Count) hit(s))") ($straddle.Count -gt 0) `
-      'sd.iss renders this across the sshd_config result''s two lines and no single line carries it - the flattening is not working'
+      'sd-solo.iss splits this across two lines and no single line carries it - the flattening is not working'
 $inBrace = Find-Any 'Lower case for the reason given at code 0'
 Check ("text inside a Pascal { } comment is stripped ($($inBrace.Count) hit(s))") ($inBrace.Count -eq 0) `
       ("a retirement documented beside its fix would raise a false positive: " + ($inBrace -join ', '))
@@ -621,10 +625,20 @@ Check ("a trailing ;* comment is stripped ($($bpTrail.Count) hit(s))") ($bpTrail
 
 Write-Host ''
 Write-Host '=== 2. every retired phrase is GONE, and its replacement is present ==='
+# 26 Sep 26 SD Core Solo - SOLO 9.  These rows' REPLACEMENT wording was on the
+# multi-user installer's screens (sd.iss, deleted) and exists nowhere now; their
+# RETIRED half is still checked, because the old wording must not come back.
+$ReplacementGone = @('130d', '70', '70b', '70c', '139', '139b', '129', '129b', '117',
+                     'R1.1-64b', 'R1.1-64c', 'R1.1-64d', 'R1.1-64e', 'R1.1-64f',
+                     'R1.1-64g', 'R1.1-64h', 'R1.1-64i', 'R1.1-64j', '20Sep-a', '20Sep-b')
 foreach ($e in $RETIRED) {
     $bad  = Find-Any $e.Retired
-    $good = Find-Any $e.Replacement
     Check ("[$($e.Ref)] retired phrase absent: `"$($e.Retired)`"") ($bad.Count -eq 0) ("still in " + ($bad -join ', '))
+    if ($ReplacementGone -contains $e.Ref) {
+        Write-Host ("  [skip] [$($e.Ref)] replacement lived only in the deleted multi-user installer (SOLO 9)")
+        continue
+    }
+    $good = Find-Any $e.Replacement
     Check ("[$($e.Ref)] replacement present : `"$($e.Replacement)`"") ($good.Count -gt 0) 'the replacement wording is missing everywhere - is the fix in?'
 }
 

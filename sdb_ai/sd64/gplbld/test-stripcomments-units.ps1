@@ -85,21 +85,23 @@ Check 'Get-StrippedText is defined' `
       ($null -ne (Get-Command Get-StrippedText -ErrorAction SilentlyContinue)) $null
 
 # --------------------------------------------------------------------------
-Section '1. THE 143 CASE, RED BEFORE GREEN, ON THE REAL sd.iss'
+Section '1. THE 143 CASE, RED BEFORE GREEN, ON THE REAL sd-solo.iss'
 # assert-current's rule: a quote or a slash before the name is evidence of a
-# ship line.  sd.iss:4577 quotes the rejected spelling inside the paragraph
-# explaining that the spelling is wrong, which is what re-tripped it.
-$issPath = Join-Path $PSScriptRoot 'sd.iss'
-$name    = 'probe-taskdialog.iss'
+# ship line.  sd.iss:4577 quoted a rejected spelling inside a comment, which is
+# what re-tripped it.  26 Sep 26 SD Core Solo - SOLO 9: sd.iss is deleted; the
+# same shape is in sd-solo.iss's header, a ";" comment that writes
+# "gplbld/stage.py" - a path in a comment, never a ship line.
+$issPath = Join-Path $PSScriptRoot 'sd-solo.iss'
+$name    = 'stage.py'
 $shipPat = "[""'\\/]" + [regex]::Escape($name)
 
 if (-not (Test-Path -LiteralPath $issPath)) {
-    Check 'sd.iss is readable' $false "not found: $issPath"
+    Check 'sd-solo.iss is readable' $false "not found: $issPath"
 } else {
     $raw      = Get-Content -LiteralPath $issPath -Raw
     $stripped = Get-StrippedText -Path $issPath -Kind 'iss'
 
-    Write-Host ("  sd.iss raw {0} chars, stripped {1} chars" -f $raw.Length, $stripped.Length)
+    Write-Host ("  sd-solo.iss raw {0} chars, stripped {1} chars" -f $raw.Length, $stripped.Length)
 
     # THE NULL CASE.  A stripper that emptied the file would pass the green
     # check below for the wrong reason.
@@ -118,12 +120,12 @@ if (-not (Test-Path -LiteralPath $issPath)) {
     $rawHits      = @([regex]::Matches($raw,      $shipPat))
     $strippedHits = @([regex]::Matches($stripped, $shipPat))
 
-    Check ("RED: the UNstripped sd.iss matches the ship pattern ({0} hit(s))" -f $rawHits.Count) `
+    Check ("RED: the UNstripped sd-solo.iss matches the ship pattern ({0} hit(s))" -f $rawHits.Count) `
           ($rawHits.Count -ge 1) `
-          'the 143 case is no longer present, so this test proves nothing - check sd.iss:4577'
-    Check ("GREEN: the stripped sd.iss does NOT ({0} hit(s))" -f $strippedHits.Count) `
+          'the 143 case is no longer present, so this test proves nothing - check sd-solo.iss''s header'
+    Check ("GREEN: the stripped sd-solo.iss does NOT ({0} hit(s))" -f $strippedHits.Count) `
           ($strippedHits.Count -eq 0) `
-          'the comment quoting "gplbld/probe-taskdialog.iss" is still in the scanned text'
+          'the comment writing "gplbld/stage.py" is still in the scanned text'
 }
 
 # --------------------------------------------------------------------------
@@ -133,14 +135,16 @@ Section '2. THE OVER-STRIP CONTROL: real ship lines must survive'
 $stageP = Join-Path $PSScriptRoot 'stage.py'
 if (Test-Path -LiteralPath $issPath) {
     $s = Get-StrippedText -Path $issPath -Kind 'iss'
-    $p = "[""'\\/]" + [regex]::Escape('install-sdsys.ps1')
-    Check 'sd.iss still ships install-sdsys.ps1 after stripping' `
-          ($s -match $p) 'an sd.iss [Files] Source line was stripped away'
+    # 26 Sep 26 SD Core Solo - SOLO 9: assert-current's canaries changed with
+    # the installer; these follow them.
+    $p = "[""'\\/]" + [regex]::Escape('sd-standalone.conf')
+    Check 'sd-solo.iss still ships sd-standalone.conf after stripping' `
+          ($s -match $p) 'an sd-solo.iss [Files] Source line was stripped away'
 }
 if (Test-Path -LiteralPath $stageP) {
     $s = Get-StrippedText -Path $stageP -Kind 'hash'
-    $p = "[""'\\/]" + [regex]::Escape('deny-logon.ps1')
-    Check 'stage.py still ships deny-logon.ps1 after stripping' `
+    $p = "[""'\\/]" + [regex]::Escape('solo-setup.ps1')
+    Check 'stage.py still ships solo-setup.ps1 after stripping' `
           ($s -match $p) 'a stage.py ship tuple was stripped away'
 } else {
     Check 'stage.py is readable' $false "not found: $stageP"

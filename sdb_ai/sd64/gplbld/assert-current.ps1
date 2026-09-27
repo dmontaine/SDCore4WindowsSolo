@@ -37,8 +37,12 @@ $ErrorActionPreference = 'Continue'
 
 $sd64    = Split-Path $PSScriptRoot -Parent                        # ...\sdb_ai\sd64
 $built   = Join-Path $sd64 'bin\sd.exe'
-$inst    = 'C:\Program Files\SD\usr\bin\sd.exe'
-$instTree = 'C:\ProgramData\SD\sdsys'
+# 26 Sep 26 SD Core Solo - SOLO 9 phase 2: the Solo install, everything under
+# %USERPROFILE%\SDCoreSolo (ruling 1).  Was C:\Program Files\SD and
+# C:\ProgramData\SD\sdsys, the multi-user layout.
+$soloRoot = Join-Path $env:USERPROFILE 'SDCoreSolo'
+$inst    = Join-Path $soloRoot 'usr\bin\sd.exe'
+$instTree = Join-Path $soloRoot 'sdsys'
 
 function Note($m) { if (-not $Quiet) { Write-Output $m } }
 function Bad($m)  { Write-Output "STALE: $m" }
@@ -235,7 +239,8 @@ $neverShipped = @(
 . (Join-Path $PSScriptRoot 'strip-comments.ps1')
 
 $shipEvidence = ''
-foreach ($f in @(@{ N = 'stage.py'; K = 'hash' }, @{ N = 'sd.iss'; K = 'iss' })) {
+# 26 Sep 26 SD Core Solo - sd-solo.iss is the installer now (sd.iss deleted, SOLO 9).
+foreach ($f in @(@{ N = 'stage.py'; K = 'hash' }, @{ N = 'sd-solo.iss'; K = 'iss' })) {
     $p = Join-Path $PSScriptRoot $f.N
     if (Test-Path $p) { $shipEvidence += (Get-StrippedText -Path $p -Kind $f.K) + "`n" }
 }
@@ -256,15 +261,17 @@ $shipsAs = { param($n) $shipEvidence -match ("[""'\\/]" + [regex]::Escape($n)) }
 # strip, and a failure is fatal rather than a note: it means the evidence this
 # whole section reasons from has been eaten.
 #
-# BOTH CANARIES ARE REAL SHIP LINES, one per file and per syntax - install-sdsys
-# is named in an sd.iss line and in stage.py, deny-logon is a stage.py tuple
-# member - so a strip that breaks either syntax is caught by the one that uses it.
-$shipCanaries = @('install-sdsys.ps1', 'deny-logon.ps1')
+# BOTH CANARIES ARE REAL SHIP LINES.  26 Sep 26 SD Core Solo, SOLO 9: they were
+# install-sdsys.ps1 and deny-logon.ps1, multi-user scripts phase 3 retires.  Now
+# solo-setup.ps1, a stage.py tuple member, and sd-standalone.conf, an sd-solo.iss
+# Source line.  WEAKER THAN BEFORE, STATED: sd-standalone.conf is also quoted in
+# stage.py, so a strip that ate sd-solo.iss alone would not trip it.
+$shipCanaries = @('solo-setup.ps1', 'sd-standalone.conf')
 $canaryMissing = @($shipCanaries | Where-Object { -not (& $shipsAs $_) })
 if ($shipEvidence.Trim().Length -eq 0 -or $canaryMissing.Count -gt 0) {
     Write-Host ''
     Write-Host 'assert-current: CANNOT ANSWER - the ship evidence is not readable.' -ForegroundColor Red
-    Write-Host ("  stripped evidence: {0} chars from stage.py and sd.iss" -f $shipEvidence.Trim().Length)
+    Write-Host ("  stripped evidence: {0} chars from stage.py and sd-solo.iss" -f $shipEvidence.Trim().Length)
     if ($canaryMissing.Count -gt 0) {
         Write-Host ("  these ship and were NOT found after comment-stripping: {0}" -f ($canaryMissing -join ', '))
         Write-Host '  strip-comments.ps1 is eating shipped text, so every exclusion below is'
@@ -289,7 +296,7 @@ if ($familyNames.Count -lt 50) {
 $excluded   = @((@($neverShipped) + $familyNames) | Where-Object { -not (& $shipsAs $_) } | Sort-Object -Unique)
 $reinstated = @($neverShipped | Where-Object {      (& $shipsAs $_) })
 if ($reinstated.Count -gt 0) {
-    Note ("  note: {0} now appears in stage.py or sd.iss, so it is watched again" -f ($reinstated -join ', '))
+    Note ("  note: {0} now appears in stage.py or sd-solo.iss, so it is watched again" -f ($reinstated -join ', '))
 }
 Note ("  {0} harness scripts exempt: {1} by name family, {2} named in the residual list" -f
       $excluded.Count, @($familyNames | Where-Object { $excluded -contains $_ }).Count, $neverShipped.Count)
@@ -738,7 +745,7 @@ $orphans  = @()
 $appSeen  = 0
 $appWhy   = ''
 if ("$shipEvidence".Length -eq 0) {
-    $appWhy = 'stage.py and sd.iss read as empty, so every file there would be reported'
+    $appWhy = 'stage.py and sd-solo.iss read as empty, so every file there would be reported'
 } elseif (-not (Test-Path $appRoot)) {
     $appWhy = "$appRoot is not there"
 } else {
@@ -756,7 +763,7 @@ if ($appWhy -ne '') {
     Bad ("{0} holds no files at all - the leftover check measured nothing." -f $appRoot)
     $stale = $true
 } elseif ($orphans.Count -gt 0) {
-    Bad ("{0} file(s) in {1} are no longer shipped by stage.py or sd.iss:" -f $orphans.Count, $appRoot)
+    Bad ("{0} file(s) in {1} are no longer shipped by stage.py or sd-solo.iss:" -f $orphans.Count, $appRoot)
     $orphans | Select-Object -First 10 | ForEach-Object { Write-Output ("       " + $_) }
     if ($orphans.Count -gt 10) { Write-Output ("       ... and {0} more" -f ($orphans.Count - 10)) }
     Write-Output '       (Inno never removes a file dropped from a new version - add it to'
@@ -781,7 +788,7 @@ if ($stale) {
     Write-Output ''
     Write-Output 'REFUSING - any measurement taken now describes a tree that no longer exists.'
     Write-Output ''
-    Write-Output 'Run one cycle, from an ELEVATED PowerShell:'
+    Write-Output 'Run one cycle, from an ordinary UNELEVATED PowerShell (SD Core Solo):'
     # 18 Sep 26 - WITH THE POLICY SWITCH.  RELEASE_1.1 58 (found while it was
     # refusing 58's own stale tree).  This printed a BARE path, and the owner's
     # shells read ExecutionPolicy "Undefined" in every scope - which on a
@@ -801,8 +808,8 @@ if ($stale) {
     # the semaphores outlived it, sd -start refused, and the staged tree was
     # left in the seed state - which is the state that shipped a
     # catalogue-less install on 16 Aug.  cycle.ps1 stops the service first.
-    Write-Output 'It stops the service, stages, bootstraps, builds the installer, uninstalls,'
-    Write-Output 'deletes BOTH trees and installs.  Do not hand-run the steps - CLAUDE.md.'
+    Write-Output 'It stops SD, stages, bootstraps, builds the installer, uninstalls, deletes'
+    Write-Output '%USERPROFILE%\SDCoreSolo and installs.  Do not hand-run the steps - CLAUDE.md.'
     exit 1
 }
 
