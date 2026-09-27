@@ -583,6 +583,10 @@ PF_RETIRED = [
     ('secure-reclaim.ps1', 'SOLO 9 phase 3 - no caller; the sweep it locked down for is deleted'),
     ('reclaim-profiles.ps1', 'SOLO 9 phase 3 - ran from sdsvc.exe at every boot; that service is deleted'),
     ('reconcile-accounts.ps1', 'SOLO 9 phase 3 - ran from sdsvc.exe at every boot; that service is deleted'),
+    # 27 Sep 26 - SOLO 7.  Kept by phase 3 but no caller was left: it wrote the
+    # multi-user AllowGroups sdssh line, which solo-machine.ps1's Match User
+    # block replaces.  Its hard-coded System32 sshd path went with it.
+    ('allow-ssh-groups.ps1', 'SOLO 7 - no caller; the AllowGroups model is replaced by solo-machine.ps1 Match User'),
 ]
 
 SDSYS_PRESERVE = [
@@ -1383,8 +1387,7 @@ def main():
     # elevated helper runs.  gpl.bp/elevate reaches them with
     # kernel(K$WINPATH), because they are "/" to SD and "C:\Program Files\SD"
     # to PowerShell, which cannot open the first.
-    for script in ('allow-ssh-groups.ps1',
-                   'ssh-firewall.ps1',
+    for script in ('ssh-firewall.ps1',
                    # 21 Aug 26 - the API faces the network now, so who may
                    # reach the port is a firewall rule SD owns.  Shipped, so
                    # it is watched by assert-current like the rest of these -

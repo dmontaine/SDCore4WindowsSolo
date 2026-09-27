@@ -40,8 +40,7 @@
 # Written wherever OpenSSH is found - not a choice (ruling 5) - and sshd is
 # then set to start at boot, so ssh works with nobody signed in (owner, 25 Sep
 # 2026).  Only this user is matched; sign-in is sshd's own, the Windows password.
-# DisableForwarding for the reason allow-ssh-groups.ps1 gives: ForceCommand
-# does not constrain port forwarding.  Checked with "sshd -t" and put back if
+# DisableForwarding because ForceCommand does not constrain port forwarding.  Checked with "sshd -t" and put back if
 # rejected.  NOT MEASURED: that Win32-OpenSSH matches the user by the name
 # written here (lower-case, no domain for a local account; user@domain for a
 # domain one).

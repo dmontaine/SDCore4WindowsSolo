@@ -33,8 +33,8 @@
 # VALUE WINDOWS WILL NOT TAKE.  Passing it threw on every run, so the rule was
 # never scoped at all.  The restrict branch below carries the measurement.
 #
-# -Installed IS REQUIRED FOR ANY CHANGE, for the reason allow-ssh-groups.ps1
-# gives at length: SD does not reconfigure an ssh server it did not install.
+# -Installed IS REQUIRED FOR ANY CHANGE: SD does not reconfigure an ssh server
+# it did not install.
 # That rule covers this rule as much as it covers sshd_config - restricting the
 # firewall of a server that predates SD would break somebody's remote access
 # just as thoroughly as editing their config would.
