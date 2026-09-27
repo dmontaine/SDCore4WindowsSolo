@@ -55,7 +55,14 @@
 #      account, and checks every one gone.  Ported from verify-promptenter.ps1
 #      (git show 3776c66:...); its sessions add ADMIN only for COPY into VOC
 #      and DELETE VOC, the two gated writes (ruling 14).
-#  11. the daemon runs on a standard token: Medium integrity, Administrators
+#  11. SD-to-SD over the API from BASIC: a probe in the account's bp creates
+#      the !sdclient class (gpl.bp/sdclient, TLS 1.3 + SCRAM) and connects to
+#      this machine's own API as the account - EXECUTE WHERE lands in the
+#      account, OPEN VOC and READ WHERE find a verb, a missing id is not
+#      found, DISCONNECT leaves it unconnected; CONTROL: the wrong password
+#      does not connect.  Both passwords reach the probe on its input, never
+#      its source.  Skipped when sd.conf has no APIPORT.
+#  12. the daemon runs on a standard token: Medium integrity, Administrators
 #      deny-only or absent                                         (ruling 16)
 # Not measured here, because they need hands or another machine: ssh landing in
 # sd, SD starting at boot with nobody signed in, remote access while signed out.
@@ -837,7 +844,89 @@ try {
 
     # -----------------------------------------------------------------------
     Say ''
-    Say '== 11. the daemon runs on a standard token'
+    Say '== 11. SD-to-SD over the API from BASIC (!sdclient)'
+    $scName = 'ZZSDCLIENT'
+    $scDest = Join-Path $bpDir $scName
+    if (-not $apiPort) {
+        Skip 'the !sdclient leg' 'sd.conf has no APIPORT - the API was not ticked at install'
+    }
+    elseif (@(Get-ChildItem -LiteralPath $bpDir -File | Where-Object { $_.Name -ieq $scName }).Count) {
+        Check 'the !sdclient leg could run' $false ($scName + ' is already in bp - left by an earlier run?  Delete it and its bp.out object by hand.')
+    }
+    else {
+        # Replies can carry marks and line ends; flattened to | so each value is one line.
+        $scSrc = @(
+            '* ZZSDCLIENT - written by gplbld/verify-solo.ps1, leg 11.  Safe to delete.'
+            "      PROMPT ''"
+            '      INPUT PW HIDDEN'
+            '      INPUT BAD HIDDEN'
+            "      ACCT = '$Acct'"
+            '      C = OBJECT(''!sdclient'')'
+            "      OK = C->CONNECT('127.0.0.1', $apiPort, ACCT, PW, ACCT)"
+            "      CRT 'CONNECT.RIGHT=':OK"
+            "      IF NOT(OK) THEN CRT 'CONNECT.RIGHT.ERROR=':C->ERROR"
+            '      IF OK THEN'
+            "         S = C->EXECUTE('WHERE', ERR)"
+            "         CRT 'EXEC.ERR=':ERR"
+            "         CRT 'EXEC.OUT=':CONVERT(@FM:@VM:CHAR(13):CHAR(10), '||||', S)"
+            "         F = C->OPEN('VOC')"
+            "         CRT 'OPEN.FNO=':F"
+            "         R = C->READ(F, 'WHERE', ERR)"
+            "         CRT 'READ.ERR=':ERR"
+            "         CRT 'READ.TYPE=':R<1>[1,1]"
+            "         R = C->READ(F, 'zz.no.such.record', ERR)"
+            "         CRT 'READ.MISSING.ERR=':ERR"
+            '         C->DISCONNECT'
+            "         CRT 'CONNECTED.AFTER=':C->CONNECTED()"
+            '      END'
+            '      D = OBJECT(''!sdclient'')'
+            "      OK2 = D->CONNECT('127.0.0.1', $apiPort, ACCT, BAD, ACCT)"
+            "      CRT 'CONNECT.WRONG=':OK2"
+            "      CRT 'SDCLIENT.DONE'"
+            '   END'
+        ) -join "`n"
+        try {
+            [IO.File]::WriteAllText($scDest, $scSrc + "`n", [Text.Encoding]::ASCII)
+            $t = Invoke-Sd 'sdclient-compile' ('BASIC BP ' + $scName) '' 'none'
+            $L = Get-Lines $t
+            $compiled = ((CountOf $L '^0 error\(s\)') -ge 1) -and ((CountOf $L '^[1-9][0-9]* error') -eq 0) -and ($t -notmatch '(?i)Compilation error')
+            Check 'the !sdclient probe compiles' $compiled 'want "0 error(s)" and no error count or "Compilation error"'
+            if ($compiled) {
+                $t = Invoke-Sd 'sdclient-run' ('RUN BP ' + $scName) ($acctPw + "`n" + $wrongPw + "`n") 'the account password, a wrong password'
+                $L = Get-Lines $t
+                $v = @{}
+                foreach ($k in @('CONNECT.RIGHT', 'CONNECT.RIGHT.ERROR', 'EXEC.ERR', 'EXEC.OUT', 'OPEN.FNO', 'READ.ERR', 'READ.TYPE', 'READ.MISSING.ERR', 'CONNECTED.AFTER', 'CONNECT.WRONG')) {
+                    $m = @($L | Where-Object { $_.StartsWith($k + '=') })
+                    $v[$k] = $(if ($m.Count -eq 1) { $m[0].Substring($k.Length + 1) } elseif ($m.Count -eq 0) { '(none)' } else { '(' + $m.Count + ' lines)' })
+                }
+                Say ('    read: ' + (($v.GetEnumerator() | Sort-Object Name | ForEach-Object { $_.Name + '=' + $_.Value }) -join '  '))
+                Check 'the probe ran to its end' ((CountOf $L '^SDCLIENT\.DONE$') -eq 1) 'want SDCLIENT.DONE'
+                Check 'connect() with the account password succeeds' ($v['CONNECT.RIGHT'] -eq '1') ('CONNECT.RIGHT=' + $v['CONNECT.RIGHT'] + '  error: ' + $v['CONNECT.RIGHT.ERROR'])
+                Check 'execute(WHERE) answers from the account' ($v['EXEC.ERR'] -eq '0' -and $v['EXEC.OUT'] -match ('(?i)user_accounts[\\/]' + [regex]::Escape($Acct) + '(\||$)')) ('EXEC.ERR=' + $v['EXEC.ERR'] + '  EXEC.OUT=' + $v['EXEC.OUT'])
+                Check 'open(VOC) gives a file number' ($v['OPEN.FNO'] -match '^[1-9][0-9]*$') ('OPEN.FNO=' + $v['OPEN.FNO'])
+                Check 'read(VOC, WHERE) finds a verb' ($v['READ.ERR'] -eq '0' -and $v['READ.TYPE'] -eq 'V') ('READ.ERR=' + $v['READ.ERR'] + '  READ.TYPE=' + $v['READ.TYPE'])
+                Check 'CONTROL: read of a missing id is not found' ($v['READ.MISSING.ERR'] -match '^[1-9][0-9]*$') ('READ.MISSING.ERR=' + $v['READ.MISSING.ERR'])
+                Check 'disconnect() leaves it unconnected' ($v['CONNECTED.AFTER'] -eq '0') ('CONNECTED.AFTER=' + $v['CONNECTED.AFTER'])
+                Check 'CONTROL: connect() with a wrong password fails' ($v['CONNECT.WRONG'] -eq '0') ('CONNECT.WRONG=' + $v['CONNECT.WRONG'])
+            }
+        }
+        finally {
+            $objs = @()
+            if (Test-Path -LiteralPath $outDir) { $objs = @(Get-ChildItem -LiteralPath $outDir -File | Where-Object { $_.Name -ieq $scName }) }
+            foreach ($f in (@(Get-Item -LiteralPath $scDest -ErrorAction SilentlyContinue) + $objs)) {
+                if ($f) { Remove-Item -LiteralPath $f.FullName -Force -ErrorAction SilentlyContinue }
+            }
+            # bp.out stays - see leg 7's cleanup for why.
+            $leftS = @(Get-ChildItem -LiteralPath $bpDir -File | Where-Object { $_.Name -ieq $scName }).Count
+            $leftO = $(if (Test-Path -LiteralPath $outDir) { @(Get-ChildItem -LiteralPath $outDir -File | Where-Object { $_.Name -ieq $scName }).Count } else { 0 })
+            Say ('    cleanup: source left ' + $leftS + ', object left ' + $leftO)
+            Check 'the !sdclient probe is removed from the account' ($leftS -eq 0 -and $leftO -eq 0) ('delete ' + $scName + ' from bp and bp.out by hand')
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    Say ''
+    Say '== 12. the daemon runs on a standard token'
     $winds = @(Get-Process -Name sdwind -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $WindExe })
     Say ('    sdwind.exe from this tree: ' + $winds.Count)
     Check 'the daemon is still running after the legs' ($winds.Count -ge 1) 'no sdwind.exe from this tree'
