@@ -26,6 +26,7 @@
  * 
  * 25 Aug 26 Windows port - VFS stripped: the C never implemented it
  * 29 Aug 26 Windows port - K_OS_ADMINISTRATOR added.  PRE_RELEASE_FIXES 56
+ * 26 Sep 26 SD Core Solo - SD_DPAPI_PROTECT 111, SD_DPAPI_UNPROTECT 112
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -541,6 +542,13 @@
    when the session is not TLS (a local pipe connection).  Same number as
    Linux (S.19) so the two ports' catalogued objects agree.  No arguments. */
 #define SD_TLS_CBIND    110  /* sd_tlssrv channel binding, 0 args */
+/* 26 Sep 26 SD Core Solo - SOLO 15 piece 4, ruling 21.  The account password
+   kept for one-shot "sd <command>", encrypted with DPAPI for this Windows
+   user (win32dpapi.c).  PROTECT: text in, base64 blob out.  UNPROTECT: base64
+   blob in, text out, "" when this user cannot open it.  $internal callers
+   only - op_sdext.c refuses anyone else.  Solo only: not in Linux's table. */
+#define SD_DPAPI_PROTECT   111  /* win32dpapi encrypt, 1 arg */
+#define SD_DPAPI_UNPROTECT 112  /* win32dpapi decrypt, 1 arg */
 
 /* embedded python  */
 /* py  object types */

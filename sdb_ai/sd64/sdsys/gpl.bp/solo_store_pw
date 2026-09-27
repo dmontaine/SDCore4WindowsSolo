@@ -1,0 +1,118 @@
+* SOLO_STORE_PW
+* Keep the account password for one-shot "sd <command>", DPAPI-encrypted.
+* Copyright (c) 2026 Ladybridge Systems, All Rights Reserved
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 3, or (at your option)
+* any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software Foundation,
+* Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+*
+*
+* START-HISTORY:
+* 26 Sep 26 SD Core Solo - new, SOLO 15 piece 4 (ruling 21).
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*    call !SOLO_STORE_PW(account, password, ok)
+*
+* Ruling 21: a one-shot "sd <command>" - a scheduled job - proves the account
+* password without being asked, from a record encrypted with Windows DPAPI
+* for the Windows user.  The installer (solo_password ACCOUNT) and
+* SET.PASSWORD call this after !CRED_SET; login's require.password reads it.
+*
+* The record is $STORED in $cred:  <1> the account name, upper-cased (the
+* $cred key it belongs to);  <2> base64 of the DPAPI blob (SD_DPAPI_PROTECT,
+* CurrentUser scope, gplsrc/win32dpapi.c).  Only this Windows user, on this
+* computer, can open it; a tree copied elsewhere carries a blob nobody there
+* can open, and login falls back to its input.
+*
+* The '$' key keeps it out of cred_set's partner search and out of any
+* account's name (an account name starts with a letter, solo_account).
+*
+* Written directly: in Solo the tree is the user's own, and there is no
+* elevated helper (cred_set's fallback is the multi-user product's).  Read
+* back, and the blob decrypted again, before ok is set - a record written but
+* unusable would only show at the next scheduled job.
+*
+* The password is never displayed or logged.  ok false: status() says why.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+subroutine SOLO_STORE_PW(account, password, ok)
+$catalog !SOLO_STORE_PW
+
+$include keys.h
+$include err.h
+
+   ok = @false
+   set.status 0
+
+   acc = upcase(trim(account))
+   if acc = '' or acc[1,1] = '$' or password = '' then
+      set.status ER$ARGS
+      return
+   end
+
+   blob = SDEXT(password, @false, SD_DPAPI_PROTECT)
+   if blob = '' then
+      set.status ER$ARGS
+      return
+   end
+
+   openpath @sdsys:@ds:'$cred' to cred.f else
+      set.status ER$NVR
+      return
+   end
+
+   rec = ''
+   rec<1> = acc
+   rec<2> = blob
+   write.ok = @true
+   write rec to cred.f, '$STORED' on error
+      write.ok = @false
+   end
+   close cred.f
+   if not(write.ok) then
+      set.status ER$PERM
+      return
+   end
+
+*  Read back through a fresh open, and open the blob again: the check is that
+*  login could use it, not that the bytes landed.
+   check = ''
+   openpath @sdsys:@ds:'$cred' to chk.f then
+      read check from chk.f, '$STORED' else check = ''
+      close chk.f
+   end
+   if check<1> # acc or compare(check<2>, blob) # 0 then
+      set.status ER$WRITE.ERROR
+      return
+   end
+   again = SDEXT(check<2>, @false, SD_DPAPI_UNPROTECT)
+*  compare(), not "=": "=" compares two numeric strings as numbers, so it
+*  would call "007" and "7" the same password.
+   same = (compare(again, password) = 0)
+   again = ''
+   if not(same) then
+      set.status ER$WRITE.ERROR
+      return
+   end
+
+   ok = @true
+   return
+end
+
+* END-CODE

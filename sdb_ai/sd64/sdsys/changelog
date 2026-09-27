@@ -3,6 +3,16 @@ S1.1-0 - SD Core Solo, in progress
 A personal SD Core for one Windows user. NOTHING IN THIS SECTION HAS BEEN
 RELEASED.
 
+26 Sep 26  COMMANDS ON THE sd COMMAND LINE NO LONGER NEED THE PASSWORD
+           TYPED.
+
+           The installer keeps your account password encrypted so that
+           only your Windows account, on this computer, can read it, and
+           SET.PASSWORD updates it. A command given on the sd command
+           line, such as a scheduled job, uses it. On another computer or
+           Windows account it cannot be read, and the password is read
+           from the command's input as before.
+
 26 Sep 26  THE CLIENT LIBRARIES ARE GPL.
 
            The client libraries (sdclilib, qmclilib) and their headers,

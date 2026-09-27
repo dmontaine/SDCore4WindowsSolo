@@ -52,9 +52,11 @@
 ; A STAGE THAT HAS BEEN PROBED CARRIES TEST CREDENTIALS AND A TEST ACCOUNT
 ; (probe-solo-stage.py sets passwords and makes the builder's own account in
 ; it).  Shipping either would give every install somebody else's password, so
-; the build refuses.  stage.py --force makes a clean one.
+; the build refuses.  stage.py --force makes a clean one.  $STORED (26 Sep 26,
+; SOLO 15 piece 4) is the account password DPAPI-kept for one-shot commands.
 #if FileExists(AddBackslash(Stage) + "SDCoreSolo\sdsys\$cred\$ADMIN") || \
-    FileExists(AddBackslash(Stage) + "SDCoreSolo\sdsys\$cred\$GLOBAL")
+    FileExists(AddBackslash(Stage) + "SDCoreSolo\sdsys\$cred\$GLOBAL") || \
+    FileExists(AddBackslash(Stage) + "SDCoreSolo\sdsys\$cred\$STORED")
   #error The stage holds a test password in sdsys\$cred - run stage.py --force --bootstrap first
 #endif
 ; ISPP's documented loop: FindNext returns found-or-not, not a new handle.

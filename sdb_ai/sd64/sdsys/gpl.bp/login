@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 26 Sep 26 SD Core Solo - SOLO 15 piece 4: a one-shot command tries the
+*           DPAPI-kept account password ($cred $STORED) before its input.
 * 25 Sep 26 SD Core Solo - SOLO 15 piece 3, ruling 21: every mode-0 session
 *           that is not a phantom or internal proves the account password
 *           (or the global one, which unlocks ADMIN) - require.password.  A
@@ -1391,6 +1393,36 @@ require.password:
       display sysmsg(12020) ;* This account has no password - install SD Core Solo again...
       pw.why = 'the account has no password'
       return
+   end
+
+*  26 Sep 26 - SOLO 15 piece 4: A ONE-SHOT TRIES THE KEPT PASSWORD FIRST.
+*  $STORED in $cred is the account password DPAPI-encrypted for the Windows
+*  user (!SOLO_STORE_PW).  It counts only for THIS account and only if it
+*  still verifies; anything else - another user's or computer's blob, a stale
+*  copy, no record - falls through to the input exactly as before, silently,
+*  because a scheduled job with its password on the input must still work.
+*  It proves the account password, never the global one, so it never unlocks
+*  ADMIN.
+   if not(pw.interactive) then
+      openpath @sdsys:@ds:'$cred' to pw.cred.f then
+         read pw.rec from pw.cred.f, '$STORED' else pw.rec = ''
+         close pw.cred.f
+      end
+      if pw.rec<1> = upcase(initial.account) and pw.rec<2> # '' then
+         pw.text = SDEXT(pw.rec<2>, @false, SD_DPAPI_UNPROTECT)
+         if pw.text # '' then
+            pw.match = @false
+            call !CRED_VERIFY(initial.account, pw.text, pw.match)
+            if pw.match then pw.via = 'stored'
+         end
+         pw.text = ''
+      end
+      pw.rec = ''
+      if pw.via # '' then
+         void kernel(K$AUDIT, 'LOGIN PASSWORD account=' : initial.account : ' via=stored')
+         pw.ok = @true
+         return
+      end
    end
 
    if not(pw.interactive) and pw.on.tty then

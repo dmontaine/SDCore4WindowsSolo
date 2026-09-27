@@ -89,6 +89,7 @@ win32vt
 win32session
 win32group
 win32token
+win32dpapi
 sdtermlb
 strings
 sysdump

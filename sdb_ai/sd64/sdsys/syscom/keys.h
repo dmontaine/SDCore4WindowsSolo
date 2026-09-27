@@ -3,6 +3,7 @@
       * Copyright (c) 2004, Ladybridge Systems, All Rights Reserved
       
       $list off
+      * 26 Sep 26 SD Core Solo - SD_DPAPI_PROTECT 111, SD_DPAPI_UNPROTECT 112
       * 27 Aug 26 Windows port - corrected the ACC$PRIOR.TIER note: the equality
       *                      guard, not an inner test, is what keeps field 6
       *                      write-once (PRE_RELEASE 21)
@@ -346,6 +347,11 @@
       *   this API session's SCRAM c= value, base64("p=tls-exporter,," +
       *   binding), or "" with no TLS.  Same number as Linux (S.19).
       $define SD_TLS_CBIND    110  ;* sd_tlssrv channel binding, 0 args
+      * 26 Sep 26 SD Core Solo - SOLO 15 piece 4, mirrored from gplsrc/keys.h:
+      *   the one-shot account password, DPAPI for this Windows user.
+      *   $internal callers only.
+      $define SD_DPAPI_PROTECT   111  ;* win32dpapi encrypt, 1 arg
+      $define SD_DPAPI_UNPROTECT 112  ;* win32dpapi decrypt, 1 arg
 
       * 13 Aug 26 Windows port - embedded python keys removed with the
       *   interpreter.  See PROJECT_STATUS.md 5.15.

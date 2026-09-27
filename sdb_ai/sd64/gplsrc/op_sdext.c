@@ -18,6 +18,8 @@
  * 
  * 
  * START-HISTORY:
+ * 26 Sep 26 SD Core Solo - SD_DPAPI_PROTECT/UNPROTECT, $internal only
+ *           (SOLO 15 piece 4, ruling 21)
  * 15 Aug 26 Windows port - NullString() no longer returns a STATIC buffer
  *           when malloc fails; the release loop frees what it returns
  * 06 Aug 2024 MAB add SDEXT
@@ -51,6 +53,7 @@
 #include <errno.h>
 
 #include "sd.h"
+#include "header.h"   /* 26 Sep 26 SD Core Solo - HDR_INTERNAL, the DPAPI gate */
 #include "keys.h"
 #include "sd_scram.h"
 #include "sd_tls.h"
@@ -375,6 +378,44 @@ void op_sdext() {
       k_put_c_string(attr, e_stack);
       e_stack++;
       free(attr);
+      break;
+    }
+
+    /* 26 Sep 26 SD Core Solo - SOLO 15 piece 4, ruling 21.  The account
+       password kept for a one-shot "sd <command>", DPAPI for this Windows
+       user (win32dpapi.c).  $INTERNAL CALLERS ONLY: SDEXT is compiled into
+       the program that calls it, so process.program here IS that caller
+       (unlike the PY_* wrappers below) - login, solo_password, set_password
+       via !SOLO_STORE_PW.  A refusal is SD_EXT_KEY_ERR, the answer an unknown
+       key gets.  Both wipe the plaintext they held; the BASIC variable that
+       receives it is the caller's to clear. */
+    case SD_DPAPI_PROTECT:
+    case SD_DPAPI_UNPROTECT: {
+      char* out;
+
+      if (!(process.program.flags & HDR_INTERNAL)) {
+        sdme_err_rsp(SD_EXT_KEY_ERR);
+        break;
+      }
+      if (argCnt != 1 || SDMEArgArray[0] == NULL) {
+        sdme_err_rsp(SD_EXT_ARG_CNT);
+        break;
+      }
+      if (key == SD_DPAPI_PROTECT) {
+        out = sd_dpapi_protect_b64(SDMEArgArray[0]);
+        sodium_memzero(SDMEArgArray[0], strlen(SDMEArgArray[0]));
+        scram_reply(out);
+        break;
+      }
+      out = sd_dpapi_unprotect_b64(SDMEArgArray[0]);
+      if (out == NULL) {
+        sdme_err_rsp(SD_SCRAM_ERR);
+        break;
+      }
+      k_put_c_string(out, e_stack);
+      e_stack++;
+      sodium_memzero(out, strlen(out));
+      free(out);
       break;
     }
 

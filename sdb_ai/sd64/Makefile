@@ -80,8 +80,10 @@ COMP     := gcc
 #   pre-authenticated API session cannot start a child process at all
 #   (0xC0000142, measured b190).  Its ConvertStringSidToSid and
 #   LookupAccountSid halves are advapi32, already above.
+# 26 Sep 26 SD Core Solo - SOLO 15 piece 4: -lcrypt32 is for win32dpapi.c's
+#   CryptProtectData/CryptUnprotectData, the stored account password.
 OPENSSL_LIBS ?= -lssl -lcrypto
-L_FLAGS    := -lm -lcrypt -ldl -lbsd -L$(LIBSODIUM) -lsodium -ladvapi32 -lsecur32 -luserenv -lnetapi32 $(OPENSSL_LIBS)
+L_FLAGS    := -lm -lcrypt -ldl -lbsd -L$(LIBSODIUM) -lsodium -ladvapi32 -lsecur32 -luserenv -lnetapi32 -lcrypt32 $(OPENSSL_LIBS)
 
 RM       := rm
 
