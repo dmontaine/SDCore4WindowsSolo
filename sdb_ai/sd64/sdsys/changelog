@@ -3,6 +3,15 @@ S1.1-0 - SD Core Solo, in progress
 A personal SD Core for one Windows user. NOTHING IN THIS SECTION HAS BEEN
 RELEASED.
 
+26 Sep 26  A COPIED SD CORE SOLO FOLDER BECOMES YOURS.
+
+           Copy the SDCoreSolo folder to another Windows account, on this
+           computer or another, and sign in: once you give the account
+           password, the account is renamed to your Windows user name,
+           its folder too. If the folder is in use it keeps its old name
+           and SD says so. Running the installer over a copied folder
+           creates no second account.
+
 26 Sep 26  COMMANDS ON THE sd COMMAND LINE NO LONGER NEED THE PASSWORD
            TYPED.
 

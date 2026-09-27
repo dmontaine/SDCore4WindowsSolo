@@ -18,6 +18,8 @@
 *
 *
 * START-HISTORY:
+* 26 Sep 26 SD Core Solo - a moved tree's one account is reported, not
+*           doubled: SOLO ACCOUNT MOVED (SOLO 15 piece 5).
 * 25 Sep 26 SD Core Solo - the register stores @USRDIR/<name>, not an absolute
 *           path (ruling 21, a portable tree); an old absolute record whose
 *           folder is gone while the account's folder is in this tree is
@@ -53,7 +55,9 @@
 * is not tried here.
 *
 * The last line on success is "SOLO ACCOUNT READY <name> <path>": a caller
-* anchors on that, never on the name it passed in.
+* anchors on that, never on the name it passed in.  On a tree moved from
+* another Windows user (one account, another name) it is "SOLO ACCOUNT MOVED
+* <old name> <path>" and nothing is created: LOGIN renames it (SOLO 15).
 *
 * END-DESCRIPTION
 *
@@ -129,6 +133,34 @@ $include err.h
       end
       display 'solo_account: the register names ' : acc.name : ' but its directory is missing: ' : acc.rec<ACC$PATH>
       stop
+   end
+
+*  26 Sep 26 - SOLO 15 piece 5: A TREE MOVED FROM ANOTHER WINDOWS USER.  The
+*  register holds one account under the old user's name; LOGIN renames it to
+*  this user at the first sign-in that proves its password (ruling 21(b)),
+*  which this program cannot do - it has no password.  So it creates nothing
+*  and reports the account that is there.
+   if not(ospath(pathname, OS$EXISTS)) then
+      other = ''
+      n.acc = 0
+      select acc.f to 11
+      loop
+         readnext id from 11 else exit
+         if downcase(id) # 'sdsys' then
+            n.acc += 1
+            other = id
+         end
+      repeat
+      clearselect 11
+      if n.acc = 1 then
+         read o.rec from acc.f, other then
+            close acc.f
+            display 'solo_account: this tree holds the account ' : downcase(other) : '; it becomes ' : acc.name : ' at the first sign-in.'
+            @system.return.code = 0
+            display 'SOLO ACCOUNT MOVED ' : downcase(other) : ' ' : parse.pathname.tokens(o.rec<ACC$PATH>)
+            stop
+         end
+      end
    end
 
    if ospath(pathname, OS$EXISTS) then

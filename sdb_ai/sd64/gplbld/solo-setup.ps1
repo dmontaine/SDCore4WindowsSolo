@@ -196,7 +196,9 @@ try {
     # word of the sentence, so quotes would become part of the name.
     $acct = $User.ToLower()
     $t = Invoke-Sd ('-internal RUN gpl.bp solo_account ' + $User) ''
-    Judge 'account created' $t ('^SOLO ACCOUNT READY ' + [regex]::Escape($acct) + ' \S')
+    # 26 Sep 26 - SOLO 15 piece 5: MOVED is a tree copied from another Windows
+    # user; its one account is renamed to this user at the first sign-in.
+    Judge 'account created' $t ('^SOLO ACCOUNT (READY ' + [regex]::Escape($acct) + '|MOVED [a-z]\S*) \S')
 
     if ($Passwords) {
         $t = Invoke-Sd '-internal RUN gpl.bp solo_password ADMIN' $adminPw

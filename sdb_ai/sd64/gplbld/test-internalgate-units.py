@@ -237,6 +237,9 @@ WRITERS = {
     "bootstrap.py": "INTERNAL_MARKER_DIR",
     # 25 Sep 26 - SOLO 2's witness; sets bootstrap's INTERNAL_MARKER_DIR and uses its sd().
     "probe-solo-stage.py": "INTERNAL_MARKER_DIR",
+    # 26 Sep 26 - SOLO 15 pieces 4 and 5; each writes the marker in its own sd_in().
+    "probe-solo-dpapi.py": "os.path.join(SDSYS, '$internal')",
+    "probe-solo-rename.py": "os.path.join(SDSYS, '$internal')",
     "sdsys-seat.ps1": "Set-SdInternalMarker",
     "verify-accountrules.ps1": "Set-SdInternalMarker",
     "verify-createfilecase.ps1": "Set-SdInternalMarker",
