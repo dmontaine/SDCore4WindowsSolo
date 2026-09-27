@@ -28,7 +28,12 @@
 #      managed mode only, the global password also logs in.    (rulings 18, 19)
 #   6. managed mode only: the global password at an interactive "sd" lands with
 #      the administrator commands already unlocked                 (ruling 19)
-#   7. the daemon runs on a standard token: Medium integrity, Administrators
+#   7. BASIC's intrinsic functions and operators give the right answers:
+#      gplbld/basicfuncs.sb (185 cases) compiled and run in the account's own
+#      bp as ZZBASICFUNCS, then removed; its coverage of BCOMP's intrinsics
+#      table checked first.  Ported from the multi-user verify-basicfuncs.ps1
+#      (git show 3776c66:sdb_ai/sd64/gplbld/verify-basicfuncs.ps1).
+#   8. the daemon runs on a standard token: Medium integrity, Administrators
 #      deny-only or absent                                         (ruling 16)
 # Not measured here, because they need hands or another machine: ssh landing in
 # sd, SD starting at boot with nobody signed in, remote access while signed out.
@@ -182,6 +187,53 @@ function Invoke-Scram([string]$Label, [string]$Pw, [string[]]$Cmds) {
     $text = Mask ((($o.Result) + ($e.Result)) -replace "`r", '')
     foreach ($l in ($text -split "`n")) { if ($l.Trim()) { Say ('    | ' + $l) } }
     return $text
+}
+
+# basicfuncs.sb's coverage of BCOMP's intrinsics table, read from source: every
+# intrinsic is either exercised (a case label n = '<name>' or '<name>.<x>') or
+# declared on a "* NOT.TESTED:" line, never both, never neither.  Verbatim from
+# the multi-user verify-basicfuncs.ps1.
+function Get-CoverageVerdict([string]$bcompText, [string]$probeText) {
+    $known = @()
+    foreach ($m in [regex]::Matches($bcompText, '(?m)^\s*intrinsics(?:<-1>)?\s*=\s*"([^"]+)"')) { $known += $m.Groups[1].Value }
+    $knownSet = @{}
+    foreach ($k in $known) { $knownSet[$k] = $true }
+    $codeLines = @(); $declared = @(); $declaredUnknown = @()
+    foreach ($line in ($probeText -split "`r?`n")) {
+        if ($line -match '^\s*\*') {
+            $d = [regex]::Match($line, '^\s*\*\s*NOT\.TESTED:\s*(.+)$')
+            if ($d.Success) {
+                foreach ($tok in ($d.Groups[1].Value -split '\s+')) {
+                    if ($tok -eq '') { continue }
+                    if ($knownSet.ContainsKey($tok)) { $declared += $tok } else { $declaredUnknown += $tok }
+                }
+            }
+            continue
+        }
+        $codeLines += $line
+    }
+    $declaredSet = @{}
+    foreach ($d in $declared) { $declaredSet[$d] = $true }
+    $exercisedSet = @{}; $operatorLabels = @(); $strayLabels = @()
+    foreach ($m in [regex]::Matches(($codeLines -join "`n"), "n\s*=\s*'([^']+)'")) {
+        $lab = $m.Groups[1].Value; $best = ''
+        foreach ($k in $knownSet.psbase.Keys) {
+            if ($lab -eq $k -or $lab.StartsWith($k + '.')) { if ($k.Length -gt $best.Length) { $best = $k } }
+        }
+        if ($best -ne '') { $exercisedSet[$best] = $true }
+        elseif ($lab.StartsWith('OP.')) { $operatorLabels += $lab }
+        else { $strayLabels += $lab }
+    }
+    $both = @(); $unaccounted = @()
+    foreach ($k in $known) {
+        $e = $exercisedSet.ContainsKey($k); $d = $declaredSet.ContainsKey($k)
+        if ($e -and $d) { $both += $k }
+        if (-not $e -and -not $d) { $unaccounted += $k }
+    }
+    return @{ Known = $known.Count; Exercised = $exercisedSet.psbase.Count; Declared = $declaredSet.psbase.Count
+              Both = @($both | Sort-Object); Unaccounted = @($unaccounted | Sort-Object)
+              DeclaredUnknown = @($declaredUnknown); OperatorLabels = $operatorLabels.Count
+              StrayLabels = @($strayLabels | Sort-Object) }
 }
 
 function Read-Password([string]$Prompt) {
@@ -398,7 +450,72 @@ try {
 
     # -----------------------------------------------------------------------
     Say ''
-    Say '== 7. the daemon runs on a standard token'
+    Say '== 7. BASIC''s intrinsic functions and operators give the right answers'
+    $bfSrc   = Join-Path $Gplbld 'basicfuncs.sb'
+    $bcomp   = Join-Path $Gplbld '..\sdsys\gpl.bp\bcomp'
+    $bpDir   = Join-Path $Root ('user_accounts\' + $Acct + '\bp')
+    $outDir  = Join-Path $Root ('user_accounts\' + $Acct + '\bp.out')
+    $bfName  = 'ZZBASICFUNCS'
+    $bfDest  = Join-Path $bpDir $bfName
+    Say ('    probe ' + $bfSrc + '   exists: ' + (Test-Path -LiteralPath $bfSrc))
+    Say ('    BCOMP ' + $bcomp + '   exists: ' + (Test-Path -LiteralPath $bcomp))
+    Say ('    into  ' + $bfDest + '   bp exists: ' + (Test-Path -LiteralPath $bpDir) + '   bp.out exists before: ' + (Test-Path -LiteralPath $outDir))
+    if (-not (Test-Path -LiteralPath $bfSrc) -or -not (Test-Path -LiteralPath $bcomp) -or -not (Test-Path -LiteralPath $bpDir)) {
+        Check 'the BASIC leg could run' $false 'basicfuncs.sb, BCOMP source or the account bp is missing'
+    }
+    elseif (@(Get-ChildItem -LiteralPath $bpDir -File | Where-Object { $_.Name -ieq $bfName }).Count) {
+        Check 'the BASIC leg could run' $false ($bfName + ' is already in bp - left by an earlier run?  Delete it and its bp.out object by hand.')
+    }
+    else {
+        $cov = Get-CoverageVerdict (Get-Content -LiteralPath $bcomp -Raw) (Get-Content -LiteralPath $bfSrc -Raw)
+        Say ('    coverage: BCOMP intrinsics ' + $cov.Known + ', exercised ' + $cov.Exercised + ', declared untested ' + $cov.Declared + ', operator cases ' + $cov.OperatorLabels)
+        Check 'V1 BCOMP''s intrinsics table parsed' ($cov.Known -ge 100) ('found ' + $cov.Known + ' names, expected well over 100')
+        Check 'V2 every intrinsic is exercised or declared untested' ($cov.Unaccounted.Count -eq 0) ('named nowhere: ' + ($cov.Unaccounted -join ', '))
+        Check 'V3 none is both' ($cov.Both.Count -eq 0) ('both: ' + ($cov.Both -join ', '))
+        Check 'V4 every declared name is one BCOMP knows' ($cov.DeclaredUnknown.Count -eq 0) ('unknown: ' + ($cov.DeclaredUnknown -join ', '))
+        Check 'V5 every case label names an intrinsic or an OP. case' ($cov.StrayLabels.Count -eq 0) ('stray: ' + ($cov.StrayLabels -join ', '))
+        $madeOut = -not (Test-Path -LiteralPath $outDir)
+        try {
+            Copy-Item -LiteralPath $bfSrc -Destination $bfDest -Force
+            # BCOMP:1540's "0 error(s)" is the only success wording; the name is
+            # printed on both paths (PRE_RELEASE 105).
+            $t = Invoke-Sd 'basicfuncs-compile' ('BASIC BP ' + $bfName) '' 'none'
+            $L = Get-Lines $t
+            $compiled = ((CountOf $L '^0 error\(s\)') -ge 1) -and ((CountOf $L '^[1-9][0-9]* error') -eq 0) -and ($t -notmatch '(?i)Compilation error')
+            Check 'the probe compiles' $compiled 'want "0 error(s)" and no error count or "Compilation error"'
+            if ($compiled) {
+                $t = Invoke-Sd 'basicfuncs-run' ('RUN BP ' + $bfName + ' NO.PAGE') '' 'none'
+                $L = Get-Lines $t
+                $tot = [regex]::Match($t, '(?m)^\s*TOTAL\|(\d+)\|FAILS\|(\d+)')
+                $total = $(if ($tot.Success) { [int]$tot.Groups[1].Value } else { -1 })
+                $nfail = $(if ($tot.Success) { [int]$tot.Groups[2].Value } else { -1 })
+                $caseLines = CountOf $L '^(OK|FAIL)\|'
+                $failLines = @($L | Where-Object { $_ -match '^FAIL\|' })
+                Say ('    TOTAL ' + $total + '   FAILS ' + $nfail + '   case lines ' + $caseLines + '   FAIL lines ' + $failLines.Count + '   PROBE.DONE ' + ((CountOf $L '^PROBE\.DONE$') -eq 1))
+                Check 'the probe ran to its end and measured something' (((CountOf $L '^PROBE\.DONE$') -eq 1) -and $total -gt 0) 'want PROBE.DONE and TOTAL above 0 - a probe that ran nothing must fail'
+                Check 'the tally agrees with the case lines printed' ($caseLines -eq $total -and $failLines.Count -eq $nfail) ('TOTAL ' + $total + ' vs ' + $caseLines + ' lines; FAILS ' + $nfail + ' vs ' + $failLines.Count + ' lines')
+                Check ('every case gives the right answer (' + $total + ' cases)') ($nfail -eq 0 -and $failLines.Count -eq 0) ('failing: ' + ($failLines -join ' ;; '))
+            }
+        }
+        finally {
+            $objs = @()
+            if (Test-Path -LiteralPath $outDir) { $objs = @(Get-ChildItem -LiteralPath $outDir -File | Where-Object { $_.Name -ieq $bfName }) }
+            foreach ($f in (@(Get-Item -LiteralPath $bfDest -ErrorAction SilentlyContinue) + $objs)) {
+                if ($f) { Remove-Item -LiteralPath $f.FullName -Force -ErrorAction SilentlyContinue }
+            }
+            if ($madeOut -and (Test-Path -LiteralPath $outDir) -and @(Get-ChildItem -LiteralPath $outDir -Force).Count -eq 0) {
+                Remove-Item -LiteralPath $outDir -Force -ErrorAction SilentlyContinue
+            }
+            $leftS = @(Get-ChildItem -LiteralPath $bpDir -File | Where-Object { $_.Name -ieq $bfName }).Count
+            $leftO = $(if (Test-Path -LiteralPath $outDir) { @(Get-ChildItem -LiteralPath $outDir -File | Where-Object { $_.Name -ieq $bfName }).Count } else { 0 })
+            Say ('    cleanup: source left ' + $leftS + ', object left ' + $leftO + ', bp.out ' + $(if (Test-Path -LiteralPath $outDir) { 'present' } else { 'absent' }) + $(if ($madeOut) { ' (this leg made it)' } else { ' (was there before)' }))
+            Check 'the probe is removed from the account' ($leftS -eq 0 -and $leftO -eq 0) ('delete ' + $bfName + ' from bp and bp.out by hand')
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    Say ''
+    Say '== 8. the daemon runs on a standard token'
     $winds = @(Get-Process -Name sdwind -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $WindExe })
     Say ('    sdwind.exe from this tree: ' + $winds.Count)
     Check 'the daemon is still running after the legs' ($winds.Count -ge 1) 'no sdwind.exe from this tree'
