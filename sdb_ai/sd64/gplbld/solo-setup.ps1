@@ -2,7 +2,7 @@
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -File solo-setup.ps1
 #       -AppDir <install dir> -User <windows user name> -Report <file>
-#       [-Passwords] [-Global]
+#       [-Passwords] [-Global] [-Upgrade]
 #
 # Run by sd-solo.iss at ssPostInstall, as the user, NOT elevated.  Exit 0 every
 # step passed, 1 a step failed, 2 refused before doing anything.
@@ -12,7 +12,15 @@
 #                  sessions printed "SD has not been started" without it).
 #   2. sd -internal RUN gpl.bp solo_account <user>       (SOLO 4, ruling 10)
 #   3. -Passwords: solo_password ADMIN, and with -Global also GLOBAL  (SOLO 5)
-#   4. sd -stop    the machine step (solo-machine.ps1) starts it again from the
+#   4. -Upgrade: sd -internal UPDATE.ACCOUNTS ALL   (SOLO 9, the
+#      upgrade-completeness gap left by retiring upgrade-voc.ps1).  An upgrade
+#      replaces NEWVOC but rebuilds no account's own live VOC, so a release
+#      that adds a verb would otherwise ship it to nobody.  "-internal" names
+#      SDSYS for itself (sd.c) and is seeded with the administrator flag
+#      (kernel.c), which is exactly what LOGIN's mode-4 walk gates on
+#      ("@who = 'SDSYS' and kernel(K$ADMINISTRATOR,-1)", gpl.bp/login:364) -
+#      the same mechanism the retired script drove, called the same way.
+#   5. sd -stop    the machine step (solo-machine.ps1) starts it again from the
 #                  scheduled task, which is the process that should own it.
 # Each -internal session gets the one-shot marker LOGIN demands (ruling 13,
 # internal-marker.ps1), written immediately before it.
@@ -40,7 +48,8 @@ param(
     [string]$User = '',
     [string]$Report = '',
     [switch]$Passwords,
-    [switch]$Global
+    [switch]$Global,
+    [switch]$Upgrade
 )
 
 $ErrorActionPreference = 'Stop'
@@ -73,6 +82,7 @@ Note ('app dir      : ' + $AppDir)
 Note ('sd.exe       : ' + $sdexe + '   exists: ' + (Test-Path -LiteralPath $sdexe))
 Note ('user         : ' + $User)
 Note ('passwords    : ' + $(if ($Passwords) { 'ADMIN' + $(if ($Global) { ' and GLOBAL' } else { '' }) } else { 'not set by this run' }))
+Note ('upgrade      : ' + $(if ($Upgrade) { 'UPDATE.ACCOUNTS ALL will run' } else { 'not requested' }))
 Note ('admin pw     : ' + $(if ($adminPw) { 'given (' + $adminPw.Length + ' characters)' } else { 'NOT given' }))
 Note ('global pw    : ' + $(if ($globalPw) { 'given (' + $globalPw.Length + ' characters)' } else { 'NOT given' }))
 Note ('account pw   : ' + $(if ($accountPw) { 'given (' + $accountPw.Length + ' characters)' } else { 'NOT given' }))
@@ -169,7 +179,9 @@ function Invoke-Sd([string]$SdArgs, [string]$InputText) {
     return $text
 }
 
-$disqualify = @('only the installer may run this', 'Connection terminated', 'has not been started')
+$disqualify = @('only the installer may run this', 'Connection terminated', 'has not been started',
+                'Cannot update every registered account from here', 'Command requires administrator privileges',
+                'Cannot open accounts register', 'does not take')
 $fails = @()
 function Judge([string]$Label, [string]$Text, [string]$Pattern) {
     $hit = [bool]([regex]::IsMatch($Text, $Pattern, 'IgnoreCase, Multiline'))
@@ -211,6 +223,15 @@ try {
             $t = Invoke-Sd ('-internal RUN gpl.bp solo_password ACCOUNT ' + $acct) $accountPw
             Judge 'account password set' $t '^SOLO PASSWORD SET ACCOUNT\s*$'
         }
+    }
+
+    if ($Upgrade) {
+        # message 10171, "N account(s) had their VOC updated" - the same
+        # anchor the retired upgrade-voc.ps1 used.  "0 account(s)" is refused
+        # too: a walk that opened the register and visited nothing is not a
+        # pass on a tree that this script just confirmed has an account in it.
+        $t = Invoke-Sd '-internal UPDATE.ACCOUNTS ALL' ''
+        Judge 'accounts VOC refreshed' $t '(?m)^[1-9]\d* account\(s\) had their VOC updated'
     }
 }
 catch {

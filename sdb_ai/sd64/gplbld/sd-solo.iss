@@ -14,7 +14,10 @@
 ; ORDER AT ssPostInstall, and why:
 ;   1. solo-setup.ps1, unelevated: sd -start, the account (ruling 10), the
 ;      administrator password and, managed mode only, the global one (rulings
-;      12, 15), sd -stop.  Sessions need a started SD; the stop hands SD over
+;      12, 15); on an upgrade (a data tree already existed), UPDATE.ACCOUNTS
+;      ALL - an upgrade replaces NEWVOC but rebuilds no account's own live
+;      VOC, so without this a release that adds a verb ships it to nobody
+;      (SOLO 9); sd -stop.  Sessions need a started SD; the stop hands SD over
 ;      to the task.
 ;   2. PATH, the user's own (HKCU).
 ;   3. solo-machine.ps1, elevated: the S4U startup task, registered and started
@@ -589,7 +592,13 @@ begin
       SetEnvironmentVariable('SD_SOLO_GLOBAL_PW', GlobalPage.Values[0]);
     end;
     SetEnvironmentVariable('SD_SOLO_ACCOUNT_PW', AccountPage.Values[0]);
-  end;
+  end
+  else
+    { A data tree already existed: its one account's live VOC predates
+      whatever NEWVOC this release ships (upgrade, or a kept tree reinstalled
+      over, or a tree moved from another Windows user - all three leave an
+      account whose VOC was never rebuilt from the new templates). }
+    Params := Params + ' -Upgrade';
   if not Exec(PowerShellExe, Params, ExpandConstant('{app}'), SW_HIDE, ewWaitUntilTerminated, Code) then
     Code := -1;
   SetEnvironmentVariable('SD_SOLO_ADMIN_PW', '');
