@@ -18,6 +18,10 @@
 * 
 * 
 * START-HISTORY:
+* 27 Sep 26 SD Core Solo - LOGTO no longer calls !elevate('STOP'): nothing in
+*           Solo starts an elevated helper (ruling 11), so it launched a
+*           PowerShell to stop nothing.  The administrator flag is still given
+*           up on the way out, now audited "ADMIN LOCKED on LOGTO".
 * 25 Sep 26 SD Core Solo - SOLO 4: LOGOUT ALL no longer requires SDSYS.
 * 21 Sep 26 Windows port - RELEASE_1.1 64 leftover.  elev.obtained is deleted:
 *            it was initialised false and never set true once LOGTO stopped
@@ -248,13 +252,8 @@ deffun errtext(err) calling '!errtext'
 * rev 0.9.0 *
 * 14 Aug 26 Windows port - restored with the ACC$GROUP test in logto.authorised
 deffun is_grp_member(user,group) calling '!is_grp_member'
-* 16 Aug 26 Windows port - entering SDSYS obtains OS privilege for the session
-* and leaving it gives that privilege up.  There is deliberately no verb:
-* PROJECT_STATUS.md 7 step 4.
-* 29 Aug 26 Windows port - this said "!elevate's only caller".  LOGIN is the
-* second now, because an administrator is elevated AT LOGIN and lands in
-* SDSYS.  PRE_RELEASE_FIXES 56; ELEVATE's own header carries the reasoning.
-deffun elevate(action,arg) calling '!elevate'
+* 27 Sep 26 SD Core Solo - "deffun elevate ... calling '!elevate'" was here;
+* !elevate is retired (see the history).
 * rev 0.9.0 *
 * 13 Aug 26 Windows port - is_grp_member removed, no callers remain here
 
@@ -2925,8 +2924,7 @@ int.logto:
       void kernel(K$ADMINISTRATOR, 0)
 
       if was.admin then
-         void elevate('STOP', '')
-         void kernel(K$AUDIT, 'ELEVATION RELEASED account=' : new.account)
+         void kernel(K$AUDIT, 'ADMIN LOCKED on LOGTO account=' : new.account)
       end
    end
 

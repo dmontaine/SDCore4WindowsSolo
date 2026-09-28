@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 27 Sep 26 SD Core Solo - the unused deffun for !elevate removed (retired).
 * 26 Sep 26 SD Core Solo - SOLO 3 step 5: require.credential (the multi-user
 *           prompt to SET a first password) deleted, with cred.ok and the
 *           pw_complex declaration only it used.
@@ -226,7 +227,8 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
 *   The owner's rule it rests on - "there should never be an elevation from
 *   within a normal session" - is untouched: this is not within a session, it
 *   is what decides which account the session begins in.
-deffun elevate(action,arg) calling '!elevate'
+* 27 Sep 26 SD Core Solo - the deffun for !elevate stood here with no caller
+*   left; !elevate is retired.
 
    ok = @false
    admin.login = @false

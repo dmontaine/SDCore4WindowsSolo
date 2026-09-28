@@ -145,7 +145,7 @@ print("")
 print("=== 0. the null case is refused: the scan ran against something ===")
 files = builders()
 check("gpl.bp files that build a PowerShell command line (%d)" % len(files),
-      len(files) >= 6, "found: " + repr(files))  # 25 Sep 26: 10 -> 9, measured after SOLO 4; 27 Sep 26: 9 -> 6, remoteapi/remotessh/sshsrvr deleted (SOLO 9)
+      len(files) >= 5, "found: " + repr(files))  # 25 Sep 26: 10 -> 9, measured after SOLO 4; 27 Sep 26: 9 -> 6, remoteapi/remotessh/sshsrvr deleted (SOLO 9); 27 Sep 26: 6 -> 5, elevate retired
 
 found = {}
 for name in files:

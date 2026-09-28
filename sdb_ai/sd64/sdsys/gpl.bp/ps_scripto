@@ -18,6 +18,12 @@
 *
 *
 * START-HISTORY:
+* 27 Sep 26 SD Core Solo - the elevated-helper branch is gone with !elevate
+*           and sd-elevate*.ps1: nothing in Solo starts a helper (SDSYS is
+*           never a login target, ruling 11), so every RUN answered 9 and fell
+*           through here after launching a PowerShell to learn it.  The script
+*           now always runs in this session.  The header below still describes
+*           the helper route as history.
 * 31 Aug 26 Windows port - written.  PRE_RELEASE_FIXES 90.  This is
 *           !ps_script's body, MOVED here rather than copied, with the capture
 *           added; !ps_script is now a wrapper that calls it with capture off.
@@ -79,9 +85,6 @@ $catalog !ps_script_out
 
 $include int$keys.h
 
-* 16 Aug 26 Windows port - the session's elevated helper, when it has one.
-deffun elevate(action, arg) calling '!elevate'
-
 *  ASSIGNED HERE FOR BCOMP, NOT FOR THE LOGIC.  bootstrap.py fails the WHOLE
 *  bootstrap on an "is not assigned a value" warning, and BCOMP reads the source
 *  in order.  Every value is also the safe one.
@@ -132,23 +135,8 @@ deffun elevate(action, arg) calling '!elevate'
 
    q = char(39)
 
-*  AN ELEVATED SESSION SENDS THE SCRIPT TO ITS HELPER INSTEAD OF RUNNING IT
-*  HERE.  9 is "no helper for this session" and is the only answer that means
-*  "not handled" rather than a result.
-   if kernel(K$ADMINISTRATOR, -1) then
-      rc = elevate('RUN', ps.path)
-      if rc # 9 then
-         if want.out then
-            read out from sys.f, out.id else out = ''
-            delete sys.f, out.id
-            gosub tidy.out
-         end
-         delete sys.f, id
-         close sys.f
-         return rc : @fm : out
-      end
-   end
-
+*  27 Sep 26 SD Core Solo - THE ONLY ROUTE NOW (the helper branch is gone; see
+*  the history).  What followed was written as the fall-through:
 *  THE FALL-THROUGH: a session with no helper runs it here, and here the
 *  output has always been reachable - "capturing" is what EDIT:684 uses for
 *  its editor probe.  Taking it rather than letting it reach the terminal

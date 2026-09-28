@@ -587,6 +587,12 @@ PF_RETIRED = [
     # multi-user AllowGroups sdssh line, which solo-machine.ps1's Match User
     # block replaces.  Its hard-coded System32 sshd path went with it.
     ('allow-ssh-groups.ps1', 'SOLO 7 - no caller; the AllowGroups model is replaced by solo-machine.ps1 Match User'),
+    # 27 Sep 26 - the elevated helper.  Nothing in Solo calls elevate('START')
+    # (SDSYS is never a login target, ruling 11), so every -Run answered 9
+    # "no helper" and every -Stop 0; the calls in cproc/ps_scripto/login and
+    # gpl.bp/elevate itself went in the same change.
+    ('sd-elevate.ps1', 'SOLO 7 note - no helper is ever started in Solo; !elevate and its callers retired'),
+    ('sd-elevate-helper.ps1', 'SOLO 7 note - started only by sd-elevate.ps1 -Start, which nothing calls'),
 ]
 
 SDSYS_PRESERVE = [
@@ -1434,7 +1440,6 @@ def main():
                    # (attach-account, finish-install, the three upgrade-*
                    # scripts) are retired - see PF_RETIRED.
                    'internal-marker.ps1',
-                   'sd-elevate.ps1', 'sd-elevate-helper.ps1',
                    # 25 Sep 26 - SOLO 8.  sd-solo.iss runs both from {app}:
                    # solo-setup.ps1 unelevated (account, passwords),
                    # solo-machine.ps1 through its one UAC prompt (startup task,

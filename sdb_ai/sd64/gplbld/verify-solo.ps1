@@ -492,9 +492,12 @@ try {
         $rxOk  = '^.*ADMIN UNLOCKED via=admin\s*$'
         $b0 = Audit-Count $rxBad; $u0 = Audit-Count $rxOk
         $copy = 'COPY FROM VOC TO VOC WHERE,' + $Probe
+        # APPEND.SD.PATH (its bare, report-only form) is here for !ps_script_out
+        # run WITH ADMIN UNLOCKED - the path that used to go to the elevated
+        # helper, retired 27 Sep 2026.
         $in = @($acctPw, 'WHERE', 'UPDATE.ACCOUNTS', $copy, 'ADMIN', $wrongPw, 'ADMIN', $adminPw,
-                $copy, ('DELETE VOC ' + $Probe), 'UPDATE.ACCOUNTS', 'ADMIN OFF', 'OFF') -join "`n"
-        $t = Invoke-Sd 'admin-gate' '' ($in + "`n") ('account password, WHERE, UPDATE.ACCOUNTS, ' + $copy + ', ADMIN + a wrong administrator password, ADMIN + the administrator password, ' + $copy + ', DELETE VOC ' + $Probe + ', UPDATE.ACCOUNTS, ADMIN OFF, OFF')
+                $copy, ('DELETE VOC ' + $Probe), 'UPDATE.ACCOUNTS', 'APPEND.SD.PATH', 'ADMIN OFF', 'OFF') -join "`n"
+        $t = Invoke-Sd 'admin-gate' '' ($in + "`n") ('account password, WHERE, UPDATE.ACCOUNTS, ' + $copy + ', ADMIN + a wrong administrator password, ADMIN + the administrator password, ' + $copy + ', DELETE VOC ' + $Probe + ', UPDATE.ACCOUNTS, APPEND.SD.PATH, ADMIN OFF, OFF')
         $b1 = Audit-Count $rxBad; $u1 = Audit-Count $rxOk
         $L = Get-Lines $t
         $i2001   = First $L '^Command requires administrator privileges$'
@@ -515,6 +518,8 @@ try {
         Check 'after ADMIN, the COPY into the VOC goes through' ((CountOf $L '^1 record\(s\) copied\.?$') -eq 1 -and $iCopied -gt $i12003) 'want one "1 record(s) copied." after the unlock'
         Check 'and the copied record is deleted again' ($iDel -gt $iCopied) 'want "1 record(s) deleted" after the copy'
         Check 'after ADMIN, UPDATE.ACCOUNTS runs' ((CountOf $L '^Copying records from NEWVOC to VOC') -eq 1 -and $i5200 -gt $i12003) 'want one "Copying records from NEWVOC to VOC..." after the unlock'
+        $iShow = First $L '^mode\s*:\s*-Show$'
+        Check 'with ADMIN, a PowerShell-backed verb runs in the session (APPEND.SD.PATH report)' ($iShow -gt $i5200 -and $iShow -lt $i12004 -and ($t -notmatch 'Could not read the system PATH')) ('want sd-path''s "mode : -Show" line between UPDATE.ACCOUNTS and ADMIN OFF, and no 10153; line ' + $iShow)
         Check 'ADMIN OFF locks again' ($i12004 -gt $i5200) 'want "Administrator commands locked" last'
         $t = Invoke-Sd 'probe-absent-after' ('CT VOC ' + $Probe) '' 'none'
         Check ($Probe + ' is gone from the VOC afterwards') ((CountOf (Get-Lines $t) ("(?i)^Record '" + [regex]::Escape($Probe) + "' not found$")) -eq 1) ('it is still there: ADMIN, then DELETE VOC ' + $Probe)
