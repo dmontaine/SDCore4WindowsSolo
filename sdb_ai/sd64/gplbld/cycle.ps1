@@ -188,6 +188,25 @@ if ($issTags.Count -gt 0) {
 Write-Host ("inputs: stage {0}   out {1}   installer script {2}" -f $Stage, $Out, $Iss)
 Write-Host ("        Solo tree {0}   ISCC {1}" -f $SoloRoot, $Iscc)
 
+# THE PACKAGES BESIDE THE INSTALLER, CHECKED BEFORE ANYTHING IS UNINSTALLED OR
+# DELETED.  Owner's ruling 27 Sep 2026: "installation package must always have
+# the SSH MSI and Python exe available, otherwise it is an invalid installation
+# package" - sd-solo.iss refuses to start without them, and the install below
+# runs from $Out, so a cycle that got that far would have deleted the tree for
+# an installer that then refuses.  They are binaries, so never in the repo:
+# placed once in $Out\ssh-server and $Out\python, which the build leaves alone.
+if (-not $SkipInstall) {
+    $pkgMsi = @(Get-ChildItem -LiteralPath (Join-Path $Out 'ssh-server') -Filter '*.msi' -File -ErrorAction SilentlyContinue)
+    $pkgPy  = @(Get-ChildItem -LiteralPath (Join-Path $Out 'python') -Filter 'python-3*-amd64.exe' -File -ErrorAction SilentlyContinue)
+    Write-Host ("        beside the installer: ssh-server\*.msi {0}   python\python-3*-amd64.exe {1}" -f
+                $(if ($pkgMsi.Count) { $pkgMsi[0].Name } else { 'MISSING' }), $(if ($pkgPy.Count) { $pkgPy[0].Name } else { 'MISSING' }))
+    if ($pkgMsi.Count -eq 0 -or $pkgPy.Count -eq 0) {
+        Fail ("the installation package is incomplete - put Microsoft's OpenSSH MSI in " + (Join-Path $Out 'ssh-server') +
+              " and python.org's python-3.x-amd64.exe in " + (Join-Path $Out 'python') +
+              ".  Nothing was uninstalled or deleted.")
+    }
+}
+
 # ---------------------------------------------------------------------------
 # STEP 0 - THE C.  make relinks only what changed, while assert-current
 # compares source against the OLDEST binary in bin\, so when anything is stale

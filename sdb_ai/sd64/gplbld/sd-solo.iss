@@ -174,6 +174,9 @@ var
     a usable Python is already registered.  Sampled once, like the rest. }
   SshMsiPath, PythonExePath: String;
   PythonWasFound: Boolean;
+  { Ruling 15: the mode IS whether a global password was set.  Read from the
+    tree when the Mode page is skipped (upgrade, or a kept tree reinstalled). }
+  GlobalWasFound: Boolean;
   ModePage: TInputOptionWizardPage;
   AdminPage, GlobalPage, AccountPage: TInputQueryWizardPage;
 
@@ -256,7 +259,7 @@ end;
 
 function InitializeSetup: Boolean;
 var
-  ScopeFile: String;
+  ScopeFile, Missing: String;
   Scope: AnsiString;
   Code: Integer;
 begin
@@ -292,13 +295,28 @@ begin
   end;
   SshMsiPath := FindBeside('ssh-server', '*.msi');
   PythonExePath := FindBeside('python', 'python-3*-amd64.exe');
+  { 27 Sep 26 - OWNER'S RULING: "installation package must always have the SSH
+    MSI and Python exe available, otherwise it is an invalid installation
+    package."  Refused in every mode, before anything is written.  Installing
+    them stays optional (ruling 17), except that managed mode needs ssh. }
+  if (SshMsiPath = '') or (PythonExePath = '') then
+  begin
+    Missing := '';
+    if SshMsiPath = '' then Missing := Missing + 'ssh-server\*.msi' + #13#10;
+    if PythonExePath = '' then Missing := Missing + 'python\python-3*-amd64.exe' + #13#10;
+    MsgBox('Invalid installation package. Missing beside this installer:' + #13#10 + #13#10 + Missing, mbError, MB_OK);
+    Result := False;
+    Exit;
+  end;
+  GlobalWasFound := FileExists(SoloRoot + '\sdsys\$cred\$GLOBAL');
   PythonWasFound := PythonInHive(HKCU) or PythonInHive(HKLM64) or PythonInHive(HKLM32);
   Log('SD Core Solo: beside the installer: msi="' + SshMsiPath + '" python="' +
       PythonExePath + '"; Python 3.13+ already registered=' + IntToStr(Ord(PythonWasFound)));
   Log('SD Core Solo: data tree absent=' + IntToStr(Ord(DataTreeWasAbsent)) +
       ' installed=' + IntToStr(Ord(SoloWasInstalled)) +
       ' sshd=' + IntToStr(Ord(SshServerWasFound)) +
-      ' sshrule=' + IntToStr(Ord(SshRuleWasFound)) + ' open=' + IntToStr(Ord(SshRuleWasOpen)));
+      ' sshrule=' + IntToStr(Ord(SshRuleWasFound)) + ' open=' + IntToStr(Ord(SshRuleWasOpen)) +
+      ' global=' + IntToStr(Ord(GlobalWasFound)));
   Result := True;
 end;
 
@@ -327,14 +345,27 @@ begin
   Result := SshRuleWasFound;
 end;
 
-function ApiWanted: Boolean;
-begin
-  Result := WizardIsTaskSelected('api');
-end;
-
+{ The Mode page on a new tree; the tree's own $GLOBAL otherwise (ruling 15). }
 function Managed: Boolean;
 begin
-  Result := ModePage.SelectedValueIndex = 1;
+  if DataTreeWasAbsent then
+    Result := ModePage.SelectedValueIndex = 1
+  else
+    Result := GlobalWasFound;
+end;
+
+{ 27 Sep 26 - OWNER'S RULING: "the api and ssh server should always be active
+  in managed mode", reachable from other computers (the master connects from
+  elsewhere).  So in managed mode each of these is on whatever its box says;
+  the boxes are ticked and greyed out on the tasks page to match. }
+function ApiWanted: Boolean;
+begin
+  Result := WizardIsTaskSelected('api') or Managed;
+end;
+
+function ApiNetworkWanted: Boolean;
+begin
+  Result := WizardIsTaskSelected('api\network') or Managed;
 end;
 
 procedure InitializeWizard;
@@ -379,10 +410,34 @@ begin
     Result := SoloWasInstalled;
 end;
 
+{ Managed mode's forced boxes, found by caption (two share "Let other computers
+  reach it" - the API's and the MSI's - and managed mode wants both).  Ticked
+  and greyed in managed mode; enabled again if the Mode page is changed back. }
+procedure ShowForcedTasks(Force: Boolean);
+var
+  I: Integer;
+  C: String;
+begin
+  for I := 0 to WizardForm.TasksList.Items.Count - 1 do
+  begin
+    C := WizardForm.TasksList.ItemCaption[I];
+    if (C = 'Provide the SD Core API (port 4243)') or (C = 'Let other computers reach it') or
+       (C = 'Let other computers reach this computer''s ssh server') or
+       (C = 'Install the OpenSSH server') then
+    begin
+      if Force then
+        WizardForm.TasksList.Checked[I] := True;
+      WizardForm.TasksList.ItemEnabled[I] := not Force;
+    end;
+  end;
+end;
+
 procedure CurPageChanged(CurPageID: Integer);
 begin
   if (CurPageID = wpSelectTasks) and SshRuleWasOpen then
     WizardSelectTasks('sshnetwork');
+  if CurPageID = wpSelectTasks then
+    ShowForcedTasks(Managed);
 end;
 
 { Letters, digits and punctuation: solo-setup.ps1 sends the password to sd's
@@ -617,29 +672,34 @@ begin
     Code := RunMachineStep('Upgrade', '')
   else
   begin
+    { Each choice is its box OR managed mode (the owner's ruling above). }
     Extra := '';
-    if WizardIsTaskSelected('api') then
+    if ApiWanted then
       Extra := Extra + ' -Api';
-    if WizardIsTaskSelected('api\network') then
+    if ApiNetworkWanted then
       Extra := Extra + ' -ApiNetwork';
     if SshRuleWasFound then
     begin
-      if WizardIsTaskSelected('sshnetwork') then
+      if WizardIsTaskSelected('sshnetwork') or Managed then
         Extra := Extra + ' -SshScope open'
       else
         Extra := Extra + ' -SshScope restrict';
     end
-    else if SshMsiOffered and WizardIsTaskSelected('installssh') then
+    else if SshMsiOffered and (WizardIsTaskSelected('installssh') or Managed) then
     begin
       Extra := Extra + ' -SshMsi "' + SshMsiPath + '"';
-      if WizardIsTaskSelected('installssh\network') then
+      if WizardIsTaskSelected('installssh\network') or Managed then
         Extra := Extra + ' -SshScope open'
       else
         Extra := Extra + ' -SshScope restrict';
     end
+    { An ssh server whose firewall rule was not found: managed mode still asks
+      for it open, and ssh-firewall.ps1's own answer is in the summary. }
+    else if SshServerWasFound and Managed then
+      Extra := Extra + ' -SshScope open'
     else
       Extra := Extra + ' -SshScope leave';
-    if SshServerWasFound or (SshMsiOffered and WizardIsTaskSelected('installssh')) then
+    if SshServerWasFound or (SshMsiOffered and (WizardIsTaskSelected('installssh') or Managed)) then
       Extra := Extra + ' -SshIntoSd';
     Code := RunMachineStep('Install', Extra);
   end;
