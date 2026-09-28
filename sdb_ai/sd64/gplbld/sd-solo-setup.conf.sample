@@ -1,0 +1,50 @@
+# sd-solo-setup.conf - answers for the SD Core Solo installer
+#
+# To use it, copy this file to sd-solo-setup.conf beside
+# sd-solo-setup-S1.1-0.exe (on the USB stick, next to the ssh-server and
+# python folders) and fill in the answers.  The installer then uses it on
+# every computer that does not already have SD Core Solo.  Without the file
+# the installer asks every question itself.
+#
+# It is for MANAGED MODE ONLY.  Its presence makes the install a managed
+# client of an SD Core server, so the API and the ssh server are always on
+# and reachable from other computers.
+#
+# Each item below is explained in comment lines, then a SAMPLE answer
+# (commented out), then the line for your answer.  Leave an answer blank and
+# the installer asks for it.  An answer the installer cannot accept (a
+# password that breaks the rules below) is asked for too.
+#
+# The ACCOUNT password is deliberately not here.  The user sets it at this
+# computer's keyboard the first time they run sd.
+#
+# This file holds passwords in clear text.  Keep the stick safe.
+
+[install]
+
+# admin-password
+#   The administrator password.  It unlocks SD's administrator commands
+#   (ADMIN).  At least 8 characters, with a lower-case letter, an upper-case
+#   letter, a digit and a symbol - letters, digits and punctuation only.
+#admin-password=Adm1n-Sample!
+admin-password=
+
+# global-password
+#   The global password.  The SD Core server uses it to manage this
+#   computer, and it also unlocks the administrator commands.  The same rules
+#   as the administrator password, and it must be different from it.
+#global-password=Gl0bal-Sample!
+global-password=
+
+# add-to-path
+#   yes - add SD Core Solo to the user's PATH, so sd runs from any folder.
+#   no  - leave the PATH alone.
+#add-to-path=yes
+add-to-path=
+
+# install-python
+#   yes - install Python, for this user only, from the python folder beside
+#         the installer.  Only asked when no Python 3.13 or later is there.
+#   no  - do not install it.
+#install-python=yes
+install-python=

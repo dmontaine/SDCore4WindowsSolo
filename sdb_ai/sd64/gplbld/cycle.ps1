@@ -329,6 +329,15 @@ if ($setup.LastWriteTime -lt $isccStart) {
           "written $($setup.LastWriteTime), ISCC started $isccStart.")
 }
 Write-Host ("   {0}, {1:N0} bytes, {2}" -f $setup.FullName, $setup.Length, $setup.LastWriteTime)
+# SOLO 18: the control file's template goes beside every installer built.  As
+# .sample it is inert - only a file named sd-solo-setup.conf is read.  If one
+# of those is here, THIS cycle's install is driven by it: said out loud.
+Copy-Item -LiteralPath (Join-Path $Gplbld 'sd-solo-setup.conf.sample') -Destination $Out -Force
+Write-Host ("   control file template: {0}" -f (Join-Path $Out 'sd-solo-setup.conf.sample'))
+if (Test-Path -LiteralPath (Join-Path $Out 'sd-solo-setup.conf')) {
+    Write-Host ("   CONTROL FILE PRESENT: {0} - this install will be MANAGED and take its answers from it" -f
+                (Join-Path $Out 'sd-solo-setup.conf')) -ForegroundColor Yellow
+}
 
 if ($SkipInstall) {
     Write-Host ""

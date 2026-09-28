@@ -177,6 +177,11 @@ var
   { Ruling 15: the mode IS whether a global password was set.  Read from the
     tree when the Mode page is skipped (upgrade, or a kept tree reinstalled). }
   GlobalWasFound: Boolean;
+  { SOLO 18: the optional control file beside the installer, new trees only.
+    Its presence means managed mode.  A password it gives is used only if it
+    passes the pages' own checks; anything missing or refused is asked for. }
+  UseControl, CfAdminOk, CfGlobalOk: Boolean;
+  CfAdmin, CfGlobal, CfPath, CfPython: String;
   ModePage: TInputOptionWizardPage;
   AdminPage, GlobalPage, AccountPage: TInputQueryWizardPage;
 
@@ -257,6 +262,107 @@ begin
   end;
 end;
 
+{ Letters, digits and punctuation: solo-setup.ps1 sends the password to sd's
+  standard input as ASCII bytes, and solo_password refuses anything outside
+  33-126 (the byte-order-mark defect, PROJECT_STATUS.md SOLO 8). }
+{ 25 Sep 26 - THE PASSWORD RULE, gpl.bp/pw_complex arm for arm: at least 8
+  characters, a lower-case letter, an upper-case letter, a digit and a symbol.
+  Every prompt that sets a password runs it (test-pwcomplex-units.ps1, which
+  names this function); the refusal is message 10920 word for word.
+  27 Sep 26 - moved above InitializeSetup so the control file's passwords
+  (SOLO 18) are checked by the same code as the pages'. }
+function PasswordComplex(P: String): Boolean;
+var
+  I, C: Integer;
+  Lo, Up, Dg, Sy: Boolean;
+begin
+  Result := False;
+  if Length(P) < 8 then
+    Exit;
+  Lo := False; Up := False; Dg := False; Sy := False;
+  for I := 1 to Length(P) do
+  begin
+    C := Ord(P[I]);
+    if (C >= 97) and (C <= 122) then
+      Lo := True
+    else if (C >= 65) and (C <= 90) then
+      Up := True
+    else if (C >= 48) and (C <= 57) then
+      Dg := True
+    else if (C >= 32) and (C <= 126) then
+      Sy := True
+    else
+      Exit;
+  end;
+  Result := Lo and Up and Dg and Sy;
+end;
+
+function PasswordProblem(A, B: String): String;
+var
+  I: Integer;
+begin
+  Result := '';
+  if A = '' then
+    Result := 'Enter a password.'
+  else if A <> B then
+    Result := 'The passwords do not match.'
+  else
+  begin
+    for I := 1 to Length(A) do
+      if (Ord(A[I]) < 33) or (Ord(A[I]) > 126) then
+      begin
+        Result := 'Use letters, digits and punctuation only.';
+        Exit;
+      end;
+    if not PasswordComplex(A) then
+      Result := 'A password needs at least 8 characters, with a lower-case letter, an upper-case letter, a digit and a symbol.';
+  end;
+end;
+
+{ How a control-file password fared, for the log - never the password itself. }
+function PasswordFate(Given: String; Problem: String): String;
+begin
+  if Given = '' then
+    Result := 'missing, asked for'
+  else if Problem = '' then
+    Result := 'given, accepted'
+  else
+    Result := 'given, refused (' + Problem + '), asked for';
+end;
+
+{ SOLO 18: the control file's answers, read and checked once.  Passwords are
+  never logged - only whether each was given and whether it was accepted. }
+procedure LoadControlFile;
+var
+  F, P: String;
+begin
+  F := ExpandConstant('{src}\sd-solo-setup.conf');
+  UseControl := DataTreeWasAbsent and FileExists(F);
+  CfAdminOk := False;
+  CfGlobalOk := False;
+  if not UseControl then
+  begin
+    if FileExists(F) then
+      Log('SD Core Solo: control file ' + F + ' IGNORED - this computer already has a data tree');
+    Exit;
+  end;
+  CfAdmin := Trim(GetIniString('install', 'admin-password', '', F));
+  CfGlobal := Trim(GetIniString('install', 'global-password', '', F));
+  CfPath := Lowercase(Trim(GetIniString('install', 'add-to-path', '', F)));
+  CfPython := Lowercase(Trim(GetIniString('install', 'install-python', '', F)));
+  if (CfPath <> 'yes') and (CfPath <> 'no') then CfPath := '';
+  if (CfPython <> 'yes') and (CfPython <> 'no') then CfPython := '';
+  P := PasswordProblem(CfAdmin, CfAdmin);
+  CfAdminOk := P = '';
+  Log('SD Core Solo: control file ' + F + ' - managed mode; admin-password ' + PasswordFate(CfAdmin, P));
+  P := PasswordProblem(CfGlobal, CfGlobal);
+  if (P = '') and (CfGlobal = CfAdmin) then
+    P := 'Use a password different from the administrator password.';
+  CfGlobalOk := P = '';
+  Log('SD Core Solo: control file global-password ' + PasswordFate(CfGlobal, P));
+  Log('SD Core Solo: control file add-to-path "' + CfPath + '", install-python "' + CfPython + '" ("" = asked for)');
+end;
+
 function InitializeSetup: Boolean;
 var
   ScopeFile, Missing: String;
@@ -309,6 +415,7 @@ begin
     Exit;
   end;
   GlobalWasFound := FileExists(SoloRoot + '\sdsys\$cred\$GLOBAL');
+  LoadControlFile;
   PythonWasFound := PythonInHive(HKCU) or PythonInHive(HKLM64) or PythonInHive(HKLM32);
   Log('SD Core Solo: beside the installer: msi="' + SshMsiPath + '" python="' +
       PythonExePath + '"; Python 3.13+ already registered=' + IntToStr(Ord(PythonWasFound)));
@@ -345,13 +452,38 @@ begin
   Result := SshRuleWasFound;
 end;
 
-{ The Mode page on a new tree; the tree's own $GLOBAL otherwise (ruling 15). }
+{ The Mode page on a new tree (a control file means managed - SOLO 18); the
+  tree's own $GLOBAL otherwise (ruling 15). }
 function Managed: Boolean;
 begin
   if DataTreeWasAbsent then
-    Result := ModePage.SelectedValueIndex = 1
+    Result := UseControl or (ModePage.SelectedValueIndex = 1)
   else
     Result := GlobalWasFound;
+end;
+
+{ SOLO 18: the control file's answer when it gave one, else the box. }
+function AddToPathWanted: Boolean;
+begin
+  if UseControl and (CfPath <> '') then
+    Result := CfPath = 'yes'
+  else
+    Result := WizardIsTaskSelected('addtopath');
+end;
+
+function InstallPythonWanted: Boolean;
+begin
+  if UseControl and (CfPython <> '') then
+    Result := CfPython = 'yes'
+  else
+    Result := WizardIsTaskSelected('installpython');
+end;
+
+{ Every task question the control file must answer for the tasks page to be
+  skipped: PATH always; Python only when the installer would offer it. }
+function ControlAnswersTasks: Boolean;
+begin
+  Result := UseControl and (CfPath <> '') and ((CfPython <> '') or not PythonExeOffered);
 end;
 
 { 27 Sep 26 - OWNER'S RULING: "the api and ssh server should always be active
@@ -395,19 +527,42 @@ begin
     'SD Core Solo asks for this password whenever it is used.', '');
   AccountPage.Add('Password:', True);
   AccountPage.Add('Confirm password:', True);
+
+  { SOLO 18: the control file's accepted answers fill their pages, which are
+    then skipped; a page it did not answer is shown empty. }
+  if UseControl then
+  begin
+    ModePage.SelectedValueIndex := 1;
+    if CfAdminOk then
+    begin
+      AdminPage.Values[0] := CfAdmin;
+      AdminPage.Values[1] := CfAdmin;
+    end;
+    if CfGlobalOk then
+    begin
+      GlobalPage.Values[0] := CfGlobal;
+      GlobalPage.Values[1] := CfGlobal;
+    end;
+  end;
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := False;
-  if (PageID = ModePage.ID) or (PageID = AdminPage.ID) then
-    Result := not DataTreeWasAbsent
+  if PageID = ModePage.ID then
+    Result := (not DataTreeWasAbsent) or UseControl
+  else if PageID = AdminPage.ID then
+    Result := (not DataTreeWasAbsent) or (UseControl and CfAdminOk)
   else if PageID = GlobalPage.ID then
-    Result := (not DataTreeWasAbsent) or (not Managed)
+    Result := (not DataTreeWasAbsent) or (not Managed) or (UseControl and CfGlobalOk)
+  { SOLO 18: never with a control file - the owner's ruling is that the user
+    sets the account password at the first login, at the console. }
   else if PageID = AccountPage.ID then
-    Result := not DataTreeWasAbsent
+    Result := (not DataTreeWasAbsent) or UseControl
   else if PageID = wpSelectTasks then
-    Result := SoloWasInstalled;
+    Result := SoloWasInstalled or ControlAnswersTasks
+  else if PageID = wpReady then
+    Result := ControlAnswersTasks and CfAdminOk and CfGlobalOk;
 end;
 
 { Managed mode's forced boxes, found by caption (two share "Let other computers
@@ -437,61 +592,14 @@ begin
   if (CurPageID = wpSelectTasks) and SshRuleWasOpen then
     WizardSelectTasks('sshnetwork');
   if CurPageID = wpSelectTasks then
+  begin
     ShowForcedTasks(Managed);
-end;
-
-{ Letters, digits and punctuation: solo-setup.ps1 sends the password to sd's
-  standard input as ASCII bytes, and solo_password refuses anything outside
-  33-126 (the byte-order-mark defect, PROJECT_STATUS.md SOLO 8). }
-{ 25 Sep 26 - THE PASSWORD RULE, gpl.bp/pw_complex arm for arm: at least 8
-  characters, a lower-case letter, an upper-case letter, a digit and a symbol.
-  Every prompt that sets a password runs it (test-pwcomplex-units.ps1, which
-  names this function); the refusal is message 10920 word for word. }
-function PasswordComplex(P: String): Boolean;
-var
-  I, C: Integer;
-  Lo, Up, Dg, Sy: Boolean;
-begin
-  Result := False;
-  if Length(P) < 8 then
-    Exit;
-  Lo := False; Up := False; Dg := False; Sy := False;
-  for I := 1 to Length(P) do
-  begin
-    C := Ord(P[I]);
-    if (C >= 97) and (C <= 122) then
-      Lo := True
-    else if (C >= 65) and (C <= 90) then
-      Up := True
-    else if (C >= 48) and (C <= 57) then
-      Dg := True
-    else if (C >= 32) and (C <= 126) then
-      Sy := True
-    else
-      Exit;
-  end;
-  Result := Lo and Up and Dg and Sy;
-end;
-
-function PasswordProblem(A, B: String): String;
-var
-  I: Integer;
-begin
-  Result := '';
-  if A = '' then
-    Result := 'Enter a password.'
-  else if A <> B then
-    Result := 'The passwords do not match.'
-  else
-  begin
-    for I := 1 to Length(A) do
-      if (Ord(A[I]) < 33) or (Ord(A[I]) > 126) then
-      begin
-        Result := 'Use letters, digits and punctuation only.';
-        Exit;
-      end;
-    if not PasswordComplex(A) then
-      Result := 'A password needs at least 8 characters, with a lower-case letter, an upper-case letter, a digit and a symbol.';
+    { SOLO 18: the tasks page is shown because an answer is missing - the ones
+      the control file did give are ticked or cleared to match. }
+    if UseControl and (CfPath = 'yes') then WizardSelectTasks('addtopath');
+    if UseControl and (CfPath = 'no') then WizardSelectTasks('!addtopath');
+    if UseControl and (CfPython = 'yes') and PythonExeOffered then WizardSelectTasks('installpython');
+    if UseControl and (CfPython = 'no') and PythonExeOffered then WizardSelectTasks('!installpython');
   end;
 end;
 
@@ -613,7 +721,7 @@ begin
     the launcher alone would want elevation.  PrependPath=1: the helper finds
     python3.dll by PATH (SOLO 14).  Judged by the exit code AND by a Python
     3.13+ being registered afterwards. }
-  if (not SoloWasInstalled) and PythonExeOffered and WizardIsTaskSelected('installpython') then
+  if (not SoloWasInstalled) and PythonExeOffered and InstallPythonWanted then
   begin
     ReportPath := ExpandConstant('{app}\python-install.log');
     Params := '/quiet InstallAllUsers=0 InstallLauncherAllUsers=0 PrependPath=1 ' +
@@ -664,7 +772,7 @@ begin
     Failed := Failed + '  account and passwords' + #13#10;
 
   { 2. PATH. }
-  if WizardIsTaskSelected('addtopath') then
+  if AddToPathWanted then
     AddToUserPath(ExpandConstant('{app}\usr\bin'));
 
   { 3. The one elevated step. }

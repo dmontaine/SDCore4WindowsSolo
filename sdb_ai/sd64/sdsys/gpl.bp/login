@@ -18,6 +18,9 @@
 * 
 * 
 * START-HISTORY:
+* 27 Sep 26 SD Core Solo - SOLO 18: a managed account with no password yet
+*           (installed from a control file) sets its first one at the console
+*           (set.first.password; messages 12025, 12026, 12027).
 * 27 Sep 26 SD Core Solo - the unused deffun for !elevate removed (retired).
 * 26 Sep 26 SD Core Solo - SOLO 3 step 5: require.credential (the multi-user
 *           prompt to SET a first password) deleted, with cred.ok and the
@@ -229,6 +232,8 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
 *   is what decides which account the session begins in.
 * 27 Sep 26 SD Core Solo - the deffun for !elevate stood here with no caller
 *   left; !elevate is retired.
+* 27 Sep 26 SD Core Solo - SOLO 18: set.first.password runs the password rule.
+deffun pw_complex(pw) calling '!pw_complex'
 
    ok = @false
    admin.login = @false
@@ -1532,16 +1537,46 @@ require.password:
    pw.on.tty = (kernel(K$TTY,0) # '')
 
    pw.has.cred = @false
+   pw.has.acct = @false
+   pw.has.global = @false
    openpath @sdsys:@ds:'$cred' to pw.cred.f then
-      read pw.rec from pw.cred.f, initial.account then pw.has.cred = @true
-      read pw.rec from pw.cred.f, '$GLOBAL' then pw.has.cred = @true
+      read pw.rec from pw.cred.f, initial.account then pw.has.acct = @true
+      read pw.rec from pw.cred.f, '$GLOBAL' then pw.has.global = @true
       close pw.cred.f
    end
+   pw.has.cred = pw.has.acct or pw.has.global
    pw.rec = ''
    if not(pw.has.cred) then
       display sysmsg(12020) ;* This account has no password - install SD Core Solo again...
       pw.why = 'the account has no password'
       return
+   end
+
+*  27 Sep 26 - SOLO 18: A MANAGED TREE INSTALLED FROM A CONTROL FILE HAS NO
+*  ACCOUNT PASSWORD UNTIL ITS FIRST LOGIN, and the owner ruled that it is set
+*  AT THE CONSOLE ONLY: an interactive session, on a terminal, not over ssh
+*  (SSH_CONNECTION, the variable sd.c reads for ruling 16).  Managed only -
+*  $GLOBAL present - as the control file is; a standalone tree without its
+*  record still gets 12020.  Anywhere else the session is told so, and the
+*  prompt below then accepts only the global password (the master's, ruling
+*  19), as it always has.
+   if not(pw.has.acct) and pw.has.global then
+      if pw.interactive and pw.on.tty and env('SSH_CONNECTION') = '' then
+*        Assigned here too: BCOMP reads in order, and set.first.password is
+*        further down (the ERRGEN trap, "is not assigned a value").
+         pf.ok = @false
+         gosub set.first.password
+         if pf.ok then
+            pw.via = 'first'
+            void kernel(K$AUDIT, 'LOGIN FIRST PASSWORD SET account=' : initial.account)
+            pw.ok = @true
+         end else
+            pw.why = 'no first password was set'
+            void kernel(K$AUDIT, 'LOGIN REFUSED account=' : initial.account : ' - no first password was set')
+         end
+         return
+      end
+      display sysmsg(12026) ;* This account has no password yet. Set it at this computer's keyboard first...
    end
 
 *  26 Sep 26 - SOLO 15 piece 4: A ONE-SHOT TRIES THE KEPT PASSWORD FIRST.
@@ -1609,6 +1644,70 @@ require.password:
    if pw.via = 'global' then void kernel(K$ADMINISTRATOR, 1)
    void kernel(K$AUDIT, 'LOGIN PASSWORD account=' : initial.account : ' via=' : pw.via)
    pw.ok = @true
+   return
+
+*
+* ======================================================================
+* SET.FIRST.PASSWORD  -  SOLO 18: the account's first password, at the console.
+*
+* Sets pf.ok.  The shape is the retired require.credential's (three tries, the
+* password rule, the repeat), with Solo's two stores: !CRED_SET - which takes
+* $GLOBAL's salt for a new account record, so the master's password still
+* logs in under this name (ruling 19) - and $STORED for one-shot commands
+* (!SOLO_STORE_PW), as SET.PASSWORD does.  An empty answer gives up.  Neither
+* password is displayed, stored in clear or logged.
+
+set.first.password:
+   pf.ok = @false
+   pf.max = 3
+   pf.pw1 = ''
+   pf.pw2 = ''
+   display sysmsg(12025) ;* This account has no password yet. Choose one now...
+   display
+   for pf.try = 1 to pf.max
+      display sysmsg(10090) :  ;* New password:
+      input pf.pw1 HIDDEN
+      display
+      if pf.pw1 = '' then exit
+      if not(pw_complex(pf.pw1)) then
+         display sysmsg(10920)  ;* A password needs at least 8 characters...
+         display sysmsg(10921, pf.try, pf.max) ;* That was attempt %1 of %2
+         continue
+      end
+*     Ruling 19, as the installer's Account page has it: equal to the global
+*     password, the master's logins would land in an ordinary session.
+      pf.same = @false
+      call !CRED_VERIFY('$GLOBAL', pf.pw1, pf.same)
+      if pf.same then
+         display sysmsg(12027) ;* Use a password different from the global password.
+         display sysmsg(10921, pf.try, pf.max) ;* That was attempt %1 of %2
+         continue
+      end
+      display sysmsg(10091) :  ;* Repeat new password:
+      input pf.pw2 HIDDEN
+      display
+      if pf.pw1 # pf.pw2 then
+         pf.pw2 = ''
+         display sysmsg(10092, pf.try, pf.max) ;* The passwords do not match...
+         continue
+      end
+      pf.pw2 = ''
+      pf.set = @false
+      call !CRED_SET(upcase(initial.account), pf.pw1, pf.set)
+      if not(pf.set) then
+         display sysmsg(10094, status()) ;* Unable to set the password, status %1
+         exit
+      end
+      pf.kept = @false
+      call !SOLO_STORE_PW(upcase(initial.account), pf.pw1, pf.kept)
+      if not(pf.kept) then display sysmsg(12022, status()) ;* ...could not be kept for commands given on the sd command line
+      display sysmsg(10093, initial.account) ;* Password set for account %1
+      pf.ok = @true
+      exit
+   next pf.try
+   pf.pw1 = ''
+   pf.pw2 = ''
+   if not(pf.ok) then display sysmsg(10095) ;* No password was set, and one is required...
    return
 
 *
