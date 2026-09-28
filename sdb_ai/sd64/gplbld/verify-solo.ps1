@@ -160,6 +160,11 @@ function Invoke-Sd([string]$Label, [string]$SdArgs, [string]$InputText, [string]
     $out = Join-Path $Work ('{0:d2}-{1}.txt' -f $script:sessionNo, $Label)
     Say ''
     Say ('  $ ' + $SdExe + ' ' + $SdArgs + '   [input: ' + $InputShown + ']')
+    # SPARE OFFs ON EVERY INTERACTIVE SESSION.  SOLO 16: at end of piped input
+    # CPROC's command editor rings the bell in a tight loop instead of ending
+    # (27 Sep 2026: an unexpected ADMIN prompt ate the one OFF; 4.9 million BEL
+    # in 90 s).  Unread once the session has ended, so they cost nothing.
+    if ($SdArgs -eq '' -and $InputText) { $InputText += "OFF`nOFF`n"; Say '    (+2 spare OFF lines on the input - SOLO 16)' }
     $psi = New-Object Diagnostics.ProcessStartInfo
     $psi.FileName = $env:ComSpec
     $psi.Arguments = '/d /s /c ""' + $SdExe + '" ' + $SdArgs + ' >"' + $out + '" 2>&1"'
@@ -192,7 +197,16 @@ function Invoke-Sd([string]$Label, [string]$SdArgs, [string]$InputText, [string]
     }
     $text = Mask ($text -replace "`r", '')
     # ESC shown as ^[ - printed raw, a session's clear-screen clears this console.
-    foreach ($l in ($text -split "`n")) { if ($l.Trim()) { Say ('    | ' + ($l -replace [char]27, '^[')) } }
+    # A line over 2,000 characters is shown cut, with its length and BEL count:
+    # a runaway session once put a 4.9 MB line of BELs in the log (SOLO 16).
+    foreach ($l in ($text -split "`n")) {
+        if (-not $l.Trim()) { continue }
+        if ($l.Length -gt 2000) {
+            $bel = ($l.Length - ($l -replace [char]7, '').Length)
+            $l = $l.Substring(0, 200) + ' ...[CUT: ' + $l.Length + ' characters, ' + $bel + ' of them BEL]'
+        }
+        Say ('    | ' + (($l -replace [char]27, '^[') -replace [char]7, '^G'))
+    }
     return $text
 }
 
@@ -410,6 +424,29 @@ for ($try = 1; $try -le 3; $try++) {
 }
 if (-not $pwOk) { Refuse 'the account password was refused (the session is shown above) - mistyped, or login is broken.  Nothing else was measured.' }
 
+# AND IN MANAGED MODE THE GLOBAL PASSWORD, THE SAME WAY.  27 Sep 2026: the
+# ACCOUNT password typed at the global prompt LANDS (it is valid) but does not
+# unlock ADMIN, so leg 6's ADMIN asked for the administrator password, ate the
+# OFF, and the session spun at end of input (SOLO 16).  The dummy line after
+# ADMIN is what a surprise prompt eats instead; unlocked, it runs as a harmless
+# unknown command.
+if ($managed) {
+    Say ''
+    Say '== the global password, checked before any leg (managed mode)'
+    $gOk = $false
+    for ($try = 1; $try -le 3; $try++) {
+        $t = Invoke-Sd ('global-check-' + $try) '' ($globalPw + "`nADMIN`nzz-not-a-password`nOFF`n") 'the global password, ADMIN, a dummy line, OFF'
+        if ((CountOf (Get-Lines $t) '^Administrator commands are already unlocked') -eq 1) { $gOk = $true; Say '    accepted - ADMIN already unlocked'; break }
+        $why = $(if ($globalPw -ceq $acctPw) { 'that is the ACCOUNT password' } elseif (Lands $t) { 'it logged in but did not unlock ADMIN - is it the account password?' } else { 'it was refused' })
+        Say ('    ' + $why + ' (try ' + $try + ' of 3)')
+        if ($try -eq 3) { break }
+        try { $globalPw = Read-Password ('Global password - try ' + ($try + 1) + ' of 3') } catch { break }
+        if (-not (Printable $globalPw)) { break }
+        $script:secrets = @($script:secrets + $globalPw) | Where-Object { $_ }
+    }
+    if (-not $gOk) { Refuse 'the global password did not unlock the administrator commands (the sessions are shown above).  Nothing else was measured.' }
+}
+
 try {
 
     # -----------------------------------------------------------------------
@@ -509,7 +546,7 @@ try {
     Say ''
     Say '== 6. the global password at an interactive sd (managed mode)'
     if ($managed) {
-        $t = Invoke-Sd 'interactive-global' '' ($globalPw + "`nWHERE`nADMIN`nOFF`n") 'the global password, WHERE, ADMIN, OFF'
+        $t = Invoke-Sd 'interactive-global' '' ($globalPw + "`nWHERE`nADMIN`nzz-not-a-password`nOFF`n") 'the global password, WHERE, ADMIN, a dummy line, OFF'
         Check 'the global password lands in the account' ((Lands $t) -and ((CountOf (Get-Lines $t) '^Wrong password$') -eq 0)) 'want the account line, no "Wrong password"'
         Check 'with the administrator commands already unlocked' ((CountOf (Get-Lines $t) '^Administrator commands are already unlocked') -eq 1) 'want ADMIN to say they are already unlocked (12006)'
     }
