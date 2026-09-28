@@ -37,7 +37,7 @@
     the cheap way to find out whether a change compiles.
 
 .EXAMPLE
-    powershell -ExecutionPolicy Bypass -File C:\Users\Don\SDCoreProject\SDCore4WindowsSolo\sdb_ai\sd64\gplbld\cycle.ps1
+    powershell -ExecutionPolicy Bypass -File C:\Users\Don\Projects\SDCore4WindowsSolo\sdb_ai\sd64\gplbld\cycle.ps1
 #>
 
 [CmdletBinding()]
