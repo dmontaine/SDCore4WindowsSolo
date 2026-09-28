@@ -43,7 +43,10 @@
 [CmdletBinding()]
 param(
     [string] $Stage = '',
-    [string] $Out   = (Join-Path $env:USERPROFILE 'sdout'),
+    # 27 Sep 2026 - was %USERPROFILE%\sdout.  A subfolder, not Project_Installers
+    # itself: a test build has the release installer's file name and would
+    # overwrite it.
+    [string] $Out   = (Join-Path $env:USERPROFILE 'Projects\Project_Installers\sdout'),
     [switch] $SkipInstall
 )
 
