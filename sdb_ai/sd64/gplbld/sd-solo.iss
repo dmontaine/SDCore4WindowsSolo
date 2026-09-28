@@ -134,6 +134,14 @@ Name: "{app}\group_accounts"; Flags: uninsneveruninstall
 ; ACL - the user, SYSTEM, Administrators - which win32_owner_only() accepts.
 ; Kept at uninstall so a reinstall keeps the same server key.
 Name: "{app}\sd-tls"; Flags: uninsneveruninstall
+; 28 Sep 26 - where !ps_script/!ps_script_out write the script they run
+; (gpl.bp/ps_scripto).  They fail closed with status -1 when it is absent, and
+; nothing else makes it: the multi-user sd.iss did, through secure-psdir.ps1,
+; which Solo does not ship.  APPEND.SD.PATH answered "Could not SHOW the system
+; PATH (status -1)" on every Solo install.  The profile's inherited ACL (the
+; user, SYSTEM, Administrators) is the right one here - there is no other SD
+; user to keep out.  [Dirs] runs on upgrades too, so an existing tree gains it.
+Name: "{app}\sdsys\pstmp"; Flags: uninsneveruninstall
 
 [Files]
 ; The programs and scripts.  sdsys, the account folders and sd.conf are laid
