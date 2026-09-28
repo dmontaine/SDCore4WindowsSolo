@@ -875,7 +875,7 @@ try {
             "         CRT 'OPEN.FNO=':F"
             "         R = C->READ(F, 'WHERE', ERR)"
             "         CRT 'READ.ERR=':ERR"
-            "         CRT 'READ.TYPE=':R<1>[1,1]"
+            "         CRT 'READ.F1=':R<1>"
             "         R = C->READ(F, 'zz.no.such.record', ERR)"
             "         CRT 'READ.MISSING.ERR=':ERR"
             '         C->DISCONNECT'
@@ -897,7 +897,7 @@ try {
                 $t = Invoke-Sd 'sdclient-run' ('RUN BP ' + $scName) ($acctPw + "`n" + $wrongPw + "`n") 'the account password, a wrong password'
                 $L = Get-Lines $t
                 $v = @{}
-                foreach ($k in @('CONNECT.RIGHT', 'CONNECT.RIGHT.ERROR', 'EXEC.ERR', 'EXEC.OUT', 'OPEN.FNO', 'READ.ERR', 'READ.TYPE', 'READ.MISSING.ERR', 'CONNECTED.AFTER', 'CONNECT.WRONG')) {
+                foreach ($k in @('CONNECT.RIGHT', 'CONNECT.RIGHT.ERROR', 'EXEC.ERR', 'EXEC.OUT', 'OPEN.FNO', 'READ.ERR', 'READ.F1', 'READ.MISSING.ERR', 'CONNECTED.AFTER', 'CONNECT.WRONG')) {
                     $m = @($L | Where-Object { $_.StartsWith($k + '=') })
                     $v[$k] = $(if ($m.Count -eq 1) { $m[0].Substring($k.Length + 1) } elseif ($m.Count -eq 0) { '(none)' } else { '(' + $m.Count + ' lines)' })
                 }
@@ -906,7 +906,12 @@ try {
                 Check 'connect() with the account password succeeds' ($v['CONNECT.RIGHT'] -eq '1') ('CONNECT.RIGHT=' + $v['CONNECT.RIGHT'] + '  error: ' + $v['CONNECT.RIGHT.ERROR'])
                 Check 'execute(WHERE) answers from the account' ($v['EXEC.ERR'] -eq '0' -and $v['EXEC.OUT'] -match ('(?i)user_accounts[\\/]' + [regex]::Escape($Acct) + '(\||$)')) ('EXEC.ERR=' + $v['EXEC.ERR'] + '  EXEC.OUT=' + $v['EXEC.OUT'])
                 Check 'open(VOC) gives a file number' ($v['OPEN.FNO'] -match '^[1-9][0-9]*$') ('OPEN.FNO=' + $v['OPEN.FNO'])
-                Check 'read(VOC, WHERE) finds a verb' ($v['READ.ERR'] -eq '0' -and $v['READ.TYPE'] -eq 'V') ('READ.ERR=' + $v['READ.ERR'] + '  READ.TYPE=' + $v['READ.TYPE'])
+                # WHERE is a SENTENCE, not a verb (27 Sep 2026: this row assumed V
+                # and failed on a correct read).  So the expected field 1 is read
+                # from the installed NEWVOC the account's VOC was built from.
+                $shipped = Join-Path $Sdsys 'newvoc\where'
+                $want = $(if (Test-Path -LiteralPath $shipped) { ([IO.File]::ReadAllText($shipped) -split "[\r\n\xFE]")[0] } else { '(no ' + $shipped + ')' })
+                Check 'read(VOC, WHERE) returns the shipped record' ($v['READ.ERR'] -eq '0' -and $v['READ.F1'] -ceq $want) ('READ.ERR=' + $v['READ.ERR'] + '  field 1 read "' + $v['READ.F1'] + '", shipped "' + $want + '"')
                 Check 'CONTROL: read of a missing id is not found' ($v['READ.MISSING.ERR'] -match '^[1-9][0-9]*$') ('READ.MISSING.ERR=' + $v['READ.MISSING.ERR'])
                 Check 'disconnect() leaves it unconnected' ($v['CONNECTED.AFTER'] -eq '0') ('CONNECTED.AFTER=' + $v['CONNECTED.AFTER'])
                 Check 'CONTROL: connect() with a wrong password fails' ($v['CONNECT.WRONG'] -eq '0') ('CONNECT.WRONG=' + $v['CONNECT.WRONG'])
