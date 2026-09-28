@@ -286,7 +286,13 @@ DLL_SEARCH = [
 # Copied from sd64/sdsys.  Each entry says why it ships, because the next
 # person to read this list will be deciding whether to remove something.
 SDSYS_SHIP = [
-    ('gpl.bp',        'BASIC source; SECOND.COMPILE compiles the lot of it'),
+    # 28 Sep 26 SD Core Solo - gpl.bp IS NO LONGER ON THIS LIST: ruling 26
+    # (ruling 13's open point, owner: "delete system C and BASIC source code
+    # files if it has no impact").  It is a SDSYS_BUILD_SEED now - the
+    # bootstrap compiles it here and the install carries only gpl.bp.out.
+    # Nothing at run time reads the source (SOLO 8's falsifier check, 27 Sep);
+    # solo-setup.ps1 deletes SDSYS's gpl.bp VOC record on every install.
+    # syscom STAYS: its headers are what user programs $include.
     ('syscom',        'include records the compile needs'),
     # 15 Aug 26 - THESE TWO DESCRIPTIONS WERE THE WRONG WAY ROUND, and they are
     # the first thing read by anyone adding a verb.  voc_template (now on
@@ -339,6 +345,7 @@ SDSYS_SHIP = [
 # a ship list.
 SDSYS_BUILD_SEED = [
     ('voc_template', "the administrative superset BBPROC copies into SDSYS's own VOC"),
+    ('gpl.bp',       'BASIC source; SECOND.COMPILE compiles the lot of it (ruling 26, 28 Sep 26)'),
 ]
 
 # Created empty, and filled by the bootstrap when --bootstrap is given.  Their
@@ -465,7 +472,8 @@ TERMINFO_FILES = [('terminfo.src', 'source, so sdtic is usable after install')]
 # licence and contrib are FILES rather than directories, so there is nothing
 # to walk; section B's source -> install pass already covers a file.
 SDSYS_MIRROR = [
-    ('gpl.bp',       'BASIC source; nothing writes it at runtime'),
+    # 28 Sep 26 - gpl.bp is not listed any more: it no longer ships (ruling 26,
+    # SDSYS_BUILD_SEED), the same reason as voc_template below.
     ('syscom',       'include records'),
     ('newvoc',       'read by CREATEA; never written'),
     # 21 Sep 26 - voc_template is NOT listed here any more: it no longer ships
@@ -508,6 +516,7 @@ SDSYS_MIRROR = [
 SDSYS_RETIRED = [
     ('changelog', 'moved to {app} on 25 Aug 26 - see the note on SDSYS_SHIP'),
     ('voc_template', 'build-time seed only from 21 Sep 26 - see SDSYS_BUILD_SEED'),
+    ('gpl.bp', 'BASIC source, build-time seed only from 28 Sep 26 (ruling 26)'),
 ]
 
 # The same thing for C:\Program Files\SD.  A script this file used to copy

@@ -24,7 +24,9 @@
 #      (kernel.c), which is exactly what LOGIN's mode-4 walk gates on
 #      ("@who = 'SDSYS' and kernel(K$ADMINISTRATOR,-1)", gpl.bp/login:364) -
 #      the same mechanism the retired script drove, called the same way.
-#   5. sd -stop    the machine step (solo-machine.ps1) starts it again from the
+#   5. sd -internal DELETE VOC gpl.bp   (ruling 26 - no system BASIC source
+#      in the installed tree; every install and upgrade)
+#   6. sd -stop    the machine step (solo-machine.ps1) starts it again from the
 #                  scheduled task, which is the process that should own it.
 # Each -internal session gets the one-shot marker LOGIN demands (ruling 13,
 # internal-marker.ps1), written immediately before it.
@@ -296,6 +298,18 @@ try {
         $t = Invoke-Sd '-internal UPDATE.ACCOUNTS ALL' ''
         Judge 'accounts VOC refreshed' $t '(?m)^[1-9]\d* account\(s\) had their VOC updated'
     }
+
+    # 28 Sep 26 - RULING 26: NO SYSTEM BASIC SOURCE IN THE INSTALLED TREE.  The
+    # gpl.bp directory no longer ships (stage.py SDSYS_BUILD_SEED; an upgrade
+    # removes an older copy, SDSYS_RETIRED), and this removes SDSYS's VOC record
+    # for it, which the bootstrap made from voc_template and no upgrade reaches
+    # (SDSYS's VOC is on no stage.py list).  Every install and upgrade, so the
+    # anchor accepts both outcomes that leave the record gone: DELETE's 3221
+    # after a delete, or its 2108 when an earlier run already did it.  RUN
+    # gpl.bp <prog> above never used this record - it opens gpl.bp.out by its
+    # own VOC name (cproc:2305-2313).  Last, after every RUN gpl.bp step.
+    $t = Invoke-Sd '-internal DELETE VOC gpl.bp' ''
+    Judge 'gpl.bp source pointer removed from the VOC' $t "(?m)^(1 record\(s\) deleted|Record 'gpl\.bp' not found)\s*$"
 }
 catch {
     Note ('ERROR        : ' + $_.Exception.Message)
