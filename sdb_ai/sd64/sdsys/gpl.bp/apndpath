@@ -20,6 +20,11 @@
 * START-HISTORY:
 * 31 Aug 26 Windows port - written.  PRE_RELEASE_FIXES 89, and the name is the
 *           owner's: "append.sd.path on|off".
+* 28 Sep 26 SD Core Solo - SOLO 17, ruling 25: THE USER'S PATH.  sd-path.ps1
+*           now reads and writes HKCU\Environment [Path], the value Solo's
+*           installer sets, and needs no elevation; messages 10152-10156 say
+*           "your PATH".  The ADMIN gate is kept (not ruled on).  The
+*           "system PATH" paragraphs below are the multi-user history.
 * END-HISTORY
 *
 *
@@ -27,10 +32,10 @@
 *
 *    APPEND.SD.PATH ON | OFF
 *
-*    Says whether SD's program directory is on the Windows system PATH, so
+*    Says whether SD's program directory is on the user's Windows PATH, so
 *    that "sd" runs from any directory instead of only from its own.
 *
-*       ON   put it on the system PATH
+*       ON   put it on the user's PATH
 *       OFF  take it off
 *
 *    With no keyword it reports the current setting and changes nothing.
@@ -51,10 +56,11 @@
 * that.  OS.PATH collides with VALID_OS_PATH, which means a host filesystem
 * path.  APPEND.SD.PATH cannot be read as either.
 *
-* ***IT IS THE SYSTEM PATH, NOT THE USER'S.***  The value lives in HKLM, under
-* Session Manager\Environment, so the change applies to every account on the
-* machine - which is what the installer always did, and is why this is
-* administrator-only.
+* ***SOLO: IT IS THE USER'S PATH, NOT THE SYSTEM'S*** (28 Sep 2026, SOLO 17).
+* Multi-user history: the value lived in HKLM, under Session
+* Manager\Environment, applying to every account on the machine, which is why
+* this was administrator-only.  Solo's installer writes HKCU\Environment, so
+* that is what this reports and changes.
 *
 * ***THE WORK IS IN sd-path.ps1 AND DELIBERATELY NOT IN HERE.***  Same reason
 * api-listener.ps1 records: a script can be parse-checked, byte-checked and
@@ -98,7 +104,8 @@ $include err.h
    prompt ''
 
 *  ADMINISTRATOR ONLY, THE SAME GATE REMOTE.API AND SSH.SERVER USE.  The system
-*  PATH is machine-wide; it is not an ordinary user's to change.
+*  PATH is machine-wide; it is not an ordinary user's to change.  28 Sep 26 -
+*  Solo edits the user's PATH now (SOLO 17); the gate stays until ruled on.
    if not(kernel(K$ADMINISTRATOR, -1)) then
       stop sysmsg(2001)  ;* Command requires administrator privileges
    end

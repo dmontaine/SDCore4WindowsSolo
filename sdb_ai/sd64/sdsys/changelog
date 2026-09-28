@@ -3,6 +3,14 @@ S1.1-0 - SD Core Solo, in progress
 A personal SD Core for one Windows user. NOTHING IN THIS SECTION HAS BEEN
 RELEASED.
 
+28 Sep 26  APPEND.SD.PATH WORKS, AND ON YOUR OWN PATH.
+
+           APPEND.SD.PATH reported "Could not SHOW the system PATH" on
+           every SD Core Solo install. It now works, and it reports and
+           changes your own Windows PATH, the one the installer adds SD
+           to, rather than the machine's. No elevated window is needed.
+           Each install or upgrade puts SD back on your PATH.
+
 27 Sep 26  AN UPGRADE BRINGS YOUR ACCOUNT UP TO THE NEW RELEASE.
 
            Installing a new release over an existing SD Core Solo now

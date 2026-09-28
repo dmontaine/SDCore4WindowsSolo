@@ -525,7 +525,7 @@ try {
         Check 'and the copied record is deleted again' ($iDel -gt $iCopied) 'want "1 record(s) deleted" after the copy'
         Check 'after ADMIN, UPDATE.ACCOUNTS runs' ((CountOf $L '^Copying records from NEWVOC to VOC') -eq 1 -and $i5200 -gt $i12003) 'want one "Copying records from NEWVOC to VOC..." after the unlock'
         $iShow = First $L '^mode\s*:\s*-Show$'
-        Check 'with ADMIN, a PowerShell-backed verb runs in the session (APPEND.SD.PATH report)' ($iShow -gt $i5200 -and $iShow -lt $i12004 -and ($t -notmatch 'Could not read the system PATH')) ('want sd-path''s "mode : -Show" line between UPDATE.ACCOUNTS and ADMIN OFF, and no 10153; line ' + $iShow)
+        Check 'with ADMIN, a PowerShell-backed verb runs in the session (APPEND.SD.PATH report)' ($iShow -gt $i5200 -and $iShow -lt $i12004 -and ($t -notmatch 'Could not \w+ (the system|your) PATH') -and ($t -match 'HKCU\\Environment')) ('want sd-path''s "mode : -Show" line between UPDATE.ACCOUNTS and ADMIN OFF, its HKCU\Environment registry line (SOLO 17), and no 10153; line ' + $iShow)
         Check 'ADMIN OFF locks again' ($i12004 -gt $i5200) 'want "Administrator commands locked" last'
         $t = Invoke-Sd 'probe-absent-after' ('CT VOC ' + $Probe) '' 'none'
         Check ($Probe + ' is gone from the VOC afterwards') ((CountOf (Get-Lines $t) ("(?i)^Record '" + [regex]::Escape($Probe) + "' not found$")) -eq 1) ('it is still there: ADMIN, then DELETE VOC ' + $Probe)

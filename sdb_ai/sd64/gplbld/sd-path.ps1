@@ -1,12 +1,23 @@
-# sd-path.ps1 - put SD's program directory on the system PATH, or take it off.
+# sd-path.ps1 - put SD's program directory on the user's PATH, or take it off.
 #
 #   powershell -ExecutionPolicy Bypass -File sd-path.ps1 -Show      report, change nothing
 #   powershell -ExecutionPolicy Bypass -File sd-path.ps1 -Add       add it if it is not there
 #   powershell -ExecutionPolicy Bypass -File sd-path.ps1 -Remove    take it off
 #
-# Exit 0 applied (or -Show succeeded), 1 failed, 2 refused.  ELEVATED for -Add
-# and -Remove: the system PATH is a machine-wide setting under HKLM.  -Show
-# needs no elevation and changes nothing.
+# Exit 0 applied (or -Show succeeded), 1 failed, 2 refused.  No elevation for
+# any mode: it is the user's own PATH, HKCU\Environment [Path].
+#
+# 28 Sep 26 SD Core Solo - SOLO 17, ruling 25 ("Yes, manage PATH"): THE USER'S
+# PATH, NOT THE MACHINE'S.  This edited HKLM's system PATH and refused -Add and
+# -Remove unelevated, while Solo's installer puts {app}\usr\bin on the user's
+# PATH (sd-solo.iss AddToUserPath, HKCU, ExpandString, appended) and SD
+# sessions never hold an elevated token - so the verb reported "SD dir on PATH
+# : False" on a machine where SD was on PATH, and could change nothing.  It now
+# reads and writes the same value the installer does.  Two differences follow
+# from the key: an ABSENT user Path is normal (a fresh profile has none), so it
+# is reported as empty and -Add creates it, where the machine PATH refused that
+# case; and nothing here needs elevation.  Every install and upgrade adds the
+# entry again (ruling 24), so -Remove lasts until the next one.
 #
 # ***WHY IT EXISTS.  OWNER'S RULING, 31 Aug 2026.***  An upgrade is to skip the
 # tasks page entirely and fire none of its actions, because a control the reader
@@ -55,7 +66,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$PathKey  = 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment'
+# 28 Sep 26 - HKCU, SOLO 17.  Was HKLM 'SYSTEM\CurrentControlSet\Control\
+# Session Manager\Environment'.
+$PathKey  = 'Environment'
 $ValName  = 'Path'
 
 # ---------------------------------------------------------------------------
@@ -106,7 +119,7 @@ function Get-PathAfterRemove {
 }
 
 # --- one mode, stated explicitly ------------------------------------------
-# No default action.  A script that changes the system PATH when run with no
+# No default action.  A script that changes the PATH when run with no
 # arguments is the wrong shape, and the owner's standing preference is the
 # explicit keyword over the convenient default.
 $modes = @($Show, $Add, $Remove) | Where-Object { $_ }
@@ -128,60 +141,48 @@ $Dir = $Dir.TrimEnd('\', '/', ' ')
 Write-Host 'sd-path - inputs actually used'
 Write-Host "  mode      : $(if ($Show) {'-Show'} elseif ($Add) {'-Add'} else {'-Remove'})"
 Write-Host "  directory : $Dir"
-Write-Host "  registry  : HKLM\$PathKey [$ValName]"
+Write-Host "  registry  : HKCU\$PathKey [$ValName]  (the user's PATH)"
 Write-Host "  this dir exists on disk: $(Test-Path -LiteralPath $Dir)"
 Write-Host ''
 
-# --- elevation ------------------------------------------------------------
-$elevated = ([Security.Principal.WindowsPrincipal] `
-             [Security.Principal.WindowsIdentity]::GetCurrent()
-            ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-Write-Host "  elevated  : $elevated"
-if ((-not $Show) -and (-not $elevated)) {
-    Write-Host ''
-    Write-Host 'sd-path: REFUSED - changing the system PATH needs an elevated prompt.'
-    Write-Host '         Re-run this from an elevated PowerShell.  -Show works unelevated.'
-    exit 2
-}
-
 # --- read the RAW value ---------------------------------------------------
 # DoNotExpandEnvironmentNames, so %SystemRoot% and friends survive the
-# round-trip.  See the header.
+# round-trip.  See the header.  28 Sep 26 - no elevation check: the user's own
+# key (SOLO 17).
 try {
-    $key = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey($PathKey, -not $Show)
+    $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($PathKey, -not $Show)
 } catch {
     Write-Host "sd-path: could not open the registry key: $($_.Exception.Message)"
     exit 1
 }
 if ($null -eq $key) {
-    Write-Host "sd-path: the registry key does not exist: HKLM\$PathKey"
+    Write-Host "sd-path: the registry key does not exist: HKCU\$PathKey"
     exit 1
 }
 
+# 28 Sep 26 - AN ABSENT OR EMPTY USER PATH IS A REAL STATE, NOT A NULL
+# MEASUREMENT.  The machine PATH refused it (an empty system PATH is a broken
+# machine); a user Path value is simply missing on a profile that never set
+# one.  GetValueNames says which it is, so "absent" is measured rather than
+# inferred from a null read, and printed.
+$exists = @($key.GetValueNames()) -contains $ValName
 try {
-    $raw  = $key.GetValue($ValName, $null,
-             [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
-    $kind = $key.GetValueKind($ValName)
+    if ($exists) {
+        $raw  = $key.GetValue($ValName, $null,
+                 [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+        $kind = $key.GetValueKind($ValName)
+    } else {
+        $raw  = ''
+        $kind = '(absent)'
+    }
 } catch {
     Write-Host "sd-path: could not read [$ValName]: $($_.Exception.Message)"
     if ($null -ne $key) { $key.Close() }
     exit 1
 }
 
-# REFUSE THE NULL CASE OUT LOUD.  An absent or empty PATH is not "SD is not on
-# it" - it is an instrument that has measured nothing, and writing our entry as
-# the ONLY entry would be a machine-wrecking repair of a problem we did not
-# diagnose.
-if ($null -eq $raw -or [string]::IsNullOrWhiteSpace([string]$raw)) {
-    Write-Host ''
-    Write-Host 'sd-path: REFUSED - the system PATH is missing or empty.'
-    Write-Host '         That is not a machine this script should write to.  Nothing done.'
-    $key.Close()
-    exit 2
-}
-
 $raw = [string]$raw
-$entriesBefore = @($raw -split ';')
+$entriesBefore = @($raw -split ';' | Where-Object { $raw -ne '' })
 $realBefore    = @($entriesBefore | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 
 $present = Test-DirOnPath -Current $raw -Dir $Dir
@@ -212,28 +213,31 @@ if ($Show) {
 # --- work out the new value ------------------------------------------------
 if ($Add) {
     if ($present) {
-        Write-Host 'sd-path: already on the system PATH.  Nothing to do.'
+        Write-Host 'sd-path: already on your PATH.  Nothing to do.'
         $key.Close()
         exit 0
     }
     # ***REFUSE TO ADD A DIRECTORY THAT IS NOT THERE.***  Run from the source
     # tree the default -Dir resolves to gplbld\usr\bin, which does not exist,
-    # and adding it would put a dead entry on the machine PATH while reporting
+    # and adding it would put a dead entry on the PATH while reporting
     # success.  The codebase's own idiom: refuse rather than act on something
     # it could not check.
     if (-not (Test-Path -LiteralPath $Dir)) {
         Write-Host ''
         Write-Host "sd-path: REFUSED - that directory does not exist: $Dir"
         Write-Host '         Pass -Dir with the real one, or run the copy that ships in'
-        Write-Host '         C:\Program Files\SD, where the default is correct.'
+        Write-Host '         %USERPROFILE%\SDCoreSolo, where the default is correct.'
         $key.Close()
         exit 2
     }
-    $rebuilt      = Get-PathAfterAdd -Current $raw -Dir $Dir
+    # 28 Sep 26 - an absent or empty user Path becomes just our entry, as
+    # AddToUserPath does; Get-PathAfterAdd would give it a leading ';'.
+    if ($raw -eq '') { $rebuilt = $Dir }
+    else             { $rebuilt = Get-PathAfterAdd -Current $raw -Dir $Dir }
     $expectedReal = $realBefore.Count + 1
 } else {
     if (-not $present) {
-        Write-Host 'sd-path: not on the system PATH.  Nothing to do.'
+        Write-Host 'sd-path: not on your PATH.  Nothing to do.'
         $key.Close()
         exit 0
     }
@@ -283,7 +287,7 @@ try {
 $key.Close()
 
 # Read it back rather than trusting the write.
-$verify = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey($PathKey, $false)
+$verify = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($PathKey, $false)
 $back = $verify.GetValue($ValName, $null,
          [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
 $backKind = $verify.GetValueKind($ValName)
