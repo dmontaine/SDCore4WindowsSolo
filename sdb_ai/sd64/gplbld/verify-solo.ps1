@@ -62,7 +62,13 @@
 #      found, DISCONNECT leaves it unconnected; CONTROL: the wrong password
 #      does not connect.  Both passwords reach the probe on its input, never
 #      its source.  Skipped when sd.conf has no APIPORT.
-#  12. the daemon runs on a standard token: Medium integrity, Administrators
+#  12. the installed sdclilib.dll, loaded by full path, finds its home: its
+#      SDConnectLocal reaches the server and gets the ruled refusal (12021),
+#      audited once                                          (SOLO 2 owed leg 1)
+#  13. an sd.exe started from Git Bash (or MSYS2) bash, whose POSIX root and
+#      /dev/shm are not the Solo tree's, reaches the daemon: a one-shot WHERE
+#      lands, audited via=stored.  Skipped with no bash.   (SOLO 2 owed leg 2)
+#  14. the daemon runs on a standard token: Medium integrity, Administrators
 #      deny-only or absent                                         (ruling 16)
 # Not measured here, because they need hands or another machine: ssh landing in
 # sd, SD starting at boot with nobody signed in, remote access while signed out.
@@ -975,7 +981,109 @@ try {
 
     # -----------------------------------------------------------------------
     Say ''
-    Say '== 12. the daemon runs on a standard token'
+    Say '== 12. the installed client DLL finds its own home'
+    # SOLO 2's owed leg (1), witnessed by hand 27 Sep 2026.  sdclilib.dll takes
+    # the home from its own location, <home>\usr\bin (home_path()); its only
+    # caller is sysdir(), reached only through SDConnectLocal, which Solo refuses
+    # on the server (message 12021, apisrvr vb.local.login).  So the REFUSAL is
+    # the success anchor: its text is not in the DLL and comes back only if the
+    # DLL found <home>\sd.conf and sd.exe and the session started.  Loaded by
+    # FULL PATH, and the loaded module is checked, so no other copy can answer.
+    $cliDll = Join-Path $Root 'usr\bin\sdclilib.dll'
+    Say ('    DLL: ' + $cliDll + '   exists: ' + (Test-Path -LiteralPath $cliDll) + '   SD_CONFIG: ''' + $env:SD_CONFIG + '''')
+    if (-not (Test-Path -LiteralPath $cliDll)) { Check 'sdclilib.dll is installed beside sd.exe' $false ('no ' + $cliDll) }
+    elseif ($env:SD_CONFIG) { Skip 'the client DLL finds its home' 'SD_CONFIG is set, so the DLL reads it instead of its home' }
+    else {
+        $dllEsc = $cliDll.Replace([string][char]92, [string][char]92 + [string][char]92)
+        Add-Type -TypeDefinition (@'
+using System;
+using System.Runtime.InteropServices;
+public static class SdSuiteCli {
+  [DllImport("DLLPATH", CallingConvention=CallingConvention.Cdecl, CharSet=CharSet.Ansi)]
+  public static extern int SDConnectLocal(string account);
+  [DllImport("DLLPATH", CallingConvention=CallingConvention.Cdecl)]
+  public static extern IntPtr SDError();
+  [DllImport("DLLPATH", CallingConvention=CallingConvention.Cdecl)]
+  public static extern void SDDisconnectAll();
+}
+'@).Replace('DLLPATH', $dllEsc)
+        $rx = '^.*API REFUSED request=25 SDConnectLocal'
+        $a0 = Audit-Count $rx
+        Say ('  $ [SdSuiteCli]::SDConnectLocal(''' + $Acct + ''')   (DllImport of the path above)')
+        $rc  = [SdSuiteCli]::SDConnectLocal($Acct)
+        $err = [Runtime.InteropServices.Marshal]::PtrToStringAnsi([SdSuiteCli]::SDError())
+        if ($rc -ne 0) { [SdSuiteCli]::SDDisconnectAll() }
+        $a1 = Audit-Count $rx
+        $mod = @((Get-Process -Id $PID).Modules | Where-Object { $_.ModuleName -eq 'sdclilib.dll' } | ForEach-Object { $_.FileName })
+        Say ('    loaded: ' + $(if ($mod.Count) { $mod -join '; ' } else { 'NONE' }))
+        Say ('    returned ' + $rc + '; SDError: ' + (Mask $err))
+        Say ('    audit "API REFUSED request=25" lines: ' + $a0 + ' -> ' + $a1)
+        Check 'the loaded sdclilib.dll is the installed one' ($mod.Count -eq 1 -and $mod[0] -eq $cliDll) ('loaded: ' + ($mod -join '; '))
+        Check 'SDConnectLocal reaches the server and is refused as ruled (12021)' ($rc -eq 0 -and $err -match '^SDConnectLocal is not available in SD Core Solo' -and $err -notmatch '(?i)cannot determine|not found') ('returned ' + $rc + ', SDError: ' + $err)
+        Check 'and the audit records the refusal, once' ($a0 -ge 0 -and $a1 -eq $a0 + 1) ('audit count ' + $a0 + ' -> ' + $a1)
+    }
+
+    # -----------------------------------------------------------------------
+    Say ''
+    Say '== 13. an sd started from Git Bash reaches the daemon'
+    # SOLO 2's owed leg (2), witnessed by hand 27 Sep 2026.  An sd.exe inherits
+    # its MSYS parent's POSIX root, and /dev/shm with it (measured 25 Sep: "SD
+    # has not been started" with SD running); inipath.c SdShmOpen now opens the
+    # segment by path under the home.  CONTROL: the parent's root must not be
+    # the Solo tree and its /dev/shm must hold no SD segment, or this could pass
+    # on the old behaviour.  Named paths only - System32's bash.exe is WSL's.
+    $bash = @('C:\Program Files\Git\usr\bin\bash.exe', 'C:\msys64\usr\bin\bash.exe') | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    if (-not $bash) { Skip 'an sd started from Git Bash reaches the daemon' 'neither Git for Windows nor MSYS2 bash.exe is installed' }
+    else {
+        $gbScript = Join-Path $Work 'gitbash-where.sh'
+        $gbOut    = Join-Path $Work 'gitbash-bash.txt'
+        $gbSdOut  = Join-Path $Work 'gitbash-sd.txt'
+        # --noprofile leaves PATH as Windows' own, without /usr/bin, so cygpath
+        # is not found (27 Sep 2026: root="" - which the control refused).
+        $sh = @(
+            'export PATH="/usr/bin:$PATH"'
+            'echo "root=$(cygpath -w /)"'
+            'echo "shm=$(cygpath -w /dev/shm)"'
+            'for f in /dev/shm/*; do [ -e "$f" ] && echo "shmfile=$f"; done'
+            '"$(cygpath -u "$SDV_EXE")" WHERE </dev/null >"$(cygpath -u "$SDV_OUT")" 2>&1'
+            'echo "sdexit=$?"'
+        ) -join "`n"
+        [IO.File]::WriteAllText($gbScript, $sh + "`n", (New-Object Text.ASCIIEncoding))
+        $rx = '^.*LOGIN PASSWORD account=' + [regex]::Escape($Acct) + ' via=stored\s*$'
+        $a0 = Audit-Count $rx
+        Say ''
+        Say ('  $ ' + $bash + ' --noprofile --norc ' + $gbScript.Replace('\', '/') + '   [SDV_EXE=' + $SdExe + ', input: /dev/null]')
+        $psi = New-Object Diagnostics.ProcessStartInfo
+        $psi.FileName = $env:ComSpec
+        $psi.Arguments = '/d /s /c ""' + $bash + '" --noprofile --norc "' + $gbScript.Replace('\', '/') + '" >"' + $gbOut + '" 2>&1"'
+        $psi.UseShellExecute = $false
+        $psi.WorkingDirectory = $Work
+        $psi.EnvironmentVariables['SDV_EXE'] = $SdExe
+        $psi.EnvironmentVariables['SDV_OUT'] = $gbSdOut
+        $p = [Diagnostics.Process]::Start($psi)
+        if (-not $p.WaitForExit(90000)) {
+            $null = & taskkill.exe /PID $p.Id /T /F 2>$null
+            $script:timeouts++
+            Say '    TIMED OUT after 90 s - killed with its tree.'
+        }
+        else { Say ('    exit ' + $p.ExitCode) }
+        $a1 = Audit-Count $rx
+        $bt = $(if (Test-Path -LiteralPath $gbOut) { ([IO.File]::ReadAllText($gbOut)) -replace "`r", '' } else { '' })
+        $st = $(if (Test-Path -LiteralPath $gbSdOut) { Mask (([IO.File]::ReadAllText($gbSdOut, [Text.Encoding]::GetEncoding(28591))) -replace "`r", '') } else { '' })
+        foreach ($l in (Get-Lines $bt)) { Say ('    bash | ' + $l) }
+        foreach ($l in (Get-Lines $st)) { Say ('    sd   | ' + ($l -replace [char]27, '^[')) }
+        Say ('    audit "via=stored" lines: ' + $a0 + ' -> ' + $a1)
+        $bl = Get-Lines $bt
+        $rootLine = $(if ((First $bl '^root=') -ge 0) { $bl[(First $bl '^root=')] } else { '' })
+        $gbRoot = $rootLine -replace '^root=', ''
+        Check 'control: the bash root is not the Solo tree and its /dev/shm holds no SD segment' ($gbRoot -and ($gbRoot.TrimEnd('\') -ne $Root) -and ((CountOf $bl '^shmfile=.*sd_shm') -eq 0)) ('root "' + $gbRoot + '", SD segments there: ' + (CountOf $bl '^shmfile=.*sd_shm'))
+        Check 'sd WHERE from Git Bash lands in the account' ((Lands $st) -and ($st -notmatch '(?i)has not been started|wrong password|needs the account password') -and ((CountOf $bl '^sdexit=0$') -eq 1)) ('want a line ending user_accounts\' + $Acct + ' and sdexit=0')
+        Check 'and the audit says via=stored, once' ($a0 -ge 0 -and $a1 -eq $a0 + 1) ('audit count ' + $a0 + ' -> ' + $a1)
+    }
+
+    # -----------------------------------------------------------------------
+    Say ''
+    Say '== 14. the daemon runs on a standard token'
     $winds = @(Get-Process -Name sdwind -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $WindExe })
     Say ('    sdwind.exe from this tree: ' + $winds.Count)
     Check 'the daemon is still running after the legs' ($winds.Count -ge 1) 'no sdwind.exe from this tree'
