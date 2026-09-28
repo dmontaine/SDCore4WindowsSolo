@@ -53,8 +53,9 @@
 #      multifile (Enter and C cancel, N deletes the dictionary only).  It makes
 #      and removes ZZPROMPT* files, a catalogue entry and VOC records in the
 #      account, and checks every one gone.  Ported from verify-promptenter.ps1
-#      (git show 3776c66:...); its sessions add ADMIN only for COPY into VOC
-#      and DELETE VOC, the two gated writes (ruling 14).
+#      (git show 3776c66:...); its sessions add ADMIN only for COPY into VOC,
+#      DELETE VOC and .S/.D name, the gated writes (rulings 14, 27) - and e
+#      checks .S and .D name are refused without it (12008).
 #  11. SD-to-SD over the API from BASIC: a probe in the account's bp creates
 #      the !sdclient class (gpl.bp/sdclient, TLS 1.3 + SCRAM) and connects to
 #      this machine's own API as the account - EXECUTE WHERE lands in the
@@ -68,7 +69,11 @@
 #  13. an sd.exe started from Git Bash (or MSYS2) bash, whose POSIX root and
 #      /dev/shm are not the Solo tree's, reaches the daemon: a one-shot WHERE
 #      lands, audited via=stored.  Skipped with no bash.   (SOLO 2 owed leg 2)
-#  14. the daemon runs on a standard token: Medium integrity, Administrators
+#  14. end of input ends a session with no OFF: at the command prompt and at
+#      PAUSE, no timeout, few BELs                        (ruling 28, SOLO 16)
+#  15. no system BASIC source installed: no sdsys\gpl.bp, no VOC record for
+#      it; gpl.bp.out full as the control                          (ruling 26)
+#  16. the daemon runs on a standard token: Medium integrity, Administrators
 #      deny-only or absent                                         (ruling 16)
 # Not measured here, because they need hands or another machine: ssh landing in
 # sd, SD starting at boot with nobody signed in, remote access while signed out.
@@ -161,7 +166,7 @@ function Mask([string]$t) {
 # One sd session.  $InputShown describes the input for the log; the input
 # itself is never printed.  Returns the output (passwords masked) and nothing
 # else - everything shown goes through Say, which is Write-Host.
-function Invoke-Sd([string]$Label, [string]$SdArgs, [string]$InputText, [string]$InputShown) {
+function Invoke-Sd([string]$Label, [string]$SdArgs, [string]$InputText, [string]$InputShown, [switch]$NoSpareOff) {
     $script:sessionNo++
     $out = Join-Path $Work ('{0:d2}-{1}.txt' -f $script:sessionNo, $Label)
     Say ''
@@ -170,7 +175,10 @@ function Invoke-Sd([string]$Label, [string]$SdArgs, [string]$InputText, [string]
     # CPROC's command editor rings the bell in a tight loop instead of ending
     # (27 Sep 2026: an unexpected ADMIN prompt ate the one OFF; 4.9 million BEL
     # in 90 s).  Unread once the session has ended, so they cost nothing.
-    if ($SdArgs -eq '' -and $InputText) { $InputText += "OFF`nOFF`n"; Say '    (+2 spare OFF lines on the input - SOLO 16)' }
+    # 28 Sep 26 - -NoSpareOff is for leg 14 alone, which measures the fix
+    # (ruling 28): its input deliberately ends with no OFF.
+    if ($NoSpareOff) { Say '    (NO spare OFF - this session measures end of input)' }
+    elseif ($SdArgs -eq '' -and $InputText) { $InputText += "OFF`nOFF`n"; Say '    (+2 spare OFF lines on the input - SOLO 16)' }
     $psi = New-Object Diagnostics.ProcessStartInfo
     $psi.FileName = $env:ComSpec
     $psi.Arguments = '/d /s /c ""' + $SdExe + '" ' + $SdArgs + ' >"' + $out + '" 2>&1"'
@@ -824,15 +832,22 @@ try {
         # --- e: CPROC's .D prompt 5040 -----------------------------------------
         $null = Invoke-Pe 'pe-e-left' @("DELETE VOC $sV") -Admin
         $sRx = '(?m)^[ \t]*001[ \t]+S[ \t]*$'
-        $t = Invoke-Pe 'pe-e-make' @(".S $sV 1", ".L $sV")
+        $vocGate = '(?m)^The VOC can only be changed after ADMIN'
+        # 28 Sep 26 - RULING 27: .S name and .D name need ADMIN.  Without it .S
+        # is refused with 12008 and writes nothing (.L then says not found).
+        $t = Invoke-Pe 'pe-e-s-noadmin' @(".S $sV 1", ".L $sV")
+        Check "e: without ADMIN, .S is refused (12008) and saves nothing" (($t -match $vocGate) -and ($t -match "'$sV' not found in VOC") -and ($t -notmatch $sRx)) 'want 12008 and .L "not found"'
+        $t = Invoke-Pe 'pe-e-make' @(".S $sV 1", ".L $sV") -Admin
         $sentOk = $t -match $sRx
-        Check "e: setup - .S wrote $sV as an S-type record" $sentOk 'no "001  S" line, so .D would never ask 5040'
+        Check "e: setup - with ADMIN, .S wrote $sV as an S-type record" $sentOk 'no "001  S" line, so .D would never ask 5040'
         if ($sentOk) {
-            $t = Invoke-Pe 'pe-e-enter' @(".D $sV", '', ".L $sV")
+            $t = Invoke-Pe 'pe-e-d-noadmin' @(".D $sV", ".L $sV")
+            Check "e: without ADMIN, .D $sV is refused (12008), no 5040, and the sentence stays" (($t -match $vocGate) -and ($t -notmatch "Delete VOC record '$sV'") -and ($t -match $sRx)) 'want 12008, no 5040 prompt, and .L still listing it'
+            $t = Invoke-Pe 'pe-e-enter' @(".D $sV", '', ".L $sV") -Admin
             Check 'e: the transcript is a sane size' ($t.Length -lt 200000) ('' + $t.Length + ' bytes')
             Check 'e: prompt 5040 reached, showing (y/<n>)' ($t -match "Delete VOC record '$sV' \(y/<n>\)\?") 'no 5040 prompt'
             Check 'e: ENTER kept the sentence' (($t -match $sRx) -and ($t -notmatch "'$sV' not found in VOC")) 'gone after Enter - taken as YES'
-            $t = Invoke-Pe 'pe-e-yes' @(".D $sV", 'Y', ".L $sV")
+            $t = Invoke-Pe 'pe-e-yes' @(".D $sV", 'Y', ".L $sV") -Admin
             Check 'e: CONTROL - Y deleted the sentence' (($t -match "Delete VOC record '$sV'") -and ($t -match "'$sV' not found in VOC")) '.L still lists it after an explicit Y, or no prompt'
         }
 
@@ -1082,8 +1097,42 @@ public static class SdSuiteCli {
     }
 
     # -----------------------------------------------------------------------
+    # 28 Sep 26 - RULING 28 (SOLO 16): a session whose input ends with no OFF
+    # ends.  Before the fix each of these rang the bell (or, at PAUSE, spun
+    # silently) until the 90 s kill.  Judged on the session ending by itself
+    # (the timeout counter does not move), on it having reached the prompt
+    # (Lands / the PAUSE prompt), and on the BEL count.
     Say ''
-    Say '== 14. the daemon runs on a standard token'
+    Say '== 14. end of input ends a session, with no OFF'
+    $to0 = $script:timeouts
+    $t = Invoke-Sd 'eof-prompt' '' ($acctPw + "`nWHERE`n") 'the account password, WHERE - and NO OFF' -NoSpareOff
+    $bel = ($t.Length - ($t -replace [char]7, '').Length)
+    Check 'at the command prompt: it lands, then ends by itself' ((Lands $t) -and ($script:timeouts -eq $to0)) ('timeouts ' + $to0 + ' -> ' + $script:timeouts + ', landed ' + (Lands $t))
+    Check 'and it rang the bell at most a few times' ($bel -lt 5) ('' + $bel + ' BEL')
+    $to1 = $script:timeouts
+    $t = Invoke-Sd 'eof-pause' '' ($acctPw + "`nPAUSE`n") 'the account password, PAUSE - and NO OFF' -NoSpareOff
+    Check 'at PAUSE: the prompt shows, then the session ends by itself' (($t -match 'Press return to continue') -and ($script:timeouts -eq $to1)) ('timeouts ' + $to1 + ' -> ' + $script:timeouts + ', PAUSE prompt ' + ($t -match 'Press return to continue'))
+
+    # -----------------------------------------------------------------------
+    # 28 Sep 26 - RULING 26: no system BASIC source in the installed tree.  The
+    # directory is gone, SDSYS's VOC record for it is gone (a one-shot CT, whose
+    # "not found" is its answer about THAT id), and the compiled objects are
+    # there - the control that the check is looking at a real install.
+    Say ''
+    Say '== 15. the installed tree carries no system BASIC source'
+    $bpSrc = Join-Path $Sdsys 'gpl.bp'
+    $bpOut = Join-Path $Sdsys 'gpl.bp.out'
+    $nOut  = $(if (Test-Path -LiteralPath $bpOut) { @(Get-ChildItem -LiteralPath $bpOut -File).Count } else { -1 })
+    Say ('    ' + $bpSrc + ' exists: ' + (Test-Path -LiteralPath $bpSrc))
+    Say ('    ' + $bpOut + ' objects: ' + $nOut)
+    Check 'control: gpl.bp.out holds the compiled system (over 150 objects)' ($nOut -gt 150) ('' + $nOut + ' objects')
+    Check 'sdsys\gpl.bp is not installed' (-not (Test-Path -LiteralPath $bpSrc)) 'the directory is there'
+    $t = Invoke-Sd 'no-gplbp-voc' 'CT VOC gpl.bp' '' 'none'
+    Check 'and the VOC has no gpl.bp record' ((CountOf (Get-Lines $t) "^Record 'gpl\.bp' not found$") -eq 1) "want CT's \"Record 'gpl.bp' not found\""
+
+    # -----------------------------------------------------------------------
+    Say ''
+    Say '== 16. the daemon runs on a standard token'
     $winds = @(Get-Process -Name sdwind -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $WindExe })
     Say ('    sdwind.exe from this tree: ' + $winds.Count)
     Check 'the daemon is still running after the legs' ($winds.Count -ge 1) 'no sdwind.exe from this tree'

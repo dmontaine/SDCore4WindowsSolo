@@ -18,6 +18,14 @@
 * 
 * 
 * START-HISTORY:
+* 28 Sep 26 SD Core Solo - SOLO 16, ruling 28: END OF INPUT ENDS THE SESSION.
+*           keycode() returns '' at end of piped input (linuxio.c keyin(),
+*           every call, without blocking), and the command editor rang the bell
+*           and read again for ever - 4.9 million BELs in 90 s on 27 Sep.  The
+*           editor now takes '' as OFF; get.string cancels; PAUSE takes it as
+*           Q, which returns to the editor and so ends there too.
+* 28 Sep 26 SD Core Solo - RULING 27: .S name and .D name need ADMIN (message
+*           12008), like every other direct VOC change (ruling 14).
 * 27 Sep 26 SD Core Solo - LOGTO no longer calls !elevate('STOP'): nothing in
 *           Solo starts an elevated helper (ruling 11), so it launched a
 *           PowerShell to stop nothing.  The administrator flag is still given
@@ -870,6 +878,20 @@ get.command.line:
          end
 
          c = keycode()
+
+*        28 Sep 26 SD Core Solo - SOLO 16, ruling 28 ("batch processes should
+*        always end at end of input, with or without an OFF").  '' is never a
+*        key: keycode() gives it at end of piped input, and the autologout
+*        timeout has already set K_TERMINATE when it gives it there
+*        (linuxio.c).  Taken as the line OFF, returned the way K$RETURN does.
+         if c = '' then
+            at.command = 'OFF'
+            i = kernel(K$SUPPRESS.COMO,@false)
+            if echo.input then crt @(0) : @(-4) : ':' : at.command
+            i = kernel(K$PAGINATE, @true)
+            return
+         end
+
          n = seq(c)
 
          if first and n >= 32 and n < 128 and clear.on.data then
@@ -1007,6 +1029,14 @@ get.string:
    first = @true
    loop
       c = keycode(0)
+
+*     28 Sep 26 SD Core Solo - SOLO 16: end of input cancels the string.  The
+*     caller (Ctrl-R) then returns to the command editor, which ends the
+*     session on the same end of input.
+      if c = '' then
+         string = ''
+         exit
+      end
 
       n = seq(c)
       if first and n >= 32 and n < 128 then
@@ -1186,6 +1216,12 @@ stack.manipulation:
 * does not exist behaved according to whatever was last read.  There was no
 * "not found" message on this path either; .L has one and .D did not.  It now
 * takes 5043 and leaves, which is what .L does.  PRE_RELEASE_FIXES.md 5.
+* 28 Sep 26 SD Core Solo - RULING 27: .D name NEEDS ADMIN, like .S name.  .D
+*   and .Dn above only edit this session's command stack and stay ungated.
+            if not(kernel(K$ADMINISTRATOR, -1)) then
+               display sysmsg(12008) ;* The VOC can only be changed after ADMIN
+               goto exit.stack.command
+            end
             at.command = trimf(trimb(at.command))
             readu voc.rec from voc, at.command else
                release voc, at.command
@@ -1338,6 +1374,14 @@ stack.manipulation:
             n = arg2
             arg2 = arg3
             arg3 = n
+         end
+
+* 28 Sep 26 SD Core Solo - RULING 27: .S name NEEDS ADMIN ("they change VOC").
+*   Narrows ruling 14's exemption for a saved sentence.  Before any record is
+*   read or locked, with voc_guard's message.
+         if not(kernel(K$ADMINISTRATOR, -1)) then
+            display sysmsg(12008) ;* The VOC can only be changed after ADMIN
+            goto exit.stack.command
          end
 
 * 14 Sep 26 Windows port - RELEASE_1.1 5.  A NEW SENTENCE'S ID IS LOWER CASE,
@@ -3640,7 +3684,14 @@ int.pause:
 
    loop
       c = keycode(0)
+*     28 Sep 26 SD Core Solo - SOLO 16: end of input ('') is Q.  It spun here
+*     silently (no case matched ''); Q unwinds to the command editor, which
+*     ends the session on the same end of input (ruling 28).
       begin case
+         case c = ''
+            display
+            unwinding = 1
+            exit
          case seq(c) = K$RETURN
             display
             exit
