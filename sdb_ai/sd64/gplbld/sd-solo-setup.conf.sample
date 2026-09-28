@@ -27,6 +27,7 @@
 #   (ADMIN).  At least 8 characters, with a lower-case letter, an upper-case
 #   letter, a digit and a symbol - letters, digits and punctuation only.
 #admin-password=Adm1n-Sample!
+
 admin-password=
 
 # global-password
@@ -34,12 +35,14 @@ admin-password=
 #   computer, and it also unlocks the administrator commands.  The same rules
 #   as the administrator password, and it must be different from it.
 #global-password=Gl0bal-Sample!
+
 global-password=
 
 # add-to-path
 #   yes - add SD Core Solo to the user's PATH, so sd runs from any folder.
 #   no  - leave the PATH alone.
 #add-to-path=yes
+
 add-to-path=
 
 # install-python
@@ -47,4 +50,5 @@ add-to-path=
 #         the installer.  Only asked when no Python 3.13 or later is there.
 #   no  - do not install it.
 #install-python=yes
+
 install-python=
