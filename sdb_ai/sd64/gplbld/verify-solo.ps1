@@ -104,7 +104,9 @@ $script:fails    = @()
 $script:skips    = @()
 $script:timeouts = 0
 $script:leaked   = $false
-$script:n        = 0
+# The session counter.  Named so no loop variable can take it: at script scope
+# "foreach ($n ...)" IS $script:n, and leg 10's cleanup once left it a string.
+$script:sessionNo = 0
 $script:secrets  = @()
 
 function Say([string]$s) { Write-Host $s; [void]$script:log.Add($s) }
@@ -154,8 +156,8 @@ function Mask([string]$t) {
 # itself is never printed.  Returns the output (passwords masked) and nothing
 # else - everything shown goes through Say, which is Write-Host.
 function Invoke-Sd([string]$Label, [string]$SdArgs, [string]$InputText, [string]$InputShown) {
-    $script:n++
-    $out = Join-Path $Work ('{0:d2}-{1}.txt' -f $script:n, $Label)
+    $script:sessionNo++
+    $out = Join-Path $Work ('{0:d2}-{1}.txt' -f $script:sessionNo, $Label)
     Say ''
     Say ('  $ ' + $SdExe + ' ' + $SdArgs + '   [input: ' + $InputShown + ']')
     $psi = New-Object Diagnostics.ProcessStartInfo
@@ -827,7 +829,7 @@ try {
         $names = @($fX, $fD, $pP, $sV, $mM, $pE.ToLower(), $pL.ToLower())
         $null = Invoke-Pe 'pe-clean-voc' @($names | ForEach-Object { "DELETE VOC $_" }) -Admin
         $t = Invoke-Pe 'pe-clean-check' @($names | ForEach-Object { "CT VOC $_" })
-        foreach ($n in $names) { Check ("cleanup: no VOC record '" + $n + "' left") ($t -match "Record '$n' not found") ('CT VOC ' + $n + ' still finds it') }
+        foreach ($vocName in $names) { Check ("cleanup: no VOC record '" + $vocName + "' left") ($t -match "Record '$vocName' not found") ('CT VOC ' + $vocName + ' still finds it') }
         foreach ($p in @($fD, ($fD + '.DIC'), $mM, ($mM + '.DIC'), $pE, ($pE + '.DIC'), $pL.ToLower(), ($pL.ToLower() + '.DIC'))) {
             $q = Join-Path $acctDir $p
             if ((Test-Path -LiteralPath $q) -and ($t -match "Record '$([regex]::Escape($p -replace '\.DIC$',''))' not found")) { Remove-Item -LiteralPath $q -Recurse -Force -ErrorAction SilentlyContinue }
