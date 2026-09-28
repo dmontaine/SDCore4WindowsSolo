@@ -103,20 +103,23 @@ SetupLogging=yes
 UninstallDisplayName={#AppName} {#AppVer}
 
 [Tasks]
-Name: "addtopath"; Description: "Add SD Core Solo to my PATH"
+; 27 Sep 26 - RULING 24: NO "Add to PATH" BOX AND NO "Install Python" BOX.  The
+; owner: "always install python in both modes ... add to path is always true in
+; both modes".  PATH is always added (CurStepChanged); Python is installed
+; whenever no Python 3.13+ is registered.  Managed mode forces every box left
+; below (ruling 22), so the tasks page is skipped there.
 Name: "api"; Description: "Provide the SD Core API (port 4243)"; Flags: unchecked
 Name: "api\network"; Description: "Let other computers reach it"; Flags: unchecked dontinheritcheck
 Name: "sshnetwork"; Description: "Let other computers reach this computer's ssh server"; \
     Flags: unchecked; Check: SshRulePresent
 ; 25 Sep 26 - RULING 17: the release carries Microsoft's OpenSSH MSI and
-; python.org's Python .exe beside this installer (ssh-server\, python\), and
-; each is installed only when it is there AND nothing equivalent already is -
-; both optional, owner's ruling.  Read from {src}, never copied: the release is
-; also a read-only USB stick (ruling 9).
+; python.org's Python .exe beside this installer (ssh-server\, python\) - both
+; mandatory since ruling 23.  The MSI is installed only when no sshd already is
+; (optional in standalone, forced in managed, ruling 22).  Read from {src},
+; never copied: the release is also a read-only USB stick (ruling 9).
 Name: "installssh"; Description: "Install the OpenSSH server"; Check: SshMsiOffered
 Name: "installssh\network"; Description: "Let other computers reach it"; \
     Flags: unchecked dontinheritcheck; Check: SshMsiOffered
-Name: "installpython"; Description: "Install Python for me"; Check: PythonExeOffered
 ; 25 Sep 26 - NO BOX FOR "ssh lands in SD".  Ruling 5 makes it the product, not
 ; a choice; the box that was here ("Start SD Core Solo when I sign in over
 ; ssh") read to the owner as starting the SERVER on sign-in, which it never
@@ -181,7 +184,7 @@ var
     Its presence means managed mode.  A password it gives is used only if it
     passes the pages' own checks; anything missing or refused is asked for. }
   UseControl, CfAdminOk, CfGlobalOk: Boolean;
-  CfAdmin, CfGlobal, CfPath, CfPython: String;
+  CfAdmin, CfGlobal: String;
   ModePage: TInputOptionWizardPage;
   AdminPage, GlobalPage, AccountPage: TInputQueryWizardPage;
 
@@ -348,10 +351,6 @@ begin
   end;
   CfAdmin := Trim(GetIniString('install', 'admin-password', '', F));
   CfGlobal := Trim(GetIniString('install', 'global-password', '', F));
-  CfPath := Lowercase(Trim(GetIniString('install', 'add-to-path', '', F)));
-  CfPython := Lowercase(Trim(GetIniString('install', 'install-python', '', F)));
-  if (CfPath <> 'yes') and (CfPath <> 'no') then CfPath := '';
-  if (CfPython <> 'yes') and (CfPython <> 'no') then CfPython := '';
   P := PasswordProblem(CfAdmin, CfAdmin);
   CfAdminOk := P = '';
   Log('SD Core Solo: control file ' + F + ' - managed mode; admin-password ' + PasswordFate(CfAdmin, P));
@@ -360,7 +359,6 @@ begin
     P := 'Use a password different from the administrator password.';
   CfGlobalOk := P = '';
   Log('SD Core Solo: control file global-password ' + PasswordFate(CfGlobal, P));
-  Log('SD Core Solo: control file add-to-path "' + CfPath + '", install-python "' + CfPython + '" ("" = asked for)');
 end;
 
 function InitializeSetup: Boolean;
@@ -462,29 +460,6 @@ begin
     Result := GlobalWasFound;
 end;
 
-{ SOLO 18: the control file's answer when it gave one, else the box. }
-function AddToPathWanted: Boolean;
-begin
-  if UseControl and (CfPath <> '') then
-    Result := CfPath = 'yes'
-  else
-    Result := WizardIsTaskSelected('addtopath');
-end;
-
-function InstallPythonWanted: Boolean;
-begin
-  if UseControl and (CfPython <> '') then
-    Result := CfPython = 'yes'
-  else
-    Result := WizardIsTaskSelected('installpython');
-end;
-
-{ Every task question the control file must answer for the tasks page to be
-  skipped: PATH always; Python only when the installer would offer it. }
-function ControlAnswersTasks: Boolean;
-begin
-  Result := UseControl and (CfPath <> '') and ((CfPython <> '') or not PythonExeOffered);
-end;
 
 { 27 Sep 26 - OWNER'S RULING: "the api and ssh server should always be active
   in managed mode", reachable from other computers (the master connects from
@@ -559,48 +534,20 @@ begin
     sets the account password at the first login, at the console. }
   else if PageID = AccountPage.ID then
     Result := (not DataTreeWasAbsent) or UseControl
+  { Ruling 24 left no PATH or Python box, and managed mode forces every box
+    that is left (ruling 22), so the page has nothing to ask there. }
   else if PageID = wpSelectTasks then
-    Result := SoloWasInstalled or ControlAnswersTasks
+    Result := SoloWasInstalled or Managed
   else if PageID = wpReady then
-    Result := ControlAnswersTasks and CfAdminOk and CfGlobalOk;
+    Result := UseControl and CfAdminOk and CfGlobalOk;
 end;
 
-{ Managed mode's forced boxes, found by caption (two share "Let other computers
-  reach it" - the API's and the MSI's - and managed mode wants both).  Ticked
-  and greyed in managed mode; enabled again if the Mode page is changed back. }
-procedure ShowForcedTasks(Force: Boolean);
-var
-  I: Integer;
-  C: String;
-begin
-  for I := 0 to WizardForm.TasksList.Items.Count - 1 do
-  begin
-    C := WizardForm.TasksList.ItemCaption[I];
-    if (C = 'Provide the SD Core API (port 4243)') or (C = 'Let other computers reach it') or
-       (C = 'Let other computers reach this computer''s ssh server') or
-       (C = 'Install the OpenSSH server') then
-    begin
-      if Force then
-        WizardForm.TasksList.Checked[I] := True;
-      WizardForm.TasksList.ItemEnabled[I] := not Force;
-    end;
-  end;
-end;
-
+{ 27 Sep 26 - the greyed "forced" boxes (ShowForcedTasks) went with ruling 24:
+  the tasks page is now shown in standalone mode only, where nothing is forced. }
 procedure CurPageChanged(CurPageID: Integer);
 begin
   if (CurPageID = wpSelectTasks) and SshRuleWasOpen then
     WizardSelectTasks('sshnetwork');
-  if CurPageID = wpSelectTasks then
-  begin
-    ShowForcedTasks(Managed);
-    { SOLO 18: the tasks page is shown because an answer is missing - the ones
-      the control file did give are ticked or cleared to match. }
-    if UseControl and (CfPath = 'yes') then WizardSelectTasks('addtopath');
-    if UseControl and (CfPath = 'no') then WizardSelectTasks('!addtopath');
-    if UseControl and (CfPython = 'yes') and PythonExeOffered then WizardSelectTasks('installpython');
-    if UseControl and (CfPython = 'no') and PythonExeOffered then WizardSelectTasks('!installpython');
-  end;
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
@@ -720,8 +667,12 @@ begin
   { 0. Python, per-user, unelevated (ruling 17).  InstallLauncherAllUsers=0, or
     the launcher alone would want elevation.  PrependPath=1: the helper finds
     python3.dll by PATH (SOLO 14).  Judged by the exit code AND by a Python
-    3.13+ being registered afterwards. }
-  if (not SoloWasInstalled) and PythonExeOffered and InstallPythonWanted then
+    3.13+ being registered afterwards.
+    27 Sep 26 - RULING 24: "always install python in both modes" - no box, and
+    on upgrades too: whenever no Python 3.13+ is registered (PythonExeOffered;
+    the .exe is always beside the installer, ruling 23).  A usable Python
+    already registered is left alone. }
+  if PythonExeOffered then
   begin
     ReportPath := ExpandConstant('{app}\python-install.log');
     Params := '/quiet InstallAllUsers=0 InstallLauncherAllUsers=0 PrependPath=1 ' +
@@ -771,9 +722,8 @@ begin
   if Code <> 0 then
     Failed := Failed + '  account and passwords' + #13#10;
 
-  { 2. PATH. }
-  if AddToPathWanted then
-    AddToUserPath(ExpandConstant('{app}\usr\bin'));
+  { 2. PATH - always, both modes (ruling 24). }
+  AddToUserPath(ExpandConstant('{app}\usr\bin'));
 
   { 3. The one elevated step. }
   if SoloWasInstalled then

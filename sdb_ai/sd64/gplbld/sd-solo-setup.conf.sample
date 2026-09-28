@@ -18,6 +18,10 @@
 # The ACCOUNT password is deliberately not here.  The user sets it at this
 # computer's keyboard the first time they run sd.
 #
+# Nothing else needs answering.  SD Core Solo is always added to the user's
+# PATH, and Python is always installed (from the python folder beside the
+# installer) unless Python 3.13 or later is already there.
+#
 # This file holds passwords in clear text.  Keep the stick safe.
 
 [install]
@@ -37,18 +41,3 @@ admin-password=
 #global-password=Gl0bal-Sample!
 
 global-password=
-
-# add-to-path
-#   yes - add SD Core Solo to the user's PATH, so sd runs from any folder.
-#   no  - leave the PATH alone.
-#add-to-path=yes
-
-add-to-path=
-
-# install-python
-#   yes - install Python, for this user only, from the python folder beside
-#         the installer.  Only asked when no Python 3.13 or later is there.
-#   no  - do not install it.
-#install-python=yes
-
-install-python=
