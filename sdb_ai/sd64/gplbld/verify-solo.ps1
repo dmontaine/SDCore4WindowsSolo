@@ -1257,9 +1257,13 @@ public static class SdSuiteCli {
     # SOLO 21: CONFIG GPL and CONFIG CONTRIB are the banner's own advice, so
     # they need no ADMIN.  Anchored on the first line of each record, which
     # only a successful display prints; a 2001 anywhere disqualifies.
+    # show.doc clears the screen first, so each first line starts with ESC[H
+    # ESC[J - measured 28 Sep 2026, when an anchor without $esc failed a run
+    # whose displays had both worked.
+    $esc = '^(?:\x1b\[[0-9;]*[A-Za-z])*'
     $t = Invoke-Pe 'v-config-docs' @('CONFIG GPL', 'CONFIG CONTRIB')
-    $okDocs = ((CountOf (Get-Lines $t) '^SD, including the API, is licensed under the GPL v3\.0\.$') -eq 1) -and
-              ((CountOf (Get-Lines $t) '^Contributors to SD and predecessor applications$') -eq 1) -and
+    $okDocs = ((CountOf (Get-Lines $t) ($esc + 'SD, including the API, is licensed under the GPL v3\.0\.$')) -eq 1) -and
+              ((CountOf (Get-Lines $t) ($esc + 'Contributors to SD and predecessor applications$')) -eq 1) -and
               ((CountOf (Get-Lines $t) $gate2001) -eq 0)
     Check 'a: without ADMIN, CONFIG GPL and CONFIG CONTRIB run' $okDocs 'want the licence and contributors lines and no 2001'
     $t = Invoke-Pe 'v-admin' @('LISTU', 'LIST.LOCKS') -Admin
