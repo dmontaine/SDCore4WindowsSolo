@@ -82,7 +82,13 @@
 #      DENY.VERBS is refused even with ADMIN;
 #      managed, the server denies WHO, sduser is refused it without ADMIN,
 #      and the server allows it again            (rulings 34, 35, 36)
-#  18. the daemon runs on a standard token: Medium integrity, Administrators
+#  18. who changes which password: SET.PASSWORD's refusals (usage, a wrong
+#      current password, ADMIN without ADMIN, GLOBAL from a non-global
+#      session); the account password changed without ADMIN, the
+#      administrator password with ADMIN, the global one by a global session
+#      - each to a temporary one, proved, and put back; the API still
+#      verifies afterwards                                          (ruling 39)
+#  19. the daemon runs on a standard token: Medium integrity, Administrators
 #      deny-only or absent                                         (ruling 16)
 # Not measured here, because they need hands or another machine: ssh landing in
 # sd, SD starting at boot with nobody signed in, remote access while signed out.
@@ -1293,8 +1299,118 @@ public static class SdSuiteCli {
     }
 
     # -----------------------------------------------------------------------
+    # 18 (ruling 39): who changes which password.  The refusals first - they
+    # change nothing.  Then each password is changed to a TEMPORARY one, proved,
+    # and changed back.  The temporary one is the real one with $suffix after
+    # it, so a failed put-back can be described without printing a password.
+    # A put-back that does not print "Password changed" FAILS with the
+    # recovery in its reason.  Last but one, so a failure here cannot void the
+    # legs before it; leg 19 only reads a process token.
     Say ''
-    Say '== 18. the daemon runs on a standard token'
+    Say '== 18. who changes which password (SET.PASSWORD [ADMIN|GLOBAL])'
+    $suffix = 'Zz9!'
+    $okRx = '^Password changed$'
+    $gate2001 = '^Command requires administrator privileges$'
+    $t = Invoke-Pe 'p-usage' @('SET.PASSWORD BOGUS')
+    Check 'a: SET.PASSWORD BOGUS is refused with the usage line' (((CountOf (Get-Lines $t) '^SET\.PASSWORD \[ADMIN \| GLOBAL\]$') -eq 1) -and ((CountOf (Get-Lines $t) $okRx) -eq 0)) 'want the usage line and no "Password changed"'
+    $t = Invoke-Sd 'p-wrong-current' '' ($acctPw + "`nTERM 200,9999`nSET.PASSWORD`n" + $wrongPw + "`nOFF`n") 'account password, TERM 200,9999, SET.PASSWORD, a WRONG current password, OFF'
+    Check 'a: without ADMIN, SET.PASSWORD asks the current password and refuses a wrong one (12032)' (($t -match 'Current password:') -and ((CountOf (Get-Lines $t) '^Wrong password - the password is unchanged$') -eq 1) -and ((CountOf (Get-Lines $t) $okRx) -eq 0)) 'want "Current password:", 12032, and no "Password changed"'
+    $t = Invoke-Pe 'p-admin-noadmin' @('SET.PASSWORD ADMIN')
+    Check 'a: without ADMIN, SET.PASSWORD ADMIN is refused (2001)' ((CountOf (Get-Lines $t) $gate2001) -eq 1) 'want one 2001'
+    $t = Invoke-Pe 'p-global-admin' @('SET.PASSWORD GLOBAL') -Admin
+    if ($managed) {
+        Check 'a: with ADMIN, SET.PASSWORD GLOBAL is refused (12033)' ((CountOf (Get-Lines $t) '^The global password can only be changed by the SD Core server$') -eq 1) 'want 12033'
+    }
+    else {
+        Check 'a: standalone, SET.PASSWORD GLOBAL is refused (12034)' ((CountOf (Get-Lines $t) '^This computer is standalone - it has no global password$') -eq 1) 'want 12034'
+    }
+
+    # b: the account password, WITHOUT ADMIN, after the current one.
+    $tAcct = $acctPw + $suffix
+    $script:secrets = @($script:secrets + $tAcct) | Where-Object { $_ }
+    $changed = $false
+    try {
+        $t = Invoke-Sd 'p-acct-set' '' ($acctPw + "`nSET.PASSWORD`n" + $acctPw + "`n" + $tAcct + "`n" + $tAcct + "`nOFF`n") 'account password, SET.PASSWORD, the current one, a temporary one twice, OFF'
+        $changed = ((CountOf (Get-Lines $t) $okRx) -eq 1)
+        Check 'b: without ADMIN, the account password changes after the current one' $changed 'want "Password changed"'
+        if ($changed) {
+            $t = Invoke-Sd 'p-acct-new' '' ($tAcct + "`nWHERE`nOFF`n") 'the temporary account password, WHERE, OFF'
+            Check 'b: the new account password signs in' (Lands $t) ('want a WHERE line ending user_accounts/' + $Acct)
+            $t = Invoke-Sd 'p-acct-oneshot' 'WHERE' '' 'none'
+            Check 'b: a one-shot WHERE signs in with the kept copy, rewritten' (Lands $t) ('want a WHERE line ending user_accounts/' + $Acct)
+        }
+    }
+    finally {
+        if ($changed) {
+            $t = Invoke-Sd 'p-acct-back' '' ($tAcct + "`nSET.PASSWORD`n" + $tAcct + "`n" + $acctPw + "`n" + $acctPw + "`nOFF`n") 'the temporary password, SET.PASSWORD, it, the real one twice, OFF'
+            Check 'b: the account password is put back' ((CountOf (Get-Lines $t) $okRx) -eq 1) ('RECOVER BY HAND: the account password is now your usual one followed by ' + $suffix + ' - sign in with that and run SET.PASSWORD')
+        }
+    }
+
+    # c: the administrator password, with ADMIN.
+    $tAdm = $adminPw + $suffix
+    $script:secrets = @($script:secrets + $tAdm) | Where-Object { $_ }
+    $changed = $false
+    try {
+        $t = Invoke-Sd 'p-admin-set' '' ($acctPw + "`nADMIN`n" + $adminPw + "`nSET.PASSWORD ADMIN`n" + $tAdm + "`n" + $tAdm + "`nOFF`n") 'account password, ADMIN, administrator password, SET.PASSWORD ADMIN, a temporary one twice, OFF'
+        $changed = ((CountOf (Get-Lines $t) $okRx) -eq 1)
+        Check 'c: with ADMIN, the administrator password changes' $changed 'want "Password changed"'
+        if ($changed) {
+            $t = Invoke-Sd 'p-admin-new' '' ($acctPw + "`nADMIN`n" + $tAdm + "`nOFF`n") 'account password, ADMIN, the temporary administrator password, OFF'
+            Check 'c: the new administrator password unlocks ADMIN' ((CountOf (Get-Lines $t) '^Administrator commands unlocked for this session$') -eq 1) 'want 12003'
+            $t = Invoke-Sd 'p-admin-old' '' ($acctPw + "`nADMIN`n" + $adminPw + "`nOFF`n") 'account password, ADMIN, the OLD administrator password, OFF'
+            Check 'c: CONTROL - the old one no longer does (12005)' ((CountOf (Get-Lines $t) '^Wrong password - administrator commands stay locked$') -eq 1) 'want 12005'
+        }
+    }
+    finally {
+        if ($changed) {
+            $t = Invoke-Sd 'p-admin-back' '' ($acctPw + "`nADMIN`n" + $tAdm + "`nSET.PASSWORD ADMIN`n" + $adminPw + "`n" + $adminPw + "`nOFF`n") 'account password, ADMIN, the temporary one, SET.PASSWORD ADMIN, the real one twice, OFF'
+            Check 'c: the administrator password is put back' ((CountOf (Get-Lines $t) $okRx) -eq 1) ('RECOVER BY HAND: the administrator password is now your usual one followed by ' + $suffix + ' - ADMIN with that, then SET.PASSWORD ADMIN')
+        }
+    }
+
+    # d: the global password, from a global session - managed only.
+    if (-not $managed) {
+        Skip 'd: the SD Core server changes the global password' 'standalone - no global password'
+    }
+    else {
+        $tGlb = $globalPw + $suffix
+        $script:secrets = @($script:secrets + $tGlb) | Where-Object { $_ }
+        $changed = $false
+        try {
+            $t = Invoke-Sd 'p-global-set' '' ($globalPw + "`nSET.PASSWORD GLOBAL`n" + $tGlb + "`n" + $tGlb + "`nOFF`n") 'the global password, SET.PASSWORD GLOBAL, a temporary one twice, OFF'
+            $changed = ((CountOf (Get-Lines $t) $okRx) -eq 1)
+            Check 'd: a global session changes the global password' $changed 'want "Password changed"'
+            if ($changed) {
+                $t = Invoke-Sd 'p-global-new' '' ($tGlb + "`nWHERE`nOFF`n") 'the temporary global password, WHERE, OFF'
+                Check 'd: the new global password signs in' (Lands $t) ('want a WHERE line ending user_accounts/' + $Acct)
+            }
+        }
+        finally {
+            if ($changed) {
+                $t = Invoke-Sd 'p-global-back' '' ($tGlb + "`nSET.PASSWORD GLOBAL`n" + $globalPw + "`n" + $globalPw + "`nOFF`n") 'the temporary global password, SET.PASSWORD GLOBAL, the real one twice, OFF'
+                Check 'd: the global password is put back' ((CountOf (Get-Lines $t) $okRx) -eq 1) ('RECOVER BY HAND: the global password is now your usual one followed by ' + $suffix + ' - sign in with that and run SET.PASSWORD GLOBAL')
+            }
+        }
+    }
+
+    # e: after the changes, the API still verifies both passwords - the
+    # account and $GLOBAL records must still share one salt (ruling 19).
+    if (-not $apiPort -or -not $script:Py -or -not (Test-Path -LiteralPath $Scram)) {
+        Skip 'e: the API after the changes' 'no API or no scram-probe - see leg 5'
+    }
+    else {
+        $t = Invoke-Scram 'the account password, after' $acctPw @('WHO')
+        Check 'e: an API login with the account password is still VERIFIED' (($t -match '(?i)SCRAM: server signature VERIFIED') -and ($t -notmatch '(?i)REFUSED')) 'want VERIFIED'
+        if ($managed) {
+            $t = Invoke-Scram 'the global password, after' $globalPw @('WHO')
+            Check 'e: an API login with the global password is still VERIFIED' (($t -match '(?i)SCRAM: server signature VERIFIED') -and ($t -notmatch '(?i)REFUSED')) 'want VERIFIED'
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    Say ''
+    Say '== 19. the daemon runs on a standard token'
     $winds = @(Get-Process -Name sdwind -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $WindExe })
     Say ('    sdwind.exe from this tree: ' + $winds.Count)
     Check 'the daemon is still running after the legs' ($winds.Count -ge 1) 'no sdwind.exe from this tree'

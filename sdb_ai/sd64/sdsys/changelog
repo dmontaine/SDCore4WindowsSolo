@@ -3,6 +3,17 @@ WS1.1-0 - SD Core Solo for Windows, in progress
 A personal SD Core for one Windows user. NOTHING IN THIS SECTION HAS BEEN
 RELEASED.
 
+28 Sep 26  SET.PASSWORD CHANGES ALL THREE PASSWORDS.
+
+           SET.PASSWORD changes the account password without ADMIN; it
+           asks for the current one first (not after ADMIN, or when
+           signed in with the global password). SET.PASSWORD ADMIN
+           changes the administrator password, after ADMIN. On a managed
+           computer, SET.PASSWORD GLOBAL changes the global password, and
+           only a session signed in with the global password may use it -
+           that session may change all three. The three passwords must
+           all differ.
+
 28 Sep 26  THE PRODUCT IS NOW CALLED SD CORE SOLO FOR WINDOWS.
 
            The version is WS1.1-0 (it was S1.1-0), and the sign-on
