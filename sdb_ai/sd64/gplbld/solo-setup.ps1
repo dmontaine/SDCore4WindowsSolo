@@ -10,7 +10,7 @@
 # WHAT IT DOES, IN ORDER:
 #   1. sd -start   SD sessions need a started SD (probe-solo-stage.py:108 - three
 #                  sessions printed "SD has not been started" without it).
-#   2. sd -internal RUN gpl.bp solo_account <user>       (SOLO 4, ruling 10)
+#   2. sd -internal RUN gpl.bp solo_account    the account sduser (ruling 29)
 #   3. -Passwords: solo_password ADMIN, and with -Global also GLOBAL  (SOLO 5)
 #   4. -Upgrade: the dictionaries (SOLO 9, replacing upgrade-dicts.ps1) -
 #      {app}\gplbld\FILES_DICTS placed at sdsys\gplbld, sd -internal RUN gpl.bp
@@ -86,7 +86,7 @@ $sdsys = Join-Path $AppDir 'sdsys'
 Note ('=== solo-setup ' + (Get-Date -Format s))
 Note ('app dir      : ' + $AppDir)
 Note ('sd.exe       : ' + $sdexe + '   exists: ' + (Test-Path -LiteralPath $sdexe))
-Note ('user         : ' + $User)
+Note ('user         : ' + $User + '   (the Windows user; the SD account is sduser, ruling 29)')
 Note ('passwords    : ' + $(if ($Passwords) { 'ADMIN' + $(if ($Global) { ' and GLOBAL' } else { '' }) } else { 'not set by this run' }))
 Note ('upgrade      : ' + $(if ($Upgrade) { 'UPDATE.ACCOUNTS ALL will run' } else { 'not requested' }))
 Note ('admin pw     : ' + $(if ($adminPw) { 'given (' + $adminPw.Length + ' characters)' } else { 'NOT given' }))
@@ -229,13 +229,13 @@ try {
     # output is the disqualifier that says whether this worked.
     [void](Invoke-Sd '-start' '')
 
-    # Unquoted, as probe-solo-stage.py passes it: solo_account takes the fourth
-    # word of the sentence, so quotes would become part of the name.
-    $acct = $User.ToLower()
-    $t = Invoke-Sd ('-internal RUN gpl.bp solo_account ' + $User) ''
-    # 26 Sep 26 - SOLO 15 piece 5: MOVED is a tree copied from another Windows
-    # user; its one account is renamed to this user at the first sign-in.
-    Judge 'account created' $t ('^SOLO ACCOUNT (READY ' + [regex]::Escape($acct) + '|MOVED [a-z]\S*) \S')
+    # 28 Sep 26 - RULING 29: the account is always sduser, whatever $User (the
+    # Windows user, still used for the report) is.  solo_account takes no name
+    # now; the MOVED outcome (SOLO 15 piece 5, a tree copied from another
+    # Windows user) is gone with it, so only READY sduser passes.
+    $acct = 'sduser'
+    $t = Invoke-Sd '-internal RUN gpl.bp solo_account' ''
+    Judge 'account created' $t ('^SOLO ACCOUNT READY ' + [regex]::Escape($acct) + ' \S')
 
     if ($Passwords) {
         $t = Invoke-Sd '-internal RUN gpl.bp solo_password ADMIN' $adminPw

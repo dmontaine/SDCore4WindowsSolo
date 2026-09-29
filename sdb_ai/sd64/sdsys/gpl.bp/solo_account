@@ -18,6 +18,9 @@
 *
 *
 * START-HISTORY:
+* 28 Sep 26 SD Core Solo - ruling 29: the account is always sduser; the name
+*           argument is refused unless it is sduser; the MOVED branch below
+*           (SOLO 15 piece 5) is deleted.
 * 26 Sep 26 SD Core Solo - a moved tree's one account is reported, not
 *           doubled: SOLO ACCOUNT MOVED (SOLO 15 piece 5).
 * 25 Sep 26 SD Core Solo - the register stores @USRDIR/<name>, not an absolute
@@ -29,11 +32,11 @@
 *
 * START-DESCRIPTION:
 *
-*    sd -internal RUN gpl.bp solo_account <windows user name>
+*    sd -internal RUN gpl.bp solo_account
 *
-* Owner's ruling 10, 25 Sep 2026: the one account is named after the Windows
-* user and lives in <USRDIR>\<name>; the installer creates it and writes the
-* name into the register.  This is what the installer runs to do that.  There
+* Owner's ruling 29, 28 Sep 2026 (replacing ruling 10's Windows user name):
+* the one account is always sduser and lives in <USRDIR>\sduser; the
+* installer creates it and writes the name into the register.  This is what the installer runs to do that.  There
 * is no CREATE.ACCOUNT verb in Solo, and no other way in: the program refuses
 * unless the session is internal, which LOGIN admits only against the
 * installer's one-shot marker (RELEASE_1.1 82, ruling 13).
@@ -55,9 +58,7 @@
 * is not tried here.
 *
 * The last line on success is "SOLO ACCOUNT READY <name> <path>": a caller
-* anchors on that, never on the name it passed in.  On a tree moved from
-* another Windows user (one account, another name) it is "SOLO ACCOUNT MOVED
-* <old name> <path>" and nothing is created: LOGIN renames it (SOLO 15).
+* anchors on that.
 *
 * END-DESCRIPTION
 *
@@ -77,22 +78,15 @@ $include err.h
       stop
    end
 
-*  RUN gpl.bp solo_account <name> - the name is the fourth word.
-   acc.name = downcase(trim(field(trim(@sentence), ' ', 4)))
-
-   if acc.name = '' then
-      display 'solo_account: no account name given.'
-      stop
-   end
-
-*  CREATEA's rule for a name (createa:1010): at most 32 characters, a letter
-*  first, no space.  And never SDSYS, which is not an account anybody enters.
-   if len(acc.name) > 32 or not(alpha(acc.name[1,1])) or index(acc.name, ' ', 1) then
-      display 'solo_account: "' : acc.name : '" cannot be an account name.'
-      stop
-   end
-   if acc.name = 'sdsys' then
-      display 'solo_account: SDSYS is not an account anybody signs in to.'
+*  28 Sep 26 - RULING 29: THE ACCOUNT IS ALWAYS sduser.  The name used to be
+*  the fourth word of the sentence (the Windows user, from solo-setup.ps1);
+*  it is fixed now, and a word given anyway is refused rather than silently
+*  ignored, so a caller still passing a name finds out.  kernel.c gives every
+*  session @LOGNAME SDUSER, which is what LOGIN lands.
+   acc.name = 'sduser'
+   given = downcase(trim(field(trim(@sentence), ' ', 4)))
+   if given # '' and given # acc.name then
+      display 'solo_account: the account is always sduser; "' : given : '" was given.'
       stop
    end
 
@@ -135,33 +129,9 @@ $include err.h
       stop
    end
 
-*  26 Sep 26 - SOLO 15 piece 5: A TREE MOVED FROM ANOTHER WINDOWS USER.  The
-*  register holds one account under the old user's name; LOGIN renames it to
-*  this user at the first sign-in that proves its password (ruling 21(b)),
-*  which this program cannot do - it has no password.  So it creates nothing
-*  and reports the account that is there.
-   if not(ospath(pathname, OS$EXISTS)) then
-      other = ''
-      n.acc = 0
-      select acc.f to 11
-      loop
-         readnext id from 11 else exit
-         if downcase(id) # 'sdsys' then
-            n.acc += 1
-            other = id
-         end
-      repeat
-      clearselect 11
-      if n.acc = 1 then
-         read o.rec from acc.f, other then
-            close acc.f
-            display 'solo_account: this tree holds the account ' : downcase(other) : '; it becomes ' : acc.name : ' at the first sign-in.'
-            @system.return.code = 0
-            display 'SOLO ACCOUNT MOVED ' : downcase(other) : ' ' : parse.pathname.tokens(o.rec<ACC$PATH>)
-            stop
-         end
-      end
-   end
+*  28 Sep 26 - the SOLO 15 piece 5 branch (a tree moved from another Windows
+*  user, reported as SOLO ACCOUNT MOVED) is gone with ruling 29: every tree's
+*  account is sduser, so a copied tree is found above as READY.
 
    if ospath(pathname, OS$EXISTS) then
       display 'solo_account: ' : pathname : ' exists and is not in the register; refusing to use it.'

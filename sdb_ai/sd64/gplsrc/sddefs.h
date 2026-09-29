@@ -237,6 +237,12 @@
 
 #define SD_USERS_GROUP "sdusers"
 
+/* 28 Sep 26 SD Core Solo - RULING 29: the one account, and every session's
+   user name (kernel.c init_kernel), whatever the Windows user.  The BASIC
+   side spells it in gpl.bp/solo_account; solo-setup.ps1 and verify-solo.ps1
+   use the same literal. */
+#define SOLO_ACCOUNT_NAME "sduser"
+
 #ifndef SD_ADMIN_GID
 #define SD_ADMIN_GID 544
 #endif

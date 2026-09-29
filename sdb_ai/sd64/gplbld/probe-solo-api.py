@@ -28,7 +28,7 @@ import bootstrap as B  # noqa: E402
 ROOT = os.path.join(STAGE, 'SDCoreSolo')
 SDSYS = os.path.join(ROOT, 'sdsys')
 SDEXE = os.path.join(ROOT, 'usr', 'bin', 'sd.exe')
-ACCT = (os.environ.get('USERNAME', '') or getpass.getuser()).strip().lower()
+ACCT = 'sduser'   # 28 Sep 26 - ruling 29 (was the Windows user's name)
 ACCDIR = os.path.join(ROOT, 'user_accounts', ACCT)
 PW, APW = 'Probe-Api-1x', 'Probe-Admin-7'
 ENV = dict(os.environ)

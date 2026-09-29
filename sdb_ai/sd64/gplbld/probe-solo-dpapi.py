@@ -25,7 +25,7 @@ SDEXE = os.path.join(ROOT, 'usr', 'bin', 'sd.exe')
 CRED = os.path.join(SDSYS, '$cred')
 STORED = os.path.join(CRED, '$STORED')
 USER = (os.environ.get('USERNAME', '') or getpass.getuser()).strip()
-ACCT = USER.lower()
+ACCT = 'sduser'   # 28 Sep 26 - ruling 29; USER is the Windows user, printed only
 ACCDIR = os.path.join(ROOT, 'user_accounts', ACCT)
 PW1, PW2, APW = 'Probe-Acct-1x', 'Probe-Acct-2y', 'Probe-Admin-7'
 ENV = dict(os.environ)
@@ -105,7 +105,7 @@ B.sd(SDEXE, ENV, ['-stop'], expect_fail=True)
 B.sd(SDEXE, ENV, ['-start'])
 try:
     print('\n== 1. installer steps: account, admin password, account password')
-    out = sd_in(['-internal', 'RUN', 'gpl.bp', 'solo_account', USER], '\n')
+    out = sd_in(['-internal', 'RUN', 'gpl.bp', 'solo_account', ACCT], '\n')
     verdict('solo_account', any(l.startswith('solo account ready %s ' % ACCT) for l in lines(out)), 'want SOLO ACCOUNT READY')
     out = sd_in(['-internal', 'RUN', 'gpl.bp', 'solo_password', 'ADMIN'], APW + '\n')
     verdict('solo_password ADMIN', 'solo password set admin' in lines(out), 'want SOLO PASSWORD SET ADMIN')

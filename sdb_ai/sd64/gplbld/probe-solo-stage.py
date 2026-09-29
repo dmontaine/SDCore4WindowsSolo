@@ -168,7 +168,9 @@ def solo4(sdexe, sdsys, env, fails):
     # (measured 25 Sep 2026 - the guard below caught it), but sets USER.
     import getpass
     user = (os.environ.get('USERNAME', '') or getpass.getuser() or '').strip()
-    acct = user.lower()
+    # 28 Sep 26 - ruling 29: the account is always sduser, whatever the
+    # Windows user (still printed, and still guarded below).
+    acct = 'sduser'
     print('\n== SOLO 4 legs, Windows user %r, account %r' % (user, acct))
     if not acct:
         fails.append('USERNAME is empty - no account to create or enter')
@@ -196,7 +198,7 @@ def solo4(sdexe, sdsys, env, fails):
             fails.append('%s: %s' % (label, why))
 
     # 1. The installer's step: create the account for this Windows user.
-    out = run('account', ['-internal', 'RUN', 'gpl.bp', 'solo_account', user], True)
+    out = run('account', ['-internal', 'RUN', 'gpl.bp', 'solo_account', acct], True)
     want = 'solo account ready %s ' % acct
     ok = any(l.startswith(want) for l in lines(out))
     verdict('solo_account creates the account', ok, 'want a line starting %r' % want)

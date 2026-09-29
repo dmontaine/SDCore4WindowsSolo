@@ -96,7 +96,6 @@ bool init_kernel() {
   bool status = FALSE;
   int16_t i;
   USER_ENTRY* uptr;
-  u_int32_t m;
   int16_t msg_no = 1000; /* User limit reached */
   char* p;
   PRIV_WHY why; /* 03 Sep 26 - PRE_RELEASE_FIXES.md 96 */
@@ -312,11 +311,17 @@ bool init_kernel() {
     /* Phantom processes have the user name entered by the parent when the
       user table entry is reserved.  For other users, initialise this now. */
 
+    /* 28 Sep 26 SD Core Solo - RULING 29: THE ONE ACCOUNT IS ALWAYS sduser,
+       AND SO IS THE SESSION'S USER NAME.  This was GetUserName(), the Windows
+       user, which LOGIN lands as the account (@logname) and the audit trail
+       records.  Owner, 28 Sep 2026: "everything says sduser" - WHO,
+       @LOGNAME and the audit alike, so the audit no longer names the Windows
+       user.  Who the session RUNS AS is unchanged: the process token is the
+       Windows user's, and nothing here touches it.  An API session is renamed
+       again by APISRVR (K$SET.USERNAME) to the name its client proved, which
+       is sduser too.                                                       */
     if (!is_phantom) {
-      m = MAX_USERNAME_LEN + 1;
-      if (!GetUserName((char*)(my_uptr->username), &m)) {
-        my_uptr->username[0] = '\0';
-      }
+      strcpy((char*)(my_uptr->username), SOLO_ACCOUNT_NAME);
       p = ttyname(fileno(stdin));
       if (p != NULL) {
         strncpy((char*)(my_uptr->ttyname), p, MAX_TTYNAME_LEN);

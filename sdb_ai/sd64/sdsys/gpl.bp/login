@@ -18,6 +18,9 @@
 * 
 * 
 * START-HISTORY:
+* 28 Sep 26 SD Core Solo - ruling 29: the account is always SDUSER.
+*           adopt.moved.account (SOLO 15 piece 5, below) is deleted: a copied
+*           tree needs no rename when every tree's account has one name.
 * 27 Sep 26 SD Core Solo - SOLO 18: a managed account with no password yet
 *           (installed from a control file) sets its first one at the console
 *           (set.first.password; messages 12025, 12026, 12027).
@@ -260,12 +263,10 @@ deffun pw_complex(pw) calling '!pw_complex'
 *   not internal leaves it at.
    gate.ok = @true
 
-* 26 Sep 26 SD Core Solo - SOLO 15 piece 5.  adopt.moved.account proves the
-*   password itself (against the account being renamed), so pw.done stops the
-*   ordinary require.password call asking a second time.
+* 26 Sep 26 SD Core Solo - SOLO 15 piece 5.  pw.done stops require.password
+*   asking a second time.  (Its first setter, adopt.moved.account, went with
+*   ruling 29; the flag stays for the call site that reads it.)
    pw.done = @false
-   adopt.ok = @false
-   adopt.refused = @false
 
    is.phantom = kernel(K$IS.PHANTOM, 0)
 
@@ -837,23 +838,15 @@ deffun pw_complex(pw) calling '!pw_complex'
 *   behave the same way that path already did.
          void kernel(K$ADMINISTRATOR, 0)
 
-*        26 Sep 26 SD Core Solo - SOLO 15 piece 5, ruling 21(b): a tree moved
-*        to another Windows user holds ONE account under the old user's name.
-*        adopt.moved.account renames it to this user once the password is
-*        proved; anything else is still "not in register".
+*        28 Sep 26 SD Core Solo - ruling 29: the account is always SDUSER
+*        (@logname is set to it in kernel.c), so a tree copied to another
+*        Windows user needs no rename; SOLO 15 piece 5's adopt.moved.account
+*        is gone.
          read acc.rec from acc.f, initial.account else
-            if mode = 0 and not(is.phantom) then gosub adopt.moved.account
-            if adopt.refused then
-               audit.account = initial.account
-               audit.reason = pw.why
-               goto terminate.connection
-            end
-            if not(adopt.ok) then
-               display sysmsg(5018, initial.account) ;* Account %1 not in register
-               audit.account = initial.account
-               audit.reason = 'no such account in the register'
-               goto terminate.connection
-            end
+            display sysmsg(5018, initial.account) ;* Account %1 not in register
+            audit.account = initial.account
+            audit.reason = 'no such account in the register'
+            goto terminate.connection
          end
    end case
 
@@ -1371,136 +1364,6 @@ internal.gate:
       end
       if announce then display sysmsg(12000, gate.writer) ;* Internal session admitted (opened by %1)
    end
-   return
-
-*
-* ======================================================================
-* ADOPT.MOVED.ACCOUNT  -  26 Sep 26 SD Core Solo, SOLO 15 piece 5, ruling
-* 21(b): "it should be possible to move the whole sd tree to another user
-* account ... and use it as long as the password is known."
-*
-* Reached when the register has no account named after this Windows user.
-* If it holds exactly ONE other account (sdsys aside), that is a tree
-* moved from another Windows user: prove its password (require.password,
-* against the OLD name - so the global password does too, ruling 19), then
-* rename it to this user.  Sets adopt.ok with acc.rec and initial.account
-* for the new name, or adopt.refused (pw.why says why) when the password
-* failed; neither when there is nothing to adopt.
-*
-* WHAT IS RENAMED, in an order a crash can resume from:
-*   1. $cred: the old record written under the new key, VERBATIM - its salt
-*      too, so ruling 19's pairing with $GLOBAL holds;
-*   2. the folder <USRDIR>\<old> -> <new>, only when the register names
-*      exactly @USRDIR/<old>.  Best effort: Windows will not rename a folder
-*      a process is in, and then the old folder is kept and the register
-*      names it;
-*   3. the register record under the new name, then the old one deleted;
-*   4. the old $cred record deleted; $STORED's owner field renamed (its blob
-*      is kept - it opens again only if this is the same Windows user
-*      renamed, and otherwise falls through to the input as always).
-* The names differ case-insensitively (the NOCASE read above missed), so
-* write-new-then-delete-old cannot hit the NOCASE trap.  A crash after 2 is
-* resumed: the new folder exists and the old one is gone.
-*
-* NOT RENAMED, stated: VOC F-records are relative (solo_account); the audit
-* trail keeps the old name; the master server (managed mode) logs in by
-* account name and must be told the new one.
-
-adopt.moved.account:
-   adopt.ok = @false
-   adopt.refused = @false
-
-   new.id = downcase(initial.account)
-   if len(new.id) > 32 or not(alpha(new.id[1,1])) or index(new.id, ' ', 1) then return
-
-   old.id = ''
-   n.acc = 0
-   select acc.f to 12
-   loop
-      readnext id from 12 else exit
-      if downcase(id) # 'sdsys' then
-         n.acc += 1
-         old.id = id
-      end
-   repeat
-   clearselect 12
-   if n.acc # 1 then return
-   read old.rec from acc.f, old.id else return
-
-   old.path = parse.pathname.tokens(old.rec<ACC$PATH>)
-   std.old = ('@USRDIR' : @ds : downcase(old.id))
-   std.new = ('@USRDIR' : @ds : new.id)
-   new.path = parse.pathname.tokens(std.new)
-   is.std = (downcase(old.rec<ACC$PATH>) = downcase(std.old))
-   resume = @false
-   if ospath(new.path, OS$EXISTS) then
-*     Only a crash between steps 2 and 3 leaves the new folder with no
-*     register record; anything else there is not ours to take.
-      if not(is.std) or ospath(old.path, OS$EXISTS) then return
-      resume = @true
-   end
-
-   initial.account = upcase(old.id)
-   batch.command = trim(system(1026))
-   gosub require.password
-   pw.done = @true
-   if not(pw.ok) then
-      adopt.refused = @true
-      initial.account = upcase(new.id)
-      return
-   end
-
-*  1. $cred, verbatim.
-   openpath @sdsys:@ds:'$cred' to ad.cred.f else
-      adopt.refused = @true
-      pw.why = 'the credential register could not be opened to rename the account'
-      return
-   end
-   read ad.rec from ad.cred.f, upcase(old.id) then
-      write ad.rec to ad.cred.f, upcase(new.id)
-   end
-   ad.rec = ''
-
-*  2. The folder.
-   folder = 'kept'
-   reg.path = old.rec<ACC$PATH>
-   if resume then
-      reg.path = std.new
-      folder = 'resumed'
-   end else
-      if is.std then
-         if osrename(old.path, new.path) then
-            reg.path = std.new
-            folder = 'renamed'
-         end else
-            display sysmsg(12024, old.path) ;* The folder %1 could not be renamed...
-         end
-      end
-   end
-
-*  3. The register.
-   new.rec = old.rec
-   new.rec<ACC$PATH> = reg.path
-   write new.rec to acc.f, new.id
-   delete acc.f, old.id
-
-*  4. The old credential, and $STORED's owner.
-   delete ad.cred.f, upcase(old.id)
-   read ad.rec from ad.cred.f, '$STORED' then
-      if ad.rec<1> = upcase(old.id) then
-         ad.rec<1> = upcase(new.id)
-         write ad.rec to ad.cred.f, '$STORED'
-      end
-   end
-   ad.rec = ''
-   close ad.cred.f
-
-   void kernel(K$AUDIT, 'ACCOUNT RENAMED old=' : upcase(old.id) : ' new=' : upcase(new.id) : ' folder=' : folder)
-   display sysmsg(12023, downcase(old.id), new.id) ;* This SD Core Solo tree's account %1 is now %2
-
-   initial.account = upcase(new.id)
-   acc.rec = new.rec
-   adopt.ok = @true
    return
 
 *

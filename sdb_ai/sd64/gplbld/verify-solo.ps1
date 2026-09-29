@@ -102,7 +102,11 @@ $CredDir = Join-Path $Sdsys '$cred'
 $Audit   = Join-Path $Sdsys 'audit'
 $Conf    = Join-Path $Root 'sd.conf'
 $Scram   = Join-Path $Gplbld 'scram-probe.py'
-$Acct    = "$env:USERNAME".Trim().ToLower()
+# 28 Sep 26 - RULING 29: the account is always sduser.  It was the Windows
+# user's name ($env:USERNAME), which is still recorded as $WinUser: ssh's
+# Match User and the scheduled task are the Windows user's, not the account's.
+$Acct    = 'sduser'
+$WinUser = "$env:USERNAME".Trim().ToLower()
 $Probe   = 'ZZSOLOSUITE.COPY'
 
 $LogDir  = Join-Path $env:LOCALAPPDATA 'SD-verify'
@@ -374,7 +378,7 @@ Say ('=== verify-solo ' + (Get-Date -Format s))
 Say ('script      : ' + $PSCommandPath)
 Say ('Solo tree   : ' + $Root)
 Say ('sd.exe      : ' + $SdExe + '   exists: ' + (Test-Path -LiteralPath $SdExe) + $(if (Test-Path -LiteralPath $SdExe) { '   written ' + (Get-Item -LiteralPath $SdExe).LastWriteTime } else { '' }))
-Say ('account     : ' + $Acct)
+Say ('account     : ' + $Acct + '   (ruling 29; the Windows user is ' + $WinUser + ')')
 Say ('mode        : ' + $(if ($managed) { 'managed (b) - $GLOBAL present' } else { 'standalone (a) - no $GLOBAL' }))
 Say ('$STORED     : ' + $(if ($stored) { 'present' } else { 'ABSENT' }))
 Say ('API         : ' + $(if ($apiPort) { 'APIPORT=' + $apiPort + ' in ' + $Conf } else { 'no APIPORT in ' + $Conf }))
@@ -473,6 +477,17 @@ try {
     Say ('    audit "via=stored" lines: ' + $a0 + ' -> ' + $a1)
     Check 'sd WHERE lands in the account with nothing on its input' ((Lands $t) -and ($t -notmatch '(?i)wrong password') -and ($t -notmatch '(?i)needs the account password')) ('want a line ending user_accounts\' + $Acct + '; $STORED ' + $(if ($stored) { 'present' } else { 'ABSENT' }))
     Check 'and the audit says via=stored, once' ($a0 -ge 0 -and $a1 -eq $a0 + 1) ('audit count ' + $a0 + ' -> ' + $a1)
+
+    # 28 Sep 26 - RULING 29: the account and the session's user name are sduser,
+    # not the Windows user.  WHO prints "<userno> <account>"; the folder listing
+    # is the second reading.  Meaningful only where the Windows user is not
+    # itself called sduser, which is said rather than assumed.
+    Say ('    Windows user: ' + $WinUser + $(if ($WinUser -eq $Acct) { '   (THE SAME AS THE ACCOUNT - these two checks cannot tell the rulings apart here)' } else { '' }))
+    $t = Invoke-Sd 'oneshot-who' 'WHO' '' 'none'
+    Check 'ruling 29: WHO names the account sduser' ((CountOf (Get-Lines $t) ('^\d+\s+' + [regex]::Escape($Acct) + '\b')) -ge 1) 'want a WHO line "<n> sduser"'
+    $uaDirs = @(Get-ChildItem -LiteralPath (Join-Path $Root 'user_accounts') -Directory -ErrorAction SilentlyContinue | ForEach-Object { $_.Name })
+    Say ('    user_accounts: ' + ($uaDirs -join ', '))
+    Check 'ruling 29: user_accounts holds sduser and nothing else' (($uaDirs.Count -eq 1) -and ($uaDirs[0] -eq $Acct)) ('found: ' + ($uaDirs -join ', '))
 
     # -----------------------------------------------------------------------
     Say ''

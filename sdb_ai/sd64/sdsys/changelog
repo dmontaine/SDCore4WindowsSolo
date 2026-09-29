@@ -3,6 +3,14 @@ S1.1-0 - SD Core Solo, in progress
 A personal SD Core for one Windows user. NOTHING IN THIS SECTION HAS BEEN
 RELEASED.
 
+28 Sep 26  THE ACCOUNT IS ALWAYS SDUSER.
+
+           SD Core Solo's one account is named SDUSER on every computer,
+           whatever your Windows user name is. WHO and @LOGNAME say
+           SDUSER, the account's folder is user_accounts\sduser, and an
+           API client signs in as sduser with the account password. ssh
+           still signs in as your Windows user and lands in SDUSER.
+
 28 Sep 26  A SESSION ENDS WHEN ITS INPUT ENDS.
 
            When sd's input comes from a script or a file and runs out,
@@ -50,11 +58,11 @@ RELEASED.
 26 Sep 26  A COPIED SD CORE SOLO FOLDER BECOMES YOURS.
 
            Copy the SDCoreSolo folder to another Windows account, on this
-           computer or another, and sign in: once you give the account
-           password, the account is renamed to your Windows user name,
-           its folder too. If the folder is in use it keeps its old name
-           and SD says so. Running the installer over a copied folder
-           creates no second account.
+           computer or another, and sign in with the account password.
+           Running the installer over a copied folder creates no second
+           account. (The account used to be renamed to the new Windows
+           user; since 28 Sep 26 it is SDUSER everywhere, so nothing is
+           renamed.)
 
 26 Sep 26  COMMANDS ON THE sd COMMAND LINE NO LONGER NEED THE PASSWORD
            TYPED.
@@ -134,7 +142,7 @@ RELEASED.
 
 25 Sep 26  ONE ACCOUNT, YOURS.
 
-           SD Core Solo has one account, named after your Windows user,
+           SD Core Solo has one account, named SDUSER (see 28 Sep 26),
            and signing in always lands you there. There are no SD groups
            and no commands to create, delete or grant accounts. SH and
            the editors run as you, with no list to be on. SD no longer

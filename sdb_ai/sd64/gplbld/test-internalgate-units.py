@@ -236,8 +236,8 @@ WRITERS = {
     # 25 Sep 26 - SOLO 2's witness; sets bootstrap's INTERNAL_MARKER_DIR and uses its sd().
     "probe-solo-stage.py": "INTERNAL_MARKER_DIR",
     # 26 Sep 26 - SOLO 15 pieces 4 and 5; each writes the marker in its own sd_in().
+    # 28 Sep 26 - probe-solo-rename.py (piece 5) deleted with ruling 29.
     "probe-solo-dpapi.py": "os.path.join(SDSYS, '$internal')",
-    "probe-solo-rename.py": "os.path.join(SDSYS, '$internal')",
     "probe-solo-api.py": "os.path.join(SDSYS, '$internal')",
     # 26 Sep 26 - SOLO 9: sdsys-seat.ps1 and the verify-* writers deleted.
 }
@@ -292,7 +292,8 @@ found = session_starters(HERE)
 # 26 Sep 26 - SOLO 9 phase 3 dropped the floor from 8 to 5: the five deleted
 # writers (see WRITERS above) also carried the token, so their retirement
 # lowers the real count along with the declaration.
-row(len(found) >= 5, "CONTROL: the walk found the internal session starters (%d files)" % len(found),
+# 28 Sep 26 - 5 -> 4: probe-solo-rename.py deleted with ruling 29 (WRITERS).
+row(len(found) >= 4, "CONTROL: the walk found the internal session starters (%d files)" % len(found),
     "found %d - the token or the directory is wrong, and the partition below would pass on nothing" % len(found))
 pp = partition_problems(found)
 row(not pp, "every internal session start is a declared writer that references the marker", " | ".join(pp))
