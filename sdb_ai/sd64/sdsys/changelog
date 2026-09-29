@@ -11,8 +11,8 @@ RELEASED.
            changes the administrator password, after ADMIN. On a managed
            computer, SET.PASSWORD GLOBAL changes the global password, and
            only a session signed in with the global password may use it -
-           that session may change all three. The three passwords must
-           all differ.
+           that session may change all three. The global password must
+           differ from the other two.
 
 28 Sep 26  THE PRODUCT IS NOW CALLED SD CORE SOLO FOR WINDOWS.
 
