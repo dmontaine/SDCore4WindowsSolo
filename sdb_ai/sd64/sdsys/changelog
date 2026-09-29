@@ -17,6 +17,8 @@ RELEASED.
            CONFIG, LISTU, LIST.LOCKS, LIST.READU, LOCK, CLEAR.LOCKS,
            SET.DATE and CLEAN.ACCOUNT now need ADMIN (or the global
            password) first, like the other administrator commands.
+           CONFIG GPL and CONFIG CONTRIB, which show the licence and the
+           contributors, still need nothing.
 
            The installer's control file can list further commands, in
            deny-verbs, that the user of the computer may not run without

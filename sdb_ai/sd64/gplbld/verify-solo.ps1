@@ -78,7 +78,8 @@
 #      COPY into GLOBAL.BP.OUT; managed mode, a global-password session adds a
 #      program, sduser CALLs it, and the session removes it   (ruling 33)
 #  17. the administrator-only verbs and the deny list: without ADMIN the eight
-#      maintenance verbs are refused; DENY.VERBS is refused even with ADMIN;
+#      maintenance verbs are refused (CONFIG GPL/CONTRIB are not - SOLO 21);
+#      DENY.VERBS is refused even with ADMIN;
 #      managed, the server denies WHO, sduser is refused it without ADMIN,
 #      and the server allows it again            (rulings 34, 35, 36)
 #  18. the daemon runs on a standard token: Medium integrity, Administrators
@@ -1247,6 +1248,14 @@ public static class SdSuiteCli {
     $t = Invoke-Pe 'v-noadmin' $eight
     $n2001 = CountOf (Get-Lines $t) $gate2001
     Check 'a: without ADMIN, all eight maintenance verbs are refused (2001)' ($n2001 -eq 8) ('' + $n2001 + ' of 8 refused')
+    # SOLO 21: CONFIG GPL and CONFIG CONTRIB are the banner's own advice, so
+    # they need no ADMIN.  Anchored on the first line of each record, which
+    # only a successful display prints; a 2001 anywhere disqualifies.
+    $t = Invoke-Pe 'v-config-docs' @('CONFIG GPL', 'CONFIG CONTRIB')
+    $okDocs = ((CountOf (Get-Lines $t) '^SD, including the API, is licensed under the GPL v3\.0\.$') -eq 1) -and
+              ((CountOf (Get-Lines $t) '^Contributors to SD and predecessor applications$') -eq 1) -and
+              ((CountOf (Get-Lines $t) $gate2001) -eq 0)
+    Check 'a: without ADMIN, CONFIG GPL and CONFIG CONTRIB run' $okDocs 'want the licence and contributors lines and no 2001'
     $t = Invoke-Pe 'v-admin' @('LISTU', 'LIST.LOCKS') -Admin
     Check 'a: with ADMIN, LISTU and LIST.LOCKS run' (((CountOf (Get-Lines $t) $gate2001) -eq 0) -and ($t -match '(?i)sduser')) 'want no 2001 and LISTU naming sduser'
 

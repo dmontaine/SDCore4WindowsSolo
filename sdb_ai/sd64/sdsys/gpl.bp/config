@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 28 Sep 26 SD Core Solo - SOLO 21: CONFIG GPL and CONFIG CONTRIB need no
+*           ADMIN; the gate moved after the parser for everything else.
 * 28 Sep 26 SD Core Solo - ruling 35: needs ADMIN (2001).
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
 * rev 0.9.0 Jan 25 mab add CREATUSR config parameter
@@ -57,17 +59,22 @@ $include parser.h
 
    @system.return.code = -ER$ARGS      ;* Preset for command format errors
 
-*  28 Sep 26 SD Core Solo - RULING 35: a maintenance verb, so ADMIN (or the
-*  global password) first.  It lived in SDSYS, entered only elevated, until
-*  ruling 11 moved it into the user's account with no check of its own.
-   if not(kernel(K$ADMINISTRATOR, -1)) then stop sysmsg(2001) ;* Command requires administrator privileges
-
    lptr = @false
 
    call @parser(parser$reset, 0, @sentence, 0)
    call @parser(parser$get.token, token.type, token, keyword)  ;* Verb
 
    call @parser(parser$get.token, token.type, param, keyword)
+
+*  28 Sep 26 SD Core Solo - RULING 35: a maintenance verb, so ADMIN (or the
+*  global password) first.  It lived in SDSYS, entered only elevated, until
+*  ruling 11 moved it into the user's account with no check of its own.
+*  28 Sep 26, later - EXCEPT GPL AND CONTRIB (owner, SOLO 21): read-only
+*  displays of the licence and the contributors, which LOGIN's banner tells
+*  every session to type.  Checked here, after the keyword is known.
+   if upcase(param) # 'GPL' and upcase(param) # 'CONTRIB' then
+      if not(kernel(K$ADMINISTRATOR, -1)) then stop sysmsg(2001) ;* Command requires administrator privileges
+   end
 
    begin case
       case upcase(param) = 'GPL' 		; gosub show.gpl
