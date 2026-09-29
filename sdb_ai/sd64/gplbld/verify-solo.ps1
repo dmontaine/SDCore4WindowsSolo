@@ -1065,7 +1065,7 @@ public static class SdSuiteCli {
         Say ('    returned ' + $rc + '; SDError: ' + (Mask $err))
         Say ('    audit "API REFUSED request=25" lines: ' + $a0 + ' -> ' + $a1)
         Check 'the loaded sdclilib.dll is the installed one' ($mod.Count -eq 1 -and $mod[0] -eq $cliDll) ('loaded: ' + ($mod -join '; '))
-        Check 'SDConnectLocal reaches the server and is refused as ruled (12021)' ($rc -eq 0 -and $err -match '^SDConnectLocal is not available in SD Core Solo' -and $err -notmatch '(?i)cannot determine|not found') ('returned ' + $rc + ', SDError: ' + $err)
+        Check 'SDConnectLocal reaches the server and is refused as ruled (12021)' ($rc -eq 0 -and $err -match '^SDConnectLocal is not available in SD Core Solo for Windows - connect with SDConnect' -and $err -notmatch '(?i)cannot determine|not found') ('returned ' + $rc + ', SDError: ' + $err)
         Check 'and the audit records the refusal, once' ($a0 -ge 0 -and $a1 -eq $a0 + 1) ('audit count ' + $a0 + ' -> ' + $a1)
     }
 
