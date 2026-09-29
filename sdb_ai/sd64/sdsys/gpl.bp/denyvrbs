@@ -18,6 +18,9 @@
 *
 *
 * START-HISTORY:
+* 29 Sep 26 SD Core Solo - SOLO 22: says which other verbs the list denies
+*           because they run the same command ("also denies ..."), before
+*           the anchored last line.
 * 28 Sep 26 SD Core Solo - later: LOCATE <1,1>, not <1> - REMOVE and the
 *           never-denied check missed every verb on a list of two or more.
 * 28 Sep 26 SD Core Solo - new, rulings 34 and 36.
@@ -55,6 +58,10 @@
 *
 * This cannot lift a built-in administrator check (APPEND.SD.PATH, CONFIG,
 * UPDATE.ACCOUNTS ...): those are in each verb's own code, not on this list.
+*
+* A LISTED VERB DENIES EVERY VERB THAT RUNS THE SAME COMMAND (SOLO 22): CPROC
+* compares VOC fields 2-4, so SH denies ! as well.  The line "DENY.VERBS also
+* denies, as the same command: ..." names them when there are any.
 *
 * The last line is "DENY.VERBS <n>: <list>", n the verbs now denied; a
 * caller anchors on that.
@@ -144,6 +151,43 @@ $include err.h
       void kernel(K$AUDIT, 'DENY.VERBS ' : mode : ' ' : arg : ' - now ' : convert(@vm, ',', list))
    end
    close pol.f
+
+*  29 Sep 26 - SOLO 22: CPROC denies a verb by what it runs as well as by its
+*  name, so a listed verb takes every other verb that dispatches the same way
+*  with it (SH takes !; EDIT takes NANO and MICRO, which share $EDIT).  Said
+*  here, before the anchored last line, so the server sees what it has done.
+   also = ''
+   if list # '' then
+      open 'VOC' to voc.f then
+         keys = ''
+         k = dcount(list, @vm)
+         for i = 1 to k
+            read r from voc.f, list<1,i> else
+               read r from voc.f, downcase(list<1,i>) else r = ''
+            end
+            if upcase(r<1>)[1,1] = 'V' then
+               keys<-1> = upcase(r<2>) : '|' : downcase(r<3>) : '|' : r<4>
+            end
+         next i
+         if keys # '' then
+            select voc.f to 11
+            loop
+               readnext id from 11 else exit
+               name = change(upcase(id), '-', '.')
+               locate name in list<1,1> setting pos then continue
+               locate name in never<1,1> setting pos then continue
+               read r from voc.f, id else continue
+               if upcase(r<1>)[1,1] # 'V' then continue
+               key = upcase(r<2>) : '|' : downcase(r<3>) : '|' : r<4>
+               locate key in keys<1> setting pos then
+                  locate name in also<1> by 'AL' setting pos else ins name before also<pos>
+               end
+            repeat
+         end
+         close voc.f
+      end
+   end
+   if also # '' then display 'DENY.VERBS also denies, as the same command: ' : convert(@fm, ',', also)
 
    if bad = 0 then @system.return.code = 0
    n = dcount(list, @vm)

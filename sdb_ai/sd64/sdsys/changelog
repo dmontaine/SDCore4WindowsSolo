@@ -3,6 +3,14 @@ WS1.1-0 - SD Core Solo for Windows, in progress
 A personal SD Core for one Windows user. NOTHING IN THIS SECTION HAS BEEN
 RELEASED.
 
+29 Sep 26  A DENIED COMMAND IS DENIED UNDER EVERY NAME.
+
+           A command on the deny list is now denied under any other name
+           that runs the same thing: denying SH denies ! too. DENY.VERBS
+           says which other names that takes with it, on a line
+           beginning "DENY.VERBS also denies". ADMIN, OFF, QUIT and LO are
+           still never denied.
+
 28 Sep 26  SET.PASSWORD CHANGES ALL THREE PASSWORDS.
 
            SET.PASSWORD changes the account password without ADMIN; it

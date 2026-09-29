@@ -18,6 +18,9 @@
 * 
 * 
 * START-HISTORY:
+* 29 Sep 26 SD Core Solo - SOLO 22: check.denied.verb also denies a verb that
+*           dispatches like a listed one (field 2, 3 and 4), so "!" goes with
+*           SH; ADMIN, OFF, QUIT and LO are never denied.
 * 28 Sep 26 SD Core Solo - later: check.denied.verb searches the deny list's
 *           fields; converted to values, only a one-verb list ever matched.
 * 28 Sep 26 SD Core Solo - SOLO 16, ruling 28: END OF INPUT ENDS THE SESSION.
@@ -4055,16 +4058,48 @@ find.private.catalogue:
 * spelling the VOC lookup above ends on.  No file or no record: nothing is
 * denied.  Read on every call rather than cached: CPROC runs nested for
 * EXECUTE, and a cached copy would be one more thing to keep in step.
+*
+* 29 Sep 26 SD Core Solo - SOLO 22, owner's option 2: A VERB IS DENIED BY
+* WHAT IT RUNS, NOT ONLY BY ITS NAME.  "!" and "SH" are both V/OS, and
+* DENY.VERBS cannot even name "!", so denying SH left the shell one keystroke
+* away.  So a verb is also denied when its VOC record dispatches the same way
+* as a listed verb's - the same mode (field 2), program or internal number
+* (field 3) and dispatch information (field 4).  Field 4 is part of the key
+* because the query processor's thirteen verbs share $QPROC and differ only
+* there; without it denying LIST would deny SORT and SELECT.  ADMIN, OFF, QUIT
+* and LO are never denied, whatever they share (DENY.VERBS' own rule), so no
+* list can leave a session unable to leave.  voc.rec is the verb being
+* dispatched and is not touched; everything here is dv.*.
 
 check.denied.verb:
+   dv.name = change(upcase(verb), '-', '.')
+   if dv.name = 'ADMIN' or dv.name = 'OFF' or dv.name = 'QUIT' or dv.name = 'LO' then return
    openpath @sdsys:@ds:'solo.policy' to dv.f then
       read dv.rec from dv.f, 'denied.verbs' then
-         dv.name = change(upcase(verb), '-', '.')
 *        One verb per line is one per field, and "in x<1>" searches FIELDS
 *        from field 1 (bcomp emits value 0; op_locat.c then searches fields).
 *        It converted to values first, so field 1 was the whole list and only
 *        a one-verb list ever matched (verify-solo leg 17c, 28 Sep 26).
          locate dv.name in dv.rec<1> setting dv.pos then verb.denied = @true
+         if not(verb.denied) then
+            dv.key = upcase(voc.rec<2>) : @vm : downcase(voc.rec<3>) : @vm : voc.rec<4>
+            dv.n = dcount(dv.rec, @fm)
+            dv.i = 0
+            loop
+               dv.i += 1
+            while dv.i <= dv.n and not(verb.denied)
+               dv.other = ''
+               read dv.other from voc, dv.rec<dv.i> else
+                  read dv.other from voc, downcase(dv.rec<dv.i>) else dv.other = ''
+               end
+               if upcase(dv.other<1>)[1,1] = 'V' then
+                  if upcase(dv.other<2>) : @vm : downcase(dv.other<3>) : @vm : dv.other<4> = dv.key then
+                     verb.denied = @true
+                  end
+               end
+            repeat
+            dv.other = ''
+         end
       end
       close dv.f
    end

@@ -81,7 +81,8 @@
 #      maintenance verbs are refused (CONFIG GPL/CONTRIB are not - SOLO 21);
 #      DENY.VERBS is refused even with ADMIN;
 #      managed, the server denies WHO, sduser is refused it without ADMIN,
-#      and the server allows it again            (rulings 34, 35, 36)
+#      and the server allows it again; denying SH denies ! too (SOLO 22)
+#                                                (rulings 34, 35, 36)
 #  18. who changes which password: SET.PASSWORD's refusals (usage, a wrong
 #      current password, ADMIN without ADMIN, GLOBAL from a non-global
 #      session); the account password changed without ADMIN, the
@@ -1299,6 +1300,24 @@ public static class SdSuiteCli {
             Check 'c: DENY.VERBS REMOVE WHO' (($t -match '(?m)^DENY\.VERBS \d+:') -and ($t -notmatch '(?m)^DENY\.VERBS \d+: .*\bWHO\b')) 'want a DENY.VERBS answer without WHO'
             $t = Invoke-Pe 'v-who-again' @('WHO')
             Check 'c: and sduser runs WHO again without ADMIN' (((CountOf (Get-Lines $t) $gate2001) -eq 0) -and ($t -match ('(?m)^\s*\d+\s+' + [regex]::Escape($Acct) + '\b'))) 'want a WHO answer and no 2001'
+
+            # d (SOLO 22): a verb is denied by what it runs.  SH and ! are both
+            # V/OS; denying SH must deny ! too, and DENY.VERBS must say so.  The
+            # echo text is the success wording of the shell itself.
+            $bangOk = 'zzbang-ran-' + $PID
+            $t = Invoke-Sd 'v-deny-sh' '' ($globalPw + "`nDENY.VERBS ADD SH`nOFF`n") 'the global password, DENY.VERBS ADD SH, OFF'
+            $shAdded = ($t -match '(?m)^DENY\.VERBS \d+: .*\bSH\b')
+            try {
+                Check 'd: DENY.VERBS ADD SH names ! as also denied' ($shAdded -and ($t -match '(?m)^DENY\.VERBS also denies, as the same command: .*!')) 'want SH on the list and an "also denies" line naming !'
+                $t = Invoke-Pe 'v-bang-denied' @('! echo ' + $bangOk)
+                Check 'd: with SH denied, sduser without ADMIN is refused ! (2001)' (((CountOf (Get-Lines $t) $gate2001) -eq 1) -and ((CountOf (Get-Lines $t) ('^' + [regex]::Escape($bangOk) + '$')) -eq 0)) 'want one 2001 and the echo text not printed'
+            }
+            finally {
+                if ($shAdded) { $t = Invoke-Sd 'v-deny-sh-remove' '' ($globalPw + "`nDENY.VERBS REMOVE SH`nOFF`n") 'the global password, DENY.VERBS REMOVE SH, OFF' }
+            }
+            Check 'd: SH is off the list again' (($t -match '(?m)^DENY\.VERBS \d+:') -and ($t -notmatch '(?m)^DENY\.VERBS \d+: .*\bSH\b')) 'want a DENY.VERBS answer without SH'
+            $t = Invoke-Pe 'v-bang-again' @('! echo ' + $bangOk)
+            Check 'd: CONTROL - and ! runs again without ADMIN' (((CountOf (Get-Lines $t) ('^' + [regex]::Escape($bangOk) + '$')) -eq 1) -and ((CountOf (Get-Lines $t) $gate2001) -eq 0)) 'want the echo text and no 2001'
         }
     }
 
