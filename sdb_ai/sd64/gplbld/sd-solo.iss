@@ -491,7 +491,21 @@ begin
   ModePage.Add('Managed client of an SD Core server');
   ModePage.SelectedValueIndex := 0;
 
-  AdminPage := CreateInputQueryPage(ModePage.ID, 'Administrator password',
+  { 28 Sep 26 - THE ORDER IS ACCOUNT, ADMINISTRATOR, GLOBAL (owner: "account
+    password, admin password, and if a managed client global password").  It
+    was administrator, global, account.  The comparisons follow the order: the
+    global page, now last, is checked against both earlier ones.
+
+    25 Sep 26 - rulings 18 and 21: THE ACCOUNT PASSWORD.  Every session asks
+    for it - local, ssh, API and one-shot - so it is asked on every new tree,
+    whether or not the API box is ticked (it was the API password, after the
+    tasks page, until the owner made it global). }
+  AccountPage := CreateInputQueryPage(ModePage.ID, 'Account password',
+    'SD Core Solo asks for this password whenever it is used.', '');
+  AccountPage.Add('Password:', True);
+  AccountPage.Add('Confirm password:', True);
+
+  AdminPage := CreateInputQueryPage(AccountPage.ID, 'Administrator password',
     'This password unlocks the administrator commands.', '');
   AdminPage.Add('Password:', True);
   AdminPage.Add('Confirm password:', True);
@@ -500,16 +514,6 @@ begin
     'The SD Core server uses this password to manage this computer.', '');
   GlobalPage.Add('Password:', True);
   GlobalPage.Add('Confirm password:', True);
-
-  { 25 Sep 26 - rulings 18 and 21: THE ACCOUNT PASSWORD.  Every session asks
-    for it - local, ssh, API and one-shot - so it is asked on every new tree,
-    whether or not the API box is ticked (it was the API password, after the
-    tasks page, until the owner made it global).  After the global page, so
-    the two can be compared (ruling 19). }
-  AccountPage := CreateInputQueryPage(GlobalPage.ID, 'Account password',
-    'SD Core Solo asks for this password whenever it is used.', '');
-  AccountPage.Add('Password:', True);
-  AccountPage.Add('Confirm password:', True);
 
   { SOLO 18: the control file's accepted answers fill their pages, which are
     then skipped; a page it did not answer is shown empty. }
@@ -571,15 +575,16 @@ begin
     Problem := PasswordProblem(GlobalPage.Values[0], GlobalPage.Values[1]);
     if (Problem = '') and (GlobalPage.Values[0] = AdminPage.Values[0]) then
       Problem := 'Use a password different from the administrator password.';
+    { Ruling 19: one login name, two passwords, the user's checked first - an
+      equal global password would land the master in an ordinary session.
+      Checked here since 28 Sep 26: the global page now comes after the
+      account page.  Unchanged in the control-file path, where the global
+      password comes from the file and no account password is asked. }
+    if (Problem = '') and (GlobalPage.Values[0] = AccountPage.Values[0]) then
+      Problem := 'Use a password different from the account password.';
   end
   else if CurPageID = AccountPage.ID then
-  begin
-    { Ruling 19: one login name, two passwords, the user's checked first - an
-      equal global password would land the master in an ordinary session. }
     Problem := PasswordProblem(AccountPage.Values[0], AccountPage.Values[1]);
-    if (Problem = '') and Managed and (AccountPage.Values[0] = GlobalPage.Values[0]) then
-      Problem := 'Use a password different from the global password.';
-  end;
   if Problem <> '' then
   begin
     MsgBox(Problem, mbError, MB_OK);
