@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 28 Sep 26 SD Core Solo - ruling 33: a global entry is never deleted here
+*           (message 12029, every session); SYNC.GLOBAL.CATALOG does it.
 * 14 Sep 26 Windows port - RELEASE_1.1 5 stage 3a: catalogue names are lower
 *           case, and a local entry is found under its old upper-case VOC id too.
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
@@ -100,15 +102,18 @@ $include int$keys.h
 *   deletes nothing at all rather than stopping part way through with the private
 *   ones already gone.  dcount/for is the idiom used elsewhere in GPL.BP; the
 *   loop below consumes name.list with remove(), so this reads it first.
-   if not(kernel(K$ADMINISTRATOR, -1)) then
-      gbl.count = dcount(name.list, @fm)
-      for gbl.i = 1 to gbl.count
-         gbl.name = name.list<gbl.i>
-         if global or index(prefix.chars, gbl.name[1,1], 1) then
-            stop sysmsg(2001) ;* Command requires administrator privileges
-         end
-      next gbl.i
-   end
+*  28 Sep 26 SD Core Solo - RULING 33: NO SESSION DELETES A GLOBAL ENTRY HERE,
+*  ADMIN or not.  The global catalogue is SD's own $ ! _ programs and, in
+*  managed mode, the SD Core server's GLOBAL.BP.OUT programs, which only
+*  SYNC.GLOBAL.CATALOG adds and removes.  Was: refused without ADMIN.  Same
+*  place and same all-or-nothing shape as before.
+   gbl.count = dcount(name.list, @fm)
+   for gbl.i = 1 to gbl.count
+      gbl.name = name.list<gbl.i>
+      if global or index(prefix.chars, gbl.name[1,1], 1) then
+         stop sysmsg(12029) ;* ... changed only by SYNC.GLOBAL.CATALOG
+      end
+   next gbl.i
 
 
    * Open global and private catalogues

@@ -18,6 +18,8 @@
 *
 *
 * START-HISTORY:
+* 28 Sep 26 SD Core Solo - ruling 33: the global password also sets
+*           K$GLOBAL.SESSION.
 * 25 Sep 26 SD Core Solo - new, SOLO 5.
 * END-HISTORY
 *
@@ -126,6 +128,9 @@ $include err.h
       stop
    end
 
+*  28 Sep 26 - ruling 33: the global password also marks the session as a
+*  $GLOBAL one (K$GLOBAL.SESSION); the administrator password does not.
+   if via = 'global' then void kernel(K$GLOBAL.SESSION, 1)
    void kernel(K$AUDIT, 'ADMIN UNLOCKED via=' : via)
    display sysmsg(12003) ;* Administrator commands unlocked for this session
    @system.return.code = 0

@@ -179,6 +179,10 @@
 *   -1 COULD NOT TELL - and a caller that reads -1 as 0 restores the defect
 *   this replaced, where a failed lookup read as "not granted".
       $define K$GROUP.MEMBER     68      ;* 1 member, 0 not, -1 could not tell
+* 28 Sep 26 SD Core Solo - RULING 33.  Admitted with the GLOBAL password?  26
+*   cannot say ($ADMIN and $GLOBAL both set it).  Get -1; set 1 / clear 0
+*   from $internal code only.  gplsrc/keys.h carries the same note.
+      $define K$GLOBAL.SESSION   69      ;* Signed in with $GLOBAL ($internal to set)
 
       * PTERM() action keys
       $define PT$BREAK           1       ;* Trap break character as break?
@@ -226,6 +230,7 @@
       $define USR$SDNET        0x0010    ;* SDNet process (USR$SDVBSRVR also set)
       $define USR$CHGPHANT     0x0020    ;* Chargeable phantom
       $define USR$MSG.OFF      0x0040    ;* Messge reception disabled
+      $define USR$GLOBAL       0x0100    ;* Signed in with $GLOBAL (ruling 33)
 
       * USER_ENTRY events word
       $define EVT$LOGOUT       0x0001    ;* Forced logout - immediate termination

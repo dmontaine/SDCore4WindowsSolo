@@ -142,6 +142,11 @@ Name: "{app}\sd-tls"; Flags: uninsneveruninstall
 ; user, SYSTEM, Administrators) is the right one here - there is no other SD
 ; user to keep out.  [Dirs] runs on upgrades too, so an existing tree gains it.
 Name: "{app}\sdsys\pstmp"; Flags: uninsneveruninstall
+; 28 Sep 26 - ruling 33: the SD Core server's compiled programs (managed
+; mode), which SYNC.GLOBAL.CATALOG puts in the global catalogue.  Starts empty
+; (owner: the server fills it after installing).  [Dirs] only ever creates, and
+; no stage.py list names it, so an upgrade keeps what the server put there.
+Name: "{app}\sdsys\global.bp.out"; Flags: uninsneveruninstall
 
 [Files]
 ; The programs and scripts.  sdsys, the account folders and sd.conf are laid

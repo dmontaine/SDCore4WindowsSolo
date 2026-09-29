@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 28 Sep 26 SD Core Solo - ruling 33: @SDSYS/global.bp.out and gcat are kept
+*            unless the session signed in with the global password (12028).
 * 13 Sep 26 Windows port - RELEASE_1.1_FIXES.md 33, owner's ruling: Enter at
 *            "Use active select list" (2050) means N, and "Delete all data
 *            components of multifile" (6133) gains C to cancel, which is also
@@ -525,6 +527,23 @@ write.voc:
 * ======================================================================
 
 check.sdsys.file:
+
+* 28 Sep 26 SD Core Solo - RULING 33: THE SD CORE SERVER'S FILES ARE NOT
+* sduser's TO DELETE.  @SDSYS/global.bp.out (and gcat, should a VOC ever point
+* at it) is kept unless this session signed in with the global password -
+* whatever the answer to 6146 would have been, and ADMIN is not enough.  The
+* VOC reference may still go (skip.part, as for "N"); the directory stays.
+*  The path of the part being asked about: data.path for 'data', dict.path
+*  for 'dictionary' (the other may be stale or unassigned at that call).
+   if part = 'data' then sdsys.tail = data.path else sdsys.tail = dict.path
+   sdsys.tail = downcase(convert(char(92), '/', sdsys.tail))
+   if sdsys.tail = '@sdsys/global.bp.out' or sdsys.tail = '@sdsys/gcat' then
+      if not(kernel(K$GLOBAL.SESSION, -1)) then
+         display sysmsg(12028) ;* The global catalogue can only be changed by the SD Core server
+         skip.part = @true
+         return
+      end
+   end
 
 * 28 Aug 26 Windows port - NO.QUERY TAKES THE SAFE BRANCH INSTEAD OF ASKING.
 * This routine prompted unconditionally, so "delete.file zzak force no.query"

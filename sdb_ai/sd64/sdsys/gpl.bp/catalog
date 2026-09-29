@@ -18,6 +18,9 @@
 * 
 * 
 * START-HISTORY:
+* 28 Sep 26 SD Core Solo - ruling 33: the global catalogue is never written
+*           here (GLOBAL or a * ! _ $ name: message 12029, every session), and
+*           a LOCAL entry no longer offers to remove a global one (3035).
 * 14 Sep 26 Windows port - RELEASE_1.1 5 D2: the upper-case rename below runs
 *           only on a case-sensitive VOC.  On a NOCASE one it deleted the entry
 *           it had just written, so a second CATALOG ... LOCAL left none.
@@ -121,9 +124,9 @@ $define CAT_PCODE  3
             * rev 0.9.0 must be admin for Global
             * 13 Aug 26 Windows port - was system(27) # 0.  There is no uid zero
             *   on Windows, so CATALOG GLOBAL was always refused.
-            if not(kernel(K$ADMINISTRATOR, -1)) then
-              stop sysmsg(2001)  ;* Command requires administrator privileges
-            end
+            * 28 Sep 26 SD Core Solo - RULING 33: refused for every session,
+            *   ADMIN or not; see the gate after the name parsing below.
+            stop sysmsg(12029)  ;* ... changed only by SYNC.GLOBAL.CATALOG
 
          case keyword = KW$PCODE
             if mode and mode # CAT_PCODE then stop sysmsg(3021) ;* Incompatible cataloguing modes specified
@@ -213,8 +216,14 @@ $define CAT_PCODE  3
 *   inherits the test rather than rediscovering this.  The keyword's own test is
 *   left where it is: it reports while parsing, before the object file is
 *   opened, which is the better message for the common mistake.
-   if mode = CAT_GLOBAL and not(kernel(K$ADMINISTRATOR, -1)) then
-      stop sysmsg(2001)  ;* Command requires administrator privileges
+*  28 Sep 26 SD Core Solo - RULING 33: "the sduser, even in admin mode should
+*  not have access to the global catalog"; in managed mode it is the SD Core
+*  server's programs in GLOBAL.BP.OUT, kept in step by SYNC.GLOBAL.CATALOG.
+*  So CATALOG never writes it - GLOBAL, or a name with a * ! _ $ prefix - for
+*  any session.  Was: refused without ADMIN, which let ADMIN overwrite SD's
+*  own $ and ! system programs as well.
+   if mode = CAT_GLOBAL then
+      stop sysmsg(12029)  ;* ... changed only by SYNC.GLOBAL.CATALOG
    end
 
 
@@ -557,25 +566,12 @@ check.private:
 * ======================================================================
 
 check.global:
-   readvu s from gcat.f, call.name, 0 then
-      if no.query then
-         delete gcat.f, call.name
-      end else
-         loop
-            display sysmsg(3035) : ;* Program is also in global catalogue. Remove?
-            input yn
-            yn = upcase(yn)
-* 11 Sep 26 Windows port - RELEASE_1.1_FIXES.md 6.  See 3033 above.
-            if yn = '' then yn = 'N'
-         until yn = 'Y' or yn = 'N'
-         repeat
-   
-         if yn = 'Y' then delete gcat.f, call.name
-      end
-   end
-
-   release gcat.f, call.name    ;* Ensure released for all paths
-
+*  28 Sep 26 SD Core Solo - RULING 33: a LOCAL catalogue entry no longer
+*  offers to remove a same-named GLOBAL one (3035) - that removal is the
+*  global catalogue changed by the user.  The local entry is written; the
+*  global one is left alone.  (The 3035 "Program is also in global
+*  catalogue. Remove?" prompt, with its RELEASE_1.1 6 Enter-is-N default,
+*  is in this file's git history.)
    return
    
    

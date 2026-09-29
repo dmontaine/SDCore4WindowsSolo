@@ -82,6 +82,8 @@
 #include "config.h"
 #include "locks.h"
 #include "sdclient.h"
+/* 28 Sep 26 SD Core Solo - cygwin_conv_path(), for global_write_refused(). */
+#include <sys/cygwin.h>
 
 /* Modified by Composer AI - 2026/06/10.
    k_error() longjmps back to the kernel command loop and never returns,
@@ -157,6 +159,74 @@ Private bool voc_write_refused(FILE_VAR *fvar) {
 }
 
 /* ======================================================================
+   global_write_refused()  -  A change to the global catalogue, or to the
+   master's object file, from a session not signed in with $GLOBAL?
+
+   28 Sep 26 SD Core Solo - RULING 33: "the sduser, even in admin mode should
+   not have access to the global catalog"; in managed mode the catalogue is the
+   programs in SDSYS's global.bp.out, which "only the global password can
+   administer".  So a write, delete or clear of SDSYS's gcat or global.bp.out
+   is refused unless the program is $internal (CATALOG, SYNC.GLOBAL.CATALOG and
+   the bootstrap check for themselves in BASIC) or the session holds
+   USR_GLOBAL (K_GLOBAL_SESSION).  USR_ADMIN is deliberately NOT enough.
+
+   THE LIMIT, STATED: in Solo the whole tree belongs to the Windows user, so
+   this governs what SD will do, not what that user can do to the files from
+   outside SD.  Recognised as <sysdir>/gcat or <sysdir>/global.bp.out.
+
+   THE SAME DIRECTORY HAS TWO SPELLINGS, "/c/..." and "C:/..." (op_dio2.c
+   net_normalise(), measured 21 Aug 2026), so both sides go through
+   cygwin_conv_path() to the POSIX one before comparing, case ignored.  The
+   last component is tested first, so only a file NAMED gcat or global.bp.out
+   pays for that; and if the conversion fails for such a file the write is
+   REFUSED - a gate that fails open on an unconvertible path is decoration. */
+
+Private bool global_write_refused(FILE_VAR *fvar) {
+  char path[MAX_PATHNAME_LEN + 1];
+  char want[MAX_PATHNAME_LEN + 1];
+  char pposix[MAX_PATHNAME_LEN + 1];
+  char wposix[MAX_PATHNAME_LEN + 1];
+  char *p;
+  char *last;
+  int i;
+  static const char *names[] = {"gcat", "global.bp.out", NULL};
+
+  if ((fvar == NULL) || (fvar->type != DIRECTORY_FILE))
+    return FALSE;
+  if (process.program.flags & HDR_INTERNAL)
+    return FALSE;
+  if (my_uptr->flags & USR_GLOBAL)
+    return FALSE;
+
+  strncpy(path, (char *)FPtr(fvar->file_id)->pathname, MAX_PATHNAME_LEN);
+  path[MAX_PATHNAME_LEN] = '\0';
+  for (p = path; *p != '\0'; p++)
+    if (*p == '\\')
+      *p = '/';
+  while ((p > path) && (*(p - 1) == '/'))
+    *(--p) = '\0';
+  last = strrchr(path, '/');
+  last = (last == NULL) ? path : last + 1;
+
+  for (i = 0; names[i] != NULL; i++) {
+    if (stricmp(last, names[i]) != 0)
+      continue;
+    if (snprintf(want, sizeof(want), "%s/%s", (char *)(sysseg->sysdir),
+                 names[i]) >= (int)sizeof(want))
+      return TRUE;
+    if ((cygwin_conv_path(CCP_WIN_A_TO_POSIX, path, pposix, sizeof(pposix)) != 0) ||
+        (cygwin_conv_path(CCP_WIN_A_TO_POSIX, want, wposix, sizeof(wposix)) != 0))
+      return TRUE;
+    for (p = pposix + strlen(pposix); (p > pposix) && (*(p - 1) == '/'); )
+      *(--p) = '\0';
+    for (p = wposix + strlen(wposix); (p > wposix) && (*(p - 1) == '/'); )
+      *(--p) = '\0';
+    return (stricmp(pposix, wposix) == 0);
+  }
+  return FALSE;
+}
+
+/* ======================================================================
    op_clrfile()  -  Clear File                                            */
 
 void op_clrfile() {
@@ -206,6 +276,8 @@ void op_clrfile() {
 
   if (voc_write_refused(fvar)) /* 25 Sep 26 SD Core Solo - SOLO 5, ruling 14 */
     k_error(sysmsg(12008));
+  if (global_write_refused(fvar)) /* 28 Sep 26 SD Core Solo - ruling 33 */
+    k_error(sysmsg(12028));
 
   {
     /* Get exclusive access to the file_lock entry in the file table. Because
@@ -387,7 +459,7 @@ void op_delete() {
     goto exit_op_delete;
   }
 
-  if (voc_write_refused(fvar)) { /* 25 Sep 26 SD Core Solo - SOLO 5, ruling 14 */
+  if (voc_write_refused(fvar) || global_write_refused(fvar)) { /* SOLO 5 ruling 14; 28 Sep 26 ruling 33 */
     process.status = -ER_PERM;
     goto exit_op_delete;
   }
@@ -835,7 +907,7 @@ void op_write() {
     goto exit_op_write;
   }
 
-  if (voc_write_refused(fvar)) { /* 25 Sep 26 SD Core Solo - SOLO 5, ruling 14 */
+  if (voc_write_refused(fvar) || global_write_refused(fvar)) { /* SOLO 5 ruling 14; 28 Sep 26 ruling 33 */
     process.status = -ER_PERM;
     goto exit_op_write;
   }
@@ -985,7 +1057,8 @@ void op_writev() {
   {
     DESCRIPTOR *wv_fvar = e_stack - 3;
     k_get_file(wv_fvar);
-    if (voc_write_refused(wv_fvar->data.fvar)) {
+    if (voc_write_refused(wv_fvar->data.fvar) ||
+        global_write_refused(wv_fvar->data.fvar)) { /* 28 Sep 26 ruling 33 */
       process.status = -ER_PERM;
       k_dismiss();
       k_dismiss();

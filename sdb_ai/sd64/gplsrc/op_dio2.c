@@ -1549,6 +1549,18 @@ bool net_path_permitted(char* path,     /* Absolute, as left by fullpath() */
     }
   }
 
+  /* 28 Sep 26 SD Core Solo - RULING 33: THE MASTER'S OBJECT FILE.  A session
+    signed in with $GLOBAL (USR_GLOBAL) may read and write SDSYS's
+    global.bp.out, the one file it administers; nothing else in SDSYS is
+    widened, and no other session gets it. */
+
+  if (my_uptr->flags & USR_GLOBAL) {
+    if ((snprintf(item, MAX_PATHNAME_LEN + 1, "%s%cglobal.bp.out", sysseg->sysdir,
+                  DS) < (MAX_PATHNAME_LEN + 1)) &&
+        net_normalise(item, root) && path_within(cand, root))
+      return TRUE;
+  }
+
   /* The shipped SDSYS entries a stock VOC points at.  READ ONLY - see the
     header note.  A write is not refused here as a special case; the loop is
     simply skipped, so a write falls through to NETDIRS and then to FALSE. */

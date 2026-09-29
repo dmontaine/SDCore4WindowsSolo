@@ -418,10 +418,31 @@ void op_kernel() {
           if (n > 0)
             my_uptr->flags |= USR_ADMIN;
           else
-            my_uptr->flags &= ~USR_ADMIN;
+            /* 28 Sep 26 SD Core Solo - ruling 33: clearing the administrator
+               flag (ADMIN OFF, LOGTO) clears the global one too, so a $GLOBAL
+               session can never hold USR_GLOBAL without USR_ADMIN. */
+            my_uptr->flags &= ~(USR_ADMIN | USR_GLOBAL);
         }
       }
       result.data.value = (my_uptr->flags & USR_ADMIN) != 0;
+      break;
+
+    /* 28 Sep 26 SD Core Solo - RULING 33.  K_GLOBAL_SESSION: admitted with the
+       global password.  keys.h has the reasoning.  Setting it needs
+       HDR_INTERNAL like K_ADMINISTRATOR above, and it can only be set on a
+       session that already holds USR_ADMIN, which $GLOBAL always grants
+       first - so no path sets it alone.  A refused attempt is simply told the
+       flag as it stands. */
+    case K_GLOBAL_SESSION:
+      GetInt(descr);
+      n = descr->data.value;
+      if ((n >= 0) && (process.program.flags & HDR_INTERNAL)) {
+        if ((n > 0) && (my_uptr->flags & USR_ADMIN))
+          my_uptr->flags |= USR_GLOBAL;
+        else if (n == 0)
+          my_uptr->flags &= ~USR_GLOBAL;
+      }
+      result.data.value = (my_uptr->flags & USR_GLOBAL) != 0;
       break;
 
     /* 29 Aug 26 Windows port - PRE_RELEASE_FIXES 56, the owner's access model.

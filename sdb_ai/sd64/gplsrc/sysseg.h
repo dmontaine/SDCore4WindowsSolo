@@ -199,6 +199,7 @@ struct USER_ENTRY
      #define USR_CHGPHANT    0x0020 /* "Chargeable" phantom; counts as licensed user */
      #define USR_MSG_OFF     0x0040 /* Message reception disabled */
      #define USR_WAKE        0x0080 /* Set by op_wake, cleared by op_pause */
+     #define USR_GLOBAL      0x0100 /* Signed in with $GLOBAL - ruling 33, K_GLOBAL_SESSION */
   u_int16_t events;        /* Any bit set causes processing interrupt */
      #define EVT_LOGOUT      0x0001 /* Forced logout - immediate termination */
      #define EVT_STATUS      0x0002 /* Return status dump */

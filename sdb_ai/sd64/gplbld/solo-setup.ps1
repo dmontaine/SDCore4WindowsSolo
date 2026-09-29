@@ -25,7 +25,9 @@
 #      ("@who = 'SDSYS' and kernel(K$ADMINISTRATOR,-1)", gpl.bp/login:364) -
 #      the same mechanism the retired script drove, called the same way.
 #   5. sd -internal DELETE VOC gpl.bp   (ruling 26 - no system BASIC source
-#      in the installed tree; every install and upgrade)
+#      in the installed tree; every install and upgrade), then
+#      sd -internal SYNC.GLOBAL.CATALOG  (ruling 33 - the server's programs in
+#      GLOBAL.BP.OUT back into the global catalogue after gcat is replaced)
 #   6. sd -stop    the machine step (solo-machine.ps1) starts it again from the
 #                  scheduled task, which is the process that should own it.
 # Each -internal session gets the one-shot marker LOGIN demands (ruling 13,
@@ -199,6 +201,9 @@ function Invoke-Sd([string]$SdArgs, [string]$InputText) {
 
 $disqualify = @('only the installer may run this', 'Connection terminated', 'has not been started',
                 'Cannot update every registered account from here', 'Command requires administrator privileges',
+                # SYNC.GLOBAL.CATALOG's refusals (12028, its own open failures, 3022)
+                'can only be changed by the SD Core server', 'cannot open GLOBAL.BP.OUT',
+                'Cannot open global catalogue directory',
                 'Cannot open accounts register', 'does not take',
                 # WRITE_INSTALL_DICTS' refusals (and bootstrap.py's Invalid runfile)
                 'ERROR OPENING FILE', 'ERROR CANNOT OPEN', 'PROCESS ABORTED', 'READLIST EMPTY',
@@ -310,6 +315,14 @@ try {
     # own VOC name (cproc:2305-2313).  Last, after every RUN gpl.bp step.
     $t = Invoke-Sd '-internal DELETE VOC gpl.bp' ''
     Judge 'gpl.bp source pointer removed from the VOC' $t "(?m)^(1 record\(s\) deleted|Record 'gpl\.bp' not found)\s*$"
+
+    # 28 Sep 26 - RULING 33: the global catalogue's server programs come from
+    # GLOBAL.BP.OUT.  An upgrade replaces gcat and drops them, and the owner
+    # ruled they are "cataloged at installation", so every install and upgrade
+    # re-runs the sync.  Standalone says so and succeeds.  The anchor is the
+    # verb's own last line with 0 refused; a refused object fails the step.
+    $t = Invoke-Sd '-internal SYNC.GLOBAL.CATALOG' ''
+    Judge 'global catalogue matches GLOBAL.BP.OUT' $t '(?m)^SYNC GLOBAL CATALOG DONE \d+ catalogued \d+ removed 0 refused\s*$'
 }
 catch {
     Note ('ERROR        : ' + $_.Exception.Message)

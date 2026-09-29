@@ -1803,6 +1803,9 @@ vb.scram.final:
 *   K$ADMINISTRATOR requires to be set (op_kernel.c).  Audited both ways.
                if scram.via = 'global' then
                   if kernel(K$ADMINISTRATOR, 1) then
+*                    28 Sep 26 - ruling 33: the master's session, marked as
+*                    $GLOBAL so it may manage the global catalog.
+                     void kernel(K$GLOBAL.SESSION, 1)
                      void kernel(K$AUDIT, 'API LOGIN user=' : scram.user : ' via=global - administrator commands unlocked')
                   end else
                      void kernel(K$AUDIT, 'API LOGIN user=' : scram.user : ' via=global - administrator flag NOT set')

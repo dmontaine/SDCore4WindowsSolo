@@ -3,6 +3,19 @@ S1.1-0 - SD Core Solo, in progress
 A personal SD Core for one Windows user. NOTHING IN THIS SECTION HAS BEEN
 RELEASED.
 
+28 Sep 26  THE GLOBAL CATALOGUE BELONGS TO THE SD CORE SERVER.
+
+           You can run programs in the global catalogue but no longer
+           change it, even after ADMIN: CATALOG ... GLOBAL, DELETE.CATALOG
+           of a global entry, and writing to the global catalogue are
+           refused. On a managed computer the SD Core server keeps its
+           compiled programs in GLOBAL.BP.OUT (no source is installed) and
+           signs in with the global password to change them; the new
+           command SYNC.GLOBAL.CATALOG then catalogues them as *name, for
+           CALL *name. Each install and upgrade catalogues them again. On
+           a standalone computer the global catalogue holds only SD's own
+           programs.
+
 28 Sep 26  THE ACCOUNT IS ALWAYS SDUSER.
 
            SD Core Solo's one account is named SDUSER on every computer,

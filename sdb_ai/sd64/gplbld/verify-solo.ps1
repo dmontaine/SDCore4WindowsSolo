@@ -73,7 +73,11 @@
 #      PAUSE, no timeout, few BELs                        (ruling 28, SOLO 16)
 #  15. no system BASIC source installed: no sdsys\gpl.bp, no VOC record for
 #      it; gpl.bp.out full as the control                          (ruling 26)
-#  16. the daemon runs on a standard token: Medium integrity, Administrators
+#  16. the global catalogue is the SD Core server's: with ADMIN, sduser is
+#      refused CATALOG GLOBAL, DELETE.CATALOG *x, SYNC.GLOBAL.CATALOG and a
+#      COPY into GLOBAL.BP.OUT; managed mode, a global-password session adds a
+#      program, sduser CALLs it, and the session removes it   (ruling 33)
+#  17. the daemon runs on a standard token: Medium integrity, Administrators
 #      deny-only or absent                                         (ruling 16)
 # Not measured here, because they need hands or another machine: ssh landing in
 # sd, SD starting at boot with nobody signed in, remote access while signed out.
@@ -1146,8 +1150,84 @@ public static class SdSuiteCli {
     Check 'and the VOC has no gpl.bp record' ((CountOf (Get-Lines $t) "^Record 'gpl\.bp' not found$") -eq 1) "want CT's \"Record 'gpl.bp' not found\""
 
     # -----------------------------------------------------------------------
+    # 28 Sep 26 - RULING 33: the global catalogue is the SD Core server's.
+    # a: sduser WITH ADMIN is refused every change - CATALOG ... GLOBAL and
+    #    DELETE.CATALOG of a global entry (12029), SYNC.GLOBAL.CATALOG and a
+    #    COPY into GLOBAL.BP.OUT (12028) - and GLOBAL.BP.OUT stays empty.
+    # b: managed mode only - a session signed in with the GLOBAL password
+    #    copies a compiled subroutine into GLOBAL.BP.OUT and syncs; sduser
+    #    (account password, no ADMIN) then CALLs it as *name; the global
+    #    session deletes it and syncs again, and the catalogue entry is gone.
+    # The catalogue entry "*zzgsub" is stored on disk as "%Azzgsub" (a
+    # directory file maps * to %A - the mapping HISTORY.md's entry 3 recorded).
     Say ''
-    Say '== 16. the daemon runs on a standard token'
+    Say '== 16. the global catalogue belongs to the SD Core server'
+    $gcatDir = Join-Path $Sdsys 'gcat'
+    $gbpDir  = Join-Path $Sdsys 'global.bp.out'
+    $gSub    = 'ZZGSUB'
+    $gCall   = 'ZZGCALL'
+    $gcatFile = Join-Path $gcatDir ('%A' + $gSub.ToLower())
+    $gbpN = $(if (Test-Path -LiteralPath $gbpDir) { @(Get-ChildItem -LiteralPath $gbpDir -File).Count } else { -1 })
+    Say ('    ' + $gbpDir + ' objects: ' + $gbpN + '   ' + $gcatFile + ' exists: ' + (Test-Path -LiteralPath $gcatFile))
+    Check 'GLOBAL.BP.OUT is installed and empty, and no *zzgsub is catalogued' (($gbpN -eq 0) -and -not (Test-Path -LiteralPath $gcatFile)) ('objects ' + $gbpN + '; left by an earlier run?')
+
+    $t = Invoke-Pe 'g-admin' @("CATALOG BP $gSub GLOBAL", ('DELETE.CATALOG *' + $gSub.ToLower()), 'SYNC.GLOBAL.CATALOG', 'COPY FROM VOC TO GLOBAL.BP.OUT WHERE') -Admin
+    $L = Get-Lines $t
+    Check 'a: with ADMIN, CATALOG ... GLOBAL and DELETE.CATALOG *name are refused (12029)' ((CountOf $L '^The global catalogue holds the SD Core server') -eq 2) ('12029 lines: ' + (CountOf $L '^The global catalogue holds the SD Core server'))
+    Check 'a: with ADMIN, SYNC.GLOBAL.CATALOG and COPY into GLOBAL.BP.OUT are refused (12028)' (((CountOf $L '^The global catalogue can only be changed by the SD Core server') -eq 2) -and ($t -notmatch 'SYNC GLOBAL CATALOG DONE') -and ($t -notmatch 'record\(s\) copied')) ('12028 lines: ' + (CountOf $L '^The global catalogue can only be changed by the SD Core server'))
+    $gbpN = @(Get-ChildItem -LiteralPath $gbpDir -File -ErrorAction SilentlyContinue).Count
+    Check 'a: GLOBAL.BP.OUT is still empty' ($gbpN -eq 0) ('' + $gbpN + ' objects')
+
+    if (-not $managed) {
+        Skip 'b: the SD Core server adds, runs and removes a global program' 'standalone - no global password'
+    }
+    else {
+        $gSubDest  = Join-Path $bpDir $gSub
+        $gCallDest = Join-Path $bpDir $gCall
+        try {
+            [IO.File]::WriteAllText($gSubDest, (@(
+                '* ZZGSUB - written by gplbld/verify-solo.ps1, leg 16.  Safe to delete.'
+                '      SUBROUTINE ZZGSUB(X)'
+                "      X = 'GLOBAL.OK'"
+                '      RETURN'
+                '   END') -join "`n") + "`n", [Text.Encoding]::ASCII)
+            [IO.File]::WriteAllText($gCallDest, (@(
+                '* ZZGCALL - written by gplbld/verify-solo.ps1, leg 16.  Safe to delete.'
+                "      X = ''"
+                '      CALL *ZZGSUB(X)'
+                "      CRT 'GCALL=':X"
+                '   END') -join "`n") + "`n", [Text.Encoding]::ASCII)
+            $t = Invoke-Sd 'g-compile' ('BASIC BP ' + $gSub + ' ' + $gCall) '' 'none'
+            $L = Get-Lines $t
+            Check 'b: setup - both probe programs compile' (((CountOf $L '^0 error\(s\)') -ge 1) -and ($t -notmatch '(?i)Compilation error|[1-9][0-9]* error\(s\)')) 'want "0 error(s)"'
+
+            $t = Invoke-Sd 'g-add' '' ($globalPw + "`nCOPY FROM BP.OUT TO GLOBAL.BP.OUT $gSub`nSYNC.GLOBAL.CATALOG`nOFF`n") 'the global password, COPY FROM BP.OUT TO GLOBAL.BP.OUT, SYNC.GLOBAL.CATALOG, OFF'
+            Check 'b: the global session copies the object into GLOBAL.BP.OUT' ($t -match '1 record\(s\) copied') 'want "1 record(s) copied"'
+            Check 'b: and SYNC.GLOBAL.CATALOG catalogues it' (($t -match '(?m)^SYNC GLOBAL CATALOG DONE 1 catalogued 0 removed 0 refused\s*$') -and (Test-Path -LiteralPath $gcatFile)) ('want the DONE 1/0/0 line and ' + $gcatFile)
+
+            $t = Invoke-Sd 'g-run' ('RUN BP ' + $gCall) '' 'none'
+            Check 'b: sduser, without ADMIN, CALLs the global program' ((CountOf (Get-Lines $t) '^GCALL=GLOBAL\.OK$') -eq 1) 'want "GCALL=GLOBAL.OK"'
+
+            $t = Invoke-Sd 'g-remove' '' ($globalPw + "`nDELETE GLOBAL.BP.OUT $gSub`nSYNC.GLOBAL.CATALOG`nOFF`n") 'the global password, DELETE GLOBAL.BP.OUT, SYNC.GLOBAL.CATALOG, OFF'
+            Check 'b: deleted from GLOBAL.BP.OUT and synced, the catalogue entry is gone' (($t -match '(?m)^SYNC GLOBAL CATALOG DONE 0 catalogued 1 removed 0 refused\s*$') -and -not (Test-Path -LiteralPath $gcatFile)) ('want the DONE 0/1/0 line and no ' + $gcatFile)
+        }
+        finally {
+            foreach ($n in @($gSub, $gCall)) {
+                foreach ($d in @($bpDir, $outDir)) {
+                    $f = Join-Path $d $n
+                    if (Test-Path -LiteralPath $f) { Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue }
+                }
+            }
+            # A failed run must not leave the server's file or the catalogue changed.
+            foreach ($f in @((Join-Path $gbpDir $gSub), $gcatFile)) {
+                if (Test-Path -LiteralPath $f) { Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue; Say ('    cleaned up ' + $f) }
+            }
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    Say ''
+    Say '== 17. the daemon runs on a standard token'
     $winds = @(Get-Process -Name sdwind -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $WindExe })
     Say ('    sdwind.exe from this tree: ' + $winds.Count)
     Check 'the daemon is still running after the legs' ($winds.Count -ge 1) 'no sdwind.exe from this tree'

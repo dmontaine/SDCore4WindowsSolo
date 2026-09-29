@@ -1,0 +1,181 @@
+* SYNCGCAT
+* SYNC.GLOBAL.CATALOG verb
+* Copyright (c) String Database
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 3, or (at your option)
+* any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software Foundation,
+* Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+*
+*
+* START-HISTORY:
+* 28 Sep 26 SD Core Solo - new, ruling 33.
+* END-HISTORY
+*
+*
+* START-DESCRIPTION:
+*
+*    SYNC.GLOBAL.CATALOG
+*
+* Owner's ruling 33, 28 Sep 2026: "the sduser, even in admin mode should not
+* have access to the global catalog. however in managed mode there should be a
+* GLOBAL.BP file that only the global password can administer and global
+* catalog should be the catalog of programs in that file", and then: only
+* object code, GLOBAL.BP.OUT, no source; "cataloged at installation and then
+* the catalog automatically managed when the server adds or deletes items from
+* global.bp.out. if necessary create a command usable only by the server".
+* This is that command.
+*
+* WHAT IT DOES.  Makes the global catalogue's * entries match GLOBAL.BP.OUT
+* (SDSYS's global.bp.out, which starts empty - the owner chose that the server
+* fills it after installing):
+*   - every object in GLOBAL.BP.OUT is catalogued as *<name>, lower case -
+*     written whole, so a changed object replaces the old one;
+*   - every * entry in the global catalogue with no object in GLOBAL.BP.OUT is
+*     deleted.
+* THE * PREFIX IS THE WHOLE BOOKKEEPING.  Nothing else can put a * entry in the
+* global catalogue now - CATALOG and DELETE.CATALOG refuse every global entry
+* for every session (12029) - so the * entries ARE this command's, and SD's own
+* $ ! _ programs are never touched.  An upgrade replaces gcat wholesale, which
+* drops the * entries; the installer runs this afterwards and they come back
+* from GLOBAL.BP.OUT, which an upgrade keeps.
+*
+* WHO MAY RUN IT: a session signed in with the global password
+* (K$GLOBAL.SESSION - over the API, as the server does, or at a prompt), and
+* the installer ("sd -internal").  Anyone else gets 12028, ADMIN included.
+* In standalone mode (no $GLOBAL credential) there is nothing to manage: it
+* says so, changes nothing, and succeeds, so the installer can call it in both
+* modes.
+*
+* A BAD OBJECT IS REFUSED BY NAME and the rest still go in; the success line
+* counts the refusals and the return code is not 0 when there were any.  The
+* last line is "SYNC GLOBAL CATALOG DONE <n> catalogued <n> removed <n>
+* refused" - a caller anchors on that.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+program syncgcat
+$catalog $SYNCGCAT
+
+$include header.h
+$include keys.h
+$include int$keys.h
+$include err.h
+
+   @system.return.code = -ER$ARGS
+
+*  Assigned here for BCOMP (every variable before first use).
+   n.cat = 0
+   n.rem = 0
+   n.bad = 0
+   want = ''
+   id = ''
+   obj = ''
+   call.name = ''
+   magic = 0
+
+   if not(kernel(K$GLOBAL.SESSION, -1)) and not(kernel(K$INTERNAL, -1)) then
+      display sysmsg(12028) ;* The global catalogue can only be changed by the SD Core server
+      void kernel(K$AUDIT, 'SYNC.GLOBAL.CATALOG REFUSED - not a global-password session')
+      stop
+   end
+
+*  Standalone: no $GLOBAL credential, so no server and nothing to manage.
+   managed = @false
+   openpath @sdsys : @ds : '$cred' to cred.f then
+      read g.rec from cred.f, '$GLOBAL' then managed = @true
+      close cred.f
+   end
+   if not(managed) then
+      display 'SYNC.GLOBAL.CATALOG: standalone - there is no SD Core server, so nothing to manage.'
+      @system.return.code = 0
+      display 'SYNC GLOBAL CATALOG DONE 0 catalogued 0 removed 0 refused'
+      stop
+   end
+
+   openpath @sdsys : @ds : 'global.bp.out' to src.f else
+      display 'SYNC.GLOBAL.CATALOG: cannot open GLOBAL.BP.OUT (' : @sdsys : @ds : 'global.bp.out' : ')'
+      stop
+   end
+   mark.mapping src.f, off
+
+   openpath @sdsys : @ds : 'gcat' to gcat.f else
+      stop sysmsg(3022) ;* Cannot open global catalogue directory
+   end
+
+   magic = if system(1009) then HDR.MAGIC.NO.B else HDR.MAGIC.NO.L
+
+*  1. Every object in GLOBAL.BP.OUT goes in as *<name>.
+   select src.f to 11
+   loop
+      readnext id from 11 else exit
+      call.name = '*' : downcase(id)
+      read obj from src.f, id else
+         display 'SYNC.GLOBAL.CATALOG: ' : id : ' could not be read - refused'
+         n.bad += 1
+         continue
+      end
+      if obj[hdr.magic, 1] # char(magic) then
+         display sysmsg(3025, id) ;* Invalid object record (xx)
+         n.bad += 1
+         continue
+      end
+      if obj[hdr.rev, 1] # char(hdr.revision) then
+         display sysmsg(3026, id) ;* Invalid object record revision level in xx
+         n.bad += 1
+         continue
+      end
+*     As CATALOG does for a global entry: the header carries the call name.
+      obj[hdr.program.name, hdr.program.name.len] = call.name : char(0)
+      recordlocku gcat.f, call.name
+      mark.mapping gcat.f, off
+      deleteu gcat.f, call.name   ;* NTFS keeps an overwritten file's old case (catalog)
+      write obj to gcat.f, call.name
+      want<-1> = call.name
+      n.cat += 1
+      display 'catalogued ' : call.name
+   repeat
+   obj = ''
+
+*  2. Every * entry with no object behind it goes.  Collected first, deleted
+*  after, so the select is not walking a directory it is changing.
+   gone = ''
+   select gcat.f to 12
+   loop
+      readnext id from 12 else exit
+      if id[1, 1] = '*' then
+         locate downcase(id) in want<1> setting pos else gone<-1> = id
+      end
+   repeat
+   loop
+      id = remove(gone, more)
+      if id # '' then
+         delete gcat.f, id
+         n.rem += 1
+         display 'removed ' : id
+      end
+   while more
+   repeat
+
+   close src.f
+   close gcat.f
+
+   void kernel(K$AUDIT, 'SYNC.GLOBAL.CATALOG ' : n.cat : ' catalogued ' : n.rem : ' removed ' : n.bad : ' refused')
+   if n.bad = 0 then @system.return.code = 0
+   display 'SYNC GLOBAL CATALOG DONE ' : n.cat : ' catalogued ' : n.rem : ' removed ' : n.bad : ' refused'
+   stop
+end
+
+* END-CODE

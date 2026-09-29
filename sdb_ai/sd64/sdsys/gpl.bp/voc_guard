@@ -18,6 +18,8 @@
 *
 *
 * START-HISTORY:
+* 28 Sep 26 SD Core Solo - ruling 33: SDSYS's gcat and global.bp.out need a
+*           global-password session (K$GLOBAL.SESSION, message 12028).
 * 25 Sep 26 SD Core Solo - new, SOLO 5.
 * END-HISTORY
 *
@@ -52,13 +54,30 @@ $catalog !voc_guard
 $include keys.h
 $include int$keys.h
 
-   if kernel(K$ADMINISTRATOR, -1) then return @true
-
-   if fileinfo(f, FL$TYPE) # FL$TYPE.DH then return @true
-
    p = downcase(convert(char(92), '/', fileinfo(f, FL$PATH)))
    if p[len(p), 1] = '/' then p = p[1, len(p) - 1]
    last = field(p, '/', dcount(p, '/'))
+
+*  28 Sep 26 SD Core Solo - RULING 33: SDSYS's gcat and global.bp.out are the
+*  SD Core server's, changed only by a session signed in with the global
+*  password - ADMIN is NOT enough, so this comes before the ADMIN test.  The
+*  C gate (op_dio3.c global_write_refused) lets $internal verbs through, and
+*  COPY, ED, DELETE and the rest are $internal.  Recognised by the last TWO
+*  components, sdsys/gcat and sdsys/global.bp.out: the SDSYS path has two
+*  spellings (/c/... and C:/...), and matching the tail cannot miss either -
+*  a lookalike elsewhere is refused too, which is the safe direction.
+   if fileinfo(f, FL$TYPE) = FL$TYPE.DIR then
+      tail = field(p, '/', dcount(p, '/') - 1) : '/' : last
+      if tail = 'sdsys/gcat' or tail = 'sdsys/global.bp.out' then
+         if kernel(K$GLOBAL.SESSION, -1) then return @true
+         display sysmsg(12028) ;* The global catalogue can only be changed by the SD Core server
+         return @false
+      end
+   end
+
+   if kernel(K$ADMINISTRATOR, -1) then return @true
+
+   if fileinfo(f, FL$TYPE) # FL$TYPE.DH then return @true
 
    if last # 'voc' then return @true
 

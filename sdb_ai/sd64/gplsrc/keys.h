@@ -276,6 +276,15 @@
    answers about Windows groups, which any caller can already read.        */
 #define K_GROUP_MEMBER       68
 
+/* 28 Sep 26 SD Core Solo - RULING 33.  WAS THIS SESSION ADMITTED WITH THE
+   GLOBAL PASSWORD?  K_ADMINISTRATOR (26) cannot say: $ADMIN and $GLOBAL both
+   set it.  Only a $GLOBAL session may change the global catalog (the master
+   server's global.bp.out, SYNC.GLOBAL.CATALOG).  Same shape as 26: get with
+   -1; set with 1 or clear with 0 only from a program compiled $internal
+   (LOGIN, ADMIN, APISRVR), so user code can neither grant nor forge it.
+   Held in the user table as USR_GLOBAL.  int$keys.h carries the same key. */
+#define K_GLOBAL_SESSION     69
+
 /* PTERM() function action keys */
 #define PT_BREAK              1
 #define PT_INVERT             2

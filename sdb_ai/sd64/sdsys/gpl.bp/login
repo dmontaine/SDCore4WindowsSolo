@@ -1504,7 +1504,13 @@ require.password:
       return
    end
 
-   if pw.via = 'global' then void kernel(K$ADMINISTRATOR, 1)
+*  28 Sep 26 - ruling 33: a $GLOBAL sign-in is ALSO marked as one
+*  (K$GLOBAL.SESSION), after the administrator flag it requires.  Only such a
+*  session may change the global catalog.
+   if pw.via = 'global' then
+      void kernel(K$ADMINISTRATOR, 1)
+      void kernel(K$GLOBAL.SESSION, 1)
+   end
    void kernel(K$AUDIT, 'LOGIN PASSWORD account=' : initial.account : ' via=' : pw.via)
    pw.ok = @true
    return
