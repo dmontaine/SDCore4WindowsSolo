@@ -171,7 +171,13 @@ function Set-SshBlock([bool]$Want) {
         $u = $ForUser.Split('\')
         $dom = $u[0]; $name = $u[$u.Count - 1]
         if ($u.Count -gt 1 -and $dom -ine $env:COMPUTERNAME) { $name = $name + '@' + $dom }
-        $new = [string[]]($new + @($Begin, ('Match User "' + $name.ToLower() + '"'),
+        # 29 Sep 26 - ToLowerInvariant, NOT ToLower(): ToLower() follows the
+        # computer's language, and on a Turkish or Azeri system turns "I" into
+        # a dotless "i", so the block would name a user that does not exist,
+        # sshd would match nobody, and the ssh sign-in would get a Windows
+        # prompt instead of SD (the fault sd.iss/LOGIN fixed for account
+        # names, RELEASE_1.1 - found writing docs 11).
+        $new = [string[]]($new + @($Begin, ('Match User "' + $name.ToLowerInvariant() + '"'),
                                    ('    ForceCommand "' + $sdexe + '"'),
                                    '    DisableForwarding yes', $End))
     }
