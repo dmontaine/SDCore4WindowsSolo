@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 28 Sep 26 SD Core Solo - later: check.denied.verb searches the deny list's
+*           fields; converted to values, only a one-verb list ever matched.
 * 28 Sep 26 SD Core Solo - SOLO 16, ruling 28: END OF INPUT ENDS THE SESSION.
 *           keycode() returns '' at end of piped input (linuxio.c keyin(),
 *           every call, without blocking), and the command editor rang the bell
@@ -4058,9 +4060,10 @@ check.denied.verb:
    openpath @sdsys:@ds:'solo.policy' to dv.f then
       read dv.rec from dv.f, 'denied.verbs' then
          dv.name = change(upcase(verb), '-', '.')
-*        One verb per line is one per field; searched as values of field 1,
-*        the "in x<1>" form the rest of this tree uses.
-         dv.rec = convert(@fm, @vm, dv.rec)
+*        One verb per line is one per field, and "in x<1>" searches FIELDS
+*        from field 1 (bcomp emits value 0; op_locat.c then searches fields).
+*        It converted to values first, so field 1 was the whole list and only
+*        a one-verb list ever matched (verify-solo leg 17c, 28 Sep 26).
          locate dv.name in dv.rec<1> setting dv.pos then verb.denied = @true
       end
       close dv.f

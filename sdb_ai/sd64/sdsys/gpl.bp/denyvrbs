@@ -18,6 +18,8 @@
 *
 *
 * START-HISTORY:
+* 28 Sep 26 SD Core Solo - later: LOCATE <1,1>, not <1> - REMOVE and the
+*           never-denied check missed every verb on a list of two or more.
 * 28 Sep 26 SD Core Solo - new, rulings 34 and 36.
 * END-HISTORY
 *
@@ -92,7 +94,9 @@ $include err.h
       stop
    end
 
-*  The current list, as values of field 1.
+*  The current list, as values of field 1 - so every LOCATE below says <1,1>.
+*  "in list<1>" searches FIELDS from field 1 (bcomp emits value 0): it matched
+*  only a one-verb list, and "never" matched nothing (verify-solo leg 17c).
    list = ''
    read rec from pol.f, 'denied.verbs' then list = convert(@fm, @vm, rec)
 
@@ -118,17 +122,17 @@ $include err.h
             continue
          end
          if mode = 'REMOVE' then
-            locate name in list<1> setting pos then
+            locate name in list<1,1> setting pos then
                del list<1,pos>
             end else
                display 'DENY.VERBS: ' : name : ' was not denied'
             end
          end else
-            locate name in never<1> setting pos then
+            locate name in never<1,1> setting pos then
                display 'DENY.VERBS: ' : name : ' is never denied - dropped'
                continue
             end
-            locate name in list<1> setting pos else list<1,-1> = name
+            locate name in list<1,1> setting pos else list<1,-1> = name
          end
       next i
 
