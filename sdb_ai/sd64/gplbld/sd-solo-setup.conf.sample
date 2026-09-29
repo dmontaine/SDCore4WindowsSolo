@@ -48,6 +48,6 @@ global-password=
 #   first, like SD's own administrator commands.  ADMIN, OFF, QUIT and LO are
 #   never denied.  Leave it blank to deny nothing extra.  The SD Core server
 #   can change the list later with DENY.VERBS.
-#deny-verbs=LIST.VOC,CREATE.FILE
+#deny-verbs=LISTF,CREATE.FILE
 
 deny-verbs=
