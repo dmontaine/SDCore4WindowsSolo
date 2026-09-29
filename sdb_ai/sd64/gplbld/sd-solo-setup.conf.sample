@@ -1,9 +1,9 @@
-# sd-solo-setup.conf - answers for the SD Core Solo installer
+# sd-solo-setup.conf - answers for the SD Core Solo for Windows installer
 #
 # To use it, copy this file to sd-solo-setup.conf beside
-# sd-solo-setup-S1.1-0.exe (on the USB stick, next to the ssh-server and
+# sd-solo-setup-WS1.1-0.exe (on the USB stick, next to the ssh-server and
 # python folders) and fill in the answers.  The installer then uses it on
-# every computer that does not already have SD Core Solo.  Without the file
+# every computer that does not already have SD Core Solo for Windows.  Without the file
 # the installer asks every question itself.
 #
 # It is for MANAGED MODE ONLY.  Its presence makes the install a managed
@@ -18,7 +18,7 @@
 # The ACCOUNT password is deliberately not here.  The user sets it at this
 # computer's keyboard the first time they run sd.
 #
-# Nothing else needs answering.  SD Core Solo is always added to the user's
+# Nothing else needs answering.  SD Core Solo for Windows is always added to the user's
 # PATH, and Python is always installed (from the python folder beside the
 # installer) unless Python 3.13 or later is already there.
 #

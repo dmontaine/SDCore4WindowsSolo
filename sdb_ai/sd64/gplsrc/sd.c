@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 28 Sep 26 SD Core Solo for Windows - ruling 37: --version's product name.
  * 26 Sep 26 SD Core Solo - -H (pre-authenticated API session) removed with
  *           the handover (SOLO 3 step 5)
  * 25 Sep 26 SD Core Solo - SOLO 3, ruling 16: -START, -RESTART and an ssh
@@ -583,7 +584,7 @@ Private bool comlin(int argc, char *argv[]) {
             goto help;
           } else if (!stricmp(argv[arg], "--VERSION")) {
 /* rev 0.9.1 Mar 25 return to single rev track */            
-            printf("SD Core Solo (sd) Version %s %s\n", SD_REV_STAMP, BUILD_TARGET);
+            printf("SD Core Solo for Windows (sd) Version %s %s\n", SD_REV_STAMP, BUILD_TARGET);
             exit(0);
           } else
             goto unrecognised;

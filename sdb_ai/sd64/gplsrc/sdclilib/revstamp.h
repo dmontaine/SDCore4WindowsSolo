@@ -18,6 +18,8 @@
  * along with this library.  If not, see <https://www.gnu.org/licenses/>.
  * 
  * START-HISTORY:
+ * rev WS1.1-0 28 Sep 26 SD Core Solo for Windows - release string WS1.1-0
+ *            (owner's ruling 37).  Segment numerics unchanged.
  * rev S1.1-0 25 Sep 26 SD Core Solo - release string S1.1-0 (owner's ruling
  *            7, 24 Sep 2026).  Segment numerics unchanged, as before.
  * rev W1.1-0 15 Sep 26 Windows port - release string W1.1-0 (RELEASE_1.1);
@@ -46,7 +48,7 @@
 #define MAJOR_REV      1
 #define MINOR_REV      0
 #define BUILD          2
-#define SD_REV_STAMP   "S1.1-0"
+#define SD_REV_STAMP   "WS1.1-0"
 
 #define SD_COPYRIGHT_YEAR "2007"
 

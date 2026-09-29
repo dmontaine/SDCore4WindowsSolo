@@ -19,6 +19,8 @@
  * along with this library.  If not, see <https://www.gnu.org/licenses/>.
  *
  * START-HISTORY:
+ * 28 Sep 26 SD Core Solo for Windows - ruling 37: the product name in the
+ *           "Cannot determine" error.
  * 25 Sep 26 SD Core Solo - sd.conf and SDSYS found from this library's own
  *           folder; no machine path compiled in (sysdir(), home_path())
  * 31 Dec 23 SD launch - prior history suppressed
@@ -1338,7 +1340,7 @@ Private char* sysdir(void) {
   if (!home_path(home, sizeof(home))) {
     snprintf(session[session_idx].sderror,
              sizeof(session[session_idx].sderror),
-             "Cannot determine the SD Core Solo folder");
+             "Cannot determine the SD Core Solo for Windows folder");
     return NULL;
   }
 

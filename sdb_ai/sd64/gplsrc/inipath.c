@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 28 Sep 26 SD Core Solo for Windows - ruling 37: the product name in the
+ *                      "Cannot determine" error.
  * 25 Sep 26 SD Core Solo - SdShmOpen()/SdShmUnlink(): the segment by its
  *                      path under the home, not by the inherited POSIX root
  * 25 Sep 26 SD Core Solo - everything is found from the installation's own
@@ -191,7 +193,7 @@ bool GetConfigPath(char *inipath) {
   }
 
   if (!GetHomePath(home, sizeof(home))) {
-    fprintf(stderr, "Cannot determine the SD Core Solo folder.\n");
+    fprintf(stderr, "Cannot determine the SD Core Solo for Windows folder.\n");
     return FALSE;
   }
 

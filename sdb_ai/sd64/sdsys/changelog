@@ -1,7 +1,15 @@
-S1.1-0 - SD Core Solo, in progress
+WS1.1-0 - SD Core Solo for Windows, in progress
 -------------
 A personal SD Core for one Windows user. NOTHING IN THIS SECTION HAS BEEN
 RELEASED.
+
+28 Sep 26  THE PRODUCT IS NOW CALLED SD CORE SOLO FOR WINDOWS.
+
+           The version is WS1.1-0 (it was S1.1-0), and the sign-on
+           banner, sd --version, the installer and its file name
+           (sd-solo-setup-WS1.1-0.exe) all say SD Core Solo for Windows.
+           It is still installed in the SDCoreSolo folder, and an
+           S1.1-0 install is upgraded as before.
 
 28 Sep 26  MORE COMMANDS NEED ADMIN, AND A MANAGED COMPUTER CAN DENY
            MORE.

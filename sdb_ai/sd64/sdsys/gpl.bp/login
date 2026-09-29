@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 28 Sep 26 SD Core Solo for Windows - ruling 37: the banner's product name.
 * 28 Sep 26 SD Core Solo - ruling 29: the account is always SDUSER.
 *           adopt.moved.account (SOLO 15 piece 5, below) is deleted: a copied
 *           tree needs no rename when every tree's account has one name.
@@ -470,7 +471,7 @@ deffun pw_complex(pw) calling '!pw_complex'
       * Modified by Composer AI - 2026/06/10.
       * Close version banner string; unclosed quote caused "Unrecognised statement".
       * display "SD, the Multivalue String Database, version " : SD.REV.STAMP : "(AI modified)
-      display "SD Core Solo, the Essential Multivalue String Database, version " : SD.REV.STAMP
+      display "SD Core Solo for Windows, the Essential Multivalue String Database, version " : SD.REV.STAMP
       * --------------------
       display "(c) 2000-2026 by Ladybridge Systems and Other Contributors"
       display

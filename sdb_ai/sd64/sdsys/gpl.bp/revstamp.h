@@ -17,6 +17,8 @@
 * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 * 
 * START-HISTORY:
+* rev WS1.1-0 28 Sep 26 SD Core Solo for Windows - release string WS1.1-0
+*            (owner's ruling 37).  Segment numerics unchanged.
 * rev S1.1-0 25 Sep 26 SD Core Solo - release string S1.1-0 (owner's ruling
 *            7, 24 Sep 2026).  Segment numerics unchanged, as before.
 * rev W1.1-0 15 Sep 26 Windows port - release string W1.1-0 (RELEASE_1.1).
@@ -47,7 +49,7 @@
 $define MAJOR.REV      1
 $define MINOR.REV      0
 $define BUILD          2
-$define SD.REV.STAMP   "S1.1-0"
+$define SD.REV.STAMP   "WS1.1-0"
 
 $define SD.COPYRIGHT.YEAR "2007"
 

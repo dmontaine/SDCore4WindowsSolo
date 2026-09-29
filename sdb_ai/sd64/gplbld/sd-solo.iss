@@ -44,9 +44,11 @@
   #define Stage "..\..\stage"
 #endif
 #ifndef AppVer
-  #define AppVer "S1.1-0"
+  #define AppVer "WS1.1-0"
 #endif
-#define AppName      "SD Core Solo"
+; 28 Sep 26 - ruling 37: "SD Core Solo for Windows", WS1.1-0.  AppId below is
+; unchanged, so an S1.1-0 install is still recognised and upgraded.
+#define AppName      "SD Core Solo for Windows"
 #define AppPublisher "String Database"
 #define SoloDir      "{%USERPROFILE}\SDCoreSolo"
 ; upgrade.iss names the data root {#DataDir}; in Solo it is the install folder.
@@ -500,7 +502,7 @@ end;
 
 procedure InitializeWizard;
 begin
-  ModePage := CreateInputOptionPage(wpWelcome, 'Mode', 'How will this computer use SD Core Solo?',
+  ModePage := CreateInputOptionPage(wpWelcome, 'Mode', 'How will this computer use SD Core Solo for Windows?',
     'The mode cannot be changed later without reinstalling.', True, False);
   ModePage.Add('Standalone');
   ModePage.Add('Managed client of an SD Core server');
@@ -516,7 +518,7 @@ begin
     whether or not the API box is ticked (it was the API password, after the
     tasks page, until the owner made it global). }
   AccountPage := CreateInputQueryPage(ModePage.ID, 'Account password',
-    'SD Core Solo asks for this password whenever it is used.', '');
+    'SD Core Solo for Windows asks for this password whenever it is used.', '');
   AccountPage.Add('Password:', True);
   AccountPage.Add('Confirm password:', True);
 
