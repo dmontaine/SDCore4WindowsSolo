@@ -44,10 +44,11 @@
   #define Stage "..\..\stage"
 #endif
 #ifndef AppVer
-  #define AppVer "WS1.1-0"
+  #define AppVer "WS1.1-1"
 #endif
 ; 28 Sep 26 - ruling 37: "SD Core Solo for Windows", WS1.1-0.  AppId below is
 ; unchanged, so an S1.1-0 install is still recognised and upgraded.
+; 29 Sep 26 - first release is WS1.1-1 (no 1.1-0 was released), owner's ruling.
 #define AppName      "SD Core Solo for Windows"
 #define AppPublisher "String Database"
 #define SoloDir      "{%USERPROFILE}\SDCoreSolo"

@@ -1,7 +1,15 @@
-WS1.1-0 - SD Core Solo for Windows, in progress
+WS1.1-1 - SD Core Solo for Windows, in progress
 -------------
 A personal SD Core for one Windows user. NOTHING IN THIS SECTION HAS BEEN
-RELEASED.
+RELEASED.  This is the first release; there is no WS1.1-0.
+
+29 Sep 26  SD CORE SOLO IS ENGLISH ONLY.
+
+           There is no support for other languages.  NLS, SET.LANGUAGE and
+           LOAD.LANGUAGE do not exist, and messages, month names and day
+           names are English.  The functions and keywords that format numbers
+           - GETNLS and SETNLS in SD BASIC, and the CURRENCY, DECIMAL and
+           THOUSANDS keywords - are unchanged.
 
 29 Sep 26  A DENIED COMMAND IS DENIED UNDER EVERY NAME.
 
@@ -4026,20 +4034,6 @@ previous one.
 
            Nothing you do day to day changes.
 
-22 Aug 26  THE INSTALLER NOW GIVES YOU AN SD ACCOUNT ON TURKISH AND AZERI
-           SYSTEMS TOO.
-
-           The installer makes an SD account for whoever authorises it, and to
-           do that it has to match your Windows user name against SD's copy of
-           it - which means changing both to the same case.  Windows and SD do
-           not change case the same way everywhere: on a Turkish or Azeri
-           system Windows turns "I" into a dotless "i", and SD does not.  A
-           user name containing that letter did not match itself, so the
-           install finished without giving you an SD account.
-
-           Both sides now use the same rule, which does not vary by locale.
-           Nothing changes on a system whose locale was never affected.
-
 21 Aug 26  FAILED API LOGINS ARE NOW WRITTEN TO THE AUDIT TRAIL.
 
            Until now the audit file recorded only one kind of API refusal: an
@@ -5187,9 +5181,10 @@ previous one.
            * NLS, SET.LANGUAGE and LOAD.LANGUAGE are removed: SD is English
              only, and they were the only callers of the message-language
              machinery.
-           * If you had a use for any of them, say so - an administrator can
-             put a verb back into an account's VOC, and the programs behind
-             these are still installed.
+           * If you had a use for MICRO, say so - an administrator can put the
+             verb back into an account's VOC, and the program behind it is
+             still installed.  (The language verbs are removed for good in
+             WS1.1-1 - see the 29 Sep 26 entry at the top.)
 
 17 Aug 26  Connecting a program to SD on the same machine now works.
            * SDConnectLocal() in the client library opens a connection to SD

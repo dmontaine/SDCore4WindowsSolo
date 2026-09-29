@@ -10,7 +10,7 @@ SD Core Solo has every feature of the full SD Core for Windows except those that
 exist to serve more than one person: there is one account, named after the
 Windows user, and no commands to create accounts or grant access to them.
 
-**Version S1.1-0, in development — not yet released.** See
+**Version WS1.1-1, in development — not yet released.** See
 `sdb_ai/sd64/sdsys/changelog` for what has changed.
 
 ## What it is for
