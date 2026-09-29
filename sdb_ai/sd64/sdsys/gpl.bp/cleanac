@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 28 Sep 26 SD Core Solo - ruling 35: needs ADMIN (2001).
 * 18 Aug 26 Windows port - the $HOLD VOC id is now $hold
 * 18 Aug 26 Windows port - the $SAVEDLISTS VOC id is now $savedlists
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
@@ -47,10 +48,16 @@ $include keys.h
 $include syscom.h
 $include err.h
 $include parser.h
+$include int$keys.h
 
    parser = "!PARSER"
 
    @system.return.code = -ER$ARGS      ;* Preset for command format errors
+
+*  28 Sep 26 SD Core Solo - RULING 35: a maintenance verb, so ADMIN (or the
+*  global password) first.  It lived in SDSYS, entered only elevated, until
+*  ruling 11 moved it into the user's account with no check of its own.
+   if not(kernel(K$ADMINISTRATOR, -1)) then stop sysmsg(2001) ;* Command requires administrator privileges
 
 * ---------------  Step 1  -  Parse the command
 

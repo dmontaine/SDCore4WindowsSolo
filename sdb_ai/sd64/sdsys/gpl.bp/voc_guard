@@ -68,7 +68,8 @@ $include int$keys.h
 *  a lookalike elsewhere is refused too, which is the safe direction.
    if fileinfo(f, FL$TYPE) = FL$TYPE.DIR then
       tail = field(p, '/', dcount(p, '/') - 1) : '/' : last
-      if tail = 'sdsys/gcat' or tail = 'sdsys/global.bp.out' then
+*     28 Sep 26 - and sdsys/solo.policy, ruling 34's deny list.
+      if tail = 'sdsys/gcat' or tail = 'sdsys/global.bp.out' or tail = 'sdsys/solo.policy' then
          if kernel(K$GLOBAL.SESSION, -1) then return @true
          display sysmsg(12028) ;* The global catalogue can only be changed by the SD Core server
          return @false

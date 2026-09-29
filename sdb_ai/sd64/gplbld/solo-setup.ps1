@@ -79,6 +79,9 @@ $accountPw = [Environment]::GetEnvironmentVariable('SD_SOLO_ACCOUNT_PW', 'Proces
 [Environment]::SetEnvironmentVariable('SD_SOLO_ADMIN_PW', $null, 'Process')
 [Environment]::SetEnvironmentVariable('SD_SOLO_GLOBAL_PW', $null, 'Process')
 [Environment]::SetEnvironmentVariable('SD_SOLO_ACCOUNT_PW', $null, 'Process')
+# 28 Sep 26 - ruling 34: the control file's deny-verbs line (not a secret).
+$denyVerbs = "" + [Environment]::GetEnvironmentVariable('SD_SOLO_DENY_VERBS', 'Process')
+[Environment]::SetEnvironmentVariable('SD_SOLO_DENY_VERBS', $null, 'Process')
 # SOLO 2: the tree finds itself from sd.exe's location; a stray SD_CONFIG would
 # point it somewhere else.
 [Environment]::SetEnvironmentVariable('SD_CONFIG', $null, 'Process')
@@ -94,6 +97,7 @@ Note ('upgrade      : ' + $(if ($Upgrade) { 'UPDATE.ACCOUNTS ALL will run' } els
 Note ('admin pw     : ' + $(if ($adminPw) { 'given (' + $adminPw.Length + ' characters)' } else { 'NOT given' }))
 Note ('global pw    : ' + $(if ($globalPw) { 'given (' + $globalPw.Length + ' characters)' } else { 'NOT given' }))
 Note ('account pw   : ' + $(if ($accountPw) { 'given (' + $accountPw.Length + ' characters)' } else { 'NOT given' }))
+Note ('deny verbs   : ' + $(if ($denyVerbs) { '"' + $denyVerbs + '"' } else { 'none given' }))
 
 # The null cases, refused out loud.
 $refuse = @()
@@ -103,6 +107,9 @@ if (-not $User) { $refuse += 'no user name' }
 if ($Passwords -and -not $adminPw) { $refuse += '-Passwords without an administrator password' }
 if ($Global -and -not $Passwords) { $refuse += '-Global without -Passwords' }
 if ($Global -and -not $globalPw) { $refuse += '-Global without a global password' }
+# It reaches sd's command line through cmd.exe, so only verb-name characters,
+# commas and spaces - nothing cmd could read as & | < > ^ or a quote.
+if ($denyVerbs -and ($denyVerbs -notmatch '^[A-Za-z0-9.$_, -]+$')) { $refuse += 'deny-verbs holds a character that cannot be in a verb name' }
 $markerLib = Join-Path $AppDir 'internal-marker.ps1'
 if (-not (Test-Path -LiteralPath $markerLib)) { $refuse += 'no internal-marker.ps1 under the app dir' }
 # The dictionary source: shipped to {app}\gplbld (stage.py), read by
@@ -204,6 +211,8 @@ $disqualify = @('only the installer may run this', 'Connection terminated', 'has
                 # SYNC.GLOBAL.CATALOG's refusals (12028, its own open failures, 3022)
                 'can only be changed by the SD Core server', 'cannot open GLOBAL.BP.OUT',
                 'Cannot open global catalogue directory',
+                # DENY.VERBS's refusals (ruling 34)
+                'is not a verb name', 'DENY.VERBS: cannot open',
                 'Cannot open accounts register', 'does not take',
                 # WRITE_INSTALL_DICTS' refusals (and bootstrap.py's Invalid runfile)
                 'ERROR OPENING FILE', 'ERROR CANNOT OPEN', 'PROCESS ABORTED', 'READLIST EMPTY',
@@ -253,6 +262,15 @@ try {
             $t = Invoke-Sd ('-internal RUN gpl.bp solo_password ACCOUNT ' + $acct) $accountPw
             Judge 'account password set' $t '^SOLO PASSWORD SET ACCOUNT\s*$'
         }
+    }
+
+    # 28 Sep 26 - RULING 34: the verbs denied to the local user, from the
+    # control file, on a new tree only (sd-solo.iss passes none otherwise).
+    # DENY.VERBS SET normalises each name and drops ADMIN/OFF/QUIT/LO; a name
+    # it refuses fails the step, so a typo in the control file is seen.
+    if ($denyVerbs) {
+        $t = Invoke-Sd ('-internal DENY.VERBS SET ' + ($denyVerbs -replace ' ', '')) ''
+        Judge 'denied verbs set' $t '(?m)^DENY\.VERBS \d+: '
     }
 
     if ($Upgrade) {

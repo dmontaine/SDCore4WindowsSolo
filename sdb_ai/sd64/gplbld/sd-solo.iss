@@ -147,6 +147,10 @@ Name: "{app}\sdsys\pstmp"; Flags: uninsneveruninstall
 ; (owner: the server fills it after installing).  [Dirs] only ever creates, and
 ; no stage.py list names it, so an upgrade keeps what the server put there.
 Name: "{app}\sdsys\global.bp.out"; Flags: uninsneveruninstall
+; 28 Sep 26 - rulings 34 and 36: the verbs denied to the local user (record
+; denied.verbs), set from the control file and changed by DENY.VERBS.  Kept
+; like global.bp.out.
+Name: "{app}\sdsys\solo.policy"; Flags: uninsneveruninstall
 
 [Files]
 ; The programs and scripts.  sdsys, the account folders and sd.conf are laid
@@ -198,6 +202,8 @@ var
     passes the pages' own checks; anything missing or refused is asked for. }
   UseControl, CfAdminOk, CfGlobalOk: Boolean;
   CfAdmin, CfGlobal: String;
+  { 28 Sep 26 - ruling 34: the control file's deny-verbs line, as written. }
+  CfDeny: String;
   ModePage: TInputOptionWizardPage;
   AdminPage, GlobalPage, AccountPage: TInputQueryWizardPage;
 
@@ -372,6 +378,10 @@ begin
     P := 'Use a password different from the administrator password.';
   CfGlobalOk := P = '';
   Log('SD Core Solo: control file global-password ' + PasswordFate(CfGlobal, P));
+  { 28 Sep 26 - ruling 34: verbs denied to the local user.  Not a secret, so
+    logged whole; DENY.VERBS (run by solo-setup) checks each name. }
+  CfDeny := Trim(GetIniString('install', 'deny-verbs', '', F));
+  Log('SD Core Solo: control file deny-verbs "' + CfDeny + '"');
 end;
 
 function InitializeSetup: Boolean;
@@ -724,6 +734,10 @@ begin
       SetEnvironmentVariable('SD_SOLO_GLOBAL_PW', GlobalPage.Values[0]);
     end;
     SetEnvironmentVariable('SD_SOLO_ACCOUNT_PW', AccountPage.Values[0]);
+    { 28 Sep 26 - ruling 34: the control file's deny-verbs, on a new tree only
+      (an existing tree keeps its list; the server changes it with DENY.VERBS). }
+    if UseControl and (CfDeny <> '') then
+      SetEnvironmentVariable('SD_SOLO_DENY_VERBS', CfDeny);
   end
   else
     { A data tree already existed: its one account's live VOC predates
@@ -736,6 +750,7 @@ begin
   SetEnvironmentVariable('SD_SOLO_ADMIN_PW', '');
   SetEnvironmentVariable('SD_SOLO_GLOBAL_PW', '');
   SetEnvironmentVariable('SD_SOLO_ACCOUNT_PW', '');
+  SetEnvironmentVariable('SD_SOLO_DENY_VERBS', '');
   AppendSummary('solo-setup (exit ' + IntToStr(Code) + ')', ReportPath);
   if Code <> 0 then
     Failed := Failed + '  account and passwords' + #13#10;

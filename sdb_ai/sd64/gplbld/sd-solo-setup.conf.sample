@@ -41,3 +41,13 @@ admin-password=
 #global-password=Gl0bal-Sample!
 
 global-password=
+
+# deny-verbs
+#   Commands the user of this computer may not run.  A comma-separated list
+#   of verb names; each then needs the administrator or global password
+#   first, like SD's own administrator commands.  ADMIN, OFF, QUIT and LO are
+#   never denied.  Leave it blank to deny nothing extra.  The SD Core server
+#   can change the list later with DENY.VERBS.
+#deny-verbs=LIST.VOC,CREATE.FILE
+
+deny-verbs=

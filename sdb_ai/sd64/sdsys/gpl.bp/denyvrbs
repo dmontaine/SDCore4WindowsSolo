@@ -1,0 +1,150 @@
+* DENYVRBS
+* DENY.VERBS verb - the verbs denied to the local user (rulings 34, 36)
+* Copyright (c) String Database
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 3, or (at your option)
+* any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software Foundation,
+* Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+*
+*
+* START-HISTORY:
+* 28 Sep 26 SD Core Solo - new, rulings 34 and 36.
+* END-HISTORY
+*
+*
+* START-DESCRIPTION:
+*
+*    DENY.VERBS                  list the verbs denied to the local user
+*    DENY.VERBS ADD a,b,...      deny these too
+*    DENY.VERBS REMOVE a,b,...   stop denying these
+*    DENY.VERBS SET a,b,...      replace the list (SET alone clears it)
+*
+* Owner's ruling 34, 28 Sep 2026: the installer's control file may carry "a
+* comma separated list of verbs that are to be denied to the local user. They
+* should still be available to the admin and global level."  Ruling 36, the
+* same day: "I like deny.verbs", "deny.verbs only global, server managed" -
+* the SD Core server changes the list afterwards with this.
+*
+* WHO: a session signed in with the global password (K$GLOBAL.SESSION), and
+* the installer ("sd -internal DENY.VERBS SET ...", from the control file's
+* deny-verbs line).  Anyone else - ADMIN included - gets 12030; listing is the
+* same, since the list is the server's business.
+*
+* WHERE: @SDSYS/solo.policy, record denied.verbs, one verb per line.  CPROC's
+* check.denied.verb reads it each time a verb is dispatched and refuses a
+* listed verb (2001) until ADMIN or a global sign-in.  The C write gate and
+* !voc_guard keep that file to this program and the server.
+*
+* A NAME IS NORMALISED as CPROC compares it: upper case, hyphens as dots.  One
+* that is not a plausible verb name (a letter or $ first, then letters,
+* digits, . $ _) is refused by name and the rest still apply.  NEVER DENIED:
+* ADMIN, OFF, QUIT and LO - denying ADMIN would leave nothing that could
+* unlock, and a session must always be able to end.
+*
+* This cannot lift a built-in administrator check (APPEND.SD.PATH, CONFIG,
+* UPDATE.ACCOUNTS ...): those are in each verb's own code, not on this list.
+*
+* The last line is "DENY.VERBS <n>: <list>", n the verbs now denied; a
+* caller anchors on that.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+program denyvrbs
+$catalog $DENYVRBS
+
+$include keys.h
+$include int$keys.h
+$include err.h
+
+   @system.return.code = -ER$ARGS
+
+   if not(kernel(K$GLOBAL.SESSION, -1)) and not(kernel(K$INTERNAL, -1)) then
+      display sysmsg(12030) ;* The denied verbs can only be listed or changed by the SD Core server
+      stop
+   end
+
+*  DENY.VERBS [ADD|REMOVE|SET] a,b,... - the words after the mode are joined,
+*  so "ADD LISTU, COPY" and "ADD LISTU,COPY" mean the same.
+   s = trim(@sentence)
+   mode = upcase(field(s, ' ', 2))
+   arg = convert(' ', '', field(s, ' ', 3, 9999))
+   if mode = '' then mode = 'LIST'
+   if mode # 'LIST' and mode # 'ADD' and mode # 'REMOVE' and mode # 'SET' then
+      display 'DENY.VERBS [ADD|REMOVE|SET] verb,verb,...'
+      stop
+   end
+
+   openpath @sdsys : @ds : 'solo.policy' to pol.f else
+      display 'DENY.VERBS: cannot open ' : @sdsys : @ds : 'solo.policy'
+      stop
+   end
+
+*  The current list, as values of field 1.
+   list = ''
+   read rec from pol.f, 'denied.verbs' then list = convert(@fm, @vm, rec)
+
+   never = 'ADMIN' : @vm : 'OFF' : @vm : 'QUIT' : @vm : 'LO'
+   bad = 0
+   if mode = 'SET' then list = ''
+
+   if mode # 'LIST' then
+      k = dcount(arg, ',')
+      for i = 1 to k
+         name = change(upcase(field(arg, ',', i)), '-', '.')
+         if name = '' then continue
+         ok = (alpha(name[1,1]) or name[1,1] = '$')
+         if ok then
+            for j = 2 to len(name)
+               c = name[j,1]
+               if not(alpha(c) or num(c) or c = '.' or c = '$' or c = '_') then ok = @false
+            next j
+         end
+         if not(ok) then
+            display 'DENY.VERBS: "' : name : '" is not a verb name - refused'
+            bad += 1
+            continue
+         end
+         if mode = 'REMOVE' then
+            locate name in list<1> setting pos then
+               del list<1,pos>
+            end else
+               display 'DENY.VERBS: ' : name : ' was not denied'
+            end
+         end else
+            locate name in never<1> setting pos then
+               display 'DENY.VERBS: ' : name : ' is never denied - dropped'
+               continue
+            end
+            locate name in list<1> setting pos else list<1,-1> = name
+         end
+      next i
+
+      if list = '' then
+         delete pol.f, 'denied.verbs'
+      end else
+         write convert(@vm, @fm, list) to pol.f, 'denied.verbs'
+      end
+      void kernel(K$AUDIT, 'DENY.VERBS ' : mode : ' ' : arg : ' - now ' : convert(@vm, ',', list))
+   end
+   close pol.f
+
+   if bad = 0 then @system.return.code = 0
+   n = dcount(list, @vm)
+   display 'DENY.VERBS ' : n : ': ' : convert(@vm, ',', list)
+   stop
+end
+
+* END-CODE

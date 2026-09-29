@@ -189,7 +189,9 @@ Private bool global_write_refused(FILE_VAR *fvar) {
   char *p;
   char *last;
   int i;
-  static const char *names[] = {"gcat", "global.bp.out", NULL};
+  /* 28 Sep 26 - solo.policy joins them: ruling 34's deny list, set at
+     install and changed only by the server. */
+  static const char *names[] = {"gcat", "global.bp.out", "solo.policy", NULL};
 
   if ((fvar == NULL) || (fvar->type != DIRECTORY_FILE))
     return FALSE;

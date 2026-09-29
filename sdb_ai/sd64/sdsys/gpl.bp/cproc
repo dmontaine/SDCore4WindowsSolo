@@ -26,6 +26,10 @@
 *           Q, which returns to the editor and so ends there too.
 * 28 Sep 26 SD Core Solo - RULING 27: .S name and .D name need ADMIN (message
 *           12008), like every other direct VOC change (ruling 14).
+* 28 Sep 26 SD Core Solo - RULING 34: a verb on the install's deny list
+*           (solo.policy denied.verbs) needs ADMIN (2001) - check.denied.verb.
+* 28 Sep 26 SD Core Solo - RULING 35: LOCK, CLEAR.LOCKS and SET.DATE need
+*           ADMIN (2001), like UPDATE.ACCOUNTS.
 * 27 Sep 26 SD Core Solo - LOGTO no longer calls !elevate('STOP'): nothing in
 *           Solo starts an elevated helper (ruling 11), so it launched a
 *           PowerShell to stop nothing.  The administrator flag is still given
@@ -1656,6 +1660,21 @@ reparse:
                end
             end
 
+* 28 Sep 26 SD Core Solo - RULING 34: VERBS DENIED AT INSTALL.  The control
+*   file's deny-verbs list (solo.policy, written by the installer) adds verbs
+*   to the ones that need ADMIN; the global password unlocks them too, as it
+*   sets the same flag.  Here, where EVERY verb is dispatched - typed, from a
+*   paragraph, EXECUTEd by a program, or over the API - so no route skips it.
+            if not(kernel(K$ADMINISTRATOR, -1)) then
+               verb.denied = @false
+               gosub check.denied.verb
+               if verb.denied then
+                  display sysmsg(2001) ;* Command requires administrator privileges
+                  unwinding = 2
+                  exit
+               end
+            end
+
             if in.paragraph then     ;* Look ahead for DATA statements
                loop
                while pa.line <= pa.length
@@ -3232,6 +3251,12 @@ int.clearinput:
 * INT.CLEAR.LOCKS  -  CLEAR.LOCKS (Internal verb 26)
 
 int.clear.locks:
+*  28 Sep 26 SD Core Solo - RULING 35: ADMIN first, as int.update.accounts.
+   if not(kernel(K$ADMINISTRATOR, -1)) then
+      display sysmsg(2001) ;* Command requires administrator privileges
+      @system.return.code = -ER$PERM
+      return
+   end
    call @parser(PARSER$GET.TOKEN, token.type, s, keyword)
    if token.type # PARSER$END then      ;* Release specific task lock
       @system.return.code = -ER$ARGS
@@ -3269,6 +3294,12 @@ int.clear.locks:
 * INT.LOCK  -  LOCK (Internal verb 27)
 
 int.lock:
+*  28 Sep 26 SD Core Solo - RULING 35: ADMIN first, as int.update.accounts.
+   if not(kernel(K$ADMINISTRATOR, -1)) then
+      display sysmsg(2001) ;* Command requires administrator privileges
+      @system.return.code = -ER$PERM
+      return
+   end
    @system.return.code = -ER$ARGS
 
    call @parser(PARSER$GET.TOKEN, token.type, s, keyword)
@@ -3875,6 +3906,12 @@ run.exe:
 * INT.SET.DATE
 
 int.set.date:
+*  28 Sep 26 SD Core Solo - RULING 35: ADMIN first, as int.update.accounts.
+   if not(kernel(K$ADMINISTRATOR, -1)) then
+      display sysmsg(2001) ;* Command requires administrator privileges
+      @system.return.code = -ER$PERM
+      return
+   end
    s = field(trim(@sentence), ' ', 2, 99999999)
    if s = '' then display 'Date required'
    else
@@ -4006,6 +4043,28 @@ find.private.catalogue:
       if voc.rec[1,1] = 'X' then private.catalogue = voc.rec<2>
    end
    i = kernel(K$PRIVATE.CATALOGUE, private.catalogue)
+   return
+
+* ======================================================================
+* check.denied.verb  -  28 Sep 26 SD Core Solo, ruling 34.  Sets verb.denied
+* when the verb is on the install's deny list: @SDSYS/solo.policy, record
+* denied.verbs, one upper-case verb name per line (solo_deny writes it).  The
+* name compared is the verb as typed, upper-cased, hyphens as dots - the same
+* spelling the VOC lookup above ends on.  No file or no record: nothing is
+* denied.  Read on every call rather than cached: CPROC runs nested for
+* EXECUTE, and a cached copy would be one more thing to keep in step.
+
+check.denied.verb:
+   openpath @sdsys:@ds:'solo.policy' to dv.f then
+      read dv.rec from dv.f, 'denied.verbs' then
+         dv.name = change(upcase(verb), '-', '.')
+*        One verb per line is one per field; searched as values of field 1,
+*        the "in x<1>" form the rest of this tree uses.
+         dv.rec = convert(@fm, @vm, dv.rec)
+         locate dv.name in dv.rec<1> setting dv.pos then verb.denied = @true
+      end
+      close dv.f
+   end
    return
 
 * ======================================================================

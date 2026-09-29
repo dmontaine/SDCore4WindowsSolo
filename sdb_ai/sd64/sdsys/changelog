@@ -3,6 +3,20 @@ S1.1-0 - SD Core Solo, in progress
 A personal SD Core for one Windows user. NOTHING IN THIS SECTION HAS BEEN
 RELEASED.
 
+28 Sep 26  MORE COMMANDS NEED ADMIN, AND A MANAGED COMPUTER CAN DENY
+           MORE.
+
+           CONFIG, LISTU, LIST.LOCKS, LIST.READU, LOCK, CLEAR.LOCKS,
+           SET.DATE and CLEAN.ACCOUNT now need ADMIN (or the global
+           password) first, like the other administrator commands.
+
+           The installer's control file can list further commands, in
+           deny-verbs, that the user of the computer may not run without
+           the administrator or global password. The SD Core server lists
+           and changes that list with the new command DENY.VERBS (ADD,
+           REMOVE, SET), which only a session signed in with the global
+           password may use. ADMIN, OFF, QUIT and LO are never denied.
+
 28 Sep 26  THE GLOBAL CATALOGUE BELONGS TO THE SD CORE SERVER.
 
            You can run programs in the global catalogue but no longer

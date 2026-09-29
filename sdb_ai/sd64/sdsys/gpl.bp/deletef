@@ -537,7 +537,7 @@ check.sdsys.file:
 *  for 'dictionary' (the other may be stale or unassigned at that call).
    if part = 'data' then sdsys.tail = data.path else sdsys.tail = dict.path
    sdsys.tail = downcase(convert(char(92), '/', sdsys.tail))
-   if sdsys.tail = '@sdsys/global.bp.out' or sdsys.tail = '@sdsys/gcat' then
+   if sdsys.tail = '@sdsys/global.bp.out' or sdsys.tail = '@sdsys/gcat' or sdsys.tail = '@sdsys/solo.policy' then
       if not(kernel(K$GLOBAL.SESSION, -1)) then
          display sysmsg(12028) ;* The global catalogue can only be changed by the SD Core server
          skip.part = @true

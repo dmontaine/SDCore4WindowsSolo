@@ -77,7 +77,11 @@
 #      refused CATALOG GLOBAL, DELETE.CATALOG *x, SYNC.GLOBAL.CATALOG and a
 #      COPY into GLOBAL.BP.OUT; managed mode, a global-password session adds a
 #      program, sduser CALLs it, and the session removes it   (ruling 33)
-#  17. the daemon runs on a standard token: Medium integrity, Administrators
+#  17. the administrator-only verbs and the deny list: without ADMIN the eight
+#      maintenance verbs are refused; DENY.VERBS is refused even with ADMIN;
+#      managed, the server denies WHO, sduser is refused it without ADMIN,
+#      and the server allows it again            (rulings 34, 35, 36)
+#  18. the daemon runs on a standard token: Medium integrity, Administrators
 #      deny-only or absent                                         (ruling 16)
 # Not measured here, because they need hands or another machine: ssh landing in
 # sd, SD starting at boot with nobody signed in, remote access while signed out.
@@ -1226,8 +1230,62 @@ public static class SdSuiteCli {
     }
 
     # -----------------------------------------------------------------------
+    # 28 Sep 26 - RULINGS 34, 35 AND 36.
+    # a (35): without ADMIN the eight maintenance verbs that had no check are
+    #    refused with 2001; with ADMIN the two harmless readers run.  SET.DATE,
+    #    CLEAN.ACCOUNT, LOCK and CLEAR.LOCKS are only ever asked WITHOUT ADMIN.
+    # b (36): DENY.VERBS is refused to sduser even with ADMIN (12030).
+    # c (34, 36): managed only - a global session adds WHO to the deny list;
+    #    sduser without ADMIN is refused WHO (2001), with ADMIN it runs; the
+    #    global session removes WHO and sduser runs it again.  The list the
+    #    install set is shown and left as it was; if WHO was already on it the
+    #    leg says so and does not remove it.
     Say ''
-    Say '== 17. the daemon runs on a standard token'
+    Say '== 17. the administrator-only verbs and the deny list'
+    $gate2001 = '^Command requires administrator privileges$'
+    $eight = @('CONFIG', 'LISTU', 'LIST.LOCKS', 'LIST.READU', 'LOCK 1', 'CLEAR.LOCKS', 'SET.DATE 01/01/2030', 'CLEAN.ACCOUNT')
+    $t = Invoke-Pe 'v-noadmin' $eight
+    $n2001 = CountOf (Get-Lines $t) $gate2001
+    Check 'a: without ADMIN, all eight maintenance verbs are refused (2001)' ($n2001 -eq 8) ('' + $n2001 + ' of 8 refused')
+    $t = Invoke-Pe 'v-admin' @('LISTU', 'LIST.LOCKS') -Admin
+    Check 'a: with ADMIN, LISTU and LIST.LOCKS run' (((CountOf (Get-Lines $t) $gate2001) -eq 0) -and ($t -match '(?i)sduser')) 'want no 2001 and LISTU naming sduser'
+
+    $t = Invoke-Pe 'v-deny-admin' @('DENY.VERBS', 'DENY.VERBS ADD WHO') -Admin
+    Check 'b: with ADMIN, DENY.VERBS is refused (12030)' (((CountOf (Get-Lines $t) '^The denied verbs can only be listed or changed by the SD Core server') -eq 2) -and ($t -notmatch '(?m)^DENY\.VERBS \d+:')) 'want two 12030 and no DENY.VERBS answer'
+
+    if (-not $managed) {
+        Skip 'c: the SD Core server denies and allows a verb' 'standalone - no global password'
+    }
+    else {
+        $t = Invoke-Sd 'v-deny-list' '' ($globalPw + "`nDENY.VERBS`nOFF`n") 'the global password, DENY.VERBS, OFF'
+        $line = @((Get-Lines $t) | Where-Object { $_ -match '^DENY\.VERBS \d+:' })
+        Say ('    the list the install set: ' + $(if ($line.Count) { $line[0] } else { '(no answer)' }))
+        Check 'c: a global session lists the deny list' ($line.Count -eq 1) 'want one "DENY.VERBS n: ..." line'
+        $hadWho = ($line.Count -eq 1) -and ((($line[0] -replace '^DENY\.VERBS \d+:\s*', '') -split ',') -contains 'WHO')
+        if ($hadWho) {
+            Skip 'c: deny and allow WHO' 'WHO is already on the install''s list - left alone'
+        }
+        else {
+            try {
+                $t = Invoke-Sd 'v-deny-add' '' ($globalPw + "`nDENY.VERBS ADD WHO`nOFF`n") 'the global password, DENY.VERBS ADD WHO, OFF'
+                Check 'c: DENY.VERBS ADD WHO' ($t -match '(?m)^DENY\.VERBS \d+: .*\bWHO\b') 'want WHO in the DENY.VERBS answer'
+                $t = Invoke-Pe 'v-who-denied' @('WHO')
+                Check 'c: sduser without ADMIN is refused WHO (2001)' ((CountOf (Get-Lines $t) $gate2001) -eq 1) 'want one 2001'
+                $t = Invoke-Pe 'v-who-admin' @('WHO') -Admin
+                Check 'c: with ADMIN, WHO runs' (((CountOf (Get-Lines $t) $gate2001) -eq 0) -and ($t -match ('(?m)^\s*\d+\s+' + [regex]::Escape($Acct) + '\b'))) 'want a WHO answer and no 2001'
+            }
+            finally {
+                $t = Invoke-Sd 'v-deny-remove' '' ($globalPw + "`nDENY.VERBS REMOVE WHO`nOFF`n") 'the global password, DENY.VERBS REMOVE WHO, OFF'
+            }
+            Check 'c: DENY.VERBS REMOVE WHO' (($t -match '(?m)^DENY\.VERBS \d+:') -and ($t -notmatch '(?m)^DENY\.VERBS \d+: .*\bWHO\b')) 'want a DENY.VERBS answer without WHO'
+            $t = Invoke-Pe 'v-who-again' @('WHO')
+            Check 'c: and sduser runs WHO again without ADMIN' (((CountOf (Get-Lines $t) $gate2001) -eq 0) -and ($t -match ('(?m)^\s*\d+\s+' + [regex]::Escape($Acct) + '\b'))) 'want a WHO answer and no 2001'
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    Say ''
+    Say '== 18. the daemon runs on a standard token'
     $winds = @(Get-Process -Name sdwind -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $WindExe })
     Say ('    sdwind.exe from this tree: ' + $winds.Count)
     Check 'the daemon is still running after the legs' ($winds.Count -ge 1) 'no sdwind.exe from this tree'
