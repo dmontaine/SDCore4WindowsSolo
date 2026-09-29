@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 28 Sep 26 SD Core Solo - later: ruling 33's refusal exempts the internal session:
+*           the bootstrap catalogues SD's own $ and ! programs through here.
 * 28 Sep 26 SD Core Solo - ruling 33: the global catalogue is never written
 *           here (GLOBAL or a * ! _ $ name: message 12029, every session), and
 *           a LOCAL entry no longer offers to remove a global one (3035).
@@ -126,7 +128,9 @@ $define CAT_PCODE  3
             *   on Windows, so CATALOG GLOBAL was always refused.
             * 28 Sep 26 SD Core Solo - RULING 33: refused for every session,
             *   ADMIN or not; see the gate after the name parsing below.
-            stop sysmsg(12029)  ;* ... changed only by SYNC.GLOBAL.CATALOG
+            if not(kernel(K$INTERNAL, -1)) then
+               stop sysmsg(12029)  ;* ... changed only by SYNC.GLOBAL.CATALOG
+            end
 
          case keyword = KW$PCODE
             if mode and mode # CAT_PCODE then stop sysmsg(3021) ;* Incompatible cataloguing modes specified
@@ -222,7 +226,12 @@ $define CAT_PCODE  3
 *  So CATALOG never writes it - GLOBAL, or a name with a * ! _ $ prefix - for
 *  any session.  Was: refused without ADMIN, which let ADMIN overwrite SD's
 *  own $ and ! system programs as well.
-   if mode = CAT_GLOBAL then
+*  28 Sep 26, later - EXCEPT THE INTERNAL SESSION.  Every "$catalog $NAME" directive
+*  reaches here through BASIC's EXECUTE 'CATALOGUE ...' (basic), so refusing
+*  it too left the bootstrap's gcat at the 12 seeded entries and stage.py
+*  refused the tree.  -internal is the build/installer door only (rulings 11,
+*  13); syncgcat and op_dio3.c global_write_refused() exempt it the same way.
+   if mode = CAT_GLOBAL and not(kernel(K$INTERNAL, -1)) then
       stop sysmsg(12029)  ;* ... changed only by SYNC.GLOBAL.CATALOG
    end
 
