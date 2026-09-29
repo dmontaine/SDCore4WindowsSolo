@@ -5,11 +5,12 @@ RELEASED.  This is the first release; there is no WS1.1-0.
 
 29 Sep 26  SD CORE SOLO IS ENGLISH ONLY.
 
-           There is no support for other languages.  NLS, SET.LANGUAGE and
+           There is no support for other languages.  SET.LANGUAGE and
            LOAD.LANGUAGE do not exist, and messages, month names and day
-           names are English.  The functions and keywords that format numbers
-           - GETNLS and SETNLS in SD BASIC, and the CURRENCY, DECIMAL and
-           THOUSANDS keywords - are unchanged.
+           names are English.  NLS is available: it shows and sets the
+           currency symbol and the thousands and decimal separators, as do
+           GETNLS and SETNLS in SD BASIC and the CURRENCY, DECIMAL and
+           THOUSANDS keywords.
 
 29 Sep 26  A DENIED COMMAND IS DENIED UNDER EVERY NAME.
 
@@ -5183,8 +5184,9 @@ previous one.
              machinery.
            * If you had a use for MICRO, say so - an administrator can put the
              verb back into an account's VOC, and the program behind it is
-             still installed.  (The language verbs are removed for good in
-             WS1.1-1 - see the 29 Sep 26 entry at the top.)
+             still installed.  (SET.LANGUAGE and LOAD.LANGUAGE are removed for
+             good in WS1.1-1, and NLS is back - see the 29 Sep 26 entry at
+             the top.)
 
 17 Aug 26  Connecting a program to SD on the same machine now works.
            * SDConnectLocal() in the client library opens a connection to SD
