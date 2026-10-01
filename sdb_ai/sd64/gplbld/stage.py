@@ -1473,6 +1473,12 @@ def main():
                    # do NOT add either to assert-current's $neverShipped list.
                    # Their unit tests do not ship.
                    'sd-account-archive.ps1', 'sd-settings-os.ps1',
+                   # 01 Oct 26 - the saved backup directory (SET.BACKUP.DIRECTORY,
+                   # owner's ruling): reads and writes BACKUPDIR= in sd.conf,
+                   # beside it.  gpl.bp ACC_OS_BAKDIR runs it through
+                   # !ps_script_out.  It SHIPS - do NOT add it to
+                   # assert-current's $neverShipped list.  Its unit test does not.
+                   'sd-backupdir.ps1',
                    # 02 Oct 26 - SOLO 25.  sd.exe's start_sd() runs it from
                    # the install root when <root>\.sdrestore.pending exists,
                    # before the segment is made (sysseg.c
