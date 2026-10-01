@@ -2,6 +2,15 @@ WS1.1-3 - in progress
 -------------
 Changes since WS1.1-2.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
 
+01 Oct 26  A SECOND NAME, sd-solo, FOR SD CORE SOLO.
+
+           SD Core Solo for Windows and SD Core for Windows (the full
+           product) can now be told apart by name.  sd-solo always starts SD
+           Core Solo.  If SD Core Solo is the only SD Core product installed,
+           plain sd starts it too.  If the full product is installed as well,
+           plain sd and sd-full start the full product, and sd-solo is how to
+           start SD Core Solo.
+
 01 Oct 26  THE API PORT IS 4249, AND NOTHING CAN CHANGE IT.
 
            The SD API used port 4243, which OpenQM and ScarletDME also use,
@@ -18,10 +27,14 @@ Changes since WS1.1-2.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
            * The client remembers each server's certificate by computer name
              AND port, so a Solo on port 4249 and a full SD Core product on
              port 4247 on the same computer are remembered separately.
-           * An upgrade moves SD's firewall rule, SD-API-In-TCP, from port 4243
-             to 4249 and leaves who may reach it as it was.  A rule you made
-             yourself for 4243 is not touched, and no longer does anything
-             for SD.
+           * SD Core Solo's firewall rule is now named SD-Solo-API-In-TCP, so
+             it no longer shares a rule with the full SD Core products, which
+             keep the name SD-API-In-TCP.  An upgrade turns SD Core Solo's old
+             SD-API-In-TCP rule for port 4243 into SD-Solo-API-In-TCP for port
+             4249 and leaves who may reach it as it was, unless a full SD Core
+             product is installed on the computer: then the old rule may be
+             that product's, and it is left alone.  A rule you made yourself
+             for 4243 is not touched, and no longer does anything for SD.
 
 02 Oct 26  THE ACCOUNT CAN BE BACKED UP AND RESTORED.
 

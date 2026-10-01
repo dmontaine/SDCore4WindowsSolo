@@ -6,7 +6,7 @@
 #   powershell -ExecutionPolicy Bypass -File api-firewall.ps1 -Remove            take the rule away
 #   powershell -ExecutionPolicy Bypass -File api-firewall.ps1 -Show              report, change nothing
 #   powershell -ExecutionPolicy Bypass -File api-firewall.ps1 -ScopeFile <path>  write one word and stop
-#   powershell -ExecutionPolicy Bypass -File api-firewall.ps1 -Retarget          move a rule left on the old port 4243 to 4249, scope untouched
+#   powershell -ExecutionPolicy Bypass -File api-firewall.ps1 -Retarget          adopt an old SD-API-In-TCP rule on 4243 as Solo's own, on 4249
 #
 # Exit 0 applied, 1 failed, 2 refused.  ELEVATED - creating a firewall rule is
 # a machine-wide change.  -Show and -ScopeFile are the two read-only modes and
@@ -20,6 +20,17 @@
 # runs on an upgrade, where -Open and -Restrict must not run (they would change
 # the scope on the strength of a box nobody saw).  -Open and -Restrict also
 # correct the port of an existing rule, since they update it in place.
+#
+# 01 Oct 26 - SOLO'S RULE HAS ITS OWN NAME, SD-Solo-API-In-TCP.  Owner's ruling,
+# the same day: the full product and Solo used one rule name, SD-API-In-TCP, in an
+# identical script, and now listen on different ports (4247, 4249); installed
+# together, each one's -Open, -Restrict and -Remove would have acted on the
+# other's rule.  The full product keeps the old name.  A rule an older build left
+# under it cannot be told from either product's, so -Retarget ADOPTS it (new name,
+# new port, same scope, old rule removed) only when the full product is NOT
+# installed - then nothing else could own it - and otherwise leaves it for the
+# full product.  Get-LegacyPlan is that decision as a pure function, and
+# test-apifirewall-units.ps1 drives it.
 #
 # -ScopeFile EXISTS FOR THE INSTALLER, and ssh-firewall.ps1's -ScopeFile is the
 # precedent being copied.  PRE_RELEASE_FIXES 147: after an uninstall that kept
@@ -77,11 +88,25 @@ $ErrorActionPreference = 'Stop'
 # SD_API_PORT (gplsrc/sddefs.h).  Not a parameter, on purpose - see the header.
 $Port = 4249
 
-$ruleName    = 'SD-API-In-TCP'
-$displayName = 'SD API (SDClient)'
+$ruleName    = 'SD-Solo-API-In-TCP'
+$displayName = 'SD Core Solo API (SDClient)'
+
+# The name every earlier build used, and the full product still does.
+$legacyRuleName = 'SD-API-In-TCP'
 
 function Get-ApiRule {
     return (Get-NetFirewallRule -Name $ruleName -ErrorAction SilentlyContinue)
+}
+
+# WHAT -Retarget DOES ABOUT A RULE UNDER THE OLD NAME, as a pure function so a
+# test can drive every case without a firewall.  Only a rule on the old port 4243
+# is one an earlier build of this product could have made, and only when the full
+# product is not installed is it certain to be ours.
+function Get-LegacyPlan([bool]$legacyExists, [string]$legacyPort, [bool]$fullInstalled) {
+    if (-not $legacyExists)     { return 'none' }
+    if ($legacyPort -ne '4243') { return 'leave-port' }
+    if ($fullInstalled)         { return 'leave-full' }
+    return 'adopt'
 }
 
 # THE PORT THE RULE NAMES, as text ('' when there is no rule).  A rule made by
@@ -208,6 +233,55 @@ try {
     # THE SCOPE IS READ BEFORE AND AFTER AND THE CALL FAILS IF IT MOVED, for the
     # reason the read-back at the bottom of this file exists: a cmdlet that
     # reports success has not shown the rule says what was asked.
+    # 01 Oct 26 - NO RULE UNDER SOLO'S OWN NAME: LOOK AT THE OLD NAME, and adopt
+    # the rule there only when Get-LegacyPlan says it is certainly ours (see the
+    # header).  CREATE FIRST, REMOVE AFTER, so there is never a moment with no
+    # rule, and the new rule takes the old one's SCOPE and ENABLED state - the
+    # scope is what a site chose, and the port is the only thing that changes.
+    # The scope and the removal are both read back, as everywhere in this file.
+    if ($Retarget -and ($null -eq (Get-ApiRule))) {
+        $legacy        = Get-NetFirewallRule -Name $legacyRuleName -ErrorAction SilentlyContinue
+        $legacyPort    = Get-RulePort $legacy
+        $fullInstalled = Test-Path -LiteralPath (Join-Path $env:ProgramFiles 'SD\usr\bin\sd.exe')
+        $plan          = Get-LegacyPlan ($null -ne $legacy) $legacyPort $fullInstalled
+        Write-Output "api-firewall: no rule named $ruleName; $legacyRuleName present: $($null -ne $legacy), its port '$legacyPort', full product installed: $fullInstalled - plan: $plan"
+        if ($plan -eq 'none') {
+            Write-Output 'api-firewall: no rule, so there is no port to move'
+            exit 0
+        }
+        if ($plan -eq 'leave-port') {
+            Write-Output "api-firewall: $legacyRuleName is for port $legacyPort, not the old port 4243 - leaving it alone"
+            exit 0
+        }
+        if ($plan -eq 'leave-full') {
+            Write-Output "api-firewall: $legacyRuleName is for port 4243 but the full product is installed, so it may be the full product's - leaving it alone"
+            exit 0
+        }
+        $scope       = @(($legacy | Get-NetFirewallAddressFilter).RemoteAddress)
+        $scopeBefore = ($scope | Sort-Object) -join ','
+        $enabled     = [string]$legacy.Enabled
+        Write-Output "api-firewall: before - $legacyRuleName port $legacyPort, RemoteAddress $scopeBefore, Enabled $enabled"
+        $null = New-NetFirewallRule -Name $ruleName -DisplayName $displayName `
+                    -Description ('Inbound TCP for the SD Core Solo API listener.  ' +
+                                  'Whether anything is listening is set by APIPORT in sd.conf.') `
+                    -Direction Inbound -Protocol TCP -LocalPort $Port `
+                    -Action Allow -Enabled $enabled -RemoteAddress $scope
+        $made       = Get-ApiRule
+        $madeScope  = (@(($made | Get-NetFirewallAddressFilter).RemoteAddress) | Sort-Object) -join ','
+        Write-Output "api-firewall: after  - $ruleName port $(Get-RulePort $made), RemoteAddress $madeScope, Enabled $($made.Enabled)"
+        if (($null -eq $made) -or ((Get-RulePort $made) -ne [string]$Port) -or ($madeScope -ne $scopeBefore)) {
+            Write-Output "api-firewall: FAILED - the new rule does not read back as port $Port with the old scope; $legacyRuleName was NOT removed"
+            exit 1
+        }
+        Remove-NetFirewallRule -Name $legacyRuleName
+        if ($null -ne (Get-NetFirewallRule -Name $legacyRuleName -ErrorAction SilentlyContinue)) {
+            Write-Output "api-firewall: FAILED - $legacyRuleName is still there after Remove-NetFirewallRule"
+            exit 1
+        }
+        Write-Output "api-firewall: adopted $legacyRuleName (port $legacyPort) as $ruleName (port $Port); who may reach it is unchanged"
+        exit 0
+    }
+
     if ($Retarget) {
         $rule = Get-ApiRule
         if ($null -eq $rule) {
@@ -221,14 +295,10 @@ try {
             Write-Output "api-firewall: already port $Port - nothing to change"
             exit 0
         }
-        # ONLY THE OLD PORT MOVES.  A rule on any other port is not one an
-        # earlier build of this product made: it is an administrator's own
-        # (the old -Port parameter allowed one), or it is another SD Core
-        # product's - the full product and Solo share this rule name and have
-        # different ports (the full product's 4247, Solo's 4249), so moving
-        # whatever is there would take
-        # one product's rule away from the other.  -Show still says it admits
-        # nothing on this port.
+        # ONLY THE OLD PORT MOVES.  A rule under Solo's own name on any other
+        # port is not one an earlier build made (the name is new), so it is
+        # somebody's own and is left alone.  -Show still says it admits nothing
+        # on this port.
         if ($before -ne '4243') {
             Write-Output "api-firewall: the rule is for port $before, not the old port 4243 - leaving it alone"
             exit 0
@@ -270,7 +340,7 @@ try {
     $rule = Get-ApiRule
     if ($null -eq $rule) {
         $null = New-NetFirewallRule -Name $ruleName -DisplayName $displayName `
-                    -Description ('Inbound TCP for the SD API listener.  ' +
+                    -Description ('Inbound TCP for the SD Core Solo API listener.  ' +
                                   'Whether anything is listening is set by APIPORT in sd.conf.') `
                     -Direction Inbound -Protocol TCP -LocalPort $Port `
                     -Action Allow -Enabled True -RemoteAddress $remote

@@ -91,7 +91,9 @@ try {
 
     # api
     $pem = Join-Path $appDir 'sd-tls\api.pem'
-    $apiRule = Get-NetFirewallRule -Name 'SD-API-In-TCP' -ErrorAction SilentlyContinue
+    # 01 Oct 26 - Solo's rule has its own name; SD-API-In-TCP is the full product's
+    # (api-firewall.ps1), and listing it here would report another product's rule.
+    $apiRule = Get-NetFirewallRule -Name 'SD-Solo-API-In-TCP' -ErrorAction SilentlyContinue
     if ((Test-Path -LiteralPath $pem) -or $apiRule) {
         Section 'api'
         if (Test-Path -LiteralPath $pem) {
