@@ -321,7 +321,30 @@ function Register-SoloTask {
     if (-not $t) { Fail 'the startup task was not registered'; return }
     Note ('  task registered: "' + $TaskName + '" as ' + $t.Principal.UserId + ', ' + $t.Principal.LogonType + ', at startup, runs ' + $t.Actions[0].Execute + ' ' + $t.Actions[0].Arguments)
 
+    # 30 Sep 26 - THE TASK CAN BE STARTED AND NEVER RUN.  A cycle at 18:52 registered
+    # the task, Start-ScheduledTask returned without error, and the task then sat at
+    # "Ready", last run 11/30/1999, last result 0x41303 ("has not yet run") - for
+    # minutes, and again on a second Start-ScheduledTask and on schtasks /run - so
+    # the old check below, which only waited while the state was Running, read the
+    # 0x41303 at once and failed the install.  (Run directly, "sd -start" worked.)
+    # So: start it, and wait for EVIDENCE that it ran (a last-run time after the
+    # start, or the Running state); ask again once at 10 s; and say so.
+    $startedAt = Get-Date
     Start-ScheduledTask -TaskName $TaskName
+    $ran = $false
+    $ranDeadline = (Get-Date).AddSeconds(30)
+    $asked2 = $false
+    while (-not $ran -and (Get-Date) -lt $ranDeadline) {
+        Start-Sleep -Milliseconds 500
+        $ti = Get-ScheduledTaskInfo -TaskName $TaskName
+        if ($ti.LastRunTime -gt $startedAt.AddSeconds(-2) -or (Get-ScheduledTask -TaskName $TaskName).State -eq 'Running') { $ran = $true }
+        elseif (-not $asked2 -and ((Get-Date) - $startedAt).TotalSeconds -gt 10) {
+            Note '  the task has not run after 10 s - starting it again'
+            Start-ScheduledTask -TaskName $TaskName
+            $asked2 = $true
+        }
+    }
+    Note ('  task ran: ' + $ran + $(if ($asked2) { ' (after a second start)' } else { '' }))
     $deadline = (Get-Date).AddSeconds(30)
     do { Start-Sleep -Milliseconds 500; $state = (Get-ScheduledTask -TaskName $TaskName).State }
     while ($state -eq 'Running' -and (Get-Date) -lt $deadline)
