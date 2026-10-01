@@ -612,7 +612,7 @@ def run_replay(a, pw):
 def main(argv):
     ap = argparse.ArgumentParser(description="One SCRAM-SHA-256 SD API session.")
     ap.add_argument("--host", default="127.0.0.1")
-    ap.add_argument("--port", type=int, default=4243)
+    ap.add_argument("--port", type=int, default=4249)
     ap.add_argument("--user", required=True)
     ap.add_argument("--account", default="")
     ap.add_argument("--hold", type=float, default=0.0)

@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 01 Oct 26 SD Core Solo - SD_API_PORT, 4249, fixed (owner's port ruling)
  * 02 Oct 26 SD Core Solo - SD Core's own IPC keys, 0x53435711/12, and the
  *           object names that carry them, so the four SD Core products and
  *           upstream SD can run side by side (owner, 2 Oct 2026, via Linux).
@@ -176,6 +177,20 @@
  */
 #define SD_SHM_KEY 0x53435711
 #define SD_SEM_KEY 0x53435712
+
+/* 01 Oct 26 SD Core Solo - THE API PORT IS 4249 AND NOTHING MOVES IT.  Owner,
+ * via the Linux session: "make ports 4247 and 4249 -- do not allow
+ * adjustable ports".  Every full SD Core product listens on 4247 and both
+ * Solos on 4249.  4243 is OpenQM's and ScarletDME's, and 4245 is upstream SD's,
+ * so the product no longer shares a port with any of them.
+ *
+ * sd.conf's APIPORT is therefore an ON/OFF SWITCH and not a port number: any
+ * value above zero listens on this one (config.c), so a file upgraded from
+ * WS1.1-1 that still says APIPORT=4243 means ON and moves to 4249 by itself.
+ * The client library and BASIC's sdclient default to the same number; neither
+ * can include this header, so their literals are checked against it by
+ * gplbld/test-apiport-units.py.                                              */
+#define SD_API_PORT 4249
 
 /* System V IPC (shmget/semget) is not implemented by the MSYS2 runtime and
  * does not exist on native Windows, so this Windows port uses POSIX named

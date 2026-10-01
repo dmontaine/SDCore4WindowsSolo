@@ -2,6 +2,27 @@ WS1.1-3 - in progress
 -------------
 Changes since WS1.1-2.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
 
+01 Oct 26  THE API PORT IS 4249, AND NOTHING CAN CHANGE IT.
+
+           The SD API used port 4243, which OpenQM and ScarletDME also use,
+           so SD could not run beside either of them.  SD Core Solo for
+           Windows now listens on port 4249 (the full SD Core products use
+           4247).  No setting, installer option or command takes a port, so
+           every SD Core Solo for Windows system uses the same one.
+           * APIPORT in sd.conf now only switches the API on: any number above
+             zero means on, and SD listens on 4249 whatever the number is.  An
+             sd.conf that says APIPORT=4243 keeps working, and now means 4249.
+           * A program that names port 4243 to reach SD must name 4249 instead.
+             One that names no port needs no change: the client library and
+             the BASIC !sdclient class both default to 4249.
+           * The client remembers each server's certificate by computer name
+             AND port, so a Solo on port 4249 and a full SD Core product on
+             port 4247 on the same computer are remembered separately.
+           * An upgrade moves SD's firewall rule, SD-API-In-TCP, from port 4243
+             to 4249 and leaves who may reach it as it was.  A rule you made
+             yourself for 4243 is not touched, and no longer does anything
+             for SD.
+
 02 Oct 26  THE ACCOUNT CAN BE BACKED UP AND RESTORED.
 
            Three new commands, which need ADMIN:

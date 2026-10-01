@@ -7,7 +7,7 @@ user's own store is never touched.  NO REAL PASSWORD IS NEEDED OR USED: the pin 
 after the TLS handshake and before any login byte, so a deliberately wrong password is
 enough to get past it, and the login then fails as it should.
 
-    py -3 probe-pin.py [--dll PATH] [--host 127.0.0.1] [--port 4243]
+    py -3 probe-pin.py [--dll PATH] [--host 127.0.0.1] [--port 4249]
 
 Every step prints what it did and what SDError said.  Verdict lines, anchored on wording
 that appears only on their own path:
@@ -40,7 +40,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dll", default=os.path.join(os.environ.get("USERPROFILE", ""), "SDCoreSolo", "usr", "bin", "sdclilib.dll"))
     ap.add_argument("--host", default="127.0.0.1")
-    ap.add_argument("--port", type=int, default=4243)
+    ap.add_argument("--port", type=int, default=4249)
     a = ap.parse_args()
 
     say("probe-pin")

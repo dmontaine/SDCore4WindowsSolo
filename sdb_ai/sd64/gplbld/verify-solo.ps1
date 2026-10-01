@@ -413,7 +413,11 @@ $stored   = Test-Path -LiteralPath (Join-Path $CredDir '$STORED')
 $apiPort  = ''
 if (Test-Path -LiteralPath $Conf) {
     $m = Select-String -LiteralPath $Conf -Pattern '^\s*APIPORT\s*=\s*(\d+)' | Select-Object -First 1
-    if ($m) { $apiPort = $m.Matches[0].Groups[1].Value }
+    # 01 Oct 26 - THE NUMBER IN THE FILE IS ONLY ON OR OFF.  SD listens on 4249
+    # whatever APIPORT says above zero (gplsrc/config.c), and a file upgraded
+    # from WS1.1-1 still says 4243 - a leg that connected to the file's number
+    # would measure a port nothing listens on.  Zero is off, as in config.c.
+    if ($m -and ([int]$m.Matches[0].Groups[1].Value) -gt 0) { $apiPort = '4249' }
 }
 $pyCmd = Get-Command py.exe -ErrorAction SilentlyContinue
 $script:Py = $(if ($pyCmd) { $pyCmd.Source } else { '' })
@@ -426,7 +430,7 @@ Say ('sd.exe      : ' + $SdExe + '   exists: ' + (Test-Path -LiteralPath $SdExe)
 Say ('account     : ' + $Acct + '   (ruling 29; the Windows user is ' + $WinUser + ')')
 Say ('mode        : ' + $(if ($managed) { 'managed (b) - $GLOBAL present' } else { 'standalone (a) - no $GLOBAL' }))
 Say ('$STORED     : ' + $(if ($stored) { 'present' } else { 'ABSENT' }))
-Say ('API         : ' + $(if ($apiPort) { 'APIPORT=' + $apiPort + ' in ' + $Conf } else { 'no APIPORT in ' + $Conf }))
+Say ('API         : ' + $(if ($apiPort) { 'APIPORT on in ' + $Conf + ' - port ' + $apiPort + ' (fixed)' } else { 'no APIPORT (or zero) in ' + $Conf }))
 Say ('py          : ' + $(if ($script:Py) { $script:Py } else { 'NOT FOUND' }) + '   scram-probe: ' + $Scram + '   exists: ' + (Test-Path -LiteralPath $Scram))
 Say ('sdwind      : ' + $(if ($winds.Count) { ($winds | ForEach-Object { 'pid ' + $_.Id + ' session ' + $_.SessionId }) -join '; ' } else { 'NONE from this tree' }))
 Say ('elevated    : ' + $elevated)

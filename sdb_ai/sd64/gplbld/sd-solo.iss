@@ -113,7 +113,7 @@ UninstallDisplayName={#AppName} {#AppVer}
 ; both modes".  PATH is always added (CurStepChanged); Python is installed
 ; whenever no Python 3.13+ is registered.  Managed mode forces every box left
 ; below (ruling 22), so the tasks page is skipped there.
-Name: "api"; Description: "Provide the SD Core API (port 4243)"; Flags: unchecked
+Name: "api"; Description: "Provide the SD Core API (port 4249)"; Flags: unchecked
 Name: "api\network"; Description: "Let other computers reach it"; Flags: unchecked dontinheritcheck
 Name: "sshnetwork"; Description: "Let other computers reach this computer's ssh server"; \
     Flags: unchecked; Check: SshRulePresent

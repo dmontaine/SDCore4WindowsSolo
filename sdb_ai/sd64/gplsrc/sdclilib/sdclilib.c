@@ -19,6 +19,8 @@
  * along with this library.  If not, see <https://www.gnu.org/licenses/>.
  *
  * START-HISTORY:
+ * 01 Oct 26 SD Core Solo for Windows - a port of -1 now means 4249, the Solo
+ *           product's fixed API port (it was 4243)
  * 28 Sep 26 SD Core Solo for Windows - ruling 37: the product name in the
  *           "Cannot determine" error.
  * 25 Sep 26 SD Core Solo - sd.conf and SDSYS found from this library's own
@@ -4039,8 +4041,13 @@ Private bool OpenSocket(char* host, int16_t port) {
     char ack_buff;
     int n;
     unsigned int n1, n2, n3, n4;
+    /* 01 Oct 26 - 4249, the Solo product's fixed API port (owner's ruling; it
+       was 4243, which is OpenQM's).  Same number as SD_API_PORT in sddefs.h,
+       which this library cannot include - test-apiport-units.py compares.  The
+       pin below is keyed by host AND this resolved port, so a full product
+       (4247) and a Solo on one computer keep separate pins. */
     if (port < 0)
-        port = 4243;
+        port = 4249;
     /* Start Winsock up */
     if (WSAStartup(MAKEWORD(2, 2), &wsadata) != 0) {
         sprintf_s(session[session_idx].sderror, sizeof(session[0].sderror),

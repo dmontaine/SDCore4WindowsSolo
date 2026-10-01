@@ -393,6 +393,19 @@ try {
         else { $c = Invoke-Shipped 'api-firewall.ps1' @('-Remove') }
         if ($c -ne 0) { Fail ('api-firewall.ps1 exited ' + $c) }
     }
+    else {
+        # 01 Oct 26 - AN UPGRADE MOVES THE RULE'S PORT AND NOTHING ELSE.  The API
+        # port is fixed at 4249 now (it was 4243); an upgrade keeps sd.conf, whose
+        # APIPORT line still reads as ON, so the listener moves by itself while a
+        # rule an earlier build made still names 4243.  -Retarget changes that one
+        # field and checks the scope did not move; it does nothing where there is
+        # no rule, the rule is already right, or it is on another port.  -Open and
+        # -Restrict are not run: they would choose a scope no one was asked about.
+        Note ''
+        Note '--- API firewall rule port'
+        $c = Invoke-Shipped 'api-firewall.ps1' @('-Retarget')
+        if ($c -ne 0) { Fail ('api-firewall.ps1 -Retarget exited ' + $c) }
+    }
 
     if ($Action -eq 'Install' -and $SshMsi) {
         Note ''
