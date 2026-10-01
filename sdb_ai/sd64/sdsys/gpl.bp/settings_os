@@ -1,0 +1,117 @@
+* SETTINGS_OS
+* The Windows sections of SETTINGS.REPORT, SD Core Solo
+* Copyright (c) String Database
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 3, or (at your option)
+* any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software Foundation,
+* Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+*
+*
+* START-HISTORY:
+* 01 Oct 26 SD Core Solo - SOLO 25, ported from the multi-user product's
+*           RELEASE_1.1 116.
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*    call !settings_os(lines, err)
+*
+* A per-OS helper of SETTINGS.REPORT (agreed with SD Core for Linux, 1 Oct
+* 2026).  lines is the report text, one line per field, "[name]" opening each
+* section.  err is '' or a message number then its arguments, value-mark
+* separated.
+*
+* FROM gplbld sd-settings-os.ps1: sd.conf, ssh (the sshd service and
+* sshd_config's access lines), api (the certificate's subject, expiry and
+* thumbprint - never the key), firewall, and the "SD Core Solo" startup task.
+* READ HERE, because they are SD files Solo alone has: mode (standalone, or
+* managed when SDSYS $cred holds a $GLOBAL record - syncgcat's test; the record
+* itself is never read out) and policy (the denied verbs in SDSYS solo.policy,
+* rulings 34 and 36).  A section with nothing to report is left out.
+*
+* REFERENCE TEXT ONLY, owner 1 Oct 2026: nothing reads it back, so a part that
+* could not be read is said in its own section and the rest still go out.
+* Only a script that did not finish is an error.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+subroutine settings_os(lines, err)
+$catalog !settings_os
+
+$include int$keys.h
+
+deffun ps_script_out(script, want.out) calling '!ps_script_out'
+
+   lines = ''
+   err   = ''
+   q     = char(39)
+
+   script = '& ' : q : kernel(K$WINPATH, '/sd-settings-os.ps1') : q : '; exit $LASTEXITCODE'
+   both = ps_script_out(script, @true)
+   rc = both<1>
+   del both<1>
+
+   ok  = @false
+   why = ''
+   n = dcount(both, @fm)
+   for i = 1 to n
+      ln = both<i>
+      begin case
+         case ln[1, 7] = 'REPORT '
+            lines<-1> = ln[8, len(ln)]
+         case ln[1, 15] = 'SETTINGS-OS OK '
+            ok = @true
+         case ln[1, 18] = 'SETTINGS-OS ERROR '
+            why = ln[19, len(ln)]
+      end case
+   next i
+
+   if not(ok) or rc # 0 then
+      if why = '' then why = 'exit ' : rc : ', and no result line'
+      lines = ''
+      err = 12038 : @vm : why
+      return
+   end
+
+*  mode - whether a $GLOBAL credential exists; nothing of it is printed.
+   lines<-1> = '[mode]'
+   openpath @sdsys : @ds : '$cred' to cred.f then
+      read g.rec from cred.f, '$GLOBAL' then
+         lines<-1> = 'managed (an SD Core server holds the global password)'
+      end else
+         lines<-1> = 'standalone'
+      end
+      close cred.f
+   end else
+      lines<-1> = '(could not be read: $cred)'
+   end
+
+*  policy - the verbs denied to the local user (DENY.VERBS).
+   openpath @sdsys : @ds : 'solo.policy' to pol.f then
+      read rec from pol.f, 'denied.verbs' then
+         if rec # '' then
+            lines<-1> = '[policy]'
+            lines<-1> = 'denied verbs: ' : convert(@fm, ',', rec)
+         end
+      end
+      close pol.f
+   end else
+      lines<-1> = '[policy]'
+      lines<-1> = '(could not be read: solo.policy)'
+   end
+
+   return
+end

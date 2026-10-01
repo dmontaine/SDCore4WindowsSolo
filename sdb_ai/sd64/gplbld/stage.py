@@ -1462,6 +1462,14 @@ def main():
                    # (attach-account, finish-install, the three upgrade-*
                    # scripts) are retired - see PF_RETIRED.
                    'internal-marker.ps1',
+                   # 01 Oct 26 - SOLO 25 (the multi-user RELEASE_1.1 116,
+                   # ported).  The zip, unzip, count and swap behind
+                   # BACKUP.ACCOUNT and RESTORE.ACCOUNT, and the Windows
+                   # sections of SETTINGS.REPORT; gpl.bp ACC_ARCHIVE and
+                   # SETTINGS_OS run them through !ps_script_out.  Both SHIP -
+                   # do NOT add either to assert-current's $neverShipped list.
+                   # Their unit tests do not ship.
+                   'sd-account-archive.ps1', 'sd-settings-os.ps1',
                    # 25 Sep 26 - SOLO 8.  sd-solo.iss runs both from {app}:
                    # solo-setup.ps1 unelevated (account, passwords),
                    # solo-machine.ps1 through its one UAC prompt (startup task,
