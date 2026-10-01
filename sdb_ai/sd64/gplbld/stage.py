@@ -1446,6 +1446,13 @@ def main():
                    # so assert-current watches it like the rest of these - do
                    # NOT add it to that script's $neverShipped list.
                    'micro-home.ps1',
+                   # 30 Sep 26 - SOLO 24.  Run by gpl.bp/apisrvr request 49
+                   # (SrvrSshKey) in the signed-in user's own process: adds,
+                   # removes and lists the SD Core server's ssh key in the
+                   # user's authorized_keys.  It SHIPS, so assert-current
+                   # watches it - its unit test (test-sshkey-units.ps1) does
+                   # not ship and is exempt as a test- file.
+                   'solo-sshkey.ps1',
                    # 20 Sep 26 - RELEASE_1.1 82 (D2').  DOT-SOURCED by
                    # solo-setup.ps1, which writes LOGIN's one-shot "sd
                    # -internal" marker before its own internal sessions

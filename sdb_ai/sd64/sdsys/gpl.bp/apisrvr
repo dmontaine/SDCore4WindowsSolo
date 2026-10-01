@@ -111,6 +111,10 @@
 *           message 10073.  CREATE.ACCOUNT does not join that group, so the
 *           API is off for a new account until MODIFY.ACCOUNT ... API grants
 *           it.  Owner's decision, 21 Aug 2026.
+* 30 Sep 26 SD Core Solo - SOLO 24: request 49, SrvrSshKey (vb.sshkey).  The
+*           managed-mode master installs its ssh public key through the API, and
+*           is the only caller (a $GLOBAL session, K$GLOBAL.SESSION).  The file
+*           work is gplbld/solo-sshkey.ps1; messages 12036 and 12037.
 * 20 Aug 26 Windows port - two comments corrected, no code changed.  Both said
 *           an API session cannot have elevation; it runs as LocalSystem,
 *           because sdwind is a service and fork()s it.  Measured with
@@ -450,6 +454,7 @@ loop
    vb.mark.mapping,   ;*  46   Enable/disable mark mapping
    vb.scram.first,    ;*  47   SCRAM client-first
    vb.scram.final,    ;*  48   SCRAM client-final
+   vb.sshkey,         ;*  49   Manage the SD Core server's ssh keys (global session only)
    vb.illegal.action
 
    st = status()
@@ -2392,6 +2397,130 @@ vb.mark.mapping:
                                                                      if err then return
 
                                                                      mark.mapping files(fno), oconv(cmnd[3,2], 'ISL')
+
+                                                                     return
+
+                                                                     * ======================================================================
+                                                                     * SrvrSshKey (49)  -  the managed-mode master installs, removes or
+                                                                     * lists its ssh public key.  30 Sep 26 SD Core Solo, SOLO 24, agreed
+                                                                     * with the Linux Solo agent: the request and the reply are the same on
+                                                                     * both systems, only the method differs.
+                                                                     *
+                                                                     * In:   field 1 = ADD, REMOVE or LIST
+                                                                     *       field 2 = ADD: the one-line public key; REMOVE: SHA256:...
+                                                                     * Out:  ADD    OS user : host name : key fingerprint : ADDED or
+                                                                     *              PRESENT : sshd host-key fingerprint (empty if unreadable)
+                                                                     *       REMOVE REMOVED or ABSENT : our lines left
+                                                                     *       LIST   one fingerprint per field
+                                                                     *       (fields are @fm separated)
+                                                                     *
+                                                                     * WHO: a $GLOBAL session only - the proof at request 48 was the
+                                                                     * global password.  The account password is refused, and this request
+                                                                     * is not admitted before login (the gate above lists 24, 25, 47, 48).
+                                                                     * A standalone computer has no global password, so it cannot be sent.
+                                                                     *
+                                                                     * THE ARGUMENT IS CHECKED HERE BEFORE IT REACHES A COMMAND LINE:
+                                                                     * letters, digits and + / = - _ . @ : and space only, so no quote,
+                                                                     * backslash, semicolon, $, backtick or line break can leave the
+                                                                     * argument.  solo-sshkey.ps1 checks it again and does the work.
+
+vb.sshkey:
+                                                                     if not(kernel(K$GLOBAL.SESSION, -1)) then
+                                                                        void kernel(K$AUDIT, 'API SSHKEY refused - not a global session user=' : kernel(K$USERNAME, 0))
+                                                                        server.error = SV$ERROR
+                                                                        error.msg = sysmsg(12036) ;* Only the SD Core server may manage ssh keys
+                                                                        return
+                                                                     end
+
+                                                                     sk.verb = upcase(field(cmnd, @fm, 1))
+                                                                     sk.arg = field(cmnd, @fm, 2)
+                                                                     sk.text = ''
+                                                                     sk.safe = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/=-_.@: '
+                                                                     sk.q = '"'
+
+                                                                     begin case
+                                                                        case sk.verb = 'ADD'
+                                                                           if sk.arg = '' or len(sk.arg) > 800 then sk.text = 'no public key given'
+                                                                        case sk.verb = 'REMOVE'
+                                                                           if sk.arg = '' or len(sk.arg) > 60 then sk.text = 'no fingerprint given'
+                                                                        case sk.verb = 'LIST'
+                                                                           sk.arg = ''
+                                                                        case 1
+                                                                           sk.text = 'unknown request'
+                                                                     end case
+                                                                     if sk.text = '' then
+                                                                        for sk.j = 1 to len(sk.arg)
+                                                                           if index(sk.safe, sk.arg[sk.j, 1], 1) = 0 then
+                                                                              sk.text = 'the argument holds a character that is not allowed'
+                                                                              exit
+                                                                           end
+                                                                        next sk.j
+                                                                     end
+
+                                                                     sk.ps1 = ''
+                                                                     if sk.text = '' then
+                                                                        sk.ps1 = kernel(K$WINPATH, '/solo-sshkey.ps1')
+                                                                        if sk.ps1 = '' then sk.text = 'solo-sshkey.ps1 could not be located'
+                                                                     end
+
+                                                                     sk.res = ''
+                                                                     sk.fprs = ''
+                                                                     sk.osuser = ''
+                                                                     sk.hostkey = ''
+                                                                     sk.fpr = ''
+                                                                     sk.count = ''
+                                                                     if sk.text = '' then
+                                                                        sk.cmd = '& ' : sk.q : sk.ps1 : sk.q : ' -Verb ' : sk.verb
+                                                                        if sk.verb = 'ADD' then sk.cmd := ' -Key ' : sk.q : sk.arg : sk.q
+                                                                        if sk.verb = 'REMOVE' then sk.cmd := ' -Fingerprint ' : sk.q : sk.arg : sk.q
+                                                                        os.execute sk.cmd capturing sk.out
+
+                                                                        * THE CAPTURE IS @fm-SEPARATED AND EVERY LINE ENDS IN CR (see gpl.bp/edit,
+                                                                        * micro.home, measured 27 Aug 2026).  Normalise all three separators.
+                                                                        sk.sep = char(10)
+                                                                        sk.norm = convert(@fm : char(13), sk.sep : sk.sep, sk.out)
+                                                                        sk.n = dcount(sk.norm, sk.sep)
+                                                                        for sk.i = 1 to sk.n
+                                                                           sk.line = trim(field(sk.norm, sk.sep, sk.i), ' ', 'B')
+                                                                           begin case
+                                                                              case sk.line[1, 7] = 'RESULT='
+                                                                                 sk.res = sk.line[8, 99]
+                                                                              case sk.line[1, 4] = 'FPR='
+                                                                                 sk.fpr = sk.line[5, 99]
+                                                                                 if sk.fprs = '' then sk.fprs = sk.fpr else sk.fprs := @fm : sk.fpr
+                                                                              case sk.line[1, 6] = 'COUNT='
+                                                                                 sk.count = sk.line[7, 99]
+                                                                              case sk.line[1, 7] = 'OSUSER='
+                                                                                 sk.osuser = sk.line[8, 99]
+                                                                              case sk.line[1, 8] = 'HOSTKEY='
+                                                                                 sk.hostkey = sk.line[9, 99]
+                                                                              case sk.line[1, 6] = 'ERROR='
+                                                                                 sk.text = sk.line[7, 200]
+                                                                           end case
+                                                                        next sk.i
+                                                                        * ANCHOR ON THE SUCCESS WORDING: no RESULT= line is a refusal, whatever
+                                                                        * else the script printed.
+                                                                        if sk.text = '' and sk.res = '' then sk.text = 'the helper did not answer'
+                                                                     end
+
+                                                                     if sk.text # '' then
+                                                                        void kernel(K$AUDIT, 'API SSHKEY ' : sk.verb : ' refused - ' : sk.text)
+                                                                        server.error = SV$ERROR
+                                                                        error.msg = sysmsg(12037, sk.text) ;* The ssh key request was refused: %1
+                                                                        return
+                                                                     end
+
+                                                                     sk.who = sk.arg
+                                                                     if sk.verb = 'ADD' then sk.who = sk.fpr
+                                                                     void kernel(K$AUDIT, 'API SSHKEY ' : sk.verb : ' ' : sk.res : ' fpr=' : sk.who : ' peer=' : system(42))
+                                                                     begin case
+                                                                        case sk.verb = 'ADD'
+                                                                           response = sk.osuser : @fm : system(1015) : @fm : sk.fpr : @fm : sk.res : @fm : sk.hostkey
+                                                                        case sk.verb = 'REMOVE'
+                                                                           response = sk.res : @fm : sk.count
+                                                                        case 1
+                                                                           response = sk.fprs
+                                                                     end case
 
                                                                      return
 

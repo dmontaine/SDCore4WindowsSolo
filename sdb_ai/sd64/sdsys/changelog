@@ -3,6 +3,16 @@ WS1.1-1 - SD Core Solo for Windows, 29 Sep 2026
 A personal SD Core for one Windows user. This is the first release; there is
 no WS1.1-0.
 
+30 Sep 26  A MANAGED COMPUTER TAKES ITS SD CORE SERVER'S SSH KEY.
+
+           In managed mode the SD Core server can now install its own ssh
+           public key on this computer through the API, so it can sign in
+           over ssh without knowing the Windows user name.  Only a session
+           that signed in with the global password may do this, at most
+           four keys are kept, and the key can only start SD: it gives no
+           shell.  Your own keys in the ssh key file are never touched.
+           Standalone computers are not affected.
+
 29 Sep 26  SD CORE SOLO IS ENGLISH ONLY.
 
            There is no support for other languages.  SET.LANGUAGE and

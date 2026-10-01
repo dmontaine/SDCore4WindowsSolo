@@ -87,6 +87,7 @@
    its own length.  APISRVR's dispatch table is the other half of this pair. */
 #define SrvrScramFirst   47    /* SCRAM client-first  -> server-first */
 #define SrvrScramFinal   48    /* SCRAM client-final  -> server-final */
+#define SrvrSshKey       49    /* Manage the SD Core server's ssh keys (global session only) */
 
 /* Server error status values */
 #define SV_OK             0    /* Action successful                       */

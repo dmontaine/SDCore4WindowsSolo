@@ -145,6 +145,7 @@ $define SrvrSelectRight  45    ;* Move index position to right
 $define SrvrMarkMapping  46    ;* Enable/disable mark mapping
 $define SrvrScramFirst   47    ;* SCRAM client-first
 $define SrvrScramFinal   48    ;* SCRAM client-final
+$define SrvrSshKey       49    ;* Manage the SD Core server's ssh keys (global session only)
 
 $define SV$OK             0    ;* Action successful
 $define SV$ON.ERROR       1    ;* Action took ON ERROR clause

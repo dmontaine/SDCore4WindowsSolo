@@ -32,10 +32,13 @@
 # did not install unless told -Installed; ruling 8 is that telling, so it is
 # passed here.  "leave" is what the installer sends when there is no rule.
 #
-# THE sshd_config BLOCK (ruling 5, SOLO 7): appended LAST, between markers, so
-# -Action Remove can take exactly it away:
+# THE sshd_config BLOCK (ruling 5, SOLO 7): between markers, so -Action Remove can
+# take exactly it away.  Since 30 Sep 2026 (SOLO 24) it is written BEFORE the
+# first Match line (appended last only when the file has none) and carries
+# AuthorizedKeysFile - see the note where it is written:
 #     Match User <name>
 #         ForceCommand "<app>\usr\bin\sd.exe"
+#         AuthorizedKeysFile .ssh/authorized_keys
 #         DisableForwarding yes
 # Written wherever OpenSSH is found - not a choice (ruling 5) - and sshd is
 # then set to start at boot, so ssh works with nobody signed in (owner, 25 Sep
@@ -54,6 +57,9 @@ param(
     [switch]$ApiNetwork,
     [ValidateSet('open', 'restrict', 'leave')] [string]$SshScope = 'leave',
     [switch]$SshIntoSd,
+    # SOLO 24: managed mode only - the block carries AuthorizedKeysFile and goes
+    # ahead of the other Match blocks, so the SD Core server can install its key.
+    [switch]$Managed,
     # Ruling 17: Microsoft's OpenSSH MSI from the release folder, installed
     # first so the ssh steps below have a server to work on.  Install only.
     [string]$SshMsi = ''
@@ -117,7 +123,7 @@ Note ('this process : ' + $me.Name + '   elevated: ' + $elev + '   64-bit: ' + [
 Note ('for user     : ' + $ForUser + $(if ($me.Name -ieq $ForUser) { '   (approved by the user)' } else { '   (approved by ' + $me.Name + ')' }))
 Note ('app dir      : ' + $AppDir)
 Note ('sd.exe       : ' + $sdexe + '   exists: ' + (Test-Path -LiteralPath $sdexe))
-Note ('choices      : api=' + [bool]$Api + ' apinetwork=' + [bool]$ApiNetwork + ' sshscope=' + $SshScope + ' sshintosd=' + [bool]$SshIntoSd)
+Note ('choices      : api=' + [bool]$Api + ' apinetwork=' + [bool]$ApiNetwork + ' sshscope=' + $SshScope + ' sshintosd=' + [bool]$SshIntoSd + ' managed=' + [bool]$Managed)
 Note ('ssh msi      : ' + $(if ($SshMsi) { $SshMsi + '   exists: ' + (Test-Path -LiteralPath $SshMsi) } else { 'none - not installing an ssh server' }))
 
 $refuse = @()
@@ -171,9 +177,30 @@ function Set-SshBlock([bool]$Want) {
         $u = $ForUser.Split('\')
         $dom = $u[0]; $name = $u[$u.Count - 1]
         if ($u.Count -gt 1 -and $dom -ine $env:COMPUTERNAME) { $name = $name + '@' + $dom }
-        $new = [string[]]($new + @($Begin, ('Match User "' + $name.ToLower() + '"'),
-                                   ('    ForceCommand "' + $sdexe + '"'),
-                                   '    DisableForwarding yes', $End))
+        # 30 Sep 26 - SOLO 24: THE BLOCK GOES BEFORE THE FIRST Match LINE, NOT LAST.
+        # sshd takes the first value it sees per keyword, and the stock
+        # "Match Group administrators" sets AuthorizedKeysFile to a ProgramData file
+        # an unelevated process cannot write, so for an administrator (the usual
+        # Solo user) a block placed after it never wins.  MEASURED 30 Sep 2026 with
+        # probe-sshd-keyfile.ps1: as appended last the key in ~/.ssh/authorized_keys
+        # was refused; with this block first it was accepted and ran the forced
+        # sd.exe.  AuthorizedKeysFile is what lets the API session (the user,
+        # unelevated) install the master's key itself - gpl.bp/apisrvr request 49.
+        # UNMANAGED (standalone) KEEPS THE OLD BLOCK AND POSITION: no global password
+        # exists, so nothing can install a key and nothing changes for the user.
+        $blockLines = [string[]]@($Begin, ('Match User "' + $name.ToLower() + '"'),
+                                  ('    ForceCommand "' + $sdexe + '"'))
+        if ($Managed) { $blockLines += '    AuthorizedKeysFile .ssh/authorized_keys' }
+        $blockLines += @('    DisableForwarding yes', $End)
+        $at = -1
+        if ($Managed) {
+            for ($i = 0; $i -lt $new.Count; $i++) { if ($new[$i] -match '^\s*Match\s') { $at = $i; break } }
+        }
+        if ($at -lt 0) { $new = [string[]]($new + $blockLines) }
+        else {
+            $pre = [string[]]@(); if ($at -gt 0) { $pre = [string[]]$new[0..($at - 1)] }
+            $new = [string[]]($pre + $blockLines + $new[$at..($new.Count - 1)])
+        }
     }
     elseif ($new.Count -eq $original.Count) {
         Note '  no SD Core Solo block present, nothing removed'

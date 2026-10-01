@@ -795,6 +795,10 @@ begin
       Extra := Extra + ' -SshScope leave';
     if SshServerWasFound or (SshMsiOffered and (WizardIsTaskSelected('installssh') or Managed)) then
       Extra := Extra + ' -SshIntoSd';
+    { 30 Sep 26 - SOLO 24: managed mode lets the SD Core server install its ssh
+      key through the API; solo-machine.ps1 then writes the key-file override. }
+    if Managed then
+      Extra := Extra + ' -Managed';
     Code := RunMachineStep('Install', Extra);
   end;
   if Code = -1 then
