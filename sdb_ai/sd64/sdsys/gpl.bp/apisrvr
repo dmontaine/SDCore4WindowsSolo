@@ -2505,8 +2505,20 @@ vb.sshkey:
 
                                                                      if sk.text # '' then
                                                                         void kernel(K$AUDIT, 'API SSHKEY ' : sk.verb : ' refused - ' : sk.text)
+                                                                        * THE MASTER SEES THE SAME WORDS ON BOTH SYSTEMS (owner, 30 Sep 26;
+                                                                        * agreed with the Linux Solo agent, who use these four reasons).  The
+                                                                        * audit line above keeps the precise reason.
+                                                                        sk.shown = 'the request could not be carried out'
+                                                                        begin case
+                                                                           case sk.text = 'unknown request'
+                                                                              sk.shown = 'unknown request, use ADD, REMOVE or LIST'
+                                                                           case index(sk.text, 'already ', 1) = 1
+                                                                              sk.shown = 'four Solo ssh keys are already installed'
+                                                                           case sk.text = 'no public key given' or sk.text = 'no fingerprint given' or index(sk.text, 'character that is not allowed', 1) > 0 or sk.text = 'not a public key line' or sk.text = 'unsupported key type' or sk.text = 'the key is not base64' or sk.text = 'the key does not decode' or sk.text = 'not a SHA256 fingerprint'
+                                                                              sk.shown = 'the key or fingerprint is not valid'
+                                                                        end case
                                                                         server.error = SV$ERROR
-                                                                        error.msg = sysmsg(12037, sk.text) ;* The ssh key request was refused: %1
+                                                                        error.msg = sysmsg(12037, sk.shown) ;* The ssh key request was refused: %1
                                                                         return
                                                                      end
 
