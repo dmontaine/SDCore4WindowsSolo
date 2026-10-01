@@ -1470,6 +1470,12 @@ def main():
                    # do NOT add either to assert-current's $neverShipped list.
                    # Their unit tests do not ship.
                    'sd-account-archive.ps1', 'sd-settings-os.ps1',
+                   # 02 Oct 26 - SOLO 25.  sd.exe's start_sd() runs it from
+                   # the install root when <root>\.sdrestore.pending exists,
+                   # before the segment is made (sysseg.c
+                   # apply_pending_restore).  A missing copy would leave every
+                   # Solo restore pending for ever.  It SHIPS.
+                   'solo-restore-swap.ps1',
                    # 25 Sep 26 - SOLO 8.  sd-solo.iss runs both from {app}:
                    # solo-setup.ps1 unelevated (account, passwords),
                    # solo-machine.ps1 through its one UAC prompt (startup task,

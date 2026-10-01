@@ -35,13 +35,18 @@
 *    type        USER, always
 *    os.user     the Windows user this Solo runs as (env USERNAME)
 * ssh and the API are on or off for the whole installation in Solo, not per
-* account, so no route.* keys are written; SETTINGS.REPORT shows them.  (Sent
-* to SD Core for Linux to agree, 1 Oct 2026; the shared reader ignores keys it
-* does not know, and a Solo restore applies none of these.)
+* account, so no route.* keys are written; SETTINGS.REPORT shows them.  (Agreed
+* with SD Core for Linux, 2 Oct 2026: the shared reader accepts route.*,
+* os.group and members ABSENT for a *-solo product and a Solo restore applies
+* none of them.)
 *
 * WITH acc.name EMPTY, the system keys: product (windows-solo), host,
 * accounts.root (the directory holding user_accounts - the parent of USRDIR,
-* which follows the tree) and sd.version.
+* which follows the tree), sd.version, and restart - the command a user types
+* to put a pending restore in place, shown verbatim in shared message 13035
+* (agreed 2 Oct 2026).  sd -restart runs start_sd(), which applies the pending
+* restore before SD starts (sysseg.c apply_pending_restore), and so does the
+* startup task at boot.
 *
 * END-DESCRIPTION
 *
@@ -68,6 +73,7 @@ $catalog !acc_os_info
       info<2> = 'host: ' : downcase(field(@hostname, '.', 1))
       info<3> = 'accounts.root: ' : usr.dir[1, index(usr.dir, @ds, n) - 1]
       info<4> = 'sd.version: ' : system(1012)
+      info<5> = 'restart: sd -restart, or restart Windows'
       return
    end
 

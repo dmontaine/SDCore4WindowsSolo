@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 02 Oct 26 SD Core Solo - SOLO 25: start_sd() puts a pending RESTORE.ACCOUNT
+ *           in place (apply_pending_restore) before the segment is made
  * 25 Sep 26 SD Core Solo - SOLO 13: stop_sd() asks sdwind through the segment
  *           (SSF_STOP_REQUEST) and waits for sdwind_pid to clear; ESRCH is
  *           no longer read as "gone"
@@ -73,6 +75,12 @@ void UnlockSemaphore(int semno);
 /* For CW_CYGWIN_PID_TO_WINPID - see win_pid() */
 
 #include <sys/cygwin.h>
+
+/* 02 Oct 26 SD Core Solo - apply_pending_restore() */
+
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <errno.h>
 
 void dump_config(void);
 
@@ -576,6 +584,140 @@ Private int sd_state(int* daemon_pid, int* sessions) {
 }
 
 /* ======================================================================
+   apply_pending_restore()  -  put a staged RESTORE.ACCOUNT in place
+
+   02 Oct 26 SD Core Solo - SOLO 25 (the multi-user RELEASE_1.1 116).  Solo
+   has one account and every session is in it, so RESTORE.ACCOUNT cannot
+   replace it from inside one: the verb unpacks and checks the archive, stages
+   the tree and leaves <root>/.sdrestore.pending, and the swap happens here.
+
+   HERE BECAUSE IT IS THE ONE MOMENT NO SESSION CAN EXIST: sd_state() has just
+   answered SD_STOPPED (no daemon, no segment), and bind_sysseg() has not yet
+   made the segment a session would attach to.  And every start comes this
+   way - the startup task's "sd -start" at boot and "sd -restart" by hand - so
+   a wrapper round the task, which was the first plan, would have missed the
+   second (agreed with SD Core for Linux, 2 Oct 2026).
+
+   THE WORK IS gplbld/solo-restore-swap.ps1, beside the install: it checks the
+   marker, refuses while any process from the install other than this chain is
+   running, moves the current contents to .sdrestore.previous, moves the staged
+   ones in, resets their ACL and only then deletes the marker - putting
+   everything back on any failure.  Its last line is the outcome and goes to
+   the same console as this, so the person who typed sd -restart sees it.
+
+   SD STARTS WHATEVER IT ANSWERS.  A failed swap has already put the account
+   back, so starting on the old data is right, and refusing to start would turn
+   a failed restore into an outage.  It says so and names the log.
+
+   BOTH PIDS GO TO THE SCRIPT: this process's and the forked child's.  Under
+   MSYS2 the child stays alive as a stub while PowerShell runs, and it is
+   another sd.exe under the install folder; the script also walks its own
+   ancestors, and test-soloswap-units.ps1 was mutant-tested against exactly
+   that.                                                                     */
+
+#define RESTORE_MARKER "/.sdrestore.pending"
+#define RESTORE_SCRIPT "solo-restore-swap.ps1"
+
+Private void apply_pending_restore(void) {
+  char root[MAX_PATHNAME_LEN + 1];
+  char marker[MAX_PATHNAME_LEN + 1];
+  char winroot[MAX_PATHNAME_LEN + 1];
+  char script[MAX_PATHNAME_LEN + 1];
+  char winpwsh[MAX_PATHNAME_LEN + 1];
+  char pwsh[MAX_PATHNAME_LEN + 1];
+  char pids[32];
+  const char* sysroot;
+  struct stat st;
+  size_t n;
+  int parent_win;
+  pid_t child;
+  int status;
+
+  if (!exe_directory(root, sizeof(root)))
+    return;
+
+  /* Only an installed tree, where sd.exe is in <root>/usr/bin.  A build run
+     from the repository's bin has nothing pending and is left alone.       */
+
+  n = strlen(root);
+  if ((n < 8) || (strcmp(root + n - 8, "/usr/bin") != 0))
+    return;
+  root[n - 8] = '\0'; /* "" when the root is the MSYS2 root itself */
+
+  if (snprintf(marker, sizeof(marker), "%s%s", root, RESTORE_MARKER) >=
+      (int)sizeof(marker))
+    return;
+  if (stat(marker, &st) != 0)
+    return; /* nothing pending - every ordinary start */
+
+  if (cygwin_conv_path(CCP_POSIX_TO_WIN_A, (root[0] != '\0') ? root : "/",
+                       winroot, sizeof(winroot)) != 0) {
+    fprintf(stderr,
+            "A restore is pending, but the SD folder could not be named - "
+            "it was not put in place.\n");
+    return;
+  }
+  n = strlen(winroot);
+  while ((n > 3) && (winroot[n - 1] == '\\'))
+    winroot[--n] = '\0';
+
+  sysroot = getenv("SYSTEMROOT");
+  if ((sysroot == NULL) || (sysroot[0] == '\0'))
+    sysroot = getenv("SystemRoot");
+  if ((sysroot == NULL) || (sysroot[0] == '\0'))
+    sysroot = "C:\\Windows";
+
+  if ((snprintf(script, sizeof(script), "%s\\%s", winroot, RESTORE_SCRIPT) >=
+       (int)sizeof(script)) ||
+      (snprintf(winpwsh, sizeof(winpwsh),
+                "%s\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+                sysroot) >= (int)sizeof(winpwsh)) ||
+      (cygwin_conv_path(CCP_WIN_A_TO_POSIX, winpwsh, pwsh, sizeof(pwsh)) !=
+       0)) {
+    fprintf(stderr,
+            "A restore is pending, but a path could not be built - it was not "
+            "put in place.\n");
+    return;
+  }
+
+  parent_win = win_pid(getpid());
+  printf("A restore is pending - putting it in place before SD starts.\n");
+  fflush(stdout);
+  fflush(stderr);
+
+  child = fork();
+  if (child < 0) {
+    fprintf(stderr,
+            "A restore is pending, but it could not be started - fork() "
+            "failed: %s\n",
+            strerror(errno));
+    return;
+  }
+
+  if (child == 0) {
+    snprintf(pids, sizeof(pids), "%d,%d", parent_win, win_pid(getpid()));
+    execl(pwsh, winpwsh, "-NoProfile", "-NonInteractive", "-ExecutionPolicy",
+          "Bypass", "-File", script, "-Root", winroot, "-CallerPid", pids,
+          (char*)NULL);
+    fprintf(stderr, "Cannot run %s - %s\n", winpwsh, strerror(errno));
+    _exit(127);
+  }
+
+  if (waitpid(child, &status, 0) < 0) {
+    fprintf(stderr, "A restore is pending, and waiting for it failed: %s\n",
+            strerror(errno));
+    return;
+  }
+
+  if (!WIFEXITED(status) || (WEXITSTATUS(status) != 0)) {
+    fprintf(stderr,
+            "The restore was not put in place, and SD starts with the account "
+            "as it was.  See %s\\sdrestore.log\n",
+            winroot);
+  }
+}
+
+/* ======================================================================
    start_sd()                                                             */
 
 bool start_sd() {
@@ -628,6 +770,11 @@ bool start_sd() {
     default: /* SD_STOPPED - nothing there, carry on and create it */
       break;
   }
+
+  /* 02 Oct 26 SD Core Solo - SOLO 25.  Before the segment exists, so before
+     any session can: see apply_pending_restore().                          */
+
+  apply_pending_restore();
 
   if (!bind_sysseg(TRUE, errmsg)) {
     fprintf(stderr, "%s\n", errmsg);
