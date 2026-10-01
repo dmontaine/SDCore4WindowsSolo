@@ -1,3 +1,16 @@
+WS1.1-3 - in progress
+-------------
+Changes since WS1.1-2.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
+
+02 Oct 26  SD CORE SOLO HAS SHARED MEMORY AND SEMAPHORES OF ITS OWN.
+
+           The shared memory and semaphores every SD session uses had the
+           same names as upstream SD's.  SD Core Solo now has names of its
+           own, different from upstream SD's and from each other SD Core
+           product's.  The installer stops SD before an upgrade, as it did
+           before; an SD left running from the old version could not be
+           stopped by the new one.
+
 WS1.1-2 - SD Core Solo for Windows, 30 Sep 2026
 -------------
 A personal SD Core for one Windows user. WS1.1-1, on 29 Sep 2026, was the
