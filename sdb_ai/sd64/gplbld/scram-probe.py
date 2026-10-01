@@ -113,6 +113,7 @@ REQ_ACCOUNT = 3
 REQ_OPEN = 4
 REQ_WRITE = 16
 REQ_EXECUTE = 21
+REQ_SSHKEY = 49   # SOLO 24: SrvrSshKey, global session only
 REQ_LOGIN = 24
 REQ_SCRAM_FIRST = 47
 REQ_SCRAM_FINAL = 48
@@ -497,6 +498,24 @@ def login(sock, a, pw):
     return 0, cfinal
 
 
+def sshkey_request(sock, spec):
+    """Request 49.  Body: verb, then a field mark (0xFE) and the argument.  Prints
+    ONE verdict line whose wording appears only on its own path:
+      SSHKEY <verb>: OK <field>|<field>|...      server_error 0
+      SSHKEY <verb>: REFUSED server_error <e>: <text from request 2>"""
+    verb = spec[0].upper()
+    arg = " ".join(spec[1:])
+    body = verb.encode("ascii") + (b"\xfe" + arg.encode("ascii") if arg else b"")
+    err, status, data = request_raw(sock, REQ_SSHKEY, body)
+    if err == 0:
+        fields = [f.decode("utf-8", errors="replace") for f in data.split(b"\xfe")]
+        say("SSHKEY %s: OK %s" % (verb, "|".join(fields)))
+        return
+    _, _, detail = request(sock, REQ_GETERROR, "")
+    text = (detail or data.decode("utf-8", errors="replace")).strip()
+    say("SSHKEY %s: REFUSED server_error %d: %s" % (verb, err, text))
+
+
 def after_login(sock, a):
     if a.account:
         err, _, text = request(sock, REQ_ACCOUNT, a.account)
@@ -505,6 +524,9 @@ def after_login(sock, a):
             say("account %s: REFUSED: %s" % (a.account, detail or text))
             return 1
         say("account %s: entered" % a.account)
+
+    for spec in a.sshkey:
+        sshkey_request(sock, spec)
 
     files = {}
     for name in a.open:
@@ -618,6 +640,10 @@ def main(argv):
     ap.add_argument("--write", action="append", default=[], nargs=3,
                     metavar=("NAME", "ID", "DATA"),
                     help="after login and account, write a record (request 16)")
+    ap.add_argument("--sshkey", action="append", default=[], nargs="+",
+                    metavar="VERB [ARG]",
+                    help="after login, send request 49 (SOLO 24): ADD <key text>, "
+                         "REMOVE <SHA256:fingerprint> or LIST; needs no --account")
     ap.add_argument("commands", nargs="*")
     a = ap.parse_args(argv)
 

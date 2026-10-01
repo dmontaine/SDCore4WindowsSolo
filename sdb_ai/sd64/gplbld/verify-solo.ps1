@@ -283,6 +283,35 @@ function Invoke-Scram([string]$Label, [string]$Pw, [string[]]$Cmds) {
     return $text
 }
 
+# SOLO 24: one scram-probe.py run that sends request 49 once per spec, e.g.
+# 'LIST' or 'ADD ssh-ed25519 AAAA...'.  No account is entered; request 49 needs none.
+function Invoke-ScramKey([string]$Label, [string]$Pw, [string[]]$Specs) {
+    $a = '-3 "' + $Scram + '" --user ' + $Acct
+    foreach ($s in $Specs) { $a += ' --sshkey ' + $s }
+    Say ''
+    Say ('  $ ' + $script:Py + ' ' + $a + '   [SD_SCRAM_PASSWORD: ' + $Label + ', not shown]')
+    $psi = New-Object Diagnostics.ProcessStartInfo
+    $psi.FileName = $script:Py
+    $psi.Arguments = $a
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.EnvironmentVariables['SD_SCRAM_PASSWORD'] = $Pw
+    $psi.EnvironmentVariables['PYTHONIOENCODING'] = 'utf-8'
+    $p = [Diagnostics.Process]::Start($psi)
+    $o = $p.StandardOutput.ReadToEndAsync()
+    $e = $p.StandardError.ReadToEndAsync()
+    if (-not $p.WaitForExit(90000)) {
+        $null = & taskkill.exe /PID $p.Id /T /F 2>$null
+        $script:timeouts++
+        Say '    TIMED OUT after 90 s - killed.'
+    }
+    else { Say ('    exit ' + $p.ExitCode) }
+    $text = Mask ((($o.Result) + ($e.Result)) -replace "`r", '')
+    foreach ($l in ($text -split "`n")) { if ($l.Trim()) { Say ('    | ' + $l) } }
+    return $text
+}
+
 # basicfuncs.sb's coverage of BCOMP's intrinsics table, read from source: every
 # intrinsic is either exercised (a case label n = '<name>' or '<name>.<x>') or
 # declared on a "* NOT.TESTED:" line, never both, never neither.  Verbatim from
@@ -1428,6 +1457,79 @@ public static class SdSuiteCli {
         if ($managed) {
             $t = Invoke-Scram 'the global password, after' $globalPw @('WHO')
             Check 'e: an API login with the global password is still VERIFIED' (($t -match '(?i)SCRAM: server signature VERIFIED') -and ($t -notmatch '(?i)REFUSED')) 'want VERIFIED'
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # 30 Sep 26 - SOLO 24: API request 49, the SD Core server installs its ssh key.
+    # Managed mode only: a standalone computer has no global password.  A throwaway
+    # key is made here, put through ADD/PRESENT/LIST/REMOVE/ABSENT with the global
+    # password, refused with the account password (CONTROL), refused with a bad
+    # argument, and used for a real ssh login to this machine - which must be
+    # refused BEFORE the ADD (CONTROL) and reach SD after it.  Every anchor is the
+    # tool's own success wording ("SSHKEY ADD: OK ...|ADDED"), never an echoed
+    # argument.  The key is REMOVEd and the user's authorized_keys put back.
+    Say ''
+    Say '== 18b. the ssh key request (SOLO 24, request 49)'
+    $kgen = Join-Path $env:SystemRoot 'System32\OpenSSH\ssh-keygen.exe'
+    $sshc = Join-Path $env:SystemRoot 'System32\OpenSSH\ssh.exe'
+    if (-not $managed) { Skip '18b: request 49' 'standalone - no global password, the request cannot be made' }
+    elseif (-not $apiPort -or -not $script:Py -or -not (Test-Path -LiteralPath $Scram)) { Skip '18b: request 49' 'no API or no scram-probe - see leg 5' }
+    elseif (-not (Test-Path -LiteralPath $kgen) -or -not (Test-Path -LiteralPath $sshc)) { Skip '18b: request 49' 'no OpenSSH client in System32' }
+    else {
+        $akf = Join-Path $env:USERPROFILE '.ssh\authorized_keys'
+        $akBefore = $(if (Test-Path -LiteralPath $akf) { (Get-FileHash -LiteralPath $akf -Algorithm SHA256).Hash } else { '(absent)' })
+        $kdir = Join-Path $env:TEMP ('sdsshkey-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+        New-Item -ItemType Directory -Path $kdir | Out-Null
+        $kf = Join-Path $kdir 'k'
+        $null = & $kgen -q -t ed25519 -N '""' -f $kf -C verify49
+        $pub = (Get-Content -LiteralPath ($kf + '.pub') -Raw).Trim()
+        $fpr = (((& $kgen -l -f ($kf + '.pub')) -join ' ') -split '\s+')[1]
+        Say ('    throwaway key: ' + $kf + '   fingerprint (ssh-keygen): ' + $fpr)
+        $sshArgs = @('-i', $kf, '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=no', '-o', ('UserKnownHostsFile=' + (Join-Path $kdir 'kh')),
+                     '-o', 'ConnectTimeout=10', ($env:USERNAME.ToLower() + '@localhost'), 'echo SHELL-RAN')
+        function Invoke-KeyLogin([string]$What) {
+            $so = Join-Path $kdir ($What + '.out'); $se = Join-Path $kdir ($What + '.err'); $si = Join-Path $kdir 'stdin.txt'
+            [IO.File]::WriteAllText($si, "`n")
+            Say ('  $ ssh ' + ($sshArgs -join ' '))
+            $p = Start-Process -FilePath $sshc -ArgumentList $sshArgs -PassThru -NoNewWindow -RedirectStandardInput $si -RedirectStandardOutput $so -RedirectStandardError $se
+            if (-not $p.WaitForExit(40000)) { $null = & taskkill.exe /PID $p.Id /T /F 2>$null; Say '    ssh TIMED OUT after 40 s - killed.' }
+            $txt = ((Get-Content -LiteralPath $so -Raw -ErrorAction SilentlyContinue) + (Get-Content -LiteralPath $se -Raw -ErrorAction SilentlyContinue))
+            foreach ($l in (($txt -replace "`r", '') -split "`n")) { if ($l.Trim()) { Say ('    | ' + $l) } }
+            return $txt
+        }
+        $added = $false
+        try {
+            # CONTROL first: before the ADD the key is unknown, so sshd must refuse it.
+            $t = Invoke-KeyLogin 'before'
+            Check 'CONTROL: before the ADD, ssh with the key is refused' (($t -match 'Permission denied') -and ($t -notmatch 'SD Core Solo for Windows')) 'want Permission denied and no SD banner'
+
+            $t = Invoke-ScramKey 'the global password' $globalPw @('LIST', ('ADD ' + $pub), ('ADD ' + $pub), 'LIST', 'ADD ssh-ed25519 AAAA;x')
+            $added = ($t -match 'SSHKEY ADD: OK')
+            Check 'ADD answers five fields, the key was ADDED, and the fingerprint is ssh-keygen''s' ($t -match ('(?m)^SSHKEY ADD: OK [^|]+\|[^|]+\|' + [regex]::Escape($fpr) + '\|ADDED\|')) 'want: SSHKEY ADD: OK <user>|<host>|<fingerprint>|ADDED|<hostkey>'
+            Check 'the same key again is PRESENT' ($t -match ('(?m)^SSHKEY ADD: OK [^|]+\|[^|]+\|' + [regex]::Escape($fpr) + '\|PRESENT\|')) 'want |PRESENT|'
+            Check 'LIST then shows the fingerprint' ($t -match ('(?m)^SSHKEY LIST: OK .*' + [regex]::Escape($fpr))) 'want LIST to carry the fingerprint'
+            Check 'a key with a character that is not allowed is refused with the shared wording' ($t -match 'SSHKEY ADD: REFUSED server_error 3: The ssh key request was refused: the key or fingerprint is not valid') 'want "... is not valid"'
+            Check 'the authorized_keys file holds our line with restrict and the tag' ((Test-Path -LiteralPath $akf) -and ((Get-Content -LiteralPath $akf -Raw) -match ('(?m)^restrict ssh-ed25519 \S+ sdcoresolo-managed\s*$'))) 'want a "restrict ... sdcoresolo-managed" line'
+
+            $t = Invoke-KeyLogin 'after'
+            Check 'after the ADD, ssh with the key reaches SD (the forced command, no shell)' (($t -match 'SD Core Solo for Windows') -and ($t -notmatch 'SHELL-RAN') -and ($t -notmatch 'Permission denied')) 'want the SD banner, no SHELL-RAN, no Permission denied'
+
+            # CONTROL: an ordinary account-password session is refused, file untouched.
+            $hashMid = (Get-FileHash -LiteralPath $akf -Algorithm SHA256).Hash
+            $t = Invoke-ScramKey 'the account password' $acctPw @('LIST', ('ADD ' + $pub), ('REMOVE ' + $fpr))
+            Check 'CONTROL: with the account password, ADD, LIST and REMOVE are all refused (12036)' ((CountOf (Get-Lines $t) 'SSHKEY (ADD|LIST|REMOVE): REFUSED server_error 3: Only the SD Core server may manage ssh keys') -eq 3) 'want three refusals'
+            Check 'and the file is byte-identical afterwards' ((Get-FileHash -LiteralPath $akf -Algorithm SHA256).Hash -eq $hashMid) 'the file changed'
+        }
+        finally {
+            $t = Invoke-ScramKey 'the global password' $globalPw @(('REMOVE ' + $fpr), ('REMOVE ' + $fpr))
+            Check 'REMOVE deletes it (REMOVED), and again is ABSENT' (($t -match '(?m)^SSHKEY REMOVE: OK REMOVED\|\d+') -and ($t -match '(?m)^SSHKEY REMOVE: OK ABSENT\|\d+')) ('RECOVER BY HAND: delete the "sdcoresolo-managed" line from ' + $akf)
+            if (-not $added -or $akBefore -eq '(absent)') {
+                if ((Test-Path -LiteralPath $akf) -and ((Get-Item -LiteralPath $akf).Length -eq 0) -and $akBefore -eq '(absent)') { Remove-Item -LiteralPath $akf -Force }
+            }
+            $akAfter = $(if (Test-Path -LiteralPath $akf) { (Get-FileHash -LiteralPath $akf -Algorithm SHA256).Hash } else { '(absent)' })
+            Check 'the user''s authorized_keys is as it was before the leg' ($akAfter -eq $akBefore) ('before ' + $akBefore + ', after ' + $akAfter)
+            Remove-Item -LiteralPath $kdir -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
 
