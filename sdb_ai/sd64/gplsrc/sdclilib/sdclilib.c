@@ -301,6 +301,7 @@ void set_default_character_maps(void);
    and its SCRAM login is bound to the TLS session.  OpenSSL is confined to
    sd_tls.c; this header names no OpenSSL type. */
 #include "sd_tls.h"
+#include "sd_pin.h"
 
 DLLEntry char* SDError(void);
 
@@ -4084,7 +4085,8 @@ Private bool OpenSocket(char* host, int16_t port) {
        below now arrives inside TLS.  Its channel binding is what scram_login()
        binds the login to.  A failure here leaves the socket for CloseSocket(). */
     {
-        char tls_err[256];
+        char tls_err[512];
+        char cert_hex[65];
 
         session[session_idx].tls = sd_tls_client_start(
             session[session_idx].sock, SD_TLS_HANDSHAKE_MS + 5000, tls_err,
@@ -4093,6 +4095,21 @@ Private bool OpenSocket(char* host, int16_t port) {
             snprintf(session[session_idx].sderror,
                      sizeof(session[session_idx].sderror),
                      "Secure connection to server failed: %s", tls_err);
+            goto exit_opensocket;
+        }
+        /* 30 Sep 26 - SOLO 24: FIRST-USE PINNING, after the handshake and
+           BEFORE a single login byte (so before SCRAM client-first), the same
+           value, store and words as the Linux client (sd_pin.h).  A refused
+           pin sends nothing: CloseSocket() ends the session. */
+        if (!sd_tls_client_certhex(session[session_idx].tls, cert_hex)) {
+            snprintf(session[session_idx].sderror,
+                     sizeof(session[session_idx].sderror),
+                     "Secure connection to server failed: the server presented no certificate");
+            goto exit_opensocket;
+        }
+        if (!sd_pin_check(host, port, cert_hex, tls_err, sizeof(tls_err))) {
+            snprintf(session[session_idx].sderror,
+                     sizeof(session[session_idx].sderror), "%s", tls_err);
             goto exit_opensocket;
         }
     }
