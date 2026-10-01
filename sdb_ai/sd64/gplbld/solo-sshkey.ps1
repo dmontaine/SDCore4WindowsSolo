@@ -80,13 +80,25 @@ function Write-Lines([string[]]$l) {
 
 Write-Output ('OSUSER=' + (Get-OsUser))
 
-# sshd's own host key, so the master can pin it.  Empty when unreadable.
+# sshd's own host key, so the master can pin it.  Empty when unknown.  The key's
+# .pub is in ProgramData\ssh and NOT readable unelevated (measured 30 Sep 2026), so
+# the elevated installer records the fingerprint in sdsys\ssh-hostkey (SOLO 24);
+# the .pub is only a fallback for a machine where it happens to be readable.
 $hk = ''
-$pub = Join-Path $env:ProgramData 'ssh\ssh_host_ed25519_key.pub'
 try {
-    $t = ([IO.File]::ReadAllText($pub).Trim() -split '\s+')
-    if ($t.Count -ge 2) { $hk = Get-Fingerprint $t[1] }
+    $rec = Join-Path $PSScriptRoot 'sdsys\ssh-hostkey'
+    if (Test-Path -LiteralPath $rec) {
+        $line = ([IO.File]::ReadAllText($rec).Trim())
+        if ($line -match '^SHA256:[A-Za-z0-9+/]{43}$') { $hk = $line }
+    }
 } catch { $hk = '' }
+if ($hk -eq '') {
+    $pub = Join-Path $env:ProgramData 'ssh\ssh_host_ed25519_key.pub'
+    try {
+        $t = ([IO.File]::ReadAllText($pub).Trim() -split '\s+')
+        if ($t.Count -ge 2) { $hk = Get-Fingerprint $t[1] }
+    } catch { $hk = '' }
+}
 Write-Output ('HOSTKEY=' + $hk)
 
 switch ($Verb) {

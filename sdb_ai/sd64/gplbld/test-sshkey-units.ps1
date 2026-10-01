@@ -98,6 +98,23 @@ Set-Cfg @($begin, 'Match User "scratch"', '    ForceCommand "x.exe"', $end)
 $r = Run 'ADD with no AuthorizedKeysFile line' @('-Verb', 'ADD', '-Key', $pubs[0])
 Check 'block without the key-file override: refused' ($r.Code -eq 1 -and $r.Out -match 'does not read the user key file' -and -not (Test-Path $akf))
 
+# The host-key fingerprint comes from the file the elevated installer records beside the
+# helper (the ProgramData .pub is unreadable unelevated).  Copy the helper next to a
+# scratch sdsys\ssh-hostkey and read it back.
+$app = Join-Path $root 'app'
+New-Item -ItemType Directory -Path (Join-Path $app 'sdsys') | Out-Null
+Copy-Item $helper (Join-Path $app 'solo-sshkey.ps1')
+$fakeFp = 'SHA256:' + ('A' * 43)
+[IO.File]::WriteAllText((Join-Path $app 'sdsys\ssh-hostkey'), $fakeFp + "`r`n")
+$helperOrig = $helper; $helper = Join-Path $app 'solo-sshkey.ps1'
+Set-Cfg $good
+$r = Run 'LIST with the recorded host key' @('-Verb', 'LIST')
+Check 'HOSTKEY is the fingerprint the installer recorded' ($r.Out -match ('(?m)^HOSTKEY=' + [regex]::Escape($fakeFp) + '\s*$') -and $r.Out -match 'RESULT=LISTED')
+[IO.File]::WriteAllText((Join-Path $app 'sdsys\ssh-hostkey'), "not a fingerprint`r`n")
+$r = Run 'LIST with a corrupt record' @('-Verb', 'LIST')
+Check 'a corrupt record is ignored, never echoed' ($r.Out -notmatch 'not a fingerprint' -and $r.Out -match 'RESULT=LISTED')
+$helper = $helperOrig
+
 Remove-Item $root -Recurse -Force
 Write-Host ''
 if ($fail -eq 0) { Write-Host 'solo-sshkey units: ALL PASS'; exit 0 }

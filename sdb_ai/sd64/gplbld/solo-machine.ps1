@@ -222,6 +222,24 @@ function Set-SshBlock([bool]$Want) {
         }
         Note '  sshd -t accepted it'
     }
+    # 30 Sep 26 - SOLO 24: request 49's reply carries sshd's ed25519 host-key
+    # fingerprint so the master can pin it.  The key's .pub sits in ProgramData\ssh,
+    # which an unelevated user cannot read (measured 30 Sep: access denied), so this
+    # elevated step records the fingerprint where the user's own process can.
+    # Managed only.  The key is unchanged until sshd's host keys are regenerated.
+    if ($Want -and $Managed -and $AppDir) {
+        try {
+            $pub = Join-Path $env:ProgramData 'ssh\ssh_host_ed25519_key.pub'
+            $t = ([IO.File]::ReadAllText($pub).Trim() -split '\s+')
+            $sha = [Security.Cryptography.SHA256]::Create()
+            $fp = 'SHA256:' + [Convert]::ToBase64String($sha.ComputeHash([Convert]::FromBase64String($t[1]))).TrimEnd('=')
+            $dest = Join-Path $AppDir 'sdsys\ssh-hostkey'
+            [IO.File]::WriteAllText($dest, $fp + "`r`n", (New-Object Text.UTF8Encoding($false)))
+            Note ('  sshd host key fingerprint recorded in ' + $dest + ': ' + $fp)
+        } catch {
+            Note ('  could not record the sshd host-key fingerprint: ' + $_.Exception.Message)
+        }
+    }
     # Owner, 25 Sep 2026: ssh must be reachable unattended, from boot, with
     # nobody signed in - so sshd itself is set to start at boot.  Only when the
     # block is wanted; -Action Remove leaves the startup type as it finds it.

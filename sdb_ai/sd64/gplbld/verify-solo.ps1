@@ -1506,7 +1506,7 @@ public static class SdSuiteCli {
 
             $t = Invoke-ScramKey 'the global password' $globalPw @('LIST', ('ADD ' + $pub), ('ADD ' + $pub), 'LIST', 'ADD ssh-ed25519 AAAA;x')
             $added = ($t -match 'SSHKEY ADD: OK')
-            Check 'ADD answers five fields, the key was ADDED, and the fingerprint is ssh-keygen''s' ($t -match ('(?m)^SSHKEY ADD: OK [^|]+\|[^|]+\|' + [regex]::Escape($fpr) + '\|ADDED\|')) 'want: SSHKEY ADD: OK <user>|<host>|<fingerprint>|ADDED|<hostkey>'
+            Check 'ADD answers five fields, the key was ADDED, and the fingerprint is ssh-keygen''s' ($t -match ('(?m)^SSHKEY ADD: OK [^|]+\|[^|]+\|' + [regex]::Escape($fpr) + '\|ADDED\|SHA256:[A-Za-z0-9+/]{43}\s*$')) 'want: SSHKEY ADD: OK <user>|<host>|<fingerprint>|ADDED|SHA256:<sshd host key> (field 5 is recorded by the installer)'
             Check 'the same key again is PRESENT' ($t -match ('(?m)^SSHKEY ADD: OK [^|]+\|[^|]+\|' + [regex]::Escape($fpr) + '\|PRESENT\|')) 'want |PRESENT|'
             Check 'LIST then shows the fingerprint' ($t -match ('(?m)^SSHKEY LIST: OK .*' + [regex]::Escape($fpr))) 'want LIST to carry the fingerprint'
             Check 'a key with a character that is not allowed is refused with the shared wording' ($t -match 'SSHKEY ADD: REFUSED server_error 3: The ssh key request was refused: the key or fingerprint is not valid') 'want "... is not valid"'
