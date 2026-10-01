@@ -49,7 +49,7 @@
 $define MAJOR.REV      1
 $define MINOR.REV      0
 $define BUILD          2
-$define SD.REV.STAMP   "WS1.1-1"
+$define SD.REV.STAMP   "WS1.1-2"
 
 $define SD.COPYRIGHT.YEAR "2007"
 

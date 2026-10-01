@@ -48,7 +48,7 @@
 #define MAJOR_REV      1
 #define MINOR_REV      0
 #define BUILD          2
-#define SD_REV_STAMP   "WS1.1-1"
+#define SD_REV_STAMP   "WS1.1-2"
 
 #define SD_COPYRIGHT_YEAR "2007"
 

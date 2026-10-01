@@ -1,7 +1,20 @@
-WS1.1-1 - SD Core Solo for Windows, 29 Sep 2026
+WS1.1-2 - SD Core Solo for Windows, 30 Sep 2026
 -------------
-A personal SD Core for one Windows user. This is the first release; there is
-no WS1.1-0.
+A personal SD Core for one Windows user. WS1.1-1, on 29 Sep 2026, was the
+first release; there is no WS1.1-0.
+
+30 Sep 26  CLIENT LIBRARIES REMEMBER EACH SERVER'S CERTIFICATE.
+
+           The first time a client library connects to a server it keeps
+           that server's certificate in %USERPROFILE%\.sdcore\known_servers
+           (or the file named by SD_KNOWN_SERVERS), and after that it
+           connects only to a server that presents the same one.  The
+           check is made before anything is sent, so a server that has
+           changed is refused before any password leaves the client:
+           "THE SERVER'S CERTIFICATE HAS CHANGED since this client first
+           connected to ...".  Nothing updates the file by itself;
+           removing the line for that server is the remedy.  Installing SD
+           Core Solo again makes a new certificate.
 
 30 Sep 26  A MANAGED COMPUTER TAKES ITS SD CORE SERVER'S SSH KEY.
 
