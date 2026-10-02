@@ -44,7 +44,7 @@
   #define Stage "..\..\stage"
 #endif
 #ifndef AppVer
-  #define AppVer "WS1.1-2"
+  #define AppVer "WS1.1-3"
 #endif
 ; 28 Sep 26 - ruling 37: "SD Core Solo for Windows", WS1.1-0.  AppId below is
 ; unchanged, so an S1.1-0 install is still recognised and upgraded.
