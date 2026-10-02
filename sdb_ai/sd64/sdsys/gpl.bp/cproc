@@ -18,6 +18,12 @@
 * 
 * 
 * START-HISTORY:
+* 02 Oct 26 SD Core Solo - SOLO 27 (the multi-user port's RELEASE_1.1 108).  Message
+*           10149, printed by F1, names LISTV for the commands (it said LIST VOC,
+*           which lists every record, files and pointers too), no longer names a
+*           Start Menu entry Solo does not have, and gives the changelog's path;
+*           F1 at the prompt leaves the editing loop so the prompt is drawn
+*           again (the cursor was left hanging).
 * 29 Sep 26 SD Core Solo - SOLO 22: check.denied.verb also denies a verb that
 *           dispatches like a listed one (field 2, 3 and 4), so "!" goes with
 *           SH; ADMIN, OFF, QUIT and LO are never denied.
@@ -1003,6 +1009,11 @@ get.command.line:
             case n = K$F1 and at.command = ''
                s = ''
                gosub f1.help
+*              The message leaves the cursor on a line of its own and this loop
+*              does not know it: csr.x still says the cursor is after the prompt,
+*              so nothing redraws and the cursor hangs.  Leaving the inner loop
+*              runs the prompt again, as the UP and DOWN keys do.  SOLO 27.
+               exit
             case n >= 32
                if command.overlay then
                   if x <= len(at.command) then at.command[x, 1] = c
@@ -2690,7 +2701,7 @@ int.status:
   f1.help:
 *   if kernel(K$HELP, s) then display sysmsg(5130) ;* Unable to access the help system
 
-   crt sysmsg(10149) ;* SD has no built-in help system - list voc, and the Start Menu check
+   crt sysmsg(10149, @sdsys:@ds:'changelog') ;* SD has no built-in help system - listv, and the changelog
 
    return
 
