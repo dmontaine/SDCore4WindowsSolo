@@ -584,7 +584,7 @@ Private bool comlin(int argc, char *argv[]) {
             goto help;
           } else if (!stricmp(argv[arg], "--VERSION")) {
 /* rev 0.9.1 Mar 25 return to single rev track */            
-            printf("SD Core Solo for Windows (sd) Version %s %s\n", SD_REV_STAMP, BUILD_TARGET);
+            printf("SD Core Solo for Windows (sd-solo) Version %s %s\n", SD_REV_STAMP, BUILD_TARGET);
             exit(0);
           } else
             goto unrecognised;
@@ -772,9 +772,9 @@ unrecognised:
   fprintf(stderr, "Unrecognised argument '%s'\n", argv[arg]);
 help:
   fprintf(stderr, "\nUsage:\n");
-  fprintf(stderr, "   sd xxx\n");
+  fprintf(stderr, "   sd-solo xxx\n");
   fprintf(stderr, "      Execute SD command xxx\n\n");
-  fprintf(stderr, "   sd {options}\n");
+  fprintf(stderr, "   sd-solo {options}\n");
   fprintf(stderr, "      -a          Prompt for account unless forced elsewhere\n");
   fprintf(stderr,
           "      -axxx       Enter SD in account xxx unless forced "

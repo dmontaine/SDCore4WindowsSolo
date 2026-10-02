@@ -82,7 +82,7 @@ $catalog !acc_os_info
       info<2> = 'host: ' : downcase(field(@hostname, '.', 1))
       info<3> = 'accounts.root: ' : usr.dir[1, index(usr.dir, @ds, n) - 1]
       info<4> = 'sd.version: ' : system(1012)
-      info<5> = 'restart: sd -restart, or restart Windows'
+      info<5> = 'restart: sd-solo -restart, or restart Windows'
       return
    end
 

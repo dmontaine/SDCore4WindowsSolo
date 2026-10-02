@@ -141,7 +141,7 @@ bool get_semaphores(bool create, char* errmsg) {
 
       strcpy(errmsg,
              "Semaphores are already present.  If SD is not running, "
-             "sd -stop clears them.");
+             "sd-solo -stop clears them.");
       return FALSE;
     }
 

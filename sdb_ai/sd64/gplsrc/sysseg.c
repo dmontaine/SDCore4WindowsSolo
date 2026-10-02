@@ -760,11 +760,11 @@ bool start_sd() {
               SDWIND_NAME);
       if (sessions) {
         fprintf(stderr,
-                "%d SD session(s) are still attached to it, and sd -stop "
+                "%d SD session(s) are still attached to it, and sd-solo -stop "
                 "will end them.\n",
                 sessions);
       }
-      fprintf(stderr, "Run sd -stop to clear it, then sd -start again.\n");
+      fprintf(stderr, "Run sd-solo -stop to clear it, then sd-solo -start again.\n");
       return FALSE;
 
     default: /* SD_STOPPED - nothing there, carry on and create it */
@@ -810,7 +810,7 @@ bool start_sd() {
   if (cpid < 0) {
     fprintf(stderr, "Cannot start %s - fork() failed: %s\n", SDWIND_NAME,
             strerror(errno));
-    fprintf(stderr, "Run sd -stop to clear what this left behind.\n");
+    fprintf(stderr, "Run sd-solo -stop to clear what this left behind.\n");
     return FALSE;
   }
 
@@ -886,7 +886,7 @@ bool start_sd() {
           fprintf(stderr,
                   "%s did not start within 10 seconds, so SD is not running.\n",
                   SDWIND_NAME);
-          fprintf(stderr, "Run sd -stop to clear what this left behind.\n");
+          fprintf(stderr, "Run sd-solo -stop to clear what this left behind.\n");
           return FALSE;
         }
       }
