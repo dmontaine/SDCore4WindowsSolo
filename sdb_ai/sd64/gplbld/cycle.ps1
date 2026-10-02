@@ -78,6 +78,8 @@ $Iss      = Join-Path $Gplbld 'sd-solo.iss'
 $Bash     = 'C:\msys64\usr\bin\bash.exe'
 $SoloRoot = Join-Path $env:USERPROFILE 'SDCoreSolo'
 $SoloSd   = Join-Path $SoloRoot 'usr\bin\sd-solo.exe'
+# An install made before the rename (1 Oct 26) has the server as sd.exe.
+$LegacySd = Join-Path $SoloRoot 'usr\bin\sd.exe'
 if ($Stage -eq '') { $Stage = Join-Path $Repo 'stage' }
 
 # PRE_RELEASE 137: the log is measured for completeness at the end, because
@@ -258,8 +260,11 @@ if ($mustBuild) {
 # works, SOLO 8), then wait on the PROCESSES, which hold the segment and the
 # semaphores.  Named, not killed: a surviving "sd" is somebody's session.
 Step 1 "Stopping SD Core Solo"
-if (Test-Path -LiteralPath $SoloSd) {
-    $stopOut = (& $SoloSd -stop 2>&1 | Out-String)
+$stopExe = $null
+if (Test-Path -LiteralPath $SoloSd) { $stopExe = $SoloSd }
+elseif (Test-Path -LiteralPath $LegacySd) { $stopExe = $LegacySd; Write-Host "   (an install from before the rename: stopping it as $LegacySd)" }
+if ($stopExe) {
+    $stopOut = (& $stopExe -stop 2>&1 | Out-String)
     $stopOut -split "`r?`n" | Where-Object { $_.Trim() } | ForEach-Object { Write-Host "     $_" }
 } else {
     Write-Host "   no Solo install at $SoloSd"

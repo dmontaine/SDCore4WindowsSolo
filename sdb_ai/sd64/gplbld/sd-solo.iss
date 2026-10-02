@@ -157,6 +157,13 @@ Name: "{app}\sdsys\global.bp.out"; Flags: uninsneveruninstall
 ; like global.bp.out.
 Name: "{app}\sdsys\solo.policy"; Flags: uninsneveruninstall
 
+[InstallDelete]
+; 01 Oct 26 - the server is sd-solo.exe now.  An install made before the rename
+; has it as sd.exe (plain "sd" belongs to the full product) and a launcher,
+; sd-solo.cmd; either left behind would start the old program by name.
+Type: files; Name: "{app}\usr\bin\sd.exe"
+Type: files; Name: "{app}\usr\bin\sd-solo.cmd"
+
 [Files]
 ; The programs and scripts.  sdsys, the account folders and sd.conf are laid
 ; down by the entries below, which know about upgrades.
@@ -620,6 +627,9 @@ var
 begin
   Result := '';
   SdExe := SoloRoot + '\usr\bin\sd-solo.exe';
+  { An install from before the rename has the server as sd.exe. }
+  if (not FileExists(SdExe)) and FileExists(SoloRoot + '\usr\bin\sd.exe') then
+    SdExe := SoloRoot + '\usr\bin\sd.exe';
   if FileExists(SdExe) then
   begin
     Exec(SdExe, '-stop', SoloRoot + '\usr\bin', SW_HIDE, ewWaitUntilTerminated, Code);

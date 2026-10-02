@@ -89,11 +89,13 @@ def client_problems(t):
 
 def installed_path_problems(t):
     """Installed-Solo paths (usr\\bin\\sd.exe) in code lines must say sd-solo.exe.
-    The full product's file is allowed where it is named by Program Files / commonpf64."""
+    Allowed: the full product's file (Program Files / commonpf64), and the pre-rename
+    install's file where it is only stopped or deleted (LegacySd, FileExists, InstallDelete)."""
     bad = []
     for line in code(t).split("\n"):
         if re.search(r"usr.bin.sd\.exe", line, re.I) and not re.search(
-                r"Program Files|commonpf64|ProgramFiles", line, re.I):
+                r"Program Files|commonpf64|ProgramFiles|Legacy|FileExists|Type: files|SdExe := SoloRoot",
+                line, re.I):
             bad.append(line.strip()[:90])
     return bad
 
