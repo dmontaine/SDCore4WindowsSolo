@@ -1458,10 +1458,12 @@ Private int sd_exe_path(char* buff, size_t buffsize) {
   if (p == NULL)
     return FALSE;
 
-  if ((size_t)(p - buff) + sizeof("\\sd.exe") > buffsize)
+  /* 01 Oct 26 SD Core Solo: the server is installed as sd-solo.exe ("sd" is the
+     full product's name, on both platforms - owner's ruling). */
+  if ((size_t)(p - buff) + sizeof("\\sd-solo.exe") > buffsize)
     return FALSE;
 
-  strcpy(p, "\\sd.exe");
+  strcpy(p, "\\sd-solo.exe");
   return TRUE;
 }
 

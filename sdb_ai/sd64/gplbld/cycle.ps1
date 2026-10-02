@@ -77,7 +77,7 @@ $Repo     = Split-Path -Parent (Split-Path -Parent $Sd64)
 $Iss      = Join-Path $Gplbld 'sd-solo.iss'
 $Bash     = 'C:\msys64\usr\bin\bash.exe'
 $SoloRoot = Join-Path $env:USERPROFILE 'SDCoreSolo'
-$SoloSd   = Join-Path $SoloRoot 'usr\bin\sd.exe'
+$SoloSd   = Join-Path $SoloRoot 'usr\bin\sd-solo.exe'
 if ($Stage -eq '') { $Stage = Join-Path $Repo 'stage' }
 
 # PRE_RELEASE 137: the log is measured for completeness at the end, because

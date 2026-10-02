@@ -86,11 +86,11 @@ $denyVerbs = "" + [Environment]::GetEnvironmentVariable('SD_SOLO_DENY_VERBS', 'P
 # point it somewhere else.
 [Environment]::SetEnvironmentVariable('SD_CONFIG', $null, 'Process')
 
-$sdexe = Join-Path $AppDir 'usr\bin\sd.exe'
+$sdexe = Join-Path $AppDir 'usr\bin\sd-solo.exe'
 $sdsys = Join-Path $AppDir 'sdsys'
 Note ('=== solo-setup ' + (Get-Date -Format s))
 Note ('app dir      : ' + $AppDir)
-Note ('sd.exe       : ' + $sdexe + '   exists: ' + (Test-Path -LiteralPath $sdexe))
+Note ('sd-solo.exe  : ' + $sdexe + '   exists: ' + (Test-Path -LiteralPath $sdexe))
 Note ('user         : ' + $User + '   (the Windows user; the SD account is sduser, ruling 29)')
 Note ('passwords    : ' + $(if ($Passwords) { 'ADMIN' + $(if ($Global) { ' and GLOBAL' } else { '' }) } else { 'not set by this run' }))
 Note ('upgrade      : ' + $(if ($Upgrade) { 'UPDATE.ACCOUNTS ALL will run' } else { 'not requested' }))
@@ -101,7 +101,7 @@ Note ('deny verbs   : ' + $(if ($denyVerbs) { '"' + $denyVerbs + '"' } else { 'n
 
 # The null cases, refused out loud.
 $refuse = @()
-if (-not $AppDir -or -not (Test-Path -LiteralPath $sdexe)) { $refuse += 'no sd.exe under the app dir' }
+if (-not $AppDir -or -not (Test-Path -LiteralPath $sdexe)) { $refuse += 'no sd-solo.exe under the app dir' }
 if (-not (Test-Path -LiteralPath $sdsys)) { $refuse += 'no sdsys under the app dir' }
 if (-not $User) { $refuse += 'no user name' }
 if ($Passwords -and -not $adminPw) { $refuse += '-Passwords without an administrator password' }

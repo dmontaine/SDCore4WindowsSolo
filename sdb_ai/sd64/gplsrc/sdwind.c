@@ -337,7 +337,7 @@ void check_lost_users() {
        the 15 Sep observation could not say which half had failed.       */
     if (!exe_directory(bindir, sizeof(bindir))) {
       log_message("Cleanup not run: cannot locate the SD program directory");
-    } else if (snprintf(cmd, sizeof(cmd), "%s/sd", bindir) >= (int)sizeof(cmd)) {
+    } else if (snprintf(cmd, sizeof(cmd), "%s/" SD_SERVER_NAME, bindir) >= (int)sizeof(cmd)) {
       log_message("Cleanup not run: overflowed path/filename buffer");
     } else {
       char msg[MAX_PATHNAME_LEN + 120];
@@ -553,7 +553,7 @@ static void accept_api_session(void) {
     return;
   }
 
-  if (snprintf(sdpath, sizeof(sdpath), "%s/sd", bindir) >= (int)sizeof(sdpath)) {
+  if (snprintf(sdpath, sizeof(sdpath), "%s/" SD_SERVER_NAME, bindir) >= (int)sizeof(sdpath)) {
     log_message("API connection refused: overflowed path/filename buffer");
     close(conn);
     return;

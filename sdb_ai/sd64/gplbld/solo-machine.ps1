@@ -115,14 +115,14 @@ function Invoke-Shipped([string]$Script, [string[]]$ScriptArgs) {
     return $code
 }
 
-$sdexe = Join-Path $AppDir 'usr\bin\sd.exe'
+$sdexe = Join-Path $AppDir 'usr\bin\sd-solo.exe'
 $me = [Security.Principal.WindowsIdentity]::GetCurrent()
 $elev = (New-Object Security.Principal.WindowsPrincipal($me)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 Note ('=== solo-machine ' + $Action + ' ' + (Get-Date -Format s))
 Note ('this process : ' + $me.Name + '   elevated: ' + $elev + '   64-bit: ' + [Environment]::Is64BitProcess)
 Note ('for user     : ' + $ForUser + $(if ($me.Name -ieq $ForUser) { '   (approved by the user)' } else { '   (approved by ' + $me.Name + ')' }))
 Note ('app dir      : ' + $AppDir)
-Note ('sd.exe       : ' + $sdexe + '   exists: ' + (Test-Path -LiteralPath $sdexe))
+Note ('sd-solo.exe  : ' + $sdexe + '   exists: ' + (Test-Path -LiteralPath $sdexe))
 Note ('choices      : api=' + [bool]$Api + ' apinetwork=' + [bool]$ApiNetwork + ' sshscope=' + $SshScope + ' sshintosd=' + [bool]$SshIntoSd + ' managed=' + [bool]$Managed)
 Note ('ssh msi      : ' + $(if ($SshMsi) { $SshMsi + '   exists: ' + (Test-Path -LiteralPath $SshMsi) } else { 'none - not installing an ssh server' }))
 
@@ -133,7 +133,7 @@ if (-not $elev) { $refuse += 'not elevated' }
 if (-not [Environment]::Is64BitProcess) { $refuse += 'a 32-bit PowerShell - System32 is redirected; start the 64-bit one' }
 if (-not $ForUser) { $refuse += 'no -ForUser' }
 if (-not $AppDir) { $refuse += 'no -AppDir' }
-if ($Action -ne 'Remove' -and -not (Test-Path -LiteralPath $sdexe)) { $refuse += 'no sd.exe to start' }
+if ($Action -ne 'Remove' -and -not (Test-Path -LiteralPath $sdexe)) { $refuse += 'no sd-solo.exe to start' }
 if ($refuse.Count -gt 0) {
     foreach ($r in $refuse) { Note ('REFUSED      : ' + $r) }
     Note 'VERDICT      : REFUSED - nothing was changed'

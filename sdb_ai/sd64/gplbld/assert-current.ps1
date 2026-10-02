@@ -41,7 +41,7 @@ $built   = Join-Path $sd64 'bin\sd.exe'
 # %USERPROFILE%\SDCoreSolo (ruling 1).  Was C:\Program Files\SD and
 # C:\ProgramData\SD\sdsys, the multi-user layout.
 $soloRoot = Join-Path $env:USERPROFILE 'SDCoreSolo'
-$inst    = Join-Path $soloRoot 'usr\bin\sd.exe'
+$inst    = Join-Path $soloRoot 'usr\bin\sd-solo.exe'   # bin\sd.exe, installed under Solo's name
 $instTree = Join-Path $soloRoot 'sdsys'
 
 function Note($m) { if (-not $Quiet) { Write-Output $m } }
@@ -92,7 +92,7 @@ $stale = $false
 $hi = (Get-FileHash $inst).Hash
 $hb = (Get-FileHash $built).Hash
 if ($hi -ne $hb) {
-    Bad ("installed sd.exe {0} does not match bin/sd.exe {1}" -f $hi.Substring(0,16), $hb.Substring(0,16))
+    Bad ("installed sd-solo.exe {0} does not match bin/sd.exe {1}" -f $hi.Substring(0,16), $hb.Substring(0,16))
     $stale = $true
 } else {
     Note ("  sd.exe matches: {0}" -f $hi.Substring(0,16))

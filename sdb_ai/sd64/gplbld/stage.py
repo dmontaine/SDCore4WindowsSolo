@@ -85,6 +85,8 @@ from bootstrap import is_elevated
 # own directory before PATH - which is the only reliable answer to the two PATH
 # traps in PROJECT_STATUS.md 6, one of which is Git for Windows shipping a
 # rival msys-2.0.dll.
+SOLO_EXE = 'sd-solo.exe'     # what bin\sd.exe is called once installed
+
 PROGRAM_FILES_BIN = [
     'sd.exe',
     'sdconv.exe',
@@ -1338,8 +1340,13 @@ def main():
 
     # --- C:\Program Files\SD\ ---------------------------------------------
 
+    # 01 Oct 26 - THE SOLO SERVER IS INSTALLED AS sd-solo.exe.  Owner's ruling:
+    # "sd" is the full product and "sd-solo" is Solo, on Windows and Linux
+    # alike, and the Solo executable itself is renamed - not a launcher, which
+    # made cmd.exe ask "Terminate batch job (Y/N)?" after OFF.  The build still
+    # makes bin\sd.exe; only the shipped name differs.
     for f in PROGRAM_FILES_BIN:
-        dst = os.path.join(pfbin, f)
+        dst = os.path.join(pfbin, SOLO_EXE if f == 'sd.exe' else f)
         shutil.copy2(os.path.join('bin', f), dst)
         staged.add(stage, dst)
 
@@ -1497,21 +1504,6 @@ def main():
         shutil.copy2(src, dst)
         staged.add(stage, dst)
 
-    # 01 Oct 26 - THE COMMAND NAME THAT IS ALWAYS SOLO.  Owner's ruling: "sd" and
-    # "sd-full" start the full product when both it and SD Core Solo are
-    # installed, "sd-solo" starts Solo, and with one installed "sd" starts that
-    # one.  This is the second name for Solo's own sd.exe, as a text launcher
-    # BESIDE it in usr\bin (on the user's PATH whenever sd is) - no binary,
-    # because this repository ships none and a second sd.exe would be a second
-    # file to keep current.  A missing launcher is a build failure, like a
-    # missing installer script.
-    src = os.path.join(here, 'sd-solo.cmd')
-    if not os.path.isfile(src):
-        raise SystemExit('missing %s - the sd-solo command is part of the product' % src)
-    dst = os.path.join(pfbin, 'sd-solo.cmd')
-    shutil.copy2(src, dst)
-    staged.add(stage, dst)
-
     # 25 Aug 26 - THE CHANGELOG LIVES HERE NOW, NOT IN THE DATA TREE.  See the
     # note on SDSYS_SHIP above for why.  It is copied rather than left to a
     # wildcard so that a missing changelog is a build failure, the same way a
@@ -1657,7 +1649,7 @@ def main():
              os.path.join(os.path.dirname(os.path.abspath(__file__)),
                           'bootstrap.py'),
              '--sysdir', os.path.abspath(sdsys),
-             '--sd', os.path.abspath(os.path.join(pfbin, 'sd.exe')),
+             '--sd', os.path.abspath(os.path.join(pfbin, SOLO_EXE)),
              '--conf', bconf])
         if r.returncode != 0:
             die('the bootstrap failed; the staged tree is not installable')

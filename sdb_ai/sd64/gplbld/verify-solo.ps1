@@ -111,7 +111,7 @@ $ErrorActionPreference = 'Stop'
 
 $Gplbld  = $PSScriptRoot
 $Root    = Join-Path $env:USERPROFILE 'SDCoreSolo'
-$SdExe   = Join-Path $Root 'usr\bin\sd.exe'
+$SdExe   = Join-Path $Root 'usr\bin\sd-solo.exe'
 $WindExe = Join-Path $Root 'usr\bin\sdwind.exe'
 $Sdsys   = Join-Path $Root 'sdsys'
 $CredDir = Join-Path $Sdsys '$cred'

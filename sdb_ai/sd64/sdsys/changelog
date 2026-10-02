@@ -21,14 +21,12 @@ Changes since WS1.1-2.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
            * The folder must be given as a full path, such as C:\Backups.  A
              path that depends on the current folder is refused.
 
-01 Oct 26  A SECOND NAME, sd-solo, FOR SD CORE SOLO.
+01 Oct 26  SD CORE SOLO IS STARTED BY THE NAME sd-solo.
 
-           SD Core Solo for Windows and SD Core for Windows (the full
-           product) can now be told apart by name.  sd-solo always starts SD
-           Core Solo.  If SD Core Solo is the only SD Core product installed,
-           plain sd starts it too.  If the full product is installed as well,
-           plain sd and sd-full start the full product, and sd-solo is how to
-           start SD Core Solo.
+           The program is now installed as sd-solo.exe, and plain sd is
+           the name of SD Core for Windows (the full product), so the two
+           can be installed on the same computer and told apart.  Type
+           sd-solo to start SD Core Solo; sd no longer starts it.
 
 01 Oct 26  THE API PORT IS 4249, AND NOTHING CAN CHANGE IT.
 

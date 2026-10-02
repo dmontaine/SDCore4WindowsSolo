@@ -192,6 +192,12 @@
  * gplbld/test-apiport-units.py.                                              */
 #define SD_API_PORT 4249
 
+/* 01 Oct 26 SD Core Solo - the installed server is sd-solo.exe ("sd" is the full
+ * product's name on both platforms; owner's ruling).  The daemon starts it by
+ * this name, beside itself.  gplbld/test-soloexe-units.py checks the
+ * installer, stage.py and the client library against the same name.           */
+#define SD_SERVER_NAME "sd-solo"
+
 /* System V IPC (shmget/semget) is not implemented by the MSYS2 runtime and
  * does not exist on native Windows, so this Windows port uses POSIX named
  * shared memory and named semaphores throughout.  The keys above are retained

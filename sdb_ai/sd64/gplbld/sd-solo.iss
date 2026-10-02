@@ -619,7 +619,7 @@ var
   SdExe: String;
 begin
   Result := '';
-  SdExe := SoloRoot + '\usr\bin\sd.exe';
+  SdExe := SoloRoot + '\usr\bin\sd-solo.exe';
   if FileExists(SdExe) then
   begin
     Exec(SdExe, '-stop', SoloRoot + '\usr\bin', SW_HIDE, ewWaitUntilTerminated, Code);
@@ -825,7 +825,7 @@ var
 begin
   if CurUninstallStep = usUninstall then
   begin
-    Exec(ExpandConstant('{app}\usr\bin\sd.exe'), '-stop', ExpandConstant('{app}\usr\bin'),
+    Exec(ExpandConstant('{app}\usr\bin\sd-solo.exe'), '-stop', ExpandConstant('{app}\usr\bin'),
          SW_HIDE, ewWaitUntilTerminated, Code);
     Log('SD Core Solo: sd -stop, exit ' + IntToStr(Code));
     if RunMachineStep('Remove', '') <> 0 then
