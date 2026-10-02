@@ -4,11 +4,14 @@ Changes since WS1.1-2.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
 
 02 Oct 26  RESTORE.ACCOUNT LATEST RESTORES THE MOST RECENT BACKUP.
 
-           RESTORE.ACCOUNT LATEST sduser puts back the newest backup in the
-           backup folder that was made on this computer and holds the account,
-           so you do not have to type the file name.  It says which file it
-           chose before it asks.  If there is no such backup it says so and
-           changes nothing.  A file name still works as before.
+           RESTORE.ACCOUNT LATEST puts back the newest backup in the backup
+           folder that was made on this computer and holds the account, so you
+           do not have to type the file name.  It says which file it chose
+           before it asks.  If there is no such backup it says so and changes
+           nothing.  A file name still works as before.
+           * There is one account, so BACKUP.ACCOUNT and RESTORE.ACCOUNT need
+             no account name: with none they fill in the name sduser.  The
+             name and ALL are still accepted.
            * The choice is made from the file name, which carries the computer,
              the account and the time, so a backup renamed by hand may not be
              found.  The restore still checks the file against its own record

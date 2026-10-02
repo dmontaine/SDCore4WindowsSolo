@@ -3,6 +3,10 @@
 * Copyright (c) String Database
 *
 * START-HISTORY:
+* 02 Oct 26 dm LINUX SOLO ONLY (owner: "in the solo version there is no need to specify an
+*              account name on the backup command as there is only one account"): no
+*              name means sduser (the owner: "fill in the name sduser rather than call it
+*              all").  No longer byte-identical to the port.
 * 01 Oct 26 dm Written for S.50 (owner's request of 30 Sep 2026, rulings of
 *              1 Oct; part of 1.1-3 on all four products).  SHARED WITH SD CORE
 *              FOR WINDOWS BYTE FOR BYTE: everything the OS decides is behind
@@ -93,9 +97,17 @@ $include accbak.h
       end case
    repeat
 
-   if (all and names # '') or (not(all) and names = '') then
+   if all and names # '' then
       stop sysmsg(13006) ;* Syntax
    end
+*  SOLO HAS ONE ACCOUNT, SO BACKUP.ACCOUNT NEEDS NO NAME AND NO "ALL" (owner, 2 Oct
+*  2026: "there is no need to specify an account name on the backup command as there
+*  is only one account"; refined by the owner the same day: "I would rather it just fill
+*  in the name sduser rather than call it all").  No name behaves exactly as
+*  BACKUP.ACCOUNT sduser, so the zip is named for the account and RESTORE.ACCOUNT LATEST
+*  finds it by the ordinary rule.  ALL and a name are still accepted.  LINUX SOLO
+*  DIVERGES FROM THE PORT'S FILE HERE (Windows mails 2026-10-02T2900, T2720).
+   if not(all) and names = '' then names<-1> = 'sduser'   ;* SOLO_ACCOUNT_NAME, sddefs.h
 *  NO "TO": THE SAVED BACKUP DIRECTORY (owner's ruling, 1 Oct 2026), ASKED FOR AND
 *  SAVED WHEN THERE IS NONE.  Before the hold below, so declining to answer leaves
 *  nothing to clear.  TO still works and is a one-off.

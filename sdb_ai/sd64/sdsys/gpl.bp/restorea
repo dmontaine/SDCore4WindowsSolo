@@ -3,6 +3,8 @@
 * Copyright (c) String Database
 *
 * START-HISTORY:
+* 02 Oct 26 dm LINUX SOLO ONLY (owner, for BACKUP.ACCOUNT; applied here for symmetry): no
+*              name means sduser.  No longer byte-identical to the port.
 * 01 Oct 26 dm Written for S.50 (owner's request of 30 Sep 2026, rulings of
 *              1 Oct; part of 1.1-3 on all four products).  SHARED WITH SD CORE
 *              FOR WINDOWS BYTE FOR BYTE; the OS work is in the per-OS helpers
@@ -113,7 +115,13 @@ $include createacc.h
          case 1                      ; names<-1> = downcase(token)
       end case
    repeat
-   if (all and names # '') or (not(all) and names = '') then stop sysmsg(13016)
+   if all and names # '' then stop sysmsg(13016)
+*  SOLO HAS ONE ACCOUNT: RESTORE.ACCOUNT archive (and RESTORE.ACCOUNT LATEST) need no
+*  name and no "ALL" (owner, 2 Oct 2026, for BACKUP.ACCOUNT, applied here for symmetry;
+*  refined the same day: fill in the name sduser rather than call it all).  No name behaves
+*  exactly as RESTORE.ACCOUNT archive sduser, and LATEST then matches the zips named sduser,
+*  all and <n>accounts by the ordinary rule.  LINUX SOLO DIVERGES FROM THE PORT'S FILE HERE.
+   if not(all) and names = '' then names<-1> = 'sduser'   ;* SOLO_ACCOUNT_NAME, sddefs.h
 
 *  A BARE ARCHIVE NAME - no directory part, no drive - IS LOOKED FOR IN THE SAVED
 *  BACKUP DIRECTORY (owner's ruling, 1 Oct 2026), asked for and saved when there is
