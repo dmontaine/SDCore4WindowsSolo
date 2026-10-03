@@ -22,6 +22,19 @@ $Port = 4251
 
 function Out-Line([string]$s) { Write-Host $s }
 
+# The task is registered as SYSTEM, which an ORDINARY user cannot see at all - Get-ScheduledTask finds nothing and
+# schtasks says "Access is denied" (measured 2 Oct 2026) - so "not found" here would be a false "NOT REGISTERED".
+# What an ordinary user CAN read is the Task Scheduler's operational log, which records each launch and for whom.
+function Show-Task {
+    $ti = Get-ScheduledTaskInfo -TaskName 'SD Core Solo SSH' -ErrorAction SilentlyContinue
+    if ($ti) { Out-Line ('task "SD Core Solo SSH"  : last run ' + $ti.LastRunTime + ', result 0x' + ('{0:X}' -f $ti.LastTaskResult) + '  (0x41301 = still running)'); return }
+    Out-Line 'task "SD Core Solo SSH"  : not visible from an ordinary shell (a task registered as SYSTEM is readable only elevated) - the log says:'
+    $ev = @(Get-WinEvent -FilterHashtable @{ LogName = 'Microsoft-Windows-TaskScheduler/Operational'; Id = 100; StartTime = $boot } -ErrorAction SilentlyContinue |
+            Where-Object { $_.Message -match 'SD Core Solo SSH' } | Sort-Object TimeCreated | Select-Object -First 2)
+    if ($ev.Count -eq 0) { Out-Line '                         no launch of it since boot is recorded in the Task Scheduler operational log' }
+    foreach ($e in $ev) { Out-Line ('                         launched {0:yyyy-MM-dd HH:mm:ss.fff}: {1}' -f $e.TimeCreated, (($e.Message -split "`r?`n")[0])) }
+}
+
 $boot = (Get-CimInstance Win32_OperatingSystem).LastBootUpTime
 Out-Line ('boot (LastBootUpTime) : ' + $boot)
 if (-not $boot) { Out-Line 'VERDICT: COULD NOT MEASURE - no boot time'; exit 2 }
@@ -34,9 +47,7 @@ Out-Line ('first explorer.exe     : ' + $firstExplorer + '   (' + $explorers.Cou
 $listen = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue)
 if ($listen.Count -eq 0) {
     Out-Line ('VERDICT: FAIL - nothing is listening on port ' + $Port + '.  Solo''s sshd is not running.')
-    $ti = Get-ScheduledTaskInfo -TaskName 'SD Core Solo SSH' -ErrorAction SilentlyContinue
-    if ($ti) { Out-Line ('task "SD Core Solo SSH"  : last run ' + $ti.LastRunTime + ', result 0x' + ('{0:X}' -f $ti.LastTaskResult)) }
-    else { Out-Line 'task "SD Core Solo SSH"  : NOT REGISTERED' }
+    Show-Task
     exit 1
 }
 $holderId = $listen[0].OwningProcess
@@ -44,9 +55,7 @@ $holder = Get-CimInstance Win32_Process -Filter ('ProcessId=' + $holderId) -Erro
 if (-not $holder -or -not $holder.CreationDate) { Out-Line ('VERDICT: COULD NOT MEASURE - pid ' + $holderId + ' holds port ' + $Port + ' but its start time cannot be read'); exit 2 }
 Out-Line ('port ' + $Port + ' holder        : ' + $holder.Name + ' pid ' + $holderId + '  session ' + $holder.SessionId + '  started ' + $holder.CreationDate)
 
-$ti = Get-ScheduledTaskInfo -TaskName 'SD Core Solo SSH' -ErrorAction SilentlyContinue
-if ($ti) { Out-Line ('task "SD Core Solo SSH"  : last run ' + $ti.LastRunTime + ', result 0x' + ('{0:X}' -f $ti.LastTaskResult) + '  (0x41301 = still running)') }
-else { Out-Line 'task "SD Core Solo SSH"  : NOT REGISTERED' }
+Show-Task
 
 $afterBoot = [int]($holder.CreationDate - $boot).TotalSeconds
 $beforeExplorer = [int]($firstExplorer - $holder.CreationDate).TotalSeconds
