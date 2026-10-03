@@ -18,8 +18,12 @@
 # AuthenticationMethods password, AllowUsers <you>, ForceCommand whoami, LogLevel DEBUG2), starts sshd as a
 # hidden child, prints the one ssh command to type, waits (Enter, or the time limit), stops ITS OWN sshd by the
 # pid it started (never by name), and prints the log lines that decide it.
-#   ACCEPTED   the log says "Accepted password for <you>" - a per-user sshd CAN check a Windows password.
-#              The ssh window should also have printed your account name (whoami ran as the forced command).
+#   ACCEPTED   "Accepted password for <you>" AND no session-start failure in the log - a per-user sshd can
+#              give a password login a session.  The ssh window should also have printed your account name.
+#   PASSWORD CHECKED, SESSION NOT STARTED   "Accepted password" followed by "CreateProcessAsUserW failed
+#              error:1314" - the password is checked but the session cannot start.  THIS WAS THE FIRST REAL
+#              RESULT (owner, 2 Oct 2026 21:11); the ssh window said "Connection reset".
+#   -EvaluateLog <file>   print only the verdict for a saved server log (used to test the verdict itself).
 #   REFUSED    "Failed password" and no "Accepted" - wrong password typed, OR the server cannot check it; the
 #              log lines below it say which kind of failure it logged.
 #   NO ATTEMPT no password attempt reached the server.
@@ -31,13 +35,44 @@
 param(
     [switch]$Control,
     [int]$Port = 4252,
-    [int]$WaitSeconds = 300
+    [int]$WaitSeconds = 300,
+    [string]$EvaluateLog = ''     # read a saved server log and print only the verdict - no sshd, no ssh
 )
 
 $ErrorActionPreference = 'Continue'
 
 function Say([string]$s) { Write-Host $s }
 function Quit([string]$why, [int]$code) { Say ('COULD NOT RUN: ' + $why); exit $code }
+
+# THE VERDICT, from the server log alone.  "Accepted password" is NOT "let the user in": the first real
+# run (owner, 2 Oct 2026 21:11) logged "Accepted password for don" and then "CreateProcessAsUserW failed
+# error:1314 / fork of unprivileged child failed", and the ssh window said "Connection reset".  So the
+# session-start failure is looked for separately, and "ACCEPTED" is only claimed when none was logged.
+function Write-Verdict([string[]]$lines) {
+    $accepted = @($lines | Where-Object { $_ -match '(?i)Accepted password for ' }).Count
+    $failed = @($lines | Where-Object { $_ -match '(?i)Failed password for ' }).Count
+    $startFail = @($lines | Where-Object { $_ -match 'CreateProcessAsUserW failed|fork of unprivileged child failed' })
+    Say ''
+    Say ('counts: Accepted password = ' + $accepted + '   Failed password = ' + $failed + '   session-start failures = ' + $startFail.Count)
+    if ($accepted -gt 0 -and $startFail.Count -gt 0) {
+        Say ('VERDICT: PASSWORD CHECKED, SESSION NOT STARTED - sshd ACCEPTED the Windows password, so a per-user sshd CAN check it, but then failed to start the session: ' + (($startFail | Select-Object -First 2) -join ' / '))
+        Say '         error 1314 = ERROR_PRIVILEGE_NOT_HELD: the process lacks the privilege to start a process under the logon token the password check made.'
+        Say '         So a per-user sshd, no administrator and not SYSTEM, CANNOT give a PASSWORD login a session (a KEY login can - it uses the sshd''s own token).'
+        return 0
+    }
+    if ($accepted -gt 0) { Say 'VERDICT: ACCEPTED - the password was accepted and no session-start failure was logged.  Confirm the ssh window printed your account name (the forced command is whoami).'; return 0 }
+    if ($failed -gt 0) { Say 'VERDICT: REFUSED - the password was refused.  If it was typed right, read the log lines above for the kind of failure.'; return 0 }
+    Say 'VERDICT: NO ATTEMPT - no password attempt reached the probe sshd.'
+    return 1
+}
+
+if ($EvaluateLog -ne '') {
+    if (-not (Test-Path -LiteralPath $EvaluateLog)) { Quit ('no such log: ' + $EvaluateLog) 2 }
+    $evl = @(Get-Content -LiteralPath $EvaluateLog)
+    Say ('evaluating ' + $EvaluateLog + ': ' + $evl.Count + ' lines')
+    $evc = Write-Verdict $evl
+    exit $evc
+}
 
 if (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Quit 'this is ELEVATED - run it from an ordinary unelevated PowerShell' 2
@@ -145,11 +180,6 @@ if ($hits.Count -eq 0) {
     foreach ($l in @($lines | Select-Object -First 60)) { Say ('    | ' + $l) }
 }
 
-$accepted = @($lines | Where-Object { $_ -match '(?i)Accepted password for ' + [regex]::Escape($user) }).Count
-$failed = @($lines | Where-Object { $_ -match '(?i)Failed password for ' }).Count
-Say ''
-Say ('counts: Accepted password = ' + $accepted + '   Failed password = ' + $failed)
+$code = Write-Verdict $lines
 Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
-if ($accepted -gt 0) { Say 'VERDICT: ACCEPTED - a per-user sshd, with no administrator and not SYSTEM, CHECKED A WINDOWS PASSWORD and let the user in.'; exit 0 }
-if ($failed -gt 0) { Say 'VERDICT: REFUSED - the password was refused.  If it was typed right, the per-user sshd cannot check a Windows password; read the log lines above for the kind of failure.'; exit 0 }
-Say 'VERDICT: NO ATTEMPT - no password attempt reached the probe sshd.'; exit 1
+exit $code
