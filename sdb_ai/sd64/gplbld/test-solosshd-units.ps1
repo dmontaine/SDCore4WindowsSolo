@@ -57,6 +57,14 @@ $sshDir = Join-Path $app 'ssh'
 $cfg = Join-Path $sshDir 'sshd_config'; $hk = Join-Path $sshDir 'ssh_host_ed25519_key'; $ak = Join-Path $sshDir 'authorized_keys'
 $oldDir = Join-Path $prof '.ssh'; $old = Join-Path $oldDir 'authorized_keys'
 $pidsBefore = Sshd-Pids
+# PORT 4251 IS FIXED AND SHARED WITH THE REAL MACHINE, so what holds it NOW decides which rows can run.  On a
+# machine with a running Solo, its sshd (started by the startup task) holds 4251 and an ordinary shell
+# cannot inspect it - measured 2 Oct 2026 - so "nothing listens on 4251" and "-Stop answers NONE" are
+# not true there, and the guard says so instead of failing for the wrong reason.
+$rowsBefore = @(Get-NetTCPConnection -State Listen -LocalPort 4251 -ErrorAction SilentlyContinue).Count
+$holders = @(Get-NetTCPConnection -State Listen -LocalPort 4251 -ErrorAction SilentlyContinue | ForEach-Object { $_.OwningProcess } | Sort-Object -Unique)
+$blindBefore = @($holders | Where-Object { $p = Get-CimInstance Win32_Process -Filter ('ProcessId=' + $_) -ErrorAction SilentlyContinue; (-not $p) -or (-not $p.CommandLine) }).Count
+Write-Host ('port 4251 on this machine: ' + $rowsBefore + ' listening socket(s), held by ' + $holders.Count + ' process(es), ' + $blindBefore + ' not inspectable from this shell')
 $expectUser = ([Security.Principal.WindowsIdentity]::GetCurrent().Name.Split('\')[-1]).ToLower()
 
 # ---- 1. -Prepare on an empty tree ------------------------------------------------------
@@ -144,9 +152,17 @@ Check '-Show reports PORT=4251 and changes nothing' ($r.Out -match 'PORT=4251 li
 $r = Run 'Run with no sd-solo.exe' @('-Run')
 Check '-Run with nothing to force is REFUSED (ERROR, exit 1) and starts no sshd' (
     $r.Code -eq 1 -and $r.Out -match '(?m)^ERROR=no (sd-solo\.exe|sshd\.exe)' -and ((Sshd-Pids) -join ',') -eq ($pidsBefore -join ',') -and
-    @(Get-NetTCPConnection -State Listen -LocalPort 4251 -ErrorAction SilentlyContinue).Count -eq 0)
+    @(Get-NetTCPConnection -State Listen -LocalPort 4251 -ErrorAction SilentlyContinue).Count -eq $rowsBefore)
 $r = Run 'Stop with none of ours running' @('-Stop')
-Check '-Stop with nothing of ours running answers RESULT=NONE' ($r.Code -eq 0 -and $r.Out -match '(?m)^RESULT=NONE\s*$' -and $r.Out -match '(?m)^STOPPED=0\s*$')
+if ($blindBefore -eq 0) {
+    Check '-Stop with nothing of ours running answers RESULT=NONE' ($r.Code -eq 0 -and $r.Out -match '(?m)^RESULT=NONE\s*$' -and $r.Out -match '(?m)^STOPPED=0\s*$')
+    Skip '-Stop REFUSES when a holder of 4251 cannot be inspected' 'nothing of that kind holds 4251 on this machine'
+} else {
+    Skip '-Stop with nothing of ours running answers RESULT=NONE' ('a process this shell cannot inspect holds 4251 here (' + $blindBefore + '), so NONE would be a guess')
+    Check '-Stop REFUSES, not NONE, when a holder of 4251 cannot be inspected: ERROR=...cannot inspect..., exit 1, STOPPED=0, and the port is still held' (
+        $r.Code -eq 1 -and $r.Out -match '(?m)^ERROR=.*cannot inspect' -and $r.Out -match '(?m)^STOPPED=0\s*$' -and $r.Out -notmatch 'RESULT=NONE' -and
+        @(Get-NetTCPConnection -State Listen -LocalPort 4251 -ErrorAction SilentlyContinue).Count -eq $rowsBefore)
+}
 Check 'and the system sshd is exactly as it was (same sshd* processes before and after every row)' (((Sshd-Pids) -join ',') -eq ($pidsBefore -join ','))
 
 # ---- 8. the two scripts that name the port agree ---------------------------------------------

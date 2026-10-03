@@ -37,10 +37,18 @@
 #     removed - so StrictModes stays ON here, as it does on Linux.
 #   - a "Match User" ForceCommand overrides the full product's GLOBAL one, but a global
 #     AllowGroups is not overridden - which is why routing by a Match block was never attractive.
-# NOT MEASURED: a key login when sshd is started from the S4U startup task (registering an S4U
-#   task unelevated is refused, "Access is denied", so only the elevated installer can make
-#   one; the cycle's verify-solo ssh leg is the witness), a real sd-solo.exe as the command
-#   over it, a non-loopback client, the upgrade over a Solo that wrote the old Match block.
+# WITNESSED 2 Oct 2026 19:27-19:35 (cycle + verify-solo leg 18b): a key login to an sshd that the
+#   S4U startup task started (pid 14372, session 0, owner the user, 4251) reaches sd-solo.
+# NOT MEASURED: that task starting sshd AT BOOT with nobody signed in (the installer ran it that
+#   time), a non-loopback client, the upgrade over a Solo that wrote the old Match block.
+#
+# *** AN SSHD THE TASK STARTED CANNOT BE INSPECTED FROM AN ORDINARY SHELL, MEASURED 2 Oct 2026. ***
+#   Its path, command line and owner read as EMPTY to an unelevated shell of the same user (the
+#   elevated installer reads them fine: "sshd.exe pid 14372 session 0 owner ace\Don"), and so does
+#   its parent powershell.  Get-OurSshd finds sshd by command line, so from an ordinary shell it
+#   finds NOTHING while the port is held.  -Stop, -Run and -Show therefore look at who holds the
+#   port too, and say so rather than answer NONE: an ordinary shell cannot stop it - run -Stop
+#   from an ELEVATED PowerShell (solo-machine.ps1 does, at uninstall and upgrade).
 #
 # FILES, all under <app>\ssh (the user's own tree: the profile's ACL - the user, SYSTEM,
 # Administrators - is what StrictModes and the host-key check want):
@@ -230,6 +238,18 @@ function Get-OurSshd {
 
 function Test-Listening { return (@(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue).Count -gt 0) }
 
+# The pids that hold the port, and the ones among them this shell cannot inspect (no command line).
+function Get-PortHolders {
+    return @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue |
+             ForEach-Object { $_.OwningProcess } | Sort-Object -Unique)
+}
+function Get-BlindHolders {
+    return @(Get-PortHolders | Where-Object {
+        $p = Get-CimInstance Win32_Process -Filter ('ProcessId=' + $_) -ErrorAction SilentlyContinue
+        (-not $p) -or (-not $p.CommandLine)
+    })
+}
+
 if (@($Prepare, $Run, $Stop, $Show | Where-Object { $_ }).Count -ne 1) { Stop-With 'give exactly one of -Prepare, -Run, -Stop or -Show' }
 
 if ($Show) {
@@ -239,6 +259,7 @@ if ($Show) {
     Write-Output ('KEYFILE=' + $akFile + ' exists=' + (Test-Path -LiteralPath $akFile))
     Write-Output ('PORT=' + $Port + ' listening=' + (Test-Listening))
     Write-Output ('PROCESSES=' + (Get-OurSshd).Count)
+    Write-Output ('PORTHOLDERS=' + ((Get-PortHolders) -join ',') + ' cannot-inspect=' + ((Get-BlindHolders) -join ','))
     Write-Output 'RESULT=PREPARED'
     exit 0
 }
@@ -246,6 +267,14 @@ if ($Show) {
 if ($Stop) {
     $n = 0
     foreach ($p in (Get-OurSshd)) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue; $n++ }
+    if ($n -eq 0) {
+        # THE NULL CASE, SAID OUT LOUD: nothing of ours was FOUND, but a holder this shell cannot read may be it.
+        $blind = @(Get-BlindHolders)
+        if ($blind.Count -gt 0) {
+            Write-Output ('STOPPED=0')
+            Stop-With ('port ' + $Port + ' is held by pid ' + ($blind -join ',') + ', which this shell cannot inspect (a process the startup task started is not readable from an ordinary shell).  Nothing was stopped.  Run -Stop from an ELEVATED PowerShell.')
+        }
+    }
     Write-Output ('STOPPED=' + $n)
     if ($n -gt 0) { Write-Output 'RESULT=STOPPED' } else { Write-Output 'RESULT=NONE' }
     exit 0
@@ -266,6 +295,10 @@ if ($t.ExitCode -ne 0) {
 }
 if (Test-Listening) {
     if ((Get-OurSshd).Count -gt 0) { Write-Output 'RESULT=ALREADY'; exit 0 }
+    $blind = @(Get-BlindHolders)
+    if ($blind.Count -gt 0) {
+        Stop-With ('port ' + $Port + ' is already held by pid ' + ($blind -join ',') + ', which this shell cannot inspect - it may be this sshd, started by the startup task (readable only from an elevated shell).  Nothing was started.')
+    }
     Stop-With ('port ' + $Port + ' is already in use by something that is not this sshd')
 }
 Write-Output 'RESULT=RUNNING'

@@ -101,11 +101,13 @@ try {
                     Line "keys in ${akf}: $n"
                 } catch { Failed "key file - $($_.Exception.Message)" }
             } else { Line "key file: none yet ($akf)" }
+            # By the PORT, not by command line.  A process the startup task started has no readable
+            # path, command line or owner from an ordinary shell of the same user (measured 2 Oct
+            # 2026), so a search by command line says "not running" about a running sshd.
             try {
-                $run = @(Get-CimInstance -ClassName Win32_Process -Filter "Name='sshd.exe'" -ErrorAction Stop |
-                         Where-Object { $_.CommandLine -and $_.CommandLine.IndexOf($sshCfg, [StringComparison]::OrdinalIgnoreCase) -ge 0 })
-                if ($run.Count -gt 0) { Line "Solo's sshd: running (pid $($run[0].ProcessId))" } else { Line "Solo's sshd: not running" }
-            } catch { Failed "sshd process - $($_.Exception.Message)" }
+                $lst = @(Get-NetTCPConnection -State Listen -LocalPort 4251 -ErrorAction SilentlyContinue)
+                if ($lst.Count -gt 0) { Line "Solo's ssh port 4251: listening (pid $($lst[0].OwningProcess))" } else { Line "Solo's ssh port 4251: not listening" }
+            } catch { Failed "ssh port - $($_.Exception.Message)" }
         }
         if ($sshTask) {
             try {
