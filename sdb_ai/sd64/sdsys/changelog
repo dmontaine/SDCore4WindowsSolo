@@ -10,14 +10,25 @@ Changes since WS1.1-2.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
            product) also uses, so the two could not share a computer.  Solo now
            runs an ssh server of its own on port 4251: ssh to port 22 goes to
            SD Core and ssh to port 4251 goes to SD Core Solo.
-           * You connect with  ssh -p 4251 yourname@computer.
-           * Only a key can log in.  A password is never accepted on this port.
-           * The keys are kept in SDCoreSolo\ssh\authorized_keys.  The SD Core
-             server adds and removes its key there, as it did before.  Nothing
-             is written to your own .ssh folder, and keys of your own there are
-             left alone.
+           * You connect with  ssh -p 4251 yourname@computer  and sign in with
+             your Windows account name and its Windows password, as before.
+             There is no key to set up first.  SD then asks for its own
+             password.
+           * A key is an optional extra.  Keys are kept in
+             SDCoreSolo\ssh\authorized_keys, and the SD Core server adds and
+             removes its key there, as it did before.  Nothing is written to your
+             own .ssh folder, and keys of your own there are left alone.
            * The server starts when the computer starts, whether or not anyone
-             has signed in, and runs as you, without administrator rights.
+             has signed in, and runs as SYSTEM, as the Windows ssh server does:
+             a server run as an ordinary user can check your Windows password
+             but cannot then start your session.  Because SYSTEM trusts what it
+             reads, its configuration and host key are in an administrators-only
+             folder, C:\ProgramData\SDCoreSolo\ssh, made by the installer's one
+             administrator step, which checks the permissions after setting them.
+             Your own sd-solo still runs as you.
+           * Anyone who can reach the port can try passwords for your Windows
+             account, and Windows can lock it after repeated wrong tries, so keep
+             the firewall rule limited to this computer unless you need it open.
            * The Windows OpenSSH Server still has to be installed (the installer
              offers it), but Solo no longer changes its settings or its port 22
              firewall rule, and the Windows service does not have to be running.

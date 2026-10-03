@@ -43,6 +43,37 @@ $portHere = [regex]::Match($text, '(?m)^\$SshPort = (\d+)').Groups[1].Value
 $portSshd = [regex]::Match([IO.File]::ReadAllText((Join-Path $here 'solo-sshd.ps1')), '(?m)^\$Port = (\d+)').Groups[1].Value
 Check ("the port solo-machine.ps1 checks ($portHere) is solo-sshd.ps1's ($portSshd), and 4251") ($portHere -eq $portSshd -and $portHere -eq '4251')
 
+# ---- 1b. SOLO 28: Solo's ssh task runs sshd.exe ITSELF, as SYSTEM, from an admin-only config ---------------
+# A SYSTEM task must never run a script (or read a config) a user can edit, so the rows below read the code of
+# Register-SshTask / Remove-SshTask - comments stripped - for what it registers and in what order.
+function Get-FnCode([string]$name) {
+    $f = @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $name }, $true))
+    if ($f.Count -ne 1) { return '' }
+    return (($f[0].Extent.Text -split "`n") | Where-Object { $_ -notmatch '^\s*#' }) -join "`n"
+}
+$regCode = Get-FnCode 'Register-SshTask'
+$remCode = Get-FnCode 'Remove-SshTask'
+Check 'Register-SshTask registers the task as SYSTEM (ServiceAccount, RunLevel Highest) and NOT as the user (no S4U)' (
+    $regCode -match "-UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest" -and $regCode -notmatch 'S4U' -and $regCode -notmatch '-UserId \$ForUser')
+Check 'its action is sshd.exe itself with -D -f <machine config>, NOT PowerShell and NOT solo-sshd.ps1 -Run' (
+    $regCode -match 'New-ScheduledTaskAction -Execute \$sshd ' -and $regCode -match "'-D -f " -and $regCode -notmatch '-Execute \$Ps' -and $regCode -notmatch "'-Run'" -and $regCode -notmatch '\s-Run\b')
+$iInstall = $regCode.IndexOf("'-Install'"); $iRegister = $regCode.IndexOf('Register-ScheduledTask')
+Check 'it has solo-sshd.ps1 -Install make the admin-only folder, with -OsUser, BEFORE it registers the task' ($iInstall -ge 0 -and $regCode -match "'-Install', '-OsUser'" -and $iRegister -gt $iInstall)
+Check 'it requires the task''s sshd to be owned by SYSTEM, and compares the host key with the MACHINE folder''s .pub' ($regCode -match "NT AUTHORITY\\SYSTEM" -and $regCode -match 'MachineSshDir' -and $regCode -match 'ssh_host_ed25519_key\.pub')
+Check 'Remove-SshTask calls solo-sshd.ps1 -Uninstall (stop, and delete the machine folder) and fails if the folder is left' ($remCode -match "'-Uninstall'" -and $remCode -match 'Fail \(''the machine ssh folder')
+Check 'the machine folder comes from the OS (GetFolderPath), not from an environment variable' ($text -match '\$MachineSshDir = Join-Path \(\[Environment\]::GetFolderPath\(''CommonApplicationData''\)\)')
+$ln = @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Get-SshLoginName' }, $true))
+if ($ln.Count -eq 1) {
+    . ([scriptblock]::Create($ln[0].Extent.Text))
+    $saveCN = $env:COMPUTERNAME; $env:COMPUTERNAME = 'ACE'
+    $ForUser = 'ACE\Don'; $l1 = Get-SshLoginName
+    $ForUser = 'CORP\Alice'; $l2 = Get-SshLoginName
+    $ForUser = 'Bob'; $l3 = Get-SshLoginName
+    $env:COMPUTERNAME = $saveCN
+    Write-Host ("login names: ACE\Don -> [$l1]   CORP\Alice -> [$l2]   Bob -> [$l3]")
+    Check 'the login name sshd allows: a local account is its lower-case name, a domain account is name@domain' ($l1 -eq 'don' -and $l2 -eq 'alice@corp' -and $l3 -eq 'bob')
+} else { Check 'Get-SshLoginName exists exactly once' $false }
+
 # ---- 2. load the three functions it needs, with stubs for everything that could touch the machine ---
 $scratch = Join-Path $env:TEMP ('sdsolomachine-units-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
 $pd = Join-Path $scratch 'pd'; $sshDir = Join-Path $pd 'ssh'

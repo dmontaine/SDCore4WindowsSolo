@@ -25,7 +25,12 @@ if (-not (Test-Path $ssh)) { Write-Host "NO TREE: $ssh missing (needed to make t
 $origProfile = $env:USERPROFILE   # Run overrides it for the child; "& this-script" runs in the CALLER's process, so it is put back at the end
 $root = Join-Path $env:TEMP ('sdsshkey-units-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
 $app = Join-Path $root 'app'; $prof = Join-Path $root 'profile'
-New-Item -ItemType Directory -Path (Join-Path $app 'sdsys'), $prof | Out-Null
+# SOLO 28: Solo's sshd runs as SYSTEM and its host key lives in an admin-only MACHINE folder under ProgramData; the
+# helper only READS the .pub from there.  ProgramData is overridden for the child, so a scratch one stands in.
+$pd = Join-Path $root 'programdata'; $mdir = Join-Path $pd 'SDCoreSolo\ssh'
+$origPD = $env:ProgramData
+New-Item -ItemType Directory -Path (Join-Path $app 'sdsys'), $prof, $mdir | Out-Null
+& $ssh -q -t ed25519 -N '""' -f (Join-Path $mdir 'ssh_host_ed25519_key') -C machinehost | Out-Null
 Copy-Item $srcKey (Join-Path $app 'solo-sshkey.ps1')
 Copy-Item $srcSshd (Join-Path $app 'solo-sshd.ps1')
 $helper = Join-Path $app 'solo-sshkey.ps1'
@@ -48,6 +53,7 @@ foreach ($i in 0..5) {
 
 function Run([string]$name, [string[]]$a) {
     $env:USERPROFILE = $prof
+    $env:ProgramData = $pd
     $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $helper @a 2>&1 | Out-String
     $code = $LASTEXITCODE
     Write-Host ('--- ' + $name + ' (exit ' + $code + ')'); Write-Host $out.TrimEnd()
@@ -66,9 +72,10 @@ Check 'the line went into SOLO''S OWN file <app>\ssh\authorized_keys: restrict +
 Check 'and nothing was written to the user''s ~\.ssh\authorized_keys' (-not (Test-Path $oldAk))
 Check 'the answer names the port, 4251, and the user' ($r.Out -match '(?m)^PORT=4251\s*$' -and $r.Out -match '(?m)^OSUSER=\S+')
 
-# The host-key fingerprint is Solo's OWN sshd's, read from the key solo-sshd.ps1 made.
-$hostFpr = ((& $ssh -l -f (Join-Path $app 'ssh\ssh_host_ed25519_key.pub')) -split '\s+')[1]
-Check "HOSTKEY is the fingerprint ssh-keygen gives for Solo's own host key (an independent instrument)" ($r.Out -match ('(?m)^HOSTKEY=' + [regex]::Escape($hostFpr) + '\s*$'))
+# The host-key fingerprint is Solo's OWN sshd's, READ from the admin-only machine folder (the elevated installer
+# step makes the key there; the helper never does).
+$hostFpr = ((& $ssh -l -f (Join-Path $mdir 'ssh_host_ed25519_key.pub')) -split '\s+')[1]
+Check "HOSTKEY is the fingerprint ssh-keygen gives for the key in the MACHINE folder (an independent instrument)" ($r.Out -match ('(?m)^HOSTKEY=' + [regex]::Escape($hostFpr) + '\s*$'))
 
 $r = Run 'ADD key 1 again' @('-Verb', 'ADD', '-Key', $pubs[0])
 Check 'second ADD is PRESENT and adds nothing' ($r.Out -match 'RESULT=PRESENT' -and @(Get-Content $akf).Count -eq 1)
@@ -117,6 +124,7 @@ $r = Run 'a verb nobody defined' @('-Verb', 'FROB')
 Check 'an unknown verb is refused by the parameter check, nothing changed' ($r.Code -ne 0 -and (Get-Content $akf -Raw) -eq $before)
 
 $env:USERPROFILE = $origProfile
+$env:ProgramData = $origPD
 Remove-Item $root -Recurse -Force
 Write-Host ''
 if ($fail -eq 0) { Write-Host 'solo-sshkey units: ALL PASS'; exit 0 }

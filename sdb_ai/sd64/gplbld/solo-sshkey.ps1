@@ -11,28 +11,32 @@
 # same on both systems; this is only the Windows method.
 #
 # SOLO 28, 2 Oct 2026 - THE KEY FILE MOVED.  Solo's ssh is now its OWN sshd on port 4251
-# (solo-sshd.ps1), run by the Solo owner, and it reads ITS OWN key file,
-# <app>\ssh\authorized_keys - not the user's ~\.ssh\authorized_keys, which the system sshd's
-# "Match User" block used to read.  The owner's ruling (via the Linux agent, mail T3410/T3510):
-# Solo has ONE route, its own sshd and its own key file.  That also ends the old problem this
-# header used to explain at length - Win32-OpenSSH reads a ProgramData file only an elevated
-# process can write for a user in Administrators - because Solo's sshd has no such Match block:
-# it reads the file named in its own configuration for everybody.
+# (solo-sshd.ps1), and it reads ITS OWN key file, <app>\ssh\authorized_keys - not the user's
+# ~\.ssh\authorized_keys, which the system sshd's "Match User" block used to read.  Solo has ONE
+# route, its own sshd and its own key file.  That also ends the old problem this header used to
+# explain at length - Win32-OpenSSH reads a ProgramData file only an elevated process can write
+# for a user in Administrators - because Solo's sshd has no such Match block: it reads the file
+# named in its own configuration for everybody.
+# A KEY IS AN OPTIONAL EXTRA NOW (owner, 2 Oct 2026): sign-in is the Windows account name and
+# password.  The master's key stays possible; it is no longer the only way in.  The sshd runs as
+# SYSTEM, so the file it reads here is the user's own and unelevated writing is right: it
+# authenticates only the one user the configuration allows.
 #
-# THE HELPER PREPARES FIRST.  Every verb runs "solo-sshd.ps1 -Prepare" (idempotent: it makes the
-# folder, host key, configuration and key file if missing, and moves the master's old key lines out
-# of ~\.ssh\authorized_keys), so what it reports is what sshd will read.  ADD refuses when there is
-# no sshd.exe on this computer at all, because a key line that nothing will ever read is worse than
-# a refusal.
+# THE HELPER PREPARES FIRST.  Every verb runs "solo-sshd.ps1 -Prepare" (idempotent: it makes
+# the key file if missing, deletes what the first per-user build left in <app>\ssh, and moves the
+# master's old key lines out of ~\.ssh\authorized_keys); the host key and the configuration are
+# the ELEVATED installer step's, in an admin-only machine folder, which -Prepare only READS.  ADD
+# refuses when there is no sshd.exe on this computer at all, because a key line that nothing will
+# ever read is worse than a refusal.
 #
 # OUTPUT, one machine-readable line each (anchor on these, nothing else):
 #   OSUSER=<name as sshd matches it>   HOSTKEY=<SHA256:...>   PORT=<Solo's ssh port, 4251>
 #   FPR=<SHA256:...>                   COUNT=<our lines now>
 #   RESULT=ADDED|PRESENT|REMOVED|ABSENT|LISTED
 #   ERROR=<text>                       (exit 1; nothing was changed)
-# Exit 0 only with a RESULT= line.  HOSTKEY is now Solo's OWN sshd's ed25519 host key, read from
-# <app>\ssh\ssh_host_ed25519_key.pub (readable by the user - no elevated step records it any more);
-# before this change it was the system sshd's, read from a file an elevated step had written.
+# Exit 0 only with a RESULT= line.  HOSTKEY is Solo's OWN sshd's ed25519 host key, read from the
+# machine folder's ssh_host_ed25519_key.pub (%ProgramData%\SDCoreSolo\ssh; users may read it, only
+# an administrator may write it); empty when the installer's elevated step has not made it yet.
 # PORT is new: the master needs it to reach Solo's sshd; apisrvr appends it to the ADD answer.
 #
 # OUR LINES are "restrict <type> <key> sdcoresolo-managed" and nothing else is ever

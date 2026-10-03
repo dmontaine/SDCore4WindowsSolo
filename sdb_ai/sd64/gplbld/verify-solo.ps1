@@ -1479,6 +1479,10 @@ public static class SdSuiteCli {
     # ~\.ssh\authorized_keys behind the system sshd on 22; ADD answers SIX fields
     # (the sixth is the port); a leg that finds nothing listening on 4251 FAILS
     # rather than skips - the boot task is part of what is installed.
+    # Sign-in to that sshd is by WINDOWS ACCOUNT NAME AND PASSWORD (owner, 2 Oct 2026; the sshd runs as SYSTEM so
+    # it can start the session); a key is an optional extra, and a key is all this leg can use, because the suite
+    # holds no Windows password and nobody else may type one.  THE PASSWORD PATH IS THE OWNER'S WITNESS, by hand:
+    # ssh -p 4251 <user>@127.0.0.1, his Windows password, then SD's own prompt.
     Say ''
     Say '== 18b. the ssh key request (SOLO 24, request 49; SOLO 28, own sshd on 4251)'
     $kgen = Join-Path $env:SystemRoot 'System32\OpenSSH\ssh-keygen.exe'
@@ -1492,7 +1496,7 @@ public static class SdSuiteCli {
         $akBefore = $(if (Test-Path -LiteralPath $akf) { (Get-FileHash -LiteralPath $akf -Algorithm SHA256).Hash } else { '(absent)' })
         $listen = @(Get-NetTCPConnection -State Listen -LocalPort $sshPort -ErrorAction SilentlyContinue)
         Say ('    Solo''s sshd listening on ' + $sshPort + ': ' + $listen.Count + ' socket(s); key file ' + $akf + ' (' + $akBefore + ')')
-        Check ('Solo''s own sshd is listening on port ' + $sshPort) ($listen.Count -gt 0) 'nothing listens on 4251 - the "SD Core Solo SSH" task did not start sshd (solo-sshd.ps1 -Run)'
+        Check ('Solo''s own sshd is listening on port ' + $sshPort) ($listen.Count -gt 0) 'nothing listens on 4251 - the "SD Core Solo SSH" SYSTEM task did not start sshd (its log: %ProgramData%\SDCoreSolo\ssh\sshd.log)'
         $kdir = Join-Path $env:TEMP ('sdsshkey-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
         New-Item -ItemType Directory -Path $kdir | Out-Null
         $kf = Join-Path $kdir 'k'

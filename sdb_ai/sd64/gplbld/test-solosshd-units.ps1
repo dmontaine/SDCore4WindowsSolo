@@ -1,18 +1,22 @@
 # test-solosshd-units.ps1 - free-tier guard for solo-sshd.ps1 (SOLO 28).
-# Drives the script against a SCRATCH app folder and a SCRATCH profile (USERPROFILE is
-# overridden for the child process), so it needs no tree, no elevation, no network and
-# touches nothing real.  It never starts an sshd.  Every row prints the command and the
-# output it matched on, and anchors on RESULT= / ERROR= / the file it wrote - a row that
-# matched only an echo of its own input would be a false pass.
+# Drives the script against a SCRATCH app folder, a SCRATCH profile and a SCRATCH ProgramData (USERPROFILE and
+# ProgramData are overridden for the child process), so it needs no tree, no elevation, no network and touches
+# nothing real.  It never starts an sshd.  Every row prints the command and the output it matched on, and
+# anchors on RESULT= / ERROR= / the file it wrote - a row that matched only an echo of its own input would be a
+# false pass.
 #
 #   powershell -ExecutionPolicy Bypass -File <this file>
 # Exit 0 = all rows pass, 1 = a row failed, 2 = could not run (no ssh-keygen to make test keys).
 #
-# WHAT IT PROTECTS: the sshd configuration Solo's per-user sshd runs on (fixed port 4251,
-# StrictModes yes, public-key only, AllowUsers the owner, ForceCommand sd-solo.exe), that it is
-# accepted by sshd -t, that preparing it twice changes nothing, that a tampered file is put
-# back, that the master's old key lines move out of ~\.ssh\authorized_keys without touching the
-# owner's own keys, and that -Stop can never reach the system sshd.
+# WHAT IT PROTECTS: Solo's sshd runs as SYSTEM (the owner's ruling: Windows account name + password, which a
+# per-user sshd cannot give a session - CreateProcessAsUserW 1314), so what a SYSTEM process trusts must be
+# admin-only.  Rows: the user-level -Prepare makes ONLY the user's own key file and deletes what the first
+# per-user build left, reads the host-key fingerprint from the machine folder and writes nothing there; the
+# config -PrintConfig prints is password-AND-key, fixed port 4251, StrictModes yes, AllowUsers the owner,
+# ForceCommand sd-solo.exe, and sshd -t accepts it; a login name or app path that could add a line to it is
+# refused; -Install and -Uninstall refuse unelevated and change nothing; and the permission READ-BACK
+# (Get-AclProblems, lifted from the script) flags a user-writable folder, a user-readable private key and a
+# non-admin owner - proved on bad, partly good and mutant folders.  The elevated -Install itself cannot run here.
 
 $ErrorActionPreference = 'Continue'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -24,10 +28,12 @@ $sshdExe = Join-Path $sshDirOs 'sshd.exe'
 if (-not (Test-Path $keygen)) { Write-Host "NO TREE: $keygen missing (needed to make test keys)"; exit 2 }
 $haveSshd = Test-Path $sshdExe
 
-$origProfile = $env:USERPROFILE   # Run overrides it for the child; "& this-script" runs in the CALLER's process, so it is put back at the end
+# "& this-script" runs in the CALLER's process, so what Run overrides is put back at the end.
+$origProfile = $env:USERPROFILE
+$origPD = $env:ProgramData
 $root = Join-Path $env:TEMP ('sdsolosshd-units-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
-$app = Join-Path $root 'app'; $prof = Join-Path $root 'profile'
-New-Item -ItemType Directory -Path (Join-Path $app 'sdsys'), $prof | Out-Null
+$app = Join-Path $root 'app'; $prof = Join-Path $root 'profile'; $pd = Join-Path $root 'programdata'
+New-Item -ItemType Directory -Path (Join-Path $app 'sdsys'), $prof, $pd | Out-Null
 Copy-Item $src (Join-Path $app 'solo-sshd.ps1')
 $helper = Join-Path $app 'solo-sshd.ps1'
 Write-Host "scratch root: $root   (sshd.exe present: $haveSshd)"
@@ -40,6 +46,7 @@ function Skip([string]$label, [string]$why) { Write-Host "SKIP  $label  ($why)" 
 
 function Run([string]$name, [string[]]$a) {
     $env:USERPROFILE = $prof
+    $env:ProgramData = $pd
     $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $helper @a 2>&1 | Out-String
     $code = $LASTEXITCODE
     Write-Host ('--- ' + $name + ' (exit ' + $code + ')'); Write-Host $out.TrimEnd()
@@ -52,107 +59,113 @@ function New-Pub([int]$n) {
     return (Get-Content "$k.pub" -Raw).Trim()
 }
 function Sshd-Pids { return @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -like 'sshd*' } | ForEach-Object { $_.Id }) }
+function Tree([string]$p) { if (Test-Path $p) { return @(Get-ChildItem -LiteralPath $p -Recurse -Force | ForEach-Object { $_.FullName.Substring($p.Length) }) -join '|' } else { return '(absent)' } }
 
 $sshDir = Join-Path $app 'ssh'
-$cfg = Join-Path $sshDir 'sshd_config'; $hk = Join-Path $sshDir 'ssh_host_ed25519_key'; $ak = Join-Path $sshDir 'authorized_keys'
+$ak = Join-Path $sshDir 'authorized_keys'
+$mdir = Join-Path $pd 'SDCoreSolo\ssh'
 $oldDir = Join-Path $prof '.ssh'; $old = Join-Path $oldDir 'authorized_keys'
 $pidsBefore = Sshd-Pids
 # PORT 4251 IS FIXED AND SHARED WITH THE REAL MACHINE, so what holds it NOW decides which rows can run.  On a
-# machine with a running Solo, its sshd (started by the startup task) holds 4251 and an ordinary shell
-# cannot inspect it - measured 2 Oct 2026 - so "nothing listens on 4251" and "-Stop answers NONE" are
-# not true there, and the guard says so instead of failing for the wrong reason.
+# machine with a running Solo, its sshd (started by a SYSTEM task) holds 4251 and an ordinary shell cannot
+# inspect it - measured 2 Oct 2026 - so "-Stop answers NONE" is not true there, and the guard says so instead of
+# failing for the wrong reason.
 $rowsBefore = @(Get-NetTCPConnection -State Listen -LocalPort 4251 -ErrorAction SilentlyContinue).Count
 $holders = @(Get-NetTCPConnection -State Listen -LocalPort 4251 -ErrorAction SilentlyContinue | ForEach-Object { $_.OwningProcess } | Sort-Object -Unique)
 $blindBefore = @($holders | Where-Object { $p = Get-CimInstance Win32_Process -Filter ('ProcessId=' + $_) -ErrorAction SilentlyContinue; (-not $p) -or (-not $p.CommandLine) }).Count
 Write-Host ('port 4251 on this machine: ' + $rowsBefore + ' listening socket(s), held by ' + $holders.Count + ' process(es), ' + $blindBefore + ' not inspectable from this shell')
 $expectUser = ([Security.Principal.WindowsIdentity]::GetCurrent().Name.Split('\')[-1]).ToLower()
 
-# ---- 1. -Prepare on an empty tree ------------------------------------------------------
+# ---- 1. -Prepare on an empty tree: only the user's own file ------------------------------------
 $r = Run 'Prepare (empty tree)' @('-Prepare')
 Check 'Prepare answers RESULT=PREPARED, exit 0' ($r.Code -eq 0 -and $r.Out -match '(?m)^RESULT=PREPARED\s*$')
-Check 'it says PORT=4251, a user, a host-key fingerprint, the key file and MIGRATED=0' (
-    $r.Out -match '(?m)^PORT=4251\s*$' -and $r.Out -match '(?m)^OSUSER=\S+' -and
-    $r.Out -match '(?m)^HOSTKEY=SHA256:[A-Za-z0-9+/]{43}\s*$' -and $r.Out.Contains('KEYFILE=' + $ak) -and $r.Out -match '(?m)^MIGRATED=0\s*$')
-Check 'the files exist: sshd_config, host key and its .pub, an authorized_keys of 0 bytes' (
-    (Test-Path $cfg) -and (Test-Path $hk) -and (Test-Path ($hk + '.pub')) -and (Test-Path $ak) -and ((Get-Item $ak).Length -eq 0))
-$fpKeygen = ((& $keygen -l -f ($hk + '.pub')) -split '\s+')[1]
-Check "HOSTKEY is ssh-keygen's own fingerprint of that key (an independent instrument)" ($r.Out.Contains('HOSTKEY=' + $fpKeygen))
+Check 'it says PORT=4251, the user, the key file, the MACHINE config path and MIGRATED=0' (
+    $r.Out -match '(?m)^PORT=4251\s*$' -and $r.Out -match ('(?m)^OSUSER=' + [regex]::Escape($expectUser) + '\s*$') -and
+    $r.Out.Contains('KEYFILE=' + $ak) -and $r.Out.Contains('CONFIG=' + (Join-Path $mdir 'sshd_config')) -and $r.Out -match '(?m)^MIGRATED=0\s*$')
+Check 'HOSTKEY is EMPTY while no machine host key exists (it reads one, it never makes one)' ($r.Out -match '(?m)^HOSTKEY=\s*$')
+Check 'the key file exists and is empty' ((Test-Path $ak) -and (Get-Item $ak).Length -eq 0)
+Check '<app>\ssh holds ONLY authorized_keys - no config, no host key, no pid, no log' ((Tree $sshDir) -eq '\authorized_keys')
+Check 'and nothing at all was written under the machine folder (ProgramData)' ((Tree $pd) -eq '(absent)' -or (Tree $pd) -eq '')
 
-# ---- 2. the configuration itself -------------------------------------------------------
-$c = [IO.File]::ReadAllText($cfg)
-Write-Host '--- the configuration written:'; Write-Host $c.TrimEnd()
-function Has([string]$line) { return ($c -split "`n") -contains $line }
-$fw = { param($p) ($p -replace '\\', '/') }
-Check 'Port 4251, and ListenAddress is not set (the firewall rule decides who may reach it)' ((Has 'Port 4251') -and ($c -notmatch '(?m)^\s*ListenAddress'))
-Check 'public-key only: PasswordAuthentication no, KbdInteractiveAuthentication no, AuthenticationMethods publickey' (
-    (Has 'PasswordAuthentication no') -and (Has 'KbdInteractiveAuthentication no') -and (Has 'AuthenticationMethods publickey') -and (Has 'PubkeyAuthentication yes'))
-Check 'StrictModes yes (measured: it refuses a key file others can write)' (Has 'StrictModes yes')
-Check 'AllowUsers names exactly the user it was prepared for' (Has ('AllowUsers ' + $expectUser))
-Check 'DisableForwarding yes, and no sftp Subsystem and no Match block' ((Has 'DisableForwarding yes') -and ($c -notmatch '(?m)^\s*Match\s') -and ($c -notmatch '(?m)^\s*Subsystem'))
-Check 'HostKey, AuthorizedKeysFile and PidFile are ABSOLUTE paths inside the app folder\ssh' (
-    (Has ('HostKey ' + (& $fw $hk))) -and (Has ('AuthorizedKeysFile ' + (& $fw $ak))) -and (Has ('PidFile ' + (& $fw (Join-Path $sshDir 'sshd.pid')))))
-Check 'ForceCommand runs THIS app folder''s sd-solo.exe, quoted' (Has ('ForceCommand "' + (Join-Path $app 'usr\bin\sd-solo.exe') + '"'))
-Check 'the file is LF only, ASCII only' (([IO.File]::ReadAllBytes($cfg) | Where-Object { $_ -eq 13 -or $_ -gt 127 }).Count -eq 0)
-
-# ---- 3. sshd -t accepts it, and a control proves sshd -t is not vacuous -----------------
-if ($haveSshd) {
-    $o = & $sshdExe -t -f $cfg 2>&1 | Out-String
-    Check 'sshd -t accepts the generated configuration' ($LASTEXITCODE -eq 0)
-    $bad = Join-Path $root 'bad_config'
-    [IO.File]::WriteAllText($bad, "ThisIsNotAKeyword yes`n")
-    $o2 = & $sshdExe -t -f $bad 2>&1 | Out-String
-    Check 'CONTROL: sshd -t REJECTS a config with an unknown keyword, so the row above means something' ($LASTEXITCODE -ne 0)
-} else { Skip 'sshd -t rows' 'no sshd.exe on this machine' }
-
-# ---- 4. idempotent, and a tampered file is put back --------------------------------------
-$h1 = Sha $hk; $c1 = Sha $cfg
+$h = Sha $ak
 $r = Run 'Prepare again' @('-Prepare')
-Check 'the host key is not remade (same bytes) and the config is unchanged' ((Sha $hk) -eq $h1 -and (Sha $cfg) -eq $c1 -and $r.Out -match 'RESULT=PREPARED')
-[IO.File]::WriteAllText($cfg, "Port 22`nPasswordAuthentication yes`n")
-$r = Run 'Prepare after the config was tampered with' @('-Prepare')
-Check 'a tampered sshd_config is rewritten to the original' ((Sha $cfg) -eq $c1)
-Remove-Item ($hk + '.pub') -Force
-$r = Run 'Prepare with the .pub missing' @('-Prepare')
-Check 'a missing half of the host key makes a whole new pair' ((Test-Path $hk) -and (Test-Path ($hk + '.pub')) -and $r.Out -match 'HOSTKEY=SHA256:')
+Check 'preparing twice changes nothing' ($r.Code -eq 0 -and (Sha $ak) -eq $h)
 
-# ---- 5. migration of the master's old key lines -------------------------------------------
-$pubs = 1..4 | ForEach-Object { New-Pub $_ }
-function Line([int]$i) { $p = $pubs[$i] -split '\s+'; return ('restrict ' + $p[0] + ' ' + $p[1] + ' sdcoresolo-managed') }
+# ---- 2. HOSTKEY is read from the machine folder, checked with an independent instrument -----------
+New-Item -ItemType Directory -Path $mdir -Force | Out-Null
+& $keygen -q -t ed25519 -N '""' -f (Join-Path $mdir 'ssh_host_ed25519_key') | Out-Null
+$hostFpr = ((& $keygen -l -f (Join-Path $mdir 'ssh_host_ed25519_key.pub')) -split '\s+')[1]
+$r = Run 'Prepare with a machine host key present' @('-Prepare')
+Check "HOSTKEY is the fingerprint ssh-keygen gives for the machine folder's key (an independent instrument)" ($r.Out -match ('(?m)^HOSTKEY=' + [regex]::Escape($hostFpr) + '\s*$'))
+Check 'and it did not touch the machine folder' ((Tree $mdir) -eq '\ssh_host_ed25519_key|\ssh_host_ed25519_key.pub')
+
+# ---- 3. what the first per-user build left in <app>\ssh is deleted, the owner's keys stay ----------
 $userKey = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIUSERSOWNKEYUSERSOWNKEYUSERSOWNKEYUSERSOWN me@laptop'
+[IO.File]::WriteAllText($ak, $userKey + "`n")
+foreach ($n in @('sshd_config', 'ssh_host_ed25519_key', 'ssh_host_ed25519_key.pub', 'sshd.pid', 'sshd.log')) { [IO.File]::WriteAllText((Join-Path $sshDir $n), 'left by the first build') }
+$r = Run 'Prepare over the first build''s files' @('-Prepare')
+Check 'the first build''s config, host key, pid and log are gone' ((Tree $sshDir) -eq '\authorized_keys')
+Check 'and the owner''s own key in authorized_keys is untouched' ((Get-Content $ak) -contains $userKey)
+
+# ---- 4. the master's old managed key lines move out of ~\.ssh, the owner's stay ----------------------
+$pubs = 1..3 | ForEach-Object { New-Pub $_ }
+function Line([int]$i) { $p = $pubs[$i] -split '\s+'; return ('restrict ' + $p[0] + ' ' + $p[1] + ' sdcoresolo-managed') }
 New-Item -ItemType Directory -Path $oldDir | Out-Null
-$oldText = @($userKey, (Line 0), (Line 1)) -join "`n"
-[IO.File]::WriteAllText($old, $oldText + "`n")
-$ownNew = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOWNERSNEWFILEOWNERSNEWFILEOWNERSNEWFILEOWNE mine@desk'
-[IO.File]::AppendAllText($ak, $ownNew + "`n")
+$oldOwn = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOLDOWNKEYOLDOWNKEYOLDOWNKEYOLDOWNKEYOLDO me@old'
+[IO.File]::WriteAllText($old, (@($oldOwn, (Line 0), (Line 1)) -join "`n") + "`n")
 $r = Run 'Prepare with two old managed keys planted' @('-Prepare')
 $newLines = @(Get-Content $ak); $oldLines = @(Get-Content $old)
 Check 'MIGRATED=2' ($r.Out -match '(?m)^MIGRATED=2\s*$')
-Check 'both managed lines are now in Solo''s own file, and the owner''s own line there is untouched' (($newLines -contains (Line 0)) -and ($newLines -contains (Line 1)) -and ($newLines -contains $ownNew))
-Check 'the old file keeps only the owner''s key' ($oldLines.Count -eq 1 -and $oldLines[0] -eq $userKey)
-Check 'a backup of the old file holds all three original lines' ((Test-Path ($old + '.sdcoresolo-backup')) -and ((Get-Content ($old + '.sdcoresolo-backup')).Count -eq 3))
+Check 'both managed lines are now in Solo''s own file, and the owner''s own line there is untouched' (($newLines -contains (Line 0)) -and ($newLines -contains (Line 1)) -and ($newLines -contains $userKey))
+Check 'the old file keeps only the owner''s key, and a backup holds all three original lines' ($oldLines.Count -eq 1 -and $oldLines[0] -eq $oldOwn -and (Test-Path ($old + '.sdcoresolo-backup')) -and ((Get-Content ($old + '.sdcoresolo-backup')).Count -eq 3))
 $r = Run 'Prepare again after migrating' @('-Prepare')
 Check 'migrating twice moves nothing and changes nothing' ($r.Out -match '(?m)^MIGRATED=0\s*$' -and @(Get-Content $ak).Count -eq 3)
-[IO.File]::AppendAllText($old, (Line 0) + "`n")
-$r = Run 'Prepare with a managed line that is already in the new file' @('-Prepare')
-Check 'a duplicate is not added twice, but is taken out of the old file' ($r.Out -match '(?m)^MIGRATED=0\s*$' -and @(Get-Content $ak).Count -eq 3 -and @(Get-Content $old).Count -eq 1)
-
-# ---- 6. the stale pinned fingerprint of the SYSTEM sshd is removed -------------------------
 [IO.File]::WriteAllText((Join-Path $app 'sdsys\ssh-hostkey'), 'SHA256:' + ('A' * 43) + "`r`n")
 $r = Run 'Prepare with the old sdsys\ssh-hostkey present' @('-Prepare')
 Check 'the stale sdsys\ssh-hostkey (the system sshd''s pin) is removed' (-not (Test-Path (Join-Path $app 'sdsys\ssh-hostkey')))
 
-# ---- 7. argument discipline and the things it must NOT do ----------------------------------
+# ---- 5. the configuration: password AND key, port fixed, accepted by sshd -t -------------------------
+$r = Run 'PrintConfig' @('-PrintConfig', '-OsUser', $expectUser)
+$cfgText = $r.Out
+Check 'the config sets Port 4251, StrictModes yes, PasswordAuthentication yes and PubkeyAuthentication yes' (
+    $cfgText -match '(?m)^Port 4251\s*$' -and $cfgText -match '(?m)^StrictModes yes\s*$' -and $cfgText -match '(?m)^PasswordAuthentication yes\s*$' -and $cfgText -match '(?m)^PubkeyAuthentication yes\s*$')
+Check 'it allows ONLY the owner, forces sd-solo.exe from the app folder, and forbids forwarding' (
+    $cfgText -match ('(?m)^AllowUsers ' + [regex]::Escape($expectUser) + '\s*$') -and $cfgText.Contains('ForceCommand "' + (Join-Path $app 'usr\bin\sd-solo.exe') + '"') -and $cfgText -match '(?m)^DisableForwarding yes\s*$')
+Check 'the host key and pid file are in the MACHINE folder, the optional key file is in the user''s' (
+    $cfgText.Contains('HostKey ' + ((Join-Path $mdir 'ssh_host_ed25519_key') -replace '\\', '/')) -and $cfgText.Contains('PidFile ' + ((Join-Path $mdir 'sshd.pid') -replace '\\', '/')) -and
+    $cfgText.Contains('AuthorizedKeysFile ' + ((Join-Path $sshDir 'authorized_keys') -replace '\\', '/')))
+Check 'it does NOT force key-only: no "PasswordAuthentication no" and no AuthenticationMethods line' ($cfgText -notmatch '(?m)^PasswordAuthentication no' -and $cfgText -notmatch '(?m)^AuthenticationMethods')
+if ($haveSshd) {
+    $tcfg = Join-Path $root 'test_sshd_config'
+    [IO.File]::WriteAllText($tcfg, ($cfgText.TrimEnd() + "`n"), (New-Object Text.UTF8Encoding($false)))
+    $tp = Start-Process -FilePath $sshdExe -ArgumentList @('-t', '-f', ('"' + $tcfg + '"')) -NoNewWindow -Wait -PassThru -RedirectStandardError (Join-Path $root 't.err') -RedirectStandardOutput (Join-Path $root 't.out')
+    Write-Host ('--- sshd -t on that config (exit ' + $tp.ExitCode + ')  ' + ((Get-Content (Join-Path $root 't.err') -ErrorAction SilentlyContinue) -join ' | '))
+    Check 'sshd -t accepts the printed configuration (exit 0, nothing on stderr)' ($tp.ExitCode -eq 0 -and ((Get-Content (Join-Path $root 't.err') -ErrorAction SilentlyContinue) -join '').Trim() -eq '')
+} else { Skip 'sshd -t on the printed configuration' 'no sshd.exe on this computer' }
+
+# ---- 6. inputs that could add a line to a config a SYSTEM process reads are refused -------------------
+foreach ($bad in @('don evil', 'don/x', 'a;b')) {
+    $r = Run ('PrintConfig with login name [' + $bad + ']') @('-PrintConfig', '-OsUser', $bad)
+    Check ('login name [' + $bad + '] is refused with ERROR=, exit 1, and no config printed') ($r.Code -eq 1 -and $r.Out -match '(?m)^ERROR=refusing a login name' -and $r.Out -notmatch '(?m)^Port ')
+}
+$r = Run 'PrintConfig with no login name' @('-PrintConfig')
+Check 'no login name is refused' ($r.Code -eq 1 -and $r.Out -match '(?m)^ERROR=give -OsUser')
+
+# ---- 7. -Install and -Uninstall need an administrator and change nothing without one ---------------
+$before = Tree $pd
+$r = Run 'Install, unelevated' @('-Install', '-OsUser', $expectUser)
+Check '-Install unelevated: ERROR=...ELEVATED, exit 1, and the machine folder is exactly as it was' ($r.Code -eq 1 -and $r.Out -match '(?m)^ERROR=.*ELEVATED' -and (Tree $pd) -eq $before)
+$r = Run 'Uninstall, unelevated' @('-Uninstall')
+Check '-Uninstall unelevated: ERROR=...ELEVATED, exit 1, and the machine folder is still there' ($r.Code -eq 1 -and $r.Out -match '(?m)^ERROR=.*ELEVATED' -and (Test-Path (Join-Path $mdir 'ssh_host_ed25519_key')))
+
+# ---- 8. argument discipline and the things -Stop must NOT do --------------------------------------
 $r = Run 'no switch' @()
 Check 'no switch: ERROR, exit 1, nothing started' ($r.Code -eq 1 -and $r.Out -match '(?m)^ERROR=give exactly one')
 $r = Run 'two switches' @('-Prepare', '-Show')
 Check 'two switches: ERROR, exit 1' ($r.Code -eq 1 -and $r.Out -match '(?m)^ERROR=give exactly one')
-$h = Sha $cfg
+$h = Sha $ak
 $r = Run 'Show' @('-Show')
-Check '-Show reports PORT=4251 and changes nothing' ($r.Out -match 'PORT=4251 listening=' -and (Sha $cfg) -eq $h -and $r.Code -eq 0)
-$r = Run 'Run with no sd-solo.exe' @('-Run')
-Check '-Run with nothing to force is REFUSED (ERROR, exit 1) and starts no sshd' (
-    $r.Code -eq 1 -and $r.Out -match '(?m)^ERROR=no (sd-solo\.exe|sshd\.exe)' -and ((Sshd-Pids) -join ',') -eq ($pidsBefore -join ',') -and
-    @(Get-NetTCPConnection -State Listen -LocalPort 4251 -ErrorAction SilentlyContinue).Count -eq $rowsBefore)
+Check '-Show reports PORT=4251, the machine folder, and changes nothing' ($r.Out -match 'PORT=4251 listening=' -and $r.Out -match 'MACHINEDIR=' -and (Sha $ak) -eq $h -and $r.Code -eq 0)
 $r = Run 'Stop with none of ours running' @('-Stop')
 if ($blindBefore -eq 0) {
     Check '-Stop with nothing of ours running answers RESULT=NONE' ($r.Code -eq 0 -and $r.Out -match '(?m)^RESULT=NONE\s*$' -and $r.Out -match '(?m)^STOPPED=0\s*$')
@@ -165,7 +178,7 @@ if ($blindBefore -eq 0) {
 }
 Check 'and the system sshd is exactly as it was (same sshd* processes before and after every row)' (((Sshd-Pids) -join ',') -eq ($pidsBefore -join ','))
 
-# ---- 8. the two scripts that name the port agree ---------------------------------------------
+# ---- 9. the two scripts that name the port agree ---------------------------------------------------
 $fwSrc = Join-Path $here 'solo-ssh-firewall.ps1'
 $portHere = [regex]::Match([IO.File]::ReadAllText($src), '(?m)^\$Port = (\d+)').Groups[1].Value
 if (Test-Path $fwSrc) {
@@ -173,11 +186,7 @@ if (Test-Path $fwSrc) {
     Check ("solo-sshd.ps1 and solo-ssh-firewall.ps1 name the same port ($portHere / $portFw), and it is 4251") ($portHere -eq $portFw -and $portHere -eq '4251')
 } else { Check 'solo-ssh-firewall.ps1 exists to compare the port with' $false }
 
-# ---- 9. a boot task with NO USERPROFILE in its environment (S4U) -------------------------------
-# Join-Path throws on an empty string, which would stop -Run before sshd started.  The fallback asks the
-# OS for the folder - the REAL profile, so this row reads the real ~\.ssh\authorized_keys.  It only runs
-# when that file holds no Solo-tagged line (a tagged line would be migrated, i.e. WRITTEN), and it
-# compares the real file's hash before and after.
+# ---- 10. a task with NO USERPROFILE in its environment (Join-Path throws on an empty string) --------
 $realProfile = [Environment]::GetFolderPath('UserProfile')
 $realAk = Join-Path $realProfile '.ssh\authorized_keys'
 $realTagged = (Test-Path -LiteralPath $realAk) -and (@(Get-Content -LiteralPath $realAk | Where-Object { $_ -match 'sdcoresolo-managed' }).Count -gt 0)
@@ -186,6 +195,7 @@ if ($realTagged) {
 } else {
     $realHash = $(if (Test-Path -LiteralPath $realAk) { Sha $realAk } else { '(absent)' })
     Remove-Item Env:\USERPROFILE -ErrorAction SilentlyContinue
+    $env:ProgramData = $pd
     Write-Host ('USERPROFILE in the child: [' + $env:USERPROFILE + ']  (must be empty); OS says the folder is ' + $realProfile)
     $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $helper -Prepare 2>&1 | Out-String
     $code = $LASTEXITCODE
@@ -195,9 +205,47 @@ if ($realTagged) {
         [string]::IsNullOrEmpty($env:USERPROFILE) -and $code -eq 0 -and $out -match '(?m)^RESULT=PREPARED\s*$' -and $out -notmatch 'Cannot bind argument')
     Check 'and the real ~\.ssh\authorized_keys is byte-identical afterwards' ($realAfter -eq $realHash)
 }
-
 $env:USERPROFILE = $origProfile
-Remove-Item $root -Recurse -Force
+$env:ProgramData = $origPD
+
+# ---- 11. THE PERMISSION READ-BACK: Get-AclProblems is lifted from the script, so the real code is tested -------
+$tok = $null; $errs = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile($src, [ref]$tok, [ref]$errs)
+$lifted = 0
+foreach ($name in @('Get-SidOf', 'Get-AclProblems')) {
+    $fn = @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $name }, $true))
+    if ($fn.Count -ne 1) { Write-Host "NO TREE: expected exactly one $name in solo-sshd.ps1, found $($fn.Count)"; exit 2 }
+    . ([scriptblock]::Create($fn[0].Extent.Text))
+    $lifted++
+}
+$SidSystem = 'S-1-5-18'; $SidAdmins = 'S-1-5-32-544'; $SidUsers = 'S-1-5-32-545'
+Write-Host ("lifted $lifted functions for the read-back rows")
+$aclDir = Join-Path $root 'acl'
+New-Item -ItemType Directory -Path $aclDir | Out-Null
+$aclFile = Join-Path $aclDir 'key'
+[IO.File]::WriteAllText($aclFile, 'x')
+$p1 = @(Get-AclProblems $aclDir $false)
+Write-Host ('  fresh folder, problems: ' + ($p1 -join ' ;; '))
+Check 'a FRESH user-owned folder is flagged: the user owns it AND can write in it' ($p1.Count -ge 2 -and @($p1 | Where-Object { $_ -match 'owner is' }).Count -ge 1 -and @($p1 | Where-Object { $_ -match 'can write' }).Count -ge 1)
+$null = & icacls.exe $aclDir '/inheritance:r' '/grant:r' ('*' + $SidSystem + ':(OI)(CI)F') ('*' + $SidAdmins + ':(OI)(CI)F') ('*' + $SidUsers + ':(OI)(CI)RX') 2>&1
+$p2 = @(Get-AclProblems $aclDir $false)
+Write-Host ('  admin-only ACL, still user-owned, problems: ' + ($p2 -join ' ;; '))
+Check 'with the install''s ACL (SYSTEM+Administrators full, Users read) ONLY the owner is left to flag - the unelevated guard cannot change it' ($p2.Count -eq 1 -and $p2[0] -match 'owner is')
+$null = & icacls.exe $aclDir '/grant' ('*' + $SidUsers + ':(OI)(CI)M') 2>&1
+$p3 = @(Get-AclProblems $aclDir $false)
+Write-Host ('  MUTANT, Users granted Modify, problems: ' + ($p3 -join ' ;; '))
+Check 'MUTANT: Users granted Modify on the folder is flagged "can write"' (@($p3 | Where-Object { $_ -match 'Users.*can write' }).Count -ge 1)
+$null = & icacls.exe $aclFile '/inheritance:r' '/grant:r' ('*' + $SidSystem + ':F') ('*' + $SidAdmins + ':F') 2>&1
+$p4 = @(Get-AclProblems $aclFile $true)
+Check 'a private key readable by SYSTEM and Administrators only has no access problem (only the owner, which the guard cannot set)' ($p4.Count -eq 1 -and $p4[0] -match 'owner is')
+$null = & icacls.exe $aclFile '/grant' ('*' + $SidUsers + ':R') 2>&1
+$p5 = @(Get-AclProblems $aclFile $true)
+Write-Host ('  MUTANT, Users granted read on the private key, problems: ' + ($p5 -join ' ;; '))
+Check 'MUTANT: Users granted READ on the private key is flagged "has access to a private key"' (@($p5 | Where-Object { $_ -match 'has access to a private key' }).Count -ge 1)
+
+$null = & icacls.exe $aclDir '/reset' '/T' '/C' '/Q' 2>&1
+Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
+if (Test-Path $root) { Write-Host "NOTE: could not remove the scratch folder $root" }
 Write-Host ''
 if ($fail -eq 0) { Write-Host 'solo-sshd units: ALL PASS'; exit 0 }
 Write-Host "solo-sshd units: $fail FAILED"; exit 1

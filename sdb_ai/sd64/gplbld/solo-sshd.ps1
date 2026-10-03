@@ -1,76 +1,67 @@
-# solo-sshd.ps1 - SD Core Solo's OWN ssh server: a small sshd run by the Solo owner, as
-# the owner, on its own fixed port.  SOLO 28 (the multi-user port's RELEASE_1.1 118).
+# solo-sshd.ps1 - SD Core Solo's OWN ssh server: its own sshd, on its own fixed port, run as SYSTEM,
+# signing the owner in with his WINDOWS ACCOUNT NAME AND PASSWORD.  SOLO 28 (the multi-user port's
+# RELEASE_1.1 118).
 #
-#   powershell -NoProfile -ExecutionPolicy Bypass -File solo-sshd.ps1 -Prepare   make the files, print facts
-#   powershell -NoProfile -ExecutionPolicy Bypass -File solo-sshd.ps1 -Run       -Prepare, then run sshd (blocks)
-#   powershell -NoProfile -ExecutionPolicy Bypass -File solo-sshd.ps1 -Stop      stop the sshd this script started
-#   powershell -NoProfile -ExecutionPolicy Bypass -File solo-sshd.ps1 -Show      report, change nothing
+#   -Prepare      (ordinary user)  make <app>\ssh\authorized_keys, move old managed keys in, print facts
+#   -Install      (ELEVATED)       make the admin-only machine folder, host key, config; check its permissions
+#   -Stop         (ELEVATED)       end the sshd that was started from Solo's config
+#   -Show         (anyone)         report, change nothing
+#   -Uninstall    (ELEVATED)       -Stop, then delete the machine folder
+#   -PrintConfig  (anyone)         print the sshd_config text for -OsUser, write nothing (the guard uses it)
+# All with: powershell -NoProfile -ExecutionPolicy Bypass -File solo-sshd.ps1 <switch> [-OsUser name] [-AppDir path]
 #
-# UNELEVATED BY DESIGN.  It runs as the Solo owner (from the S4U startup task solo-machine.ps1
-# registers, "SD Core Solo SSH"), writes only under <app>\ssh, and never touches the system
-# sshd, its sshd_config, its service or any firewall rule.
+# THE OWNER'S RULINGS, 2 Oct 2026.  (1) Solo's ssh has its OWN port, FIXED AT 4251 and not adjustable, routed
+# by port, no "Match User", no dedicated login; the full product keeps the system sshd on 22.  (2) Sign-in is
+# the Windows ACCOUNT NAME AND PASSWORD, never a key or shared key to set up first - "that is the way I understood
+# the sd core full works ... on any of the four versions" - so a key stays an OPTIONAL extra (the master's request
+# 49 key, a person's own), never the only way in.  (3) After a probe in which he typed his own password, he chose
+# to RUN SOLO'S sshd AS SYSTEM (the identity of the old port-22 route).
 #
-# WHY THIS EXISTS - THE OWNER'S RULING, 2 Oct 2026, put to him by the Linux agent (mail T3410)
-# and confirmed here: "Separate port for sd-solo".  Solo's ssh listens on its OWN port, FIXED AT
-# 4251 and not adjustable (like the API pair 4247/4249); the full product keeps the system sshd on
-# 22.  Routing is by PORT, not by login name: no "Match User" block for Solo, no dedicated login,
-# no reserved account name.  The person who owns Solo and is also a full-product user - the
-# owner is both - uses 22 for the full product and 4251 for Solo.  Solo has ONE route: its own
-# sshd and its own key file (<app>\ssh\authorized_keys), replacing both the old "Match User"
-# block in the system sshd_config and the managed keys in ~\.ssh\authorized_keys.
+# WHY SYSTEM, MEASURED 2 Oct 2026 21:11 (probe-solo-sshd-password.ps1, the owner typed his own password; the log
+# carries none): a PER-USER sshd, no administrator, VERIFIED the Windows password ("Accepted password for don")
+# and then failed "CreateProcessAsUserW failed error:1314 / fork of unprivileged child failed" - 1314 is
+# ERROR_PRIVILEGE_NOT_HELD: it cannot start the session under the logon token the password check made.  (A KEY
+# login works there, using sshd's own token - which is what the first build relied on.)  Linux's non-root sshd got
+# through only because PAM has a setuid helper that checks the caller's own password; Windows has no analogue.
 #
-# KEY-ONLY, AND THAT IS A CHANGE.  The system sshd signed Solo's owner in with the Windows
-# PASSWORD (SOLO ruling 5).  A sshd run by an ordinary user has been MEASURED to accept a KEY
-# login and to refuse a stranger's key (gplbld\probe-solo-sshd-port.ps1, 2 Oct 2026); logging a
-# Windows PASSWORD in through a non-SYSTEM sshd is NOT measured, and nobody may type the owner's
-# password into a test.  Linux Solo is key-only too (its owner ruled "Key-only").  The owner of
-# this agent said "yes build it" to a plan that stated key-only.  A person with no key puts a
-# public key in <app>\ssh\authorized_keys (the docs say how); the managed-mode master installs
-# its own through API request 49 (solo-sshkey.ps1).
+# WHAT A SYSTEM PROCESS MAY NEVER DO: read or run anything a user can edit.  So the config, host key, pid file and
+# log live in an ADMIN-ONLY folder, %ProgramData%\SDCoreSolo\ssh, made by the elevated installer step, and the
+# startup task runs sshd.exe itself against that config - no script of the user's runs as SYSTEM, ever.  Users get
+# read of the folder (the .pub fingerprint is what request 49 reports, and the config is not a secret) and NO write;
+# the private key is SYSTEM and Administrators only.  -Install READS THE PERMISSIONS BACK and refuses to report
+# success unless nobody else can write there, because a wrong ACL here is a privilege-escalation hole, not a
+# cosmetic fault.  The one thing in the config that points into the user's own tree is the ForceCommand, which
+# runs as the signed-in user (sshd starts it under that user's token), and the optional AuthorizedKeysFile.
 #
-# MEASURED 2 Oct 2026, OpenSSH_for_Windows_9.5p2, ordinary user, loopback, scratch config:
-#   - a private sshd started unelevated listened, accepted the owner's key (user authenticated
-#     by "privileged process"), ran the ForceCommand as the owner; a stranger key was refused;
-#     the system sshd on 22 was untouched.
-#   - "StrictModes yes" works with the key file under the user's profile, and REFUSES the same
-#     key once the file is writable by Everyone (control), accepting it again when the grant is
-#     removed - so StrictModes stays ON here, as it does on Linux.
-#   - a "Match User" ForceCommand overrides the full product's GLOBAL one, but a global
-#     AllowGroups is not overridden - which is why routing by a Match block was never attractive.
-# WITNESSED 2 Oct 2026 19:27-19:35 (cycle + verify-solo leg 18b): a key login to an sshd that the
-#   S4U startup task started (pid 14372, session 0, owner the user, 4251) reaches sd-solo.
-# NOT MEASURED: that task starting sshd AT BOOT with nobody signed in (the installer ran it that
-#   time), a non-loopback client, the upgrade over a Solo that wrote the old Match block.
+# THE COST OF PASSWORD LOGIN, for the docs: anyone who can reach port 4251 can try passwords for the owner's
+# Windows account, and the account lockout policy then locks the OWNER out (here: 10 failures in 10 minutes).  The
+# old port-22 route had the same property.  The firewall rule is open only when the owner chose it, or in managed mode.
 #
-# *** AN SSHD THE TASK STARTED CANNOT BE INSPECTED FROM AN ORDINARY SHELL, MEASURED 2 Oct 2026. ***
-#   Its path, command line and owner read as EMPTY to an unelevated shell of the same user (the
-#   elevated installer reads them fine: "sshd.exe pid 14372 session 0 owner ace\Don"), and so does
-#   its parent powershell.  Get-OurSshd finds sshd by command line, so from an ordinary shell it
-#   finds NOTHING while the port is held.  -Stop, -Run and -Show therefore look at who holds the
-#   port too, and say so rather than answer NONE: an ordinary shell cannot stop it - run -Stop
-#   from an ELEVATED PowerShell (solo-machine.ps1 does, at uninstall and upgrade).
+# AN SSHD A SYSTEM TASK STARTED IS NOT READABLE FROM AN ORDINARY SHELL (measured: path, command line and owner read
+# empty to an unelevated shell, even of the same user; an elevated shell reads them).  -Stop finds sshd by command
+# line, so unelevated it finds nothing while the port is held: it looks at who holds the port and REFUSES rather
+# than answer NONE.  Run -Stop elevated, as solo-machine.ps1 does at upgrade and uninstall.
 #
-# FILES, all under <app>\ssh (the user's own tree: the profile's ACL - the user, SYSTEM,
-# Administrators - is what StrictModes and the host-key check want):
-#   sshd_config               rewritten on every start; do not edit
-#   ssh_host_ed25519_key[.pub]  made once; its fingerprint is what request 49 tells the master
-#   authorized_keys           the keys that may sign in; "restrict ... sdcoresolo-managed" lines
-#                             are the master's (solo-sshkey.ps1), any other line is the owner's
-#   sshd.pid, sshd.log
+# LEGACY: the first build of SOLO 28 ran a per-user sshd from an S4U task out of <app>\ssh.  -Prepare deletes the
+# files that build left there (config, host key, pid, log) and -Stop also ends an sshd started from that config.
 #
 # OUTPUT, one machine-readable line each (anchor on these, nothing else):
-#   OSUSER=<name as sshd matches it>   PORT=4251   HOSTKEY=<SHA256:...>
-#   KEYFILE=<path>   CONFIG=<path>   MIGRATED=<n old managed key lines moved>
-#   RESULT=PREPARED|RUNNING|ALREADY|STOPPED|NONE        ERROR=<text>  (exit 1)
-# Exit 0 only with a RESULT= line.  -AppDir exists for the guard (test-solosshd-units.ps1),
-# which runs this against a scratch tree; the installer and the task never pass it.
+#   OSUSER=<name as sshd matches it>   PORT=4251   HOSTKEY=<SHA256:...>   KEYFILE=<path>   CONFIG=<path>
+#   MACHINEDIR=<path>   MIGRATED=<n>   ACL=OK
+#   RESULT=PREPARED|INSTALLED|STOPPED|NONE|REMOVED        ERROR=<text>  (exit 1)
+# Exit 0 only with a RESULT= line.  -AppDir exists for the guard (test-solosshd-units.ps1), which runs this against a
+# scratch tree with %ProgramData% and %USERPROFILE% overridden in the child; -Install ignores the %ProgramData%
+# override and asks the OS for the folder, because it runs elevated.
 
 param(
     [switch]$Prepare,
-    [switch]$Run,
+    [switch]$Install,
     [switch]$Stop,
     [switch]$Show,
-    [string]$AppDir = ''
+    [switch]$Uninstall,
+    [switch]$PrintConfig,
+    [string]$AppDir = '',
+    [string]$OsUser = ''
 )
 
 # 'Continue', NOT 'Stop': under Stop, Windows PowerShell 5.1 turns a native command's stderr into
@@ -87,17 +78,30 @@ function Stop-With([string]$m) { Write-Output ('ERROR=' + $m); exit 1 }
 
 if ($AppDir -eq '') { $AppDir = $PSScriptRoot }
 if (-not $AppDir) { Stop-With 'no app folder' }
-$sshDir  = Join-Path $AppDir 'ssh'
-$cfg     = Join-Path $sshDir 'sshd_config'
-$hostKey = Join-Path $sshDir 'ssh_host_ed25519_key'
-$akFile  = Join-Path $sshDir 'authorized_keys'
-$pidFile = Join-Path $sshDir 'sshd.pid'
-$logFile = Join-Path $sshDir 'sshd.log'
+$userSshDir = Join-Path $AppDir 'ssh'
+$akFile  = Join-Path $userSshDir 'authorized_keys'
+$legacyCfg = Join-Path $userSshDir 'sshd_config'
 $sdExe   = Join-Path $AppDir 'usr\bin\sd-solo.exe'
 $fwd     = { param($p) ($p -replace '\\', '/') }
 
+# The machine folder.  -Install runs ELEVATED and takes it from the OS, never from an environment variable a
+# user's session could have set; the user-level modes read %ProgramData% so the guard can point them at a scratch.
+$machineRoot = $env:ProgramData
+if ($Install -or $Uninstall) { $machineRoot = [Environment]::GetFolderPath('CommonApplicationData') }
+if (-not $machineRoot) { Stop-With 'no ProgramData folder' }
+$machineDir = Join-Path $machineRoot 'SDCoreSolo\ssh'
+$cfg     = Join-Path $machineDir 'sshd_config'
+$hostKey = Join-Path $machineDir 'ssh_host_ed25519_key'
+$pidFile = Join-Path $machineDir 'sshd.pid'
+$logFile = Join-Path $machineDir 'sshd.log'
+
+function Test-Elevated {
+    return ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
 # The name sshd matches this user by: lower case, no domain for a local account, user@domain for a
-# domain one (the same rule solo-sshkey.ps1 and, before it, solo-machine.ps1 used).
+# domain one.  -Install is given it (-OsUser) by solo-machine.ps1, because the ELEVATED process may belong to a
+# different administrator than the user Solo is for.
 function Get-OsUser {
     $n = [Security.Principal.WindowsIdentity]::GetCurrent().Name
     $u = $n.Split('\')
@@ -129,23 +133,23 @@ function Get-Fingerprint([string]$b64) {
     return 'SHA256:' + [Convert]::ToBase64String($sha.ComputeHash($bytes)).TrimEnd('=')
 }
 
-# The configuration, as one pure function of (app folder, user name) so a guard can compare it
-# with what is on disk and with what sshd -t accepts.  LF, ASCII.
-function Get-Config([string]$app, [string]$osUser) {
-    $s = Join-Path $app 'ssh'
+# The configuration, as one pure function so a guard can print it, compare it with what is on disk and
+# have sshd -t accept it.  LF, ASCII.  PasswordAuthentication is the point of the exercise; the key lines are
+# the optional extra.  No AuthenticationMethods line: the owner may sign in by password OR by a key he chose to set up.
+function Get-Config([string]$app, [string]$user, [string]$mdir) {
     return (@(
-        '# SD Core Solo''s own sshd - written by solo-sshd.ps1 and rewritten each time it starts.',
-        '# Do not edit this file; put keys in authorized_keys beside it.',
+        '# SD Core Solo''s own sshd, run as SYSTEM by the startup task "SD Core Solo SSH".',
+        '# Written by solo-sshd.ps1 -Install (elevated).  Do not edit; the installer rewrites it.',
         ('Port ' + $Port),
-        ('HostKey ' + (& $fwd (Join-Path $s 'ssh_host_ed25519_key'))),
-        ('PidFile ' + (& $fwd (Join-Path $s 'sshd.pid'))),
-        ('AuthorizedKeysFile ' + (& $fwd (Join-Path $s 'authorized_keys'))),
+        ('HostKey ' + (& $fwd (Join-Path $mdir 'ssh_host_ed25519_key'))),
+        ('PidFile ' + (& $fwd (Join-Path $mdir 'sshd.pid'))),
+        ('AuthorizedKeysFile ' + (& $fwd (Join-Path (Join-Path $app 'ssh') 'authorized_keys'))),
         'StrictModes yes',
+        'PasswordAuthentication yes',
         'PubkeyAuthentication yes',
-        'PasswordAuthentication no',
         'KbdInteractiveAuthentication no',
-        'AuthenticationMethods publickey',
-        ('AllowUsers ' + $osUser),
+        'PermitEmptyPasswords no',
+        ('AllowUsers ' + $user),
         'DisableForwarding yes',
         'LogLevel INFO',
         ('ForceCommand "' + (Join-Path $app 'usr\bin\sd-solo.exe') + '"')
@@ -157,9 +161,7 @@ function Get-Config([string]$app, [string]$osUser) {
 # move; the owner's own keys are never touched.  Returns the number moved.
 function Move-OldManagedKeys {
     # An S4U boot task may start with no USERPROFILE in its environment, and Join-Path throws on an
-    # empty string - which would stop -Run before sshd started.  Ask the OS for the folder instead.
-    # An S4U boot task may start with no USERPROFILE in its environment, and Join-Path throws on an
-    # empty string - which would stop -Run before sshd started.  Ask the OS for the folder instead.
+    # empty string.  Ask the OS for the folder instead.
     $profileDir = $env:USERPROFILE
     if (-not $profileDir) { $profileDir = [Environment]::GetFolderPath('UserProfile') }
     if (-not $profileDir) { return 0 }
@@ -187,25 +189,25 @@ function Move-OldManagedKeys {
     return $moved
 }
 
+function Get-HostFingerprint {
+    try {
+        $t = ([IO.File]::ReadAllText($hostKey + '.pub').Trim() -split '\s+')
+        if ($t.Count -ge 2) { return (Get-Fingerprint $t[1]) }
+    } catch { }
+    return ''
+}
+
+# ---- -Prepare: what the USER owns ----------------------------------------------------------
 function Invoke-Prepare {
     $osUser = Get-OsUser
-    if (-not (Test-Path -LiteralPath $sshDir)) { New-Item -ItemType Directory -Path $sshDir | Out-Null }
-    if (-not (Test-Path -LiteralPath $sshDir)) { Stop-With ('could not make ' + $sshDir) }
+    if (-not (Test-Path -LiteralPath $userSshDir)) { New-Item -ItemType Directory -Path $userSshDir | Out-Null }
+    if (-not (Test-Path -LiteralPath $userSshDir)) { Stop-With ('could not make ' + $userSshDir) }
 
-    $keygen = Find-Keygen
-    if (-not (Test-Path -LiteralPath $hostKey) -or -not (Test-Path -LiteralPath ($hostKey + '.pub'))) {
-        if ($keygen -eq '') { Stop-With 'no ssh-keygen.exe (System32\OpenSSH or Program Files\OpenSSH) to make the host key' }
-        Remove-Item -LiteralPath $hostKey, ($hostKey + '.pub') -Force -ErrorAction SilentlyContinue
-        $null = & $keygen -q -t ed25519 -N '""' -f $hostKey
-        if (-not (Test-Path -LiteralPath $hostKey) -or -not (Test-Path -LiteralPath ($hostKey + '.pub'))) {
-            Stop-With 'ssh-keygen did not make the host key'
-        }
+    # What the first build of SOLO 28 left in <app>\ssh (a per-user sshd's config, host key, pid, log): useless
+    # now and, for the host key, a private key sitting in the user's tree for nothing.
+    foreach ($n in @('sshd_config', 'ssh_host_ed25519_key', 'ssh_host_ed25519_key.pub', 'sshd.pid', 'sshd.log', 'sshd-t.err', 'sshd-t.out')) {
+        Remove-Item -LiteralPath (Join-Path $userSshDir $n) -Force -ErrorAction SilentlyContinue
     }
-
-    $want = Get-Config $AppDir $osUser
-    $cur = ''
-    if (Test-Path -LiteralPath $cfg) { $cur = [IO.File]::ReadAllText($cfg) }
-    if ($cur -ne $want) { [IO.File]::WriteAllText($cfg, $want, (New-Object Text.UTF8Encoding($false))) }
 
     if (-not (Test-Path -LiteralPath $akFile)) { [IO.File]::WriteAllText($akFile, '', (New-Object Text.UTF8Encoding($false))) }
     $moved = Move-OldManagedKeys
@@ -214,26 +216,118 @@ function Invoke-Prepare {
     # and it was the SYSTEM sshd's.  It is stale now and solo-sshkey.ps1 reads the real one.
     Remove-Item -LiteralPath (Join-Path $AppDir 'sdsys\ssh-hostkey') -Force -ErrorAction SilentlyContinue
 
-    $hk = ''
-    try {
-        $t = ([IO.File]::ReadAllText($hostKey + '.pub').Trim() -split '\s+')
-        if ($t.Count -ge 2) { $hk = Get-Fingerprint $t[1] }
-    } catch { $hk = '' }
-
     Write-Output ('OSUSER=' + $osUser)
     Write-Output ('PORT=' + $Port)
-    Write-Output ('HOSTKEY=' + $hk)
+    Write-Output ('HOSTKEY=' + (Get-HostFingerprint))
     Write-Output ('KEYFILE=' + $akFile)
     Write-Output ('CONFIG=' + $cfg)
+    Write-Output ('MACHINEDIR=' + $machineDir)
     Write-Output ('MIGRATED=' + $moved)
 }
 
-# The sshd processes that were started from THIS config, by command line - never by name alone:
-# the system sshd service is also called sshd.exe and must never be touched.
+# ---- -Install: what only an administrator may own -------------------------------------------
+$SidSystem = 'S-1-5-18'; $SidAdmins = 'S-1-5-32-544'; $SidUsers = 'S-1-5-32-545'
+
+function Get-SidOf($identity) {
+    try { return $identity.Translate([Security.Principal.SecurityIdentifier]).Value } catch { return '' }
+}
+
+# THE READ-BACK.  Nobody but SYSTEM and Administrators may be able to change, add to or take ownership of
+# anything here (the sshd runs as SYSTEM and trusts it); the private key may be seen by those two ONLY.
+# Returns a list of problems, empty when the folder is as it must be.
+function Get-AclProblems([string]$path, [bool]$privateOnly) {
+    $problems = @()
+    $acl = Get-Acl -LiteralPath $path
+    $ownerSid = Get-SidOf (New-Object Security.Principal.NTAccount($acl.Owner))
+    if (@($SidSystem, $SidAdmins) -notcontains $ownerSid) { $problems += ($path + ': owner is ' + $acl.Owner + ' (' + $ownerSid + '), not SYSTEM or Administrators') }
+    $writeMask = [Security.AccessControl.FileSystemRights]'WriteData, AppendData, WriteExtendedAttributes, WriteAttributes, Delete, DeleteSubdirectoriesAndFiles, ChangePermissions, TakeOwnership'
+    foreach ($ace in $acl.Access) {
+        if ($ace.AccessControlType -ne 'Allow') { continue }
+        $sid = Get-SidOf $ace.IdentityReference
+        if (@($SidSystem, $SidAdmins) -contains $sid) { continue }
+        if ($privateOnly) { $problems += ($path + ': ' + $ace.IdentityReference + ' has access to a private key'); continue }
+        if (($ace.FileSystemRights -band $writeMask) -ne 0) { $problems += ($path + ': ' + $ace.IdentityReference + ' can write (' + $ace.FileSystemRights + ')') }
+    }
+    return $problems
+}
+
+function Invoke-Icacls([string[]]$a) {
+    $o = & icacls.exe @a 2>&1
+    if ($LASTEXITCODE -ne 0) { Stop-With ('icacls ' + ($a -join ' ') + ' failed (' + $LASTEXITCODE + '): ' + (($o | Out-String).Trim() -replace '\s+', ' ')) }
+}
+
+# What goes into a config a SYSTEM process reads must not be able to add a line to it.  Checked BEFORE the
+# elevation test so the guard can prove it without being elevated.
+function Assert-ConfigInputs {
+    if ($OsUser -eq '') { Stop-With 'give -OsUser: the login name sshd is to allow' }
+    if ($OsUser -notmatch '^[A-Za-z0-9._@-]+$') { Stop-With ('refusing a login name with unexpected characters: ' + $OsUser) }
+    if ($AppDir -match '["\r\n]') { Stop-With 'the app folder name has a quote or a line break in it' }
+}
+
+function Invoke-Install {
+    Assert-ConfigInputs
+    if (-not (Test-Elevated)) { Stop-With 'this needs an ELEVATED PowerShell - the machine folder must be admin-only' }
+    $sshd = Find-Sshd
+    if ($sshd -eq '') { Stop-With 'no sshd.exe (System32\OpenSSH or Program Files\OpenSSH)' }
+    $keygen = Find-Keygen
+    if ($keygen -eq '') { Stop-With 'no ssh-keygen.exe beside sshd.exe to make the host key' }
+
+    if (-not (Test-Path -LiteralPath $machineDir)) { New-Item -ItemType Directory -Path $machineDir -Force | Out-Null }
+    if (-not (Test-Path -LiteralPath $machineDir)) { Stop-With ('could not make ' + $machineDir) }
+    # The folder: SYSTEM and Administrators full, Users read and traverse only, nothing inherited from ProgramData.
+    Invoke-Icacls @($machineDir, '/inheritance:r', '/grant:r', ('*' + $SidSystem + ':(OI)(CI)F'), ('*' + $SidAdmins + ':(OI)(CI)F'), ('*' + $SidUsers + ':(OI)(CI)RX'))
+    Invoke-Icacls @($machineDir, '/setowner', ('*' + $SidAdmins))
+    # The parent, SDCoreSolo, was made on the way: same rule, no write for users.
+    $parent = Split-Path -Parent $machineDir
+    Invoke-Icacls @($parent, '/inheritance:r', '/grant:r', ('*' + $SidSystem + ':(OI)(CI)F'), ('*' + $SidAdmins + ':(OI)(CI)F'), ('*' + $SidUsers + ':(OI)(CI)RX'))
+    Invoke-Icacls @($parent, '/setowner', ('*' + $SidAdmins))
+
+    # The host key: kept across upgrades so clients do not see a changed key.
+    if (-not (Test-Path -LiteralPath $hostKey) -or -not (Test-Path -LiteralPath ($hostKey + '.pub'))) {
+        Remove-Item -LiteralPath $hostKey, ($hostKey + '.pub') -Force -ErrorAction SilentlyContinue
+        $null = & $keygen -q -t ed25519 -N '""' -f $hostKey
+        if (-not (Test-Path -LiteralPath $hostKey) -or -not (Test-Path -LiteralPath ($hostKey + '.pub'))) { Stop-With 'ssh-keygen did not make the host key' }
+    }
+    # The PRIVATE key: SYSTEM and Administrators only, owned by Administrators (the OpenSSH server checks both).
+    Invoke-Icacls @($hostKey, '/inheritance:r', '/grant:r', ('*' + $SidSystem + ':F'), ('*' + $SidAdmins + ':F'))
+    Invoke-Icacls @($hostKey, '/setowner', ('*' + $SidAdmins))
+
+    Invoke-Icacls @(($hostKey + '.pub'), '/setowner', ('*' + $SidAdmins))
+
+    $want = Get-Config $AppDir $OsUser $machineDir
+    [IO.File]::WriteAllText($cfg, $want, (New-Object Text.UTF8Encoding($false)))
+    Invoke-Icacls @($cfg, '/setowner', ('*' + $SidAdmins))
+
+    # THE READ-BACK: every file the SYSTEM sshd will trust.
+    $problems = @()
+    foreach ($p in @($parent, $machineDir, $cfg, ($hostKey + '.pub'))) { $problems += @(Get-AclProblems $p $false) }
+    $problems += @(Get-AclProblems $hostKey $true)
+    if ($problems.Count -gt 0) {
+        foreach ($p in $problems) { Write-Output ('PROBLEM=' + $p) }
+        Stop-With ('the machine folder is not admin-only (' + $problems.Count + ' problem(s) above) - the SYSTEM sshd must not trust it')
+    }
+
+    $t = Start-Process -FilePath $sshd -ArgumentList @('-t', '-f', ('"' + $cfg + '"')) -NoNewWindow -Wait -PassThru `
+             -RedirectStandardError (Join-Path $env:TEMP 'sd-solo-sshd-t.err') -RedirectStandardOutput (Join-Path $env:TEMP 'sd-solo-sshd-t.out')
+    if ($t.ExitCode -ne 0) {
+        $why = ((Get-Content -LiteralPath (Join-Path $env:TEMP 'sd-solo-sshd-t.err') -ErrorAction SilentlyContinue) -join ' | ')
+        Stop-With ('sshd -t rejected the configuration: ' + $why)
+    }
+
+    Write-Output ('OSUSER=' + $OsUser)
+    Write-Output ('PORT=' + $Port)
+    Write-Output ('HOSTKEY=' + (Get-HostFingerprint))
+    Write-Output ('MACHINEDIR=' + $machineDir)
+    Write-Output ('CONFIG=' + $cfg)
+    Write-Output 'ACL=OK'
+}
+
+# The sshd processes that were started from Solo's config (the machine one, or the legacy per-user one), by
+# command line - never by name alone: the system sshd service is also called sshd.exe and must never be touched.
 function Get-OurSshd {
-    $needle = $cfg.ToLower()
+    $needles = @($cfg.ToLower(), $legacyCfg.ToLower())
     return @(Get-CimInstance Win32_Process -Filter "Name='sshd.exe'" -ErrorAction SilentlyContinue |
-             Where-Object { $_.CommandLine -and $_.CommandLine.ToLower().Contains($needle) })
+             Where-Object { $c = $_.CommandLine; $c -and (@($needles | Where-Object { $c.ToLower().Contains($_) }).Count -gt 0) })
 }
 
 function Test-Listening { return (@(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue).Count -gt 0) }
@@ -250,11 +344,34 @@ function Get-BlindHolders {
     })
 }
 
-if (@($Prepare, $Run, $Stop, $Show | Where-Object { $_ }).Count -ne 1) { Stop-With 'give exactly one of -Prepare, -Run, -Stop or -Show' }
+function Invoke-Stop {
+    $n = 0
+    foreach ($p in (Get-OurSshd)) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue; $n++ }
+    if ($n -eq 0) {
+        # THE NULL CASE, SAID OUT LOUD: nothing of ours was FOUND, but a holder this shell cannot read may be it.
+        $blind = @(Get-BlindHolders)
+        if ($blind.Count -gt 0) {
+            Write-Output ('STOPPED=0')
+            Stop-With ('port ' + $Port + ' is held by pid ' + ($blind -join ',') + ', which this shell cannot inspect (a process a SYSTEM task started is not readable from an ordinary shell).  Nothing was stopped.  Run -Stop from an ELEVATED PowerShell.')
+        }
+    }
+    Write-Output ('STOPPED=' + $n)
+    if ($n -gt 0) { Write-Output 'RESULT=STOPPED' } else { Write-Output 'RESULT=NONE' }
+}
+
+if (@($Prepare, $Install, $Stop, $Show, $Uninstall, $PrintConfig | Where-Object { $_ }).Count -ne 1) {
+    Stop-With 'give exactly one of -Prepare, -Install, -Stop, -Show, -Uninstall or -PrintConfig'
+}
+
+if ($PrintConfig) {
+    Assert-ConfigInputs
+    Write-Output (Get-Config $AppDir $OsUser $machineDir).TrimEnd("`n")
+    exit 0
+}
 
 if ($Show) {
-    $sshd = Find-Sshd
-    Write-Output ('SSHD=' + $sshd)
+    Write-Output ('SSHD=' + (Find-Sshd))
+    Write-Output ('MACHINEDIR=' + $machineDir + ' exists=' + (Test-Path -LiteralPath $machineDir))
     Write-Output ('CONFIG=' + $cfg + ' exists=' + (Test-Path -LiteralPath $cfg))
     Write-Output ('KEYFILE=' + $akFile + ' exists=' + (Test-Path -LiteralPath $akFile))
     Write-Output ('PORT=' + $Port + ' listening=' + (Test-Listening))
@@ -264,43 +381,21 @@ if ($Show) {
     exit 0
 }
 
-if ($Stop) {
-    $n = 0
-    foreach ($p in (Get-OurSshd)) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue; $n++ }
-    if ($n -eq 0) {
-        # THE NULL CASE, SAID OUT LOUD: nothing of ours was FOUND, but a holder this shell cannot read may be it.
-        $blind = @(Get-BlindHolders)
-        if ($blind.Count -gt 0) {
-            Write-Output ('STOPPED=0')
-            Stop-With ('port ' + $Port + ' is held by pid ' + ($blind -join ',') + ', which this shell cannot inspect (a process the startup task started is not readable from an ordinary shell).  Nothing was stopped.  Run -Stop from an ELEVATED PowerShell.')
-        }
-    }
-    Write-Output ('STOPPED=' + $n)
-    if ($n -gt 0) { Write-Output 'RESULT=STOPPED' } else { Write-Output 'RESULT=NONE' }
+if ($Stop) { Invoke-Stop; exit 0 }
+
+if ($Uninstall) {
+    if (-not (Test-Elevated)) { Stop-With 'this needs an ELEVATED PowerShell' }
+    Invoke-Stop
+    $parent = Split-Path -Parent $machineDir
+    if (Test-Path -LiteralPath $parent) { Remove-Item -LiteralPath $parent -Recurse -Force -ErrorAction SilentlyContinue }
+    if (Test-Path -LiteralPath $parent) { Stop-With ('could not remove ' + $parent) }
+    Write-Output ('MACHINEDIR=' + $machineDir + ' exists=False')
+    Write-Output 'RESULT=REMOVED'
     exit 0
 }
 
-Invoke-Prepare
-if ($Prepare) { Write-Output 'RESULT=PREPARED'; exit 0 }
+if ($Install) { Invoke-Install; Write-Output 'RESULT=INSTALLED'; exit 0 }
 
-# ---- -Run: the sshd itself ---------------------------------------------------------------
-$sshd = Find-Sshd
-if ($sshd -eq '') { Stop-With 'no sshd.exe (System32\OpenSSH or Program Files\OpenSSH)' }
-if (-not (Test-Path -LiteralPath $sdExe)) { Stop-With ('no sd-solo.exe at ' + $sdExe + ' to force') }
-$t = Start-Process -FilePath $sshd -ArgumentList @('-t', '-f', ('"' + $cfg + '"')) -NoNewWindow -Wait -PassThru `
-         -RedirectStandardError (Join-Path $sshDir 'sshd-t.err') -RedirectStandardOutput (Join-Path $sshDir 'sshd-t.out')
-if ($t.ExitCode -ne 0) {
-    $why = ((Get-Content -LiteralPath (Join-Path $sshDir 'sshd-t.err') -ErrorAction SilentlyContinue) -join ' | ')
-    Stop-With ('sshd -t rejected the configuration: ' + $why)
-}
-if (Test-Listening) {
-    if ((Get-OurSshd).Count -gt 0) { Write-Output 'RESULT=ALREADY'; exit 0 }
-    $blind = @(Get-BlindHolders)
-    if ($blind.Count -gt 0) {
-        Stop-With ('port ' + $Port + ' is already held by pid ' + ($blind -join ',') + ', which this shell cannot inspect - it may be this sshd, started by the startup task (readable only from an elevated shell).  Nothing was started.')
-    }
-    Stop-With ('port ' + $Port + ' is already in use by something that is not this sshd')
-}
-Write-Output 'RESULT=RUNNING'
-$p = Start-Process -FilePath $sshd -ArgumentList @('-D', '-f', ('"' + $cfg + '"'), '-E', ('"' + $logFile + '"')) -NoNewWindow -Wait -PassThru
-exit $p.ExitCode
+Invoke-Prepare
+Write-Output 'RESULT=PREPARED'
+exit 0

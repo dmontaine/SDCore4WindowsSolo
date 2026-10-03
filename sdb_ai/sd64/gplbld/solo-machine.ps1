@@ -35,27 +35,27 @@
 # to him by the Linux agent - mail T3410).  "Separate port for sd-solo": fixed 4251, not
 # adjustable; routing by PORT, not login name; the full product keeps the system sshd on 22.
 # What this script does for it:
-#   - registers a SECOND startup task, "SD Core Solo SSH" (S4U, at startup, as -ForUser, no time
-#     limit, restarted on failure) that runs solo-sshd.ps1 -Run, so ssh is reachable from boot
-#     with nobody signed in (owner, 25 Sep 2026) - the same way "SD Core Solo" starts SD.  The
-#     sshd, its configuration, host key and key file are the USER's (<app>\ssh), made by the
-#     user's own process, never here: the elevated process may be a different administrator.
-#   - checks it: the task ran, 4251 listens, the sshd that answers is the user's own and is the
-#     one made from <app>\ssh\sshd_config, and ssh-keyscan's host key is the .pub on disk.
-#   - the firewall rule SD-Solo-SSH-In-TCP for 4251 (solo-ssh-firewall.ps1), the one step of
-#     Solo's ssh that needs an administrator: -SshScope open (other computers) or restrict (this
-#     machine only).  "leave" makes none.
+#   - has solo-sshd.ps1 -Install make the ADMIN-ONLY machine folder, %ProgramData%\SDCoreSolo\ssh
+#     (sshd_config, host key; permissions read back - a SYSTEM process must not trust a file a
+#     user can write), then registers a SECOND startup task, "SD Core Solo SSH": SYSTEM, at
+#     startup, no time limit, restarted on failure, running sshd.exe ITSELF against that config -
+#     never a script of the user's - so ssh is reachable from boot with nobody signed in (owner,
+#     25 Sep 2026).  WHY SYSTEM: the owner ruled (2 Oct 2026) that ssh takes the Windows ACCOUNT
+#     NAME AND PASSWORD, never a key to set up first, and a per-user sshd verifies that password
+#     but cannot start the session (CreateProcessAsUserW 1314 - measured, solo-sshd.ps1's header).
+#   - checks it: the task ran, 4251 listens, the sshd that answers was made from the machine
+#     config and runs as SYSTEM, and ssh-keyscan's host key is the .pub in the machine folder.
+#   - the firewall rule SD-Solo-SSH-In-TCP for 4251 (solo-ssh-firewall.ps1): -SshScope open (other
+#     computers) or restrict (this machine only).  "leave" makes none.
 #   - REMOVES the old route: the "Match User" block an earlier build wrote into the SYSTEM
 #     sshd_config (between the markers below), on Install, Upgrade and Remove.  It never sets or
 #     changes the system sshd's startup type; an earlier build set it to Automatic and that is
 #     left as it is, because the full product may be using it.
-# Sign-in is KEY-ONLY now (the owner said "yes build it" to a plan that stated it): a Windows
-# password cannot be checked by a sshd run as the user, and was never measured.  -SshIntoSd now
-# means "set up Solo's own ssh server" (the name is kept so the installer's call is unchanged);
-# -Managed no longer changes anything here - the key file is the same whatever the mode.
-# NOT MEASURED: that a key login works when sshd is started from the S4U task (registering one
-# unelevated is refused, so only this step can make it; the cycle's verify-solo ssh leg is the
-# witness), and that Windows Firewall admits a remote client through the rule.
+# -SshIntoSd means "set up Solo's own ssh server" (the name is kept so the installer's call is
+# unchanged); -Managed changes nothing here except the upgrade case noted at its parameter.
+# NOT MEASURED: a Windows PASSWORD login through the SYSTEM sshd (the owner types his own; the
+# cycle's verify-solo leg uses a key, which stays possible as an extra), and that Windows
+# Firewall admits a remote client through the rule (WITNESSED 2 Oct 2026 for the first build).
 
 param(
     [ValidateSet('Install', 'Upgrade', 'Remove')] [string]$Action = 'Install',
@@ -337,19 +337,21 @@ function Remove-SoloTask {
 }
 
 # ---- Solo's own ssh server: the second startup task -----------------------------------------
-# SOLO 28.  The sshd is the USER's - solo-sshd.ps1 -Run, started by an S4U task as -ForUser, makes its
-# own files under <app>\ssh as that user.  What this step can do, because it is elevated and the
-# user's process is not, is register the task and CHECK THE RESULT instead of trusting the
-# registration, as Register-SoloTask does for SD itself.  The evidence, each reported on its own line:
+# SOLO 28.  Solo's sshd is run as SYSTEM, so that the owner's Windows ACCOUNT NAME AND PASSWORD can sign in: a
+# per-user sshd VERIFIES the password and then fails to start the session (CreateProcessAsUserW error 1314 -
+# measured, solo-sshd.ps1's header).  What this step can do, because it is elevated, is have solo-sshd.ps1
+# -Install make the ADMIN-ONLY machine folder (%ProgramData%\SDCoreSolo\ssh: config, host key, permissions READ
+# BACK), register a task that runs sshd.exe ITSELF against that config as SYSTEM - never a script of the user's,
+# which a SYSTEM task must not run - and CHECK THE RESULT instead of trusting the registration, as
+# Register-SoloTask does for SD itself.  The evidence, each on its own line:
 #   - the task ran (a last-run time after the start, or the Running state; asked again once at 10 s);
 #   - 4251 is LISTENING;
-#   - an sshd.exe whose command line names <app>\ssh\sshd_config is running, and its OWNER is -ForUser
-#     (the system sshd is also sshd.exe: never matched by name alone);
-#   - ssh-keyscan against 127.0.0.1:4251 returns the ed25519 key that is in <app>\ssh's .pub - so the
-#     thing answering is Solo's sshd and not whatever else holds the port.
-# NOT MEASURED when this was written: that a sshd started from an S4U token accepts a key login (only
-# the elevated step can make such a task; verify-solo's ssh leg, which logs in with a real key, is the
-# witness).  This check proves it listens, who runs it and whose host key it shows - not that login works.
+#   - an sshd.exe whose command line names the machine sshd_config is running, and its OWNER is SYSTEM
+#     (the system sshd service is also sshd.exe: never matched by name alone);
+#   - ssh-keyscan against 127.0.0.1:4251 returns the ed25519 key that is in the machine folder's .pub - so
+#     the thing answering is Solo's sshd and not whatever else holds the port.
+# WITNESSED on the first (per-user, S4U) build: a key login and the start at boot.  NOT MEASURED for this SYSTEM
+# build: a Windows PASSWORD login through it - the owner types his own password; nobody else may.
 function Find-Keyscan {
     foreach ($p in @((Join-Path $env:SystemRoot 'System32\OpenSSH\ssh-keyscan.exe'),
                      (Join-Path $env:ProgramFiles 'OpenSSH\ssh-keyscan.exe'))) {
@@ -358,10 +360,24 @@ function Find-Keyscan {
     return ''
 }
 
+# The admin-only folder solo-sshd.ps1 -Install makes.  From the OS, not from an environment variable.
+$MachineSshDir = Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) 'SDCoreSolo\ssh'
+
+# The login name sshd is to allow: lower case, no domain for a local account, user@domain for a domain one.
+# Worked out from -ForUser, because this elevated process may belong to a different administrator.
+function Get-SshLoginName {
+    $u = $ForUser.Split('\')
+    $name = $u[$u.Count - 1]
+    if ($u.Count -gt 1 -and $u[0] -ine $env:COMPUTERNAME) { $name = $name + '@' + $u[0] }
+    return $name.ToLower()
+}
+
+# Solo's sshd processes: started from the machine config, or from the per-user config the first build of
+# SOLO 28 used (<app>\ssh\sshd_config) - by command line, never by name alone.
 function Get-SoloSshd {
-    $needle = (Join-Path $AppDir 'ssh\sshd_config').ToLower()
+    $needles = @((Join-Path $MachineSshDir 'sshd_config').ToLower(), (Join-Path $AppDir 'ssh\sshd_config').ToLower())
     return @(Get-CimInstance Win32_Process -Filter "Name='sshd.exe'" -ErrorAction SilentlyContinue |
-             Where-Object { $_.CommandLine -and $_.CommandLine.ToLower().Contains($needle) })
+             Where-Object { $c = $_.CommandLine; $c -and (@($needles | Where-Object { $c.ToLower().Contains($_) }).Count -gt 0) })
 }
 
 function Test-SshPortListening {
@@ -371,20 +387,32 @@ function Test-SshPortListening {
 function Register-SshTask {
     $script = Join-Path $AppDir 'solo-sshd.ps1'
     if (-not (Test-Path -LiteralPath $script)) { Fail ('solo-sshd.ps1 is not at ' + $script); return }
-    if (-not (Find-Sshd)) { Fail 'there is no sshd.exe to run Solo''s own ssh server'; return }
+    $sshd = Find-Sshd
+    if (-not $sshd) { Fail 'there is no sshd.exe to run Solo''s own ssh server'; return }
+    $login = Get-SshLoginName
+    if (-not $login) { Fail 'no login name could be worked out for the ssh server'; return }
+    Note ('  sshd.exe: ' + $sshd + '   login name sshd will allow: ' + $login)
     if (Get-ScheduledTask -TaskName $SshTaskName -ErrorAction SilentlyContinue) {
         Stop-ScheduledTask -TaskName $SshTaskName -ErrorAction SilentlyContinue
         Unregister-ScheduledTask -TaskName $SshTaskName -Confirm:$false
         Note '  the previous ssh task was removed first'
     }
-    # An sshd left by the previous build or run still holds the port; stopping the task need not take
-    # its child.  Ours only, found by command line.
+    # An sshd left by the previous build or run (this one's, or the first per-user build's) still holds the
+    # port; stopping the task need not take its child.  Solo's only, found by command line.
     $null = Invoke-Shipped 'solo-sshd.ps1' @('-Stop')
 
-    $arg = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $script + '" -Run'
+    # The admin-only folder: config, host key, permissions - and the permissions READ BACK, which -Install
+    # refuses to pass unless nobody but SYSTEM and Administrators can write there.
+    $c = Invoke-Shipped 'solo-sshd.ps1' @('-Install', '-OsUser', $login, '-AppDir', $AppDir)
+    if ($c -ne 0) { Fail ('solo-sshd.ps1 -Install exited ' + $c + ' - the ssh task was not registered'); return }
+
+    # The task runs sshd.exe ITSELF, as SYSTEM, against the admin-only config.  Never a script of the user's.
+    $cfgPath = Join-Path $MachineSshDir 'sshd_config'
+    $logPath = Join-Path $MachineSshDir 'sshd.log'
+    $arg = '-D -f "' + $cfgPath + '" -E "' + $logPath + '"'
     Register-ScheduledTask -TaskName $SshTaskName `
-        -Action (New-ScheduledTaskAction -Execute $Ps -Argument $arg -WorkingDirectory $AppDir) `
-        -Principal (New-ScheduledTaskPrincipal -UserId $ForUser -LogonType S4U -RunLevel Limited) `
+        -Action (New-ScheduledTaskAction -Execute $sshd -Argument $arg -WorkingDirectory (Split-Path -Parent $sshd)) `
+        -Principal (New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest) `
         -Trigger (New-ScheduledTaskTrigger -AtStartup) `
         -Settings (New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
                        -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) `
@@ -417,9 +445,8 @@ function Register-SshTask {
     $info = Get-ScheduledTaskInfo -TaskName $SshTaskName
     Note ('  ssh task state ' + (Get-ScheduledTask -TaskName $SshTaskName).State + ', last result 0x' + ('{0:X}' -f $info.LastTaskResult) + ', port ' + $SshPort + ' listening: ' + $listening)
     if (-not $listening) {
-        $lg = Join-Path $AppDir 'ssh\sshd.log'
-        if (Test-Path -LiteralPath $lg) { Get-Content -LiteralPath $lg -Tail 8 -ErrorAction SilentlyContinue | ForEach-Object { Note ('  | sshd.log: ' + $_) } }
-        else { Note ('  no ' + $lg + ' - the task''s solo-sshd.ps1 did not reach sshd') }
+        if (Test-Path -LiteralPath $logPath) { Get-Content -LiteralPath $logPath -Tail 8 -ErrorAction SilentlyContinue | ForEach-Object { Note ('  | sshd.log: ' + $_) } }
+        else { Note ('  no ' + $logPath + ' - sshd did not start from the task') }
         Fail ('nothing is listening on port ' + $SshPort + ' after the ssh task was started')
         return
     }
@@ -428,14 +455,14 @@ function Register-SshTask {
         $o = Invoke-CimMethod -InputObject $p -MethodName GetOwner
         $who = $o.Domain + '\' + $o.User
         Note ('  sshd.exe pid ' + $p.ProcessId + ' session ' + $p.SessionId + ' owner ' + $who)
-        if ($who -ieq $ForUser) { $mine += $p }
+        if ($who -ieq 'NT AUTHORITY\SYSTEM') { $mine += $p }
     }
-    if ($mine.Count -eq 0) { Fail ('port ' + $SshPort + ' listens, but no sshd.exe made from ' + (Join-Path $AppDir 'ssh\sshd_config') + ' is running as ' + $ForUser); return }
-    Note ('  PASS  Solo''s own sshd is running as ' + $ForUser + ' (session ' + $mine[0].SessionId + ') and listening on ' + $SshPort)
+    if ($mine.Count -eq 0) { Fail ('port ' + $SshPort + ' listens, but no sshd.exe made from ' + $cfgPath + ' is running as SYSTEM'); return }
+    Note ('  PASS  Solo''s own sshd is running as SYSTEM (session ' + $mine[0].SessionId + ') and listening on ' + $SshPort)
 
     # The thing answering is Solo's: its ed25519 host key is the one on disk.
     $keyscan = Find-Keyscan
-    $pubFile = Join-Path $AppDir 'ssh\ssh_host_ed25519_key.pub'
+    $pubFile = Join-Path $MachineSshDir 'ssh_host_ed25519_key.pub'
     if ($keyscan -eq '' -or -not (Test-Path -LiteralPath $pubFile)) {
         Note '  host key not compared (no ssh-keyscan.exe, or no host key file)'
         return
@@ -450,7 +477,7 @@ function Register-SshTask {
         if ($f.Count -ge 3 -and $f[1] -eq 'ssh-ed25519') { $seen = $f[2] }
     }
     $disk = ((Get-Content -LiteralPath $pubFile -Raw).Trim() -split '\s+')
-    if ($seen -ne '' -and $disk.Count -ge 2 -and $seen -eq $disk[1]) { Note '  PASS  the host key ssh-keyscan reads on 127.0.0.1:4251 is the one in <app>\ssh' }
+    if ($seen -ne '' -and $disk.Count -ge 2 -and $seen -eq $disk[1]) { Note '  PASS  the host key ssh-keyscan reads on 127.0.0.1:4251 is the one in the machine ssh folder' }
     else { Fail ('the host key served on port ' + $SshPort + ' is not Solo''s (ssh-keyscan read "' + $seen + '")') }
 }
 
@@ -458,14 +485,17 @@ function Remove-SshTask {
     if (Get-ScheduledTask -TaskName $SshTaskName -ErrorAction SilentlyContinue) {
         Stop-ScheduledTask -TaskName $SshTaskName -ErrorAction SilentlyContinue
     }
-    # Stopping the task need not end the sshd it started; this ends ours, by command line, never the system sshd.
-    $null = Invoke-Shipped 'solo-sshd.ps1' @('-Stop')
+    # Stopping the task need not end the sshd it started; -Uninstall ends Solo's, by command line (never the
+    # system sshd), and deletes the admin-only machine folder with its host key and config.
+    $null = Invoke-Shipped 'solo-sshd.ps1' @('-Uninstall')
     if (Get-ScheduledTask -TaskName $SshTaskName -ErrorAction SilentlyContinue) {
         Unregister-ScheduledTask -TaskName $SshTaskName -Confirm:$false
     }
+    $left = Split-Path -Parent $MachineSshDir
     if (Get-ScheduledTask -TaskName $SshTaskName -ErrorAction SilentlyContinue) { Fail 'the ssh startup task is still registered' }
     elseif ((Get-SoloSshd).Count -gt 0) { Fail 'Solo''s sshd is still running after the ssh task was removed' }
-    else { Note '  PASS  no ssh task and no sshd of Solo''s running' }
+    elseif (Test-Path -LiteralPath $left) { Fail ('the machine ssh folder ' + $left + ' is still there') }
+    else { Note '  PASS  no ssh task, no sshd of Solo''s running and no machine ssh folder' }
 }
 
 try {

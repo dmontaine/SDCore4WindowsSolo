@@ -79,8 +79,10 @@ try {
     # ssh - SOLO 28: Solo's OWN sshd, <app>\ssh, started at boot by the task "SD Core Solo
     # SSH".  The Windows OpenSSH Server service and its sshd_config are not Solo's any
     # more and are not reported; no key text is printed, only a count.
+    # The config is in the ADMIN-ONLY machine folder (solo-sshd.ps1 -Install; users may read it, not write it);
+    # <app>\ssh holds only the user's own authorized_keys.
     $sshDir = Join-Path $appDir 'ssh'
-    $sshCfg = Join-Path $sshDir 'sshd_config'
+    $sshCfg = Join-Path (Join-Path $env:ProgramData 'SDCoreSolo') 'ssh\sshd_config'
     $sshTask = Get-ScheduledTask -TaskName 'SD Core Solo SSH' -ErrorAction SilentlyContinue
     if ((Test-Path -LiteralPath $sshCfg) -or $sshTask) {
         Section 'ssh'
@@ -90,7 +92,9 @@ try {
             try {
                 $cfgLines = [System.IO.File]::ReadAllLines($sshCfg)
                 foreach ($l in (Select-SshdLines $cfgLines)) { Line $l }
-                if (@($cfgLines | Where-Object { $_.Trim() -match '^(?i)AuthenticationMethods\s+publickey$' }).Count -gt 0) {
+                if (@($cfgLines | Where-Object { $_.Trim() -match '^(?i)PasswordAuthentication\s+yes$' }).Count -gt 0) {
+                    Line 'logins: Windows account name and password (a key is an optional extra)'
+                } elseif (@($cfgLines | Where-Object { $_.Trim() -match '^(?i)PasswordAuthentication\s+no$' }).Count -gt 0) {
                     Line 'logins: public key only'
                 }
             } catch { Failed $_.Exception.Message }
