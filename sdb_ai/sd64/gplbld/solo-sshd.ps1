@@ -256,6 +256,17 @@ function Invoke-Icacls([string[]]$a) {
     if ($LASTEXITCODE -ne 0) { Stop-With ('icacls ' + ($a -join ' ') + ' failed (' + $LASTEXITCODE + '): ' + (($o | Out-String).Trim() -replace '\s+', ' ')) }
 }
 
+# Removes every principal on the file's ACL that is not in the keep list, BY SID, after the ACL has been cut down
+# to what is wanted.  ssh-keygen gives the USER WHO RAN IT an explicit Modify ACE on both host-key files (found
+# 2 Oct 2026, the first time -Install ran elevated: "ace\Don can write", "ace\Don has access to a private key"),
+# and "icacls /inheritance:r /grant:r" leaves explicit ACEs alone.  Found by reading the ACL, not by guessing a
+# name, and with no moment when the private key is readable by anyone else (a /reset would inherit Users:RX).
+function Remove-ExtraAces([string]$path, [string[]]$keepSids) {
+    $acl = Get-Acl -LiteralPath $path
+    $extra = @($acl.Access | ForEach-Object { Get-SidOf $_.IdentityReference } | Where-Object { $_ -and ($keepSids -notcontains $_) } | Sort-Object -Unique)
+    foreach ($sid in $extra) { Invoke-Icacls @($path, '/remove', ('*' + $sid)) }
+}
+
 # What goes into a config a SYSTEM process reads must not be able to add a line to it.  Checked BEFORE the
 # elevation test so the guard can prove it without being elevated.
 function Assert-ConfigInputs {
@@ -290,8 +301,13 @@ function Invoke-Install {
     }
     # The PRIVATE key: SYSTEM and Administrators only, owned by Administrators (the OpenSSH server checks both).
     Invoke-Icacls @($hostKey, '/inheritance:r', '/grant:r', ('*' + $SidSystem + ':F'), ('*' + $SidAdmins + ':F'))
+    Remove-ExtraAces $hostKey @($SidSystem, $SidAdmins)
     Invoke-Icacls @($hostKey, '/setowner', ('*' + $SidAdmins))
 
+    # The PUBLIC key may be read by anyone (request 49 reports its fingerprint) and written by SYSTEM and
+    # Administrators only: the same cut, keeping the readers ssh-keygen and the folder give.
+    Invoke-Icacls @(($hostKey + '.pub'), '/inheritance:r', '/grant:r', ('*' + $SidSystem + ':F'), ('*' + $SidAdmins + ':F'), ('*' + $SidUsers + ':R'))
+    Remove-ExtraAces ($hostKey + '.pub') @($SidSystem, $SidAdmins, $SidUsers, 'S-1-1-0')
     Invoke-Icacls @(($hostKey + '.pub'), '/setowner', ('*' + $SidAdmins))
 
     $want = Get-Config $AppDir $OsUser $machineDir
@@ -387,6 +403,8 @@ if ($Uninstall) {
     if (-not (Test-Elevated)) { Stop-With 'this needs an ELEVATED PowerShell' }
     Invoke-Stop
     $parent = Split-Path -Parent $machineDir
+    # A recursive delete as an administrator: refuse unless the folder is exactly ...\SDCoreSolo and its child is ssh.
+    if ((Split-Path -Leaf $parent) -ne 'SDCoreSolo' -or (Split-Path -Leaf $machineDir) -ne 'ssh') { Stop-With ('refusing to delete ' + $parent + ' - it is not an SDCoreSolo folder') }
     if (Test-Path -LiteralPath $parent) { Remove-Item -LiteralPath $parent -Recurse -Force -ErrorAction SilentlyContinue }
     if (Test-Path -LiteralPath $parent) { Stop-With ('could not remove ' + $parent) }
     Write-Output ('MACHINEDIR=' + $machineDir + ' exists=False')

@@ -450,13 +450,36 @@ Write-Host ("   credential register: {0}" -f $(if ($credNames.Count) { $credName
 if ($credNames -notcontains '$ADMIN') { Write-Host '   NO $ADMIN - the admin password step did not store one.' -ForegroundColor Yellow }
 if ($credNames -notcontains '$STORED') { Write-Host '   NO $STORED - a one-shot "sd <command>" will need the password on its input.' -ForegroundColor Yellow }
 
+# 2 Oct 26 - SOLO 28.  THE INSTALLER'S OWN VERDICT, not just the tree's.  The 21:37 cycle ended in a green "CYCLE
+# COMPLETE" over an installer that had shown "These steps did not complete: startup task, firewall and ssh",
+# because this script only compared files with source.  install-summary.log records every step's exit code and
+# verdict, so a step that failed is listed here, in red, and the cycle does not call itself complete.
+$summaryPath = Join-Path $SoloRoot 'install-summary.log'
+$stepFails = @()
+if (Test-Path -LiteralPath $summaryPath) {
+    $stepFails = @(Get-Content -LiteralPath $summaryPath | Where-Object {
+        $_ -match '^=== .* \(exit [1-9]\d*\)' -or $_ -match '^\s*FAIL\s' -or $_ -match '^VERDICT\s*:\s*FAIL' })
+    Write-Host ("   install-summary.log: {0} failure line(s)" -f $stepFails.Count)
+    foreach ($l in $stepFails) { Write-Host ("     " + $l) -ForegroundColor Red }
+} else {
+    Write-Host '   NO install-summary.log - the installer wrote none.' -ForegroundColor Yellow
+    $stepFails = @('no install-summary.log')
+}
+
 Write-Host ""
 ReportTranscriptWholeness
 Write-Host ""
 & (Join-Path $Gplbld 'assert-current.ps1')
-if ($LASTEXITCODE -eq 0) {
+$assertExit = $LASTEXITCODE
+if ($assertExit -eq 0 -and $stepFails.Count -gt 0) {
     Write-Host ""
-    Write-Host "CYCLE COMPLETE - the install matches source.  Measure now, and stop measuring at the next source change." -ForegroundColor Green
+    Write-Host ("THE TREE MATCHES SOURCE, BUT THE INSTALLER REPORTED {0} FAILURE LINE(S) (above, and in {1}).  This is NOT a complete cycle: an install with a failed step is a half-finished one, and nothing measured from it counts." -f $stepFails.Count, $summaryPath) -ForegroundColor Red
+    StopCycleTranscript
+    exit 1
+}
+if ($assertExit -eq 0) {
+    Write-Host ""
+    Write-Host "CYCLE COMPLETE - the install matches source and every installer step passed.  Measure now, and stop measuring at the next source change." -ForegroundColor Green
     StopCycleTranscript
 } else {
     Write-Host ""

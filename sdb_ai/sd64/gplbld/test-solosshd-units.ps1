@@ -158,6 +158,10 @@ Check '-Install unelevated: ERROR=...ELEVATED, exit 1, and the machine folder is
 $r = Run 'Uninstall, unelevated' @('-Uninstall')
 Check '-Uninstall unelevated: ERROR=...ELEVATED, exit 1, and the machine folder is still there' ($r.Code -eq 1 -and $r.Out -match '(?m)^ERROR=.*ELEVATED' -and (Test-Path (Join-Path $mdir 'ssh_host_ed25519_key')))
 
+$srcText = [IO.File]::ReadAllText($src)
+Check '-Uninstall refuses to delete anything but an ...\SDCoreSolo folder with an ssh child (the recursive delete is guarded in the source)' (
+    $srcText -match "Split-Path -Leaf \`$parent\) -ne 'SDCoreSolo'" -and $srcText -match "Split-Path -Leaf \`$machineDir\) -ne 'ssh'" -and $srcText -match 'refusing to delete')
+
 # ---- 8. argument discipline and the things -Stop must NOT do --------------------------------------
 $r = Run 'no switch' @()
 Check 'no switch: ERROR, exit 1, nothing started' ($r.Code -eq 1 -and $r.Out -match '(?m)^ERROR=give exactly one')
@@ -212,7 +216,9 @@ $env:ProgramData = $origPD
 $tok = $null; $errs = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile($src, [ref]$tok, [ref]$errs)
 $lifted = 0
-foreach ($name in @('Get-SidOf', 'Get-AclProblems')) {
+# Invoke-Icacls reports through Stop-With, which exits the script; here it must only say so and throw.
+function Stop-With([string]$m) { Write-Host ('  Stop-With: ' + $m); throw $m }
+foreach ($name in @('Get-SidOf', 'Get-AclProblems', 'Invoke-Icacls', 'Remove-ExtraAces')) {
     $fn = @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $name }, $true))
     if ($fn.Count -ne 1) { Write-Host "NO TREE: expected exactly one $name in solo-sshd.ps1, found $($fn.Count)"; exit 2 }
     . ([scriptblock]::Create($fn[0].Extent.Text))
@@ -243,7 +249,38 @@ $p5 = @(Get-AclProblems $aclFile $true)
 Write-Host ('  MUTANT, Users granted read on the private key, problems: ' + ($p5 -join ' ;; '))
 Check 'MUTANT: Users granted READ on the private key is flagged "has access to a private key"' (@($p5 | Where-Object { $_ -match 'has access to a private key' }).Count -ge 1)
 
+# ---- 12. THE DEFECT THE FIRST ELEVATED RUN FOUND (2 Oct 2026): ssh-keygen leaves the user who ran it an explicit ACE ----
+# Real ssh-keygen output, in a scratch folder.  "icacls /inheritance:r /grant:r" leaves explicit ACEs alone, so the
+# install's read-back refused "ace\Don has access to a private key" and "can write".  Remove-ExtraAces is the fix.
+$kgDir = Join-Path $root 'keygen'
+New-Item -ItemType Directory -Path $kgDir | Out-Null
+$kgKey = Join-Path $kgDir 'k'
+& $keygen -q -t ed25519 -N '""' -f $kgKey | Out-Null
+$k0 = @(Get-AclProblems $kgKey $true)
+Write-Host ('  ssh-keygen''s own private key, problems: ' + (($k0 | ForEach-Object { ($_ -split ': ', 2)[1] }) -join ' ;; '))
+if (@($k0 | Where-Object { $_ -match 'has access to a private key' }).Count -eq 0) {
+    Skip 'ssh-keygen leaves an extra ACE on its private key' 'it left none on this computer, so the fix is not exercised'
+} else {
+    Check 'ssh-keygen leaves the user who ran it an ACE on the private key (the defect, reproduced with the real tool)' $true
+    # WITHOUT the fix: the sequence the first build of -Install used.
+    $null = & icacls.exe $kgKey '/inheritance:r' '/grant:r' ('*' + $SidSystem + ':F') ('*' + $SidAdmins + ':F') 2>&1
+    $k1 = @(Get-AclProblems $kgKey $true)
+    Check 'WITHOUT Remove-ExtraAces the old sequence still leaves that ACE (this is why the function exists)' (@($k1 | Where-Object { $_ -match 'has access to a private key' }).Count -ge 1)
+    # WITH the fix: the sequence -Install uses now.
+    Remove-ExtraAces $kgKey @($SidSystem, $SidAdmins)
+    $k2 = @(Get-AclProblems $kgKey $true)
+    Write-Host ('  after Remove-ExtraAces, problems: ' + (($k2 | ForEach-Object { ($_ -split ': ', 2)[1] }) -join ' ;; '))
+    Check 'WITH Remove-ExtraAces nobody but SYSTEM and Administrators has access to the private key (only the owner, which the guard cannot set, is left)' ($k2.Count -eq 1 -and $k2[0] -match 'owner is')
+}
+$kgPub = $kgKey + '.pub'
+$null = & icacls.exe $kgPub '/inheritance:r' '/grant:r' ('*' + $SidSystem + ':F') ('*' + $SidAdmins + ':F') ('*' + $SidUsers + ':R') 2>&1
+Remove-ExtraAces $kgPub @($SidSystem, $SidAdmins, $SidUsers, 'S-1-1-0')
+$p6 = @(Get-AclProblems $kgPub $false)
+Write-Host ('  public key after the same cut, problems: ' + (($p6 | ForEach-Object { ($_ -split ': ', 2)[1] }) -join ' ;; '))
+Check 'the public key ends up writable by SYSTEM and Administrators only (still readable by users); only the owner is left to flag' ($p6.Count -eq 1 -and $p6[0] -match 'owner is')
+
 $null = & icacls.exe $aclDir '/reset' '/T' '/C' '/Q' 2>&1
+$null = & icacls.exe $kgDir '/reset' '/T' '/C' '/Q' 2>&1
 Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
 if (Test-Path $root) { Write-Host "NOTE: could not remove the scratch folder $root" }
 Write-Host ''
