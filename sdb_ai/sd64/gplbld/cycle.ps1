@@ -124,13 +124,30 @@ function ToMsys([string] $p) {
     if ($p -match '^([A-Za-z]):(.*)$') { return "/$($Matches[1].ToLower())$($Matches[2])" }
     return $p
 }
-# The sd/sdwind processes of THIS tree or the stage - not the multi-user
-# service's, which has its own check below.
+# The sd/sdwind processes of THIS tree or the stage - never the multi-user
+# product's, which may be running beside Solo (SOLO 28).
+# 2 Oct 26 - SOLO 28.  An UNREADABLE path used to count as Solo's.  With the multi-user
+# SD beside Solo that is wrong: its service runs as LocalSystem, Get-Process cannot read
+# its path from an unelevated shell, and step 1 would wait 30 s and refuse.  The path is
+# now asked of WMI when Get-Process cannot give it, and a process still unreadable is
+# NOT counted - step 1 NAMES those (UnreadableSdProcesses), so it is never silent.
+# sd-solo is the installed server's name since 1 Oct (SOLO_EXE); sd is the stage's.
+$SdProcessNames = @('sd', 'sd-solo', 'sdwind')
+function ProcessPathOf($proc) {
+    $p = $null; try { $p = $proc.Path } catch { }
+    if (-not $p) {
+        try { $p = (Get-CimInstance -ClassName Win32_Process -Filter ('ProcessId=' + $proc.Id) -ErrorAction Stop).ExecutablePath } catch { }
+    }
+    return $p
+}
 function SoloProcesses {
-    @(Get-Process -Name sd, sdwind -ErrorAction SilentlyContinue | Where-Object {
-        $p = $null; try { $p = $_.Path } catch { }
-        (-not $p) -or $p.StartsWith($SoloRoot, 'OrdinalIgnoreCase') -or $p.StartsWith($Stage, 'OrdinalIgnoreCase')
+    @(Get-Process -Name $SdProcessNames -ErrorAction SilentlyContinue | Where-Object {
+        $p = ProcessPathOf $_
+        $p -and ($p.StartsWith($SoloRoot, 'OrdinalIgnoreCase') -or $p.StartsWith($Stage, 'OrdinalIgnoreCase'))
     })
+}
+function UnreadableSdProcesses {
+    @(Get-Process -Name $SdProcessNames -ErrorAction SilentlyContinue | Where-Object { -not (ProcessPathOf $_) })
 }
 
 # ---------------------------------------------------------------------------
@@ -154,19 +171,15 @@ if ($SoloRoot -ne [System.IO.Path]::GetFullPath((Join-Path $env:USERPROFILE 'SDC
     (Split-Path -Leaf $SoloRoot) -ne 'SDCoreSolo') {
     Fail "the Solo tree resolved to '$SoloRoot', not <profile>\SDCoreSolo - refusing to go on."
 }
-# THE MULTI-USER PRODUCT BLOCKS BOTH HALVES.  sd-solo.iss refuses to install
-# beside it ("SD Core is installed on this computer. Uninstall it first."), and
-# while its service runs the machine-wide semaphores make the bootstrap fail
-# ("Semaphores are already present", SOLO 8).  Said now, not at step 2 or 7.
-$muSvc = Get-Service -Name 'SD' -ErrorAction SilentlyContinue
-if ($muSvc -and $muSvc.Status -eq 'Running') {
-    Fail ("the multi-user SD service is RUNNING - its semaphores would break the bootstrap.  Stop it " +
-          "in an ELEVATED prompt:  C:\Windows\System32\sc.exe stop SD")
-}
-if ((-not $SkipInstall) -and (Test-Path -LiteralPath 'C:\Program Files\SD\usr\bin\sd.exe')) {
-    Fail ("the multi-user SD is installed (C:\Program Files\SD), and the Solo installer refuses to " +
-          "install beside it.  Uninstall it first, or use -SkipInstall to only build.")
-}
+# 2 Oct 26 - SOLO 28.  THE MULTI-USER PRODUCT NO LONGER BLOCKS EITHER HALF.  Two
+# refusals stood here and both are gone.  sd-solo.iss refused to install beside it
+# (lifted on the owner's ruling, "they are meant to be able to be installed at the
+# same time"), and "Semaphores are already present" (SOLO 8) came from the Win32
+# semaphore names being the same in both products - since S.51 (5a5980d, 1 Oct) each
+# product has its own, so a running multi-user service cannot break Solo's bootstrap.
+# What still does is an INSTALLED SOLO that is running: its names are Solo's own, the
+# same as the stage's, and step 1 stops it.  Both products running at once is
+# something only the owner's hands can witness; this script does not claim it.
 
 # LINT sd-solo.iss BEFORE ANYTHING EXPENSIVE.  ISPP reads a line starting "#"
 # as a directive and ISCC a line starting "[" as a section tag - inside a brace
@@ -277,6 +290,12 @@ if ($left.Count -gt 0) {
           "`n  Close any SD session and run this again.")
 }
 Write-Host "   SD is stopped"
+# SOLO 28 - what was NOT counted, said out loud.  The multi-user service is one of these.
+$unreadable = UnreadableSdProcesses
+if ($unreadable.Count -gt 0) {
+    Write-Host ("   not counted (path unreadable from here - e.g. the multi-user SD service): " +
+                (($unreadable | ForEach-Object { "$($_.Name)($($_.Id))" }) -join ', '))
+}
 
 # ---------------------------------------------------------------------------
 # STEP 2 - STAGE AND BOOTSTRAP (this is the BASIC compile).  Through an MSYS2
