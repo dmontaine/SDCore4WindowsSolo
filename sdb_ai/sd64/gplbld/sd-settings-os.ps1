@@ -76,17 +76,43 @@ try {
         catch { Failed $_.Exception.Message }
     }
 
-    # ssh
-    $sshd = Join-Path $env:ProgramData 'ssh\sshd_config'
-    $sshSvc = Get-Service -Name 'sshd' -ErrorAction SilentlyContinue
-    if ($sshSvc -or (Test-Path -LiteralPath $sshd)) {
+    # ssh - SOLO 28: Solo's OWN sshd, <app>\ssh, started at boot by the task "SD Core Solo
+    # SSH".  The Windows OpenSSH Server service and its sshd_config are not Solo's any
+    # more and are not reported; no key text is printed, only a count.
+    $sshDir = Join-Path $appDir 'ssh'
+    $sshCfg = Join-Path $sshDir 'sshd_config'
+    $sshTask = Get-ScheduledTask -TaskName 'SD Core Solo SSH' -ErrorAction SilentlyContinue
+    if ((Test-Path -LiteralPath $sshCfg) -or $sshTask) {
         Section 'ssh'
-        if ($sshSvc) { Line "sshd service: $($sshSvc.Status), start $($sshSvc.StartType)" } else { Line 'sshd service: not installed' }
-        if (Test-Path -LiteralPath $sshd) {
-            Line "file: $sshd"
-            try { foreach ($l in (Select-SshdLines ([System.IO.File]::ReadAllLines($sshd)))) { Line $l } }
-            catch { Failed $_.Exception.Message }
+        Line 'SD Core Solo runs its own sshd; it does not use the Windows OpenSSH Server service'
+        if (Test-Path -LiteralPath $sshCfg) {
+            Line "file: $sshCfg"
+            try {
+                $cfgLines = [System.IO.File]::ReadAllLines($sshCfg)
+                foreach ($l in (Select-SshdLines $cfgLines)) { Line $l }
+                if (@($cfgLines | Where-Object { $_.Trim() -match '^(?i)AuthenticationMethods\s+publickey$' }).Count -gt 0) {
+                    Line 'logins: public key only'
+                }
+            } catch { Failed $_.Exception.Message }
+            $akf = Join-Path $sshDir 'authorized_keys'
+            if (Test-Path -LiteralPath $akf) {
+                try {
+                    $n = @([System.IO.File]::ReadAllLines($akf) | Where-Object { $_.Trim() -ne '' -and -not $_.Trim().StartsWith('#') }).Count
+                    Line "keys in ${akf}: $n"
+                } catch { Failed "key file - $($_.Exception.Message)" }
+            } else { Line "key file: none yet ($akf)" }
+            try {
+                $run = @(Get-CimInstance -ClassName Win32_Process -Filter "Name='sshd.exe'" -ErrorAction Stop |
+                         Where-Object { $_.CommandLine -and $_.CommandLine.IndexOf($sshCfg, [StringComparison]::OrdinalIgnoreCase) -ge 0 })
+                if ($run.Count -gt 0) { Line "Solo's sshd: running (pid $($run[0].ProcessId))" } else { Line "Solo's sshd: not running" }
+            } catch { Failed "sshd process - $($_.Exception.Message)" }
         }
+        if ($sshTask) {
+            try {
+                $ti = $sshTask | Get-ScheduledTaskInfo
+                Line ("SD Core Solo SSH task: {0}, last run {1:yyyy-MM-dd HH:mm}, result 0x{2:X}" -f $sshTask.State, $ti.LastRunTime, $ti.LastTaskResult)
+            } catch { Failed "ssh task info - $($_.Exception.Message)" }
+        } else { Line 'SD Core Solo SSH task: not registered' }
     }
 
     # api
@@ -113,10 +139,11 @@ try {
     }
 
     # firewall
+    # SOLO 28: Solo's ssh rule is SD-Solo-SSH-In-TCP (solo-ssh-firewall.ps1); Microsoft's
+    # "OpenSSH SSH Server" rule for port 22 is not Solo's and is no longer listed.
     $rules = @()
     if ($apiRule) { $rules += $apiRule }
-    $rules += @(Get-NetFirewallRule -ErrorAction SilentlyContinue |
-                Where-Object { $_.DisplayName -like 'OpenSSH SSH Server*' -and $_.Direction -eq 'Inbound' })
+    $rules += @(Get-NetFirewallRule -Name 'SD-Solo-SSH-In-TCP' -ErrorAction SilentlyContinue)
     if ($rules.Count -gt 0) {
         Section 'firewall'
         foreach ($r in $rules) {

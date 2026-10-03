@@ -2,6 +2,34 @@ WS1.1-3 - in progress
 -------------
 Changes since WS1.1-2.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
 
+02 Oct 26  SD CORE SOLO HAS ITS OWN SSH PORT, 4251, AND CAN BE INSTALLED BESIDE
+           SD CORE.
+
+           SD Core Solo used to take over ssh login for your Windows user on the
+           computer's ordinary ssh port, 22, which SD Core (the multi-user
+           product) also uses, so the two could not share a computer.  Solo now
+           runs an ssh server of its own on port 4251: ssh to port 22 goes to
+           SD Core and ssh to port 4251 goes to SD Core Solo.
+           * You connect with  ssh -p 4251 yourname@computer.
+           * Only a key can log in.  A password is never accepted on this port.
+           * The keys are kept in SDCoreSolo\ssh\authorized_keys.  The SD Core
+             server adds and removes its key there, as it did before.  Nothing
+             is written to your own .ssh folder, and keys of your own there are
+             left alone.
+           * The server starts when the computer starts, whether or not anyone
+             has signed in, and runs as you, without administrator rights.
+           * The Windows OpenSSH Server still has to be installed (the installer
+             offers it), but Solo no longer changes its settings or its port 22
+             firewall rule, and the Windows service does not have to be running.
+           * The installer's question about other computers reaching ssh now
+             refers to port 4251.  The firewall rule is named SD-Solo-SSH-In-TCP.
+           * An upgrade removes what an earlier Solo added to the Windows OpenSSH
+             settings, and moves the key the SD Core server added to your
+             .ssh\authorized_keys into the new file.  A copy of your old file is
+             kept beside it as authorized_keys.sdcoresolo-backup.
+           * The installer no longer refuses to install when SD Core is already
+             installed.
+
 02 Oct 26  F1 TO F5, HOME AND END WORK FROM A TERMINAL THAT SENDS THEM THE
            XTERM WAY.
 

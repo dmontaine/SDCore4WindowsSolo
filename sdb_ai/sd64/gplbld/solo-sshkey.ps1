@@ -1,6 +1,6 @@
 # solo-sshkey.ps1 - add, remove or list the SD Core server's ssh keys for THIS user.
 # Run by gpl.bp/apisrvr (API request 49, SrvrSshKey) in the signed-in user's own
-# process.  UNELEVATED BY DESIGN: it writes only %USERPROFILE%\.ssh\authorized_keys.
+# process.  UNELEVATED BY DESIGN: it writes only <app>\ssh\authorized_keys.
 #
 #   powershell -File solo-sshkey.ps1 -Verb ADD    -Key '<one-line public key>'
 #   powershell -File solo-sshkey.ps1 -Verb REMOVE -Fingerprint 'SHA256:...'
@@ -10,24 +10,34 @@
 # with tools/solo-ssh.sh key-add|key-remove|key-list).  What the master sees is the
 # same on both systems; this is only the Windows method.
 #
-# WHY THE USER'S OWN FILE WORKS FOR AN ADMINISTRATOR: Win32-OpenSSH reads
-# %ProgramData%\ssh\administrators_authorized_keys for a user in Administrators,
-# a file only an elevated process can write - unless the user's own Match block
-# comes BEFORE the stock "Match Group administrators" block and names
-# "AuthorizedKeysFile .ssh/authorized_keys".  Measured 30 Sep 2026
-# (probe-sshd-keyfile.ps1).  solo-machine.ps1 writes the block in that position;
-# ADD refuses when it is not there, because a key line that sshd never reads, or
-# one that gave a shell, is worse than a refusal.
+# SOLO 28, 2 Oct 2026 - THE KEY FILE MOVED.  Solo's ssh is now its OWN sshd on port 4251
+# (solo-sshd.ps1), run by the Solo owner, and it reads ITS OWN key file,
+# <app>\ssh\authorized_keys - not the user's ~\.ssh\authorized_keys, which the system sshd's
+# "Match User" block used to read.  The owner's ruling (via the Linux agent, mail T3410/T3510):
+# Solo has ONE route, its own sshd and its own key file.  That also ends the old problem this
+# header used to explain at length - Win32-OpenSSH reads a ProgramData file only an elevated
+# process can write for a user in Administrators - because Solo's sshd has no such Match block:
+# it reads the file named in its own configuration for everybody.
+#
+# THE HELPER PREPARES FIRST.  Every verb runs "solo-sshd.ps1 -Prepare" (idempotent: it makes the
+# folder, host key, configuration and key file if missing, and moves the master's old key lines out
+# of ~\.ssh\authorized_keys), so what it reports is what sshd will read.  ADD refuses when there is
+# no sshd.exe on this computer at all, because a key line that nothing will ever read is worse than
+# a refusal.
 #
 # OUTPUT, one machine-readable line each (anchor on these, nothing else):
-#   OSUSER=<name as sshd matches it>   HOSTKEY=<SHA256:... or empty>
+#   OSUSER=<name as sshd matches it>   HOSTKEY=<SHA256:...>   PORT=<Solo's ssh port, 4251>
 #   FPR=<SHA256:...>                   COUNT=<our lines now>
 #   RESULT=ADDED|PRESENT|REMOVED|ABSENT|LISTED
 #   ERROR=<text>                       (exit 1; nothing was changed)
-# Exit 0 only with a RESULT= line.
+# Exit 0 only with a RESULT= line.  HOSTKEY is now Solo's OWN sshd's ed25519 host key, read from
+# <app>\ssh\ssh_host_ed25519_key.pub (readable by the user - no elevated step records it any more);
+# before this change it was the system sshd's, read from a file an elevated step had written.
+# PORT is new: the master needs it to reach Solo's sshd; apisrvr appends it to the ADD answer.
 #
 # OUR LINES are "restrict <type> <key> sdcoresolo-managed" and nothing else is ever
-# added, listed or removed: the user's own keys are never touched.  At most 4.
+# added, listed or removed: any other line in the file is the owner's own and is never touched.
+# At most 4.
 
 param(
     [Parameter(Mandatory = $true)] [ValidateSet('ADD', 'REMOVE', 'LIST')] [string]$Verb,
@@ -38,8 +48,6 @@ param(
 $ErrorActionPreference = 'Stop'
 $Tag = 'sdcoresolo-managed'
 $Cap = 4
-$Begin = '# BEGIN SD Core Solo - added by its installer, removed by its uninstaller'
-$End = '# END SD Core Solo'
 
 function Stop-With([string]$m) { Write-Output ('ERROR=' + $m); exit 1 }
 
@@ -50,18 +58,32 @@ function Get-Fingerprint([string]$b64) {
     return 'SHA256:' + [Convert]::ToBase64String($sha.ComputeHash($bytes)).TrimEnd('=')
 }
 
-function Get-OsUser {
-    $n = [Security.Principal.WindowsIdentity]::GetCurrent().Name
-    $u = $n.Split('\')
-    $name = $u[$u.Count - 1]
-    if ($u.Count -gt 1 -and $u[0] -ine $env:COMPUTERNAME) { $name = $name + '@' + $u[0] }
-    return $name.ToLower()
+# ---- prepare Solo's sshd files and read what it says ---------------------------------------
+$prep = Join-Path $PSScriptRoot 'solo-sshd.ps1'
+if (-not (Test-Path -LiteralPath $prep)) { Stop-With 'solo-sshd.ps1 is missing from the Solo folder' }
+$psExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+$prepOut = Join-Path $env:TEMP ('sdsolo-prepare-' + [guid]::NewGuid().ToString('N').Substring(0, 8) + '.txt')
+try {
+    # Start-Process to a file, not "2>&1": under ErrorActionPreference Stop a native command's stderr
+    # is a terminating error even on success (PROJECT_STATUS 6).
+    $null = Start-Process -FilePath $psExe -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $prep + '"'), '-Prepare') `
+            -NoNewWindow -Wait -PassThru -RedirectStandardOutput $prepOut
+    $facts = @()
+    if (Test-Path -LiteralPath $prepOut) { $facts = @([IO.File]::ReadAllLines($prepOut)) }
 }
-
-$home1 = $env:USERPROFILE
-if (-not $home1) { Stop-With 'no user profile folder' }
-$sshDir = Join-Path $home1 '.ssh'
-$ak = Join-Path $sshDir 'authorized_keys'
+finally { Remove-Item -LiteralPath $prepOut -Force -ErrorAction SilentlyContinue }
+$osUser = ''; $hostKey = ''; $port = ''; $ak = ''
+foreach ($l in $facts) {
+    $l = $l.Trim()
+    if ($l.StartsWith('OSUSER=')) { $osUser = $l.Substring(7) }
+    elseif ($l.StartsWith('HOSTKEY=')) { $hostKey = $l.Substring(8) }
+    elseif ($l.StartsWith('PORT=')) { $port = $l.Substring(5) }
+    elseif ($l.StartsWith('KEYFILE=')) { $ak = $l.Substring(8) }
+    elseif ($l.StartsWith('ERROR=')) { Stop-With ('ssh is not set up for SD Core Solo (' + $l.Substring(6) + ')') }
+}
+if (-not ($facts -contains 'RESULT=PREPARED')) { Stop-With 'ssh is not set up for SD Core Solo (its sshd files could not be prepared)' }
+if ($ak -eq '' -or $osUser -eq '' -or $port -notmatch '^\d+$') { Stop-With 'ssh is not set up for SD Core Solo (its sshd did not answer)' }
+if ($hostKey -notmatch '^SHA256:[A-Za-z0-9+/]{43}$') { $hostKey = '' }
 
 $lines = @()
 if (Test-Path -LiteralPath $ak) { $lines = @([IO.File]::ReadAllLines($ak)) }
@@ -74,32 +96,12 @@ function Get-LineFpr([string]$line) {
 }
 
 function Write-Lines([string[]]$l) {
-    if (-not (Test-Path -LiteralPath $sshDir)) { New-Item -ItemType Directory -Path $sshDir | Out-Null }
     [IO.File]::WriteAllLines($ak, $l, (New-Object Text.UTF8Encoding($false)))
 }
 
-Write-Output ('OSUSER=' + (Get-OsUser))
-
-# sshd's own host key, so the master can pin it.  Empty when unknown.  The key's
-# .pub is in ProgramData\ssh and NOT readable unelevated (measured 30 Sep 2026), so
-# the elevated installer records the fingerprint in sdsys\ssh-hostkey (SOLO 24);
-# the .pub is only a fallback for a machine where it happens to be readable.
-$hk = ''
-try {
-    $rec = Join-Path $PSScriptRoot 'sdsys\ssh-hostkey'
-    if (Test-Path -LiteralPath $rec) {
-        $line = ([IO.File]::ReadAllText($rec).Trim())
-        if ($line -match '^SHA256:[A-Za-z0-9+/]{43}$') { $hk = $line }
-    }
-} catch { $hk = '' }
-if ($hk -eq '') {
-    $pub = Join-Path $env:ProgramData 'ssh\ssh_host_ed25519_key.pub'
-    try {
-        $t = ([IO.File]::ReadAllText($pub).Trim() -split '\s+')
-        if ($t.Count -ge 2) { $hk = Get-Fingerprint $t[1] }
-    } catch { $hk = '' }
-}
-Write-Output ('HOSTKEY=' + $hk)
+Write-Output ('OSUSER=' + $osUser)
+Write-Output ('HOSTKEY=' + $hostKey)
+Write-Output ('PORT=' + $port)
 
 switch ($Verb) {
     'LIST' {
@@ -125,19 +127,10 @@ switch ($Verb) {
         $fpr = Get-Fingerprint $parts[1]
         if ($fpr -eq '') { Stop-With 'the key does not decode' }
 
-        # Refuse unless sshd will read THIS file and force sd.exe for this user.
-        $cfg = Join-Path $env:ProgramData 'ssh\sshd_config'
-        if (-not (Test-Path -LiteralPath $cfg)) { Stop-With 'ssh is not set up for SD Core Solo (no sshd_config)' }
-        $c = @([IO.File]::ReadAllLines($cfg))
-        $bi = [Array]::IndexOf($c, $Begin); $ei = [Array]::IndexOf($c, $End)
-        if ($bi -lt 0 -or $ei -lt $bi) { Stop-With 'ssh is not set up for SD Core Solo (its sshd_config block is missing)' }
-        $blk = $c[$bi..$ei] -join "`n"
-        if ($blk -notmatch 'ForceCommand' -or $blk -notmatch 'AuthorizedKeysFile\s+\.ssh/authorized_keys') {
-            Stop-With 'ssh is not set up for SD Core Solo (its sshd_config block does not read the user key file)'
-        }
-        $firstMatch = -1
-        for ($i = 0; $i -lt $c.Count; $i++) { if ($c[$i] -match '^\s*Match\s') { $firstMatch = $i; break } }
-        if ($firstMatch -lt $bi -or $firstMatch -gt $ei) { Stop-With 'ssh is not set up for SD Core Solo (its block is not ahead of the other Match blocks)' }
+        # Refuse unless there is an sshd on this computer to read the file at all.
+        $hasSshd = (Test-Path -LiteralPath (Join-Path $env:SystemRoot 'System32\OpenSSH\sshd.exe')) -or
+                   (Test-Path -LiteralPath (Join-Path $env:ProgramFiles 'OpenSSH\sshd.exe'))
+        if (-not $hasSshd) { Stop-With 'ssh is not set up for SD Core Solo (there is no sshd.exe on this computer)' }
 
         foreach ($l in $ours) {
             if ((Get-LineFpr $l) -eq $fpr) {

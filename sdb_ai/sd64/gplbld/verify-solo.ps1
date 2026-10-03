@@ -119,8 +119,9 @@ $Audit   = Join-Path $Sdsys 'audit'
 $Conf    = Join-Path $Root 'sd.conf'
 $Scram   = Join-Path $Gplbld 'scram-probe.py'
 # 28 Sep 26 - RULING 29: the account is always sduser.  It was the Windows
-# user's name ($env:USERNAME), which is still recorded as $WinUser: ssh's
-# Match User and the scheduled task are the Windows user's, not the account's.
+# user's name ($env:USERNAME), which is still recorded as $WinUser: the ssh
+# login name (Solo's own sshd, SOLO 28) and the scheduled tasks are the Windows
+# user's, not the account's.
 $Acct    = 'sduser'
 $WinUser = "$env:USERNAME".Trim().ToLower()
 $Probe   = 'ZZSOLOSUITE.COPY'
@@ -1472,17 +1473,26 @@ public static class SdSuiteCli {
     # argument, and used for a real ssh login to this machine - which must be
     # refused BEFORE the ADD (CONTROL) and reach SD after it.  Every anchor is the
     # tool's own success wording ("SSHKEY ADD: OK ...|ADDED"), never an echoed
-    # argument.  The key is REMOVEd and the user's authorized_keys put back.
+    # argument.  The key is REMOVEd and the key file put back.
+    # 2 Oct 26 - SOLO 28: the login is to SOLO'S OWN sshd on port 4251 and the key
+    # goes in Solo's own file <root>\ssh\authorized_keys, no longer the user's
+    # ~\.ssh\authorized_keys behind the system sshd on 22; ADD answers SIX fields
+    # (the sixth is the port); a leg that finds nothing listening on 4251 FAILS
+    # rather than skips - the boot task is part of what is installed.
     Say ''
-    Say '== 18b. the ssh key request (SOLO 24, request 49)'
+    Say '== 18b. the ssh key request (SOLO 24, request 49; SOLO 28, own sshd on 4251)'
     $kgen = Join-Path $env:SystemRoot 'System32\OpenSSH\ssh-keygen.exe'
     $sshc = Join-Path $env:SystemRoot 'System32\OpenSSH\ssh.exe'
     if (-not $managed) { Skip '18b: request 49' 'standalone - no global password, the request cannot be made' }
     elseif (-not $apiPort -or -not $script:Py -or -not (Test-Path -LiteralPath $Scram)) { Skip '18b: request 49' 'no API or no scram-probe - see leg 5' }
     elseif (-not (Test-Path -LiteralPath $kgen) -or -not (Test-Path -LiteralPath $sshc)) { Skip '18b: request 49' 'no OpenSSH client in System32' }
     else {
-        $akf = Join-Path $env:USERPROFILE '.ssh\authorized_keys'
+        $sshPort = 4251
+        $akf = Join-Path $Root 'ssh\authorized_keys'
         $akBefore = $(if (Test-Path -LiteralPath $akf) { (Get-FileHash -LiteralPath $akf -Algorithm SHA256).Hash } else { '(absent)' })
+        $listen = @(Get-NetTCPConnection -State Listen -LocalPort $sshPort -ErrorAction SilentlyContinue)
+        Say ('    Solo''s sshd listening on ' + $sshPort + ': ' + $listen.Count + ' socket(s); key file ' + $akf + ' (' + $akBefore + ')')
+        Check ('Solo''s own sshd is listening on port ' + $sshPort) ($listen.Count -gt 0) 'nothing listens on 4251 - the "SD Core Solo SSH" task did not start sshd (solo-sshd.ps1 -Run)'
         $kdir = Join-Path $env:TEMP ('sdsshkey-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
         New-Item -ItemType Directory -Path $kdir | Out-Null
         $kf = Join-Path $kdir 'k'
@@ -1490,7 +1500,8 @@ public static class SdSuiteCli {
         $pub = (Get-Content -LiteralPath ($kf + '.pub') -Raw).Trim()
         $fpr = (((& $kgen -l -f ($kf + '.pub')) -join ' ') -split '\s+')[1]
         Say ('    throwaway key: ' + $kf + '   fingerprint (ssh-keygen): ' + $fpr)
-        $sshArgs = @('-i', $kf, '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=no', '-o', ('UserKnownHostsFile=' + (Join-Path $kdir 'kh')),
+        $sshArgs = @('-i', $kf, '-p', [string]$sshPort, '-o', 'BatchMode=yes', '-o', 'IdentitiesOnly=yes', '-o', 'StrictHostKeyChecking=no',
+                     '-o', ('UserKnownHostsFile=' + (Join-Path $kdir 'kh')),
                      '-o', 'ConnectTimeout=10', ($env:USERNAME.ToLower() + '@localhost'), 'echo SHELL-RAN')
         function Invoke-KeyLogin([string]$What) {
             $so = Join-Path $kdir ($What + '.out'); $se = Join-Path $kdir ($What + '.err'); $si = Join-Path $kdir 'stdin.txt'
@@ -1510,7 +1521,7 @@ public static class SdSuiteCli {
 
             $t = Invoke-ScramKey 'the global password' $globalPw @('LIST', ('ADD ' + $pub), ('ADD ' + $pub), 'LIST', 'ADD ssh-ed25519 AAAA;x')
             $added = ($t -match 'SSHKEY ADD: OK')
-            Check 'ADD answers five fields, the key was ADDED, and the fingerprint is ssh-keygen''s' ($t -match ('(?m)^SSHKEY ADD: OK [^|]+\|[^|]+\|' + [regex]::Escape($fpr) + '\|ADDED\|SHA256:[A-Za-z0-9+/]{43}\s*$')) 'want: SSHKEY ADD: OK <user>|<host>|<fingerprint>|ADDED|SHA256:<sshd host key> (field 5 is recorded by the installer)'
+            Check 'ADD answers six fields, the key was ADDED, the fingerprint is ssh-keygen''s and the port is 4251' ($t -match ('(?m)^SSHKEY ADD: OK [^|]+\|[^|]+\|' + [regex]::Escape($fpr) + '\|ADDED\|SHA256:[A-Za-z0-9+/]{43}\|' + $sshPort + '\s*$')) 'want: SSHKEY ADD: OK <user>|<host>|<fingerprint>|ADDED|SHA256:<Solo sshd host key>|4251'
             Check 'the same key again is PRESENT' ($t -match ('(?m)^SSHKEY ADD: OK [^|]+\|[^|]+\|' + [regex]::Escape($fpr) + '\|PRESENT\|')) 'want |PRESENT|'
             Check 'LIST then shows the fingerprint' ($t -match ('(?m)^SSHKEY LIST: OK .*' + [regex]::Escape($fpr))) 'want LIST to carry the fingerprint'
             Check 'a key with a character that is not allowed is refused with the shared wording' ($t -match 'SSHKEY ADD: REFUSED server_error 3: The ssh key request was refused: the key or fingerprint is not valid') 'want "... is not valid"'
@@ -1528,11 +1539,13 @@ public static class SdSuiteCli {
         finally {
             $t = Invoke-ScramKey 'the global password' $globalPw @(('REMOVE ' + $fpr), ('REMOVE ' + $fpr))
             Check 'REMOVE deletes it (REMOVED), and again is ABSENT' (($t -match '(?m)^SSHKEY REMOVE: OK REMOVED\|\d+') -and ($t -match '(?m)^SSHKEY REMOVE: OK ABSENT\|\d+')) ('RECOVER BY HAND: delete the "sdcoresolo-managed" line from ' + $akf)
-            if (-not $added -or $akBefore -eq '(absent)') {
-                if ((Test-Path -LiteralPath $akf) -and ((Get-Item -LiteralPath $akf).Length -eq 0) -and $akBefore -eq '(absent)') { Remove-Item -LiteralPath $akf -Force }
-            }
+            # Solo's key file is made by solo-sshd.ps1 -Prepare on the first ADD, so a file that
+            # was absent before may exist, EMPTY, after - that is correct and is left in place.
+            # What must not survive is a key line.
             $akAfter = $(if (Test-Path -LiteralPath $akf) { (Get-FileHash -LiteralPath $akf -Algorithm SHA256).Hash } else { '(absent)' })
-            Check 'the user''s authorized_keys is as it was before the leg' ($akAfter -eq $akBefore) ('before ' + $akBefore + ', after ' + $akAfter)
+            $akLeft = $(if (Test-Path -LiteralPath $akf) { @(Get-Content -LiteralPath $akf | Where-Object { $_.Trim() -ne '' }).Count } else { 0 })
+            $akOk = $(if ($akBefore -eq '(absent)') { $akLeft -eq 0 } else { $akAfter -eq $akBefore })
+            Check 'Solo''s key file is as it was before the leg (empty or absent if it was absent)' $akOk ('before ' + $akBefore + ', after ' + $akAfter + ', key lines left ' + $akLeft)
             Remove-Item -LiteralPath $kdir -Recurse -Force -ErrorAction SilentlyContinue
         }
     }

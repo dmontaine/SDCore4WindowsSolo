@@ -21,9 +21,16 @@
 ;      to the task.
 ;   2. PATH, the user's own (HKCU).
 ;   3. solo-machine.ps1, elevated: the S4U startup task, registered and started
-;      (SOLO 3, ruling 2); API firewall; ssh firewall scope (ruling 8); and,
-;      wherever OpenSSH is found, the sshd_config block that lands this user in
-;      SD (ruling 5) with sshd set to start at boot - not a choice.
+;      (SOLO 3, ruling 2); API firewall; and, wherever OpenSSH is found, SOLO'S
+;      OWN SSH SERVER (SOLO 28, the owner's ruling of 2 Oct 2026): a second S4U
+;      startup task running solo-sshd.ps1 as this user, on port 4251, fixed, and
+;      its firewall rule - not a choice.  It replaces the old route, a
+;      "Match User" block in the SYSTEM sshd_config, which this step now takes
+;      OUT.  Solo and the full product can be installed at the same time: the
+;      refusal that used to stop this installer when the full product was
+;      present went with that route (the owner, 2 Oct 2026: they are meant to
+;      coexist), and ssh is no longer shared - Solo's is on 4251, the full
+;      product's on 22.
 ;
 ; RULING 17 (25 Sep 2026): optional installs of the packages the release puts
 ; beside this file - <src>\python\python-3*-amd64.exe, per-user and unelevated
@@ -115,8 +122,8 @@ UninstallDisplayName={#AppName} {#AppVer}
 ; below (ruling 22), so the tasks page is skipped there.
 Name: "api"; Description: "Provide the SD Core API (port 4249)"; Flags: unchecked
 Name: "api\network"; Description: "Let other computers reach it"; Flags: unchecked dontinheritcheck
-Name: "sshnetwork"; Description: "Let other computers reach this computer's ssh server"; \
-    Flags: unchecked; Check: SshRulePresent
+Name: "sshnetwork"; Description: "Let other computers reach Solo's ssh port (4251)"; \
+    Flags: unchecked; Check: SshServerFound
 ; 25 Sep 26 - RULING 17: the release carries Microsoft's OpenSSH MSI and
 ; python.org's Python .exe beside this installer (ssh-server\, python\) - both
 ; mandatory since ruling 23.  The MSI is installed only when no sshd already is
@@ -128,8 +135,8 @@ Name: "installssh\network"; Description: "Let other computers reach it"; \
 ; 25 Sep 26 - NO BOX FOR "ssh lands in SD".  Ruling 5 makes it the product, not
 ; a choice; the box that was here ("Start SD Core Solo when I sign in over
 ; ssh") read to the owner as starting the SERVER on sign-in, which it never
-; did - SD starts at boot from the task.  Wherever OpenSSH is found the block
-; is written and sshd is set to start at boot (solo-machine.ps1).
+; did - SD starts at boot from the task.  Wherever OpenSSH is found Solo's own
+; sshd is set up and started at boot (solo-machine.ps1, SOLO 28).
 
 [Dirs]
 Name: "{app}\user_accounts"; Flags: uninsneveruninstall
@@ -189,7 +196,6 @@ Source: "{#Stage}\SDCoreSolo\sd-standalone.conf"; DestDir: "{app}"; DestName: "s
 
 [Code]
 const
-  MultiUserKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{9F2B7C41-3D6A-4E58-9B0F-5C7A1E2D8B34}_is1';
   SoloKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{5E0C3A92-7B14-4D2F-A8C6-2F9D1B7E4A63}_is1';
 
 var
@@ -201,7 +207,7 @@ var
     tree means a reinstall over kept data: the tasks are asked again, the
     passwords are not (the tree already has them - ruling 15). }
   SoloWasInstalled: Boolean;
-  SshServerWasFound, SshRuleWasFound, SshRuleWasOpen: Boolean;
+  SshServerWasFound: Boolean;
   { Ruling 17: the packages beside the installer ('' when absent), and whether
     a usable Python is already registered.  Sampled once, like the rest. }
   SshMsiPath, PythonExePath: String;
@@ -398,40 +404,23 @@ end;
 
 function InitializeSetup: Boolean;
 var
-  ScopeFile, Missing: String;
-  Scope: AnsiString;
-  Code: Integer;
+  Missing: String;
 begin
   UseWindowsPowerShellModules;
-  if RegKeyExists(HKLM64, MultiUserKey) or
-     FileExists(ExpandConstant('{commonpf64}\SD\usr\bin\sd.exe')) then
-  begin
-    MsgBox('SD Core is installed on this computer. Uninstall it first.', mbError, MB_OK);
-    Result := False;
-    Exit;
-  end;
+  { 2 Oct 26 - SOLO 28.  THERE IS NO REFUSAL HERE ANY MORE.  This used to stop with "SD Core is installed
+    on this computer. Uninstall it first." when the multi-user product's uninstall key or its sd.exe
+    was present.  The reasons recorded for it - shared pipe and program names, semaphores - were gone by
+    the 1-2 Oct work (API ports 4247/4249, sd and sd-solo, each product's own shared-memory and
+    semaphore names, its own firewall rule names), the one that was left was ssh, and Solo's ssh is its
+    own sshd on its own port now.  The owner: the two products are meant to be installed at the same
+    time.  NOT YET WITNESSED: both running together on one computer. }
   DataTreeWasAbsent := not DirExists(SoloRoot + '\sdsys');
   SoloWasInstalled := RegKeyExists(HKCU, SoloKey);
   SshServerWasFound := FileExists(ExpandConstant('{sys}\OpenSSH\sshd.exe')) or
                        FileExists(ExpandConstant('{commonpf64}\OpenSSH\sshd.exe'));
-  { The box shows the truth: an ssh port already open starts ticked, so leaving
-    it alone changes nothing (sd.iss, PRE_RELEASE_FIXES 76). }
-  SshRuleWasFound := False;
-  SshRuleWasOpen := False;
-  if SshServerWasFound and not SoloWasInstalled then
-  begin
-    ExtractTemporaryFile('ssh-firewall.ps1');
-    ScopeFile := ExpandConstant('{tmp}\ssh-scope.txt');
-    if Exec(PowerShellExe, '-NoProfile -ExecutionPolicy Bypass -File "' +
-            ExpandConstant('{tmp}\ssh-firewall.ps1') + '" -ScopeFile "' + ScopeFile + '"',
-            '', SW_HIDE, ewWaitUntilTerminated, Code) and
-       LoadStringFromFile(ScopeFile, Scope) then
-    begin
-      Log('SD Core Solo: ssh firewall scope "' + String(Scope) + '", exit ' + IntToStr(Code));
-      SshRuleWasFound := (Trim(String(Scope)) = 'open') or (Trim(String(Scope)) = 'restricted');
-      SshRuleWasOpen := Trim(String(Scope)) = 'open';
-    end;
-  end;
+  { SOLO 28: the old "an ssh port already open starts ticked" detection (ssh-firewall.ps1 -ScopeFile
+    against Microsoft's rule for port 22) is gone with the system-sshd route - Solo's port is its own,
+    4251, and its rule is Solo's (solo-ssh-firewall.ps1), so there is nothing already open to find. }
   SshMsiPath := FindBeside('ssh-server', '*.msi');
   PythonExePath := FindBeside('python', 'python-3*-amd64.exe');
   { 27 Sep 26 - OWNER'S RULING: "installation package must always have the SSH
@@ -455,7 +444,6 @@ begin
   Log('SD Core Solo: data tree absent=' + IntToStr(Ord(DataTreeWasAbsent)) +
       ' installed=' + IntToStr(Ord(SoloWasInstalled)) +
       ' sshd=' + IntToStr(Ord(SshServerWasFound)) +
-      ' sshrule=' + IntToStr(Ord(SshRuleWasFound)) + ' open=' + IntToStr(Ord(SshRuleWasOpen)) +
       ' global=' + IntToStr(Ord(GlobalWasFound)));
   Result := True;
 end;
@@ -480,9 +468,12 @@ begin
   Result := (PythonExePath <> '') and not PythonWasFound;
 end;
 
-function SshRulePresent: Boolean;
+{ The "reach Solo's ssh port" box is offered wherever an ssh server's programs
+  are already on the computer; where only the MSI is offered its own child box
+  (installssh\network) asks the same thing. }
+function SshServerFound: Boolean;
 begin
-  Result := SshRuleWasFound;
+  Result := SshServerWasFound;
 end;
 
 { The Mode page on a new tree (a control file means managed - SOLO 18); the
@@ -582,13 +573,10 @@ begin
 end;
 
 { 27 Sep 26 - the greyed "forced" boxes (ShowForcedTasks) went with ruling 24:
-  the tasks page is now shown in standalone mode only, where nothing is forced. }
-procedure CurPageChanged(CurPageID: Integer);
-begin
-  if (CurPageID = wpSelectTasks) and SshRuleWasOpen then
-    WizardSelectTasks('sshnetwork');
-end;
-
+  the tasks page is now shown in standalone mode only, where nothing is forced.
+  2 Oct 26 - SOLO 28: CurPageChanged is gone too.  It ticked the ssh box when
+  Microsoft's port-22 rule was already open; Solo's port is its own now and
+  there is no such rule to find. }
 function NextButtonClick(CurPageID: Integer): Boolean;
 var
   Problem: String;
@@ -775,7 +763,14 @@ begin
 
   { 3. The one elevated step. }
   if SoloWasInstalled then
-    Code := RunMachineStep('Upgrade', '')
+  begin
+    { SOLO 28: -Managed on an upgrade lets solo-machine.ps1 open Solo's ssh port for a managed computer
+      that has no rule for it yet (an earlier build opened Microsoft's port 22 for the master). }
+    Extra := '';
+    if Managed then
+      Extra := ' -Managed';
+    Code := RunMachineStep('Upgrade', Extra);
+  end
   else
   begin
     { Each choice is its box OR managed mode (the owner's ruling above). }
@@ -784,7 +779,14 @@ begin
       Extra := Extra + ' -Api';
     if ApiNetworkWanted then
       Extra := Extra + ' -ApiNetwork';
-    if SshRuleWasFound then
+    { SOLO 28: Solo's ssh is its OWN sshd on port 4251 wherever sshd.exe is, or is
+      installed from the MSI.  Its firewall rule (solo-ssh-firewall.ps1) is open
+      to other computers when the box is ticked, or in managed mode (the master
+      has to reach it), and this-computer-only otherwise - the same shape as the
+      API's.  "leave" is only for a computer with no OpenSSH at all.  Managed
+      mode no longer changes the sshd's setup (the key file is the same in
+      both modes); -Managed is still passed and ignored by solo-machine.ps1. }
+    if SshServerWasFound then
     begin
       if WizardIsTaskSelected('sshnetwork') or Managed then
         Extra := Extra + ' -SshScope open'
@@ -799,16 +801,10 @@ begin
       else
         Extra := Extra + ' -SshScope restrict';
     end
-    { An ssh server whose firewall rule was not found: managed mode still asks
-      for it open, and ssh-firewall.ps1's own answer is in the summary. }
-    else if SshServerWasFound and Managed then
-      Extra := Extra + ' -SshScope open'
     else
       Extra := Extra + ' -SshScope leave';
     if SshServerWasFound or (SshMsiOffered and (WizardIsTaskSelected('installssh') or Managed)) then
       Extra := Extra + ' -SshIntoSd';
-    { 30 Sep 26 - SOLO 24: managed mode lets the SD Core server install its ssh
-      key through the API; solo-machine.ps1 then writes the key-file override. }
     if Managed then
       Extra := Extra + ' -Managed';
     Code := RunMachineStep('Install', Extra);

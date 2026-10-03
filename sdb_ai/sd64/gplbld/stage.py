@@ -604,6 +604,9 @@ PF_RETIRED = [
     # gpl.bp/elevate itself went in the same change.
     ('sd-elevate.ps1', 'SOLO 7 note - no helper is ever started in Solo; !elevate and its callers retired'),
     ('sd-elevate-helper.ps1', 'SOLO 7 note - started only by sd-elevate.ps1 -Start, which nothing calls'),
+    # 2 Oct 26 - SOLO 28.  Solo no longer edits Microsoft's port-22 rule or the system sshd_config;
+    # its ssh is its own sshd on 4251 (solo-sshd.ps1) with its own rule (solo-ssh-firewall.ps1).
+    ('ssh-firewall.ps1', 'SOLO 28 - Solo no longer touches the port-22 rule; solo-ssh-firewall.ps1 owns port 4251'),
 ]
 
 SDSYS_PRESERVE = [
@@ -1418,7 +1421,16 @@ def main():
     # elevated helper runs.  gpl.bp/elevate reaches them with
     # kernel(K$WINPATH), because they are "/" to SD and "C:\Program Files\SD"
     # to PowerShell, which cannot open the first.
-    for script in ('ssh-firewall.ps1',
+    for script in (
+                   # 2 Oct 26 - SOLO 28.  Solo's OWN per-user sshd on port 4251:
+                   # solo-sshd.ps1 prepares its config, host key and key file and
+                   # runs it (the boot task and solo-sshkey.ps1 both call it);
+                   # solo-ssh-firewall.ps1 is the elevated rule for remote use.
+                   # Both SHIP so assert-current watches them - do NOT add either
+                   # to that script's $neverShipped list.  They replace
+                   # ssh-firewall.ps1, which is retired (PF_RETIRED).
+                   'solo-sshd.ps1',
+                   'solo-ssh-firewall.ps1',
                    # 21 Aug 26 - the API faces the network now, so who may
                    # reach the port is a firewall rule SD owns.  Shipped, so
                    # it is watched by assert-current like the rest of these -

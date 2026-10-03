@@ -113,6 +113,11 @@
 *           message 10073.  CREATE.ACCOUNT does not join that group, so the
 *           API is off for a new account until MODIFY.ACCOUNT ... API grants
 *           it.  Owner's decision, 21 Aug 2026.
+* 02 Oct 26 SD Core Solo - SOLO 28: request 49's ADD answer carries a SIXTH field, the ssh
+*           port (4251).  Solo's ssh is its own sshd now (gplbld/solo-sshd.ps1), the host
+*           key in field 5 is that sshd's, and the master needs the port to reach it.
+*           Appended, so a client that reads five fields is unaffected.  The helper
+*           (solo-sshkey.ps1) prints PORT=; this reads it.
 * 30 Sep 26 SD Core Solo - SOLO 24: request 49, SrvrSshKey (vb.sshkey).  The
 *           managed-mode master installs its ssh public key through the API, and
 *           is the only caller (a $GLOBAL session, K$GLOBAL.SESSION).  The file
@@ -2424,7 +2429,10 @@ vb.mark.mapping:
                                                                      * In:   field 1 = ADD, REMOVE or LIST
                                                                      *       field 2 = ADD: the one-line public key; REMOVE: SHA256:...
                                                                      * Out:  ADD    OS user : host name : key fingerprint : ADDED or
-                                                                     *              PRESENT : sshd host-key fingerprint (empty if unreadable)
+                                                                     *              PRESENT : sshd host-key fingerprint (empty if unreadable) :
+                                                                     *              ssh port.  SOLO 28 (2 Oct 26): the host key is now Solo's OWN
+                                                                     *              sshd's and field 6, the port, is new (4251, fixed).  Linux adds
+                                                                     *              the same sixth field; a client that reads five ignores it.
                                                                      *       REMOVE REMOVED or ABSENT : our lines left
                                                                      *       LIST   one fingerprint per field
                                                                      *       (fields are @fm separated)
@@ -2482,6 +2490,7 @@ vb.sshkey:
                                                                      sk.fprs = ''
                                                                      sk.osuser = ''
                                                                      sk.hostkey = ''
+                                                                     sk.port = ''
                                                                      sk.fpr = ''
                                                                      sk.count = ''
                                                                      if sk.text = '' then
@@ -2509,6 +2518,8 @@ vb.sshkey:
                                                                                  sk.osuser = sk.line[8, 99]
                                                                               case sk.line[1, 8] = 'HOSTKEY='
                                                                                  sk.hostkey = sk.line[9, 99]
+                                                                              case sk.line[1, 5] = 'PORT='
+                                                                                 sk.port = sk.line[6, 99]
                                                                               case sk.line[1, 6] = 'ERROR='
                                                                                  sk.text = sk.line[7, 200]
                                                                            end case
@@ -2542,7 +2553,7 @@ vb.sshkey:
                                                                      void kernel(K$AUDIT, 'API SSHKEY ' : sk.verb : ' ' : sk.res : ' fpr=' : sk.who : ' peer=' : system(42))
                                                                      begin case
                                                                         case sk.verb = 'ADD'
-                                                                           response = sk.osuser : @fm : system(1015) : @fm : sk.fpr : @fm : sk.res : @fm : sk.hostkey
+                                                                           response = sk.osuser : @fm : system(1015) : @fm : sk.fpr : @fm : sk.res : @fm : sk.hostkey : @fm : sk.port
                                                                         case sk.verb = 'REMOVE'
                                                                            response = sk.res : @fm : sk.count
                                                                         case 1

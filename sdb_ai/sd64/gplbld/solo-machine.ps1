@@ -14,10 +14,14 @@
 # is a different administrator.  Every action is for -ForUser.
 #
 #   Install  the startup task (registered and started), the API firewall rule,
-#            the ssh firewall scope, the sshd_config block.
-#   Upgrade  the startup task only - an upgrade does not revisit the choices.
-#   Remove   the task, the API rule and the sshd_config block.  The ssh
-#            firewall rule is Microsoft's and is left as it is.
+#            Solo's own ssh server (a second startup task, its firewall rule) and
+#            the removal of any old system-sshd block an earlier build wrote.
+#   Upgrade  the startup tasks only, plus the removal of that old block - an
+#            upgrade does not revisit the choices (the API and ssh firewall
+#            rules are left as they are; the API one only has its port moved).
+#   Remove   both tasks, the sshd it started, both firewall rules, and any old
+#            system-sshd block.  Microsoft's own OpenSSH rule for port 22 is
+#            never touched: it is the full product's.
 #
 # THE STARTUP TASK (SOLO 3, SOLO 1's measurement): an S4U task for the user, at
 # startup, running "sd.exe -start" - so SD runs while nobody is signed in
@@ -27,26 +31,31 @@
 # daemon running after "sd -start" returns is NOT YET MEASURED, and a limit
 # would be one more thing that could stop it.  This script reports it.
 #
-# THE ssh FIREWALL (ruling 8): Solo installs no ssh server but still offers to
-# open or close the ssh port.  ssh-firewall.ps1 refuses to change a server it
-# did not install unless told -Installed; ruling 8 is that telling, so it is
-# passed here.  "leave" is what the installer sends when there is no rule.
-#
-# THE sshd_config BLOCK (ruling 5, SOLO 7): between markers, so -Action Remove can
-# take exactly it away.  Since 30 Sep 2026 (SOLO 24) it is written BEFORE the
-# first Match line (appended last only when the file has none) and carries
-# AuthorizedKeysFile - see the note where it is written:
-#     Match User <name>
-#         ForceCommand "<app>\usr\bin\sd.exe"
-#         AuthorizedKeysFile .ssh/authorized_keys
-#         DisableForwarding yes
-# Written wherever OpenSSH is found - not a choice (ruling 5) - and sshd is
-# then set to start at boot, so ssh works with nobody signed in (owner, 25 Sep
-# 2026).  Only this user is matched; sign-in is sshd's own, the Windows password.
-# DisableForwarding because ForceCommand does not constrain port forwarding.  Checked with "sshd -t" and put back if
-# rejected.  NOT MEASURED: that Win32-OpenSSH matches the user by the name
-# written here (lower-case, no domain for a local account; user@domain for a
-# domain one).
+# SOLO'S SSH IS ITS OWN SSHD, ON ITS OWN PORT (SOLO 28, the owner's ruling of 2 Oct 2026, put
+# to him by the Linux agent - mail T3410).  "Separate port for sd-solo": fixed 4251, not
+# adjustable; routing by PORT, not login name; the full product keeps the system sshd on 22.
+# What this script does for it:
+#   - registers a SECOND startup task, "SD Core Solo SSH" (S4U, at startup, as -ForUser, no time
+#     limit, restarted on failure) that runs solo-sshd.ps1 -Run, so ssh is reachable from boot
+#     with nobody signed in (owner, 25 Sep 2026) - the same way "SD Core Solo" starts SD.  The
+#     sshd, its configuration, host key and key file are the USER's (<app>\ssh), made by the
+#     user's own process, never here: the elevated process may be a different administrator.
+#   - checks it: the task ran, 4251 listens, the sshd that answers is the user's own and is the
+#     one made from <app>\ssh\sshd_config, and ssh-keyscan's host key is the .pub on disk.
+#   - the firewall rule SD-Solo-SSH-In-TCP for 4251 (solo-ssh-firewall.ps1), the one step of
+#     Solo's ssh that needs an administrator: -SshScope open (other computers) or restrict (this
+#     machine only).  "leave" makes none.
+#   - REMOVES the old route: the "Match User" block an earlier build wrote into the SYSTEM
+#     sshd_config (between the markers below), on Install, Upgrade and Remove.  It never sets or
+#     changes the system sshd's startup type; an earlier build set it to Automatic and that is
+#     left as it is, because the full product may be using it.
+# Sign-in is KEY-ONLY now (the owner said "yes build it" to a plan that stated it): a Windows
+# password cannot be checked by a sshd run as the user, and was never measured.  -SshIntoSd now
+# means "set up Solo's own ssh server" (the name is kept so the installer's call is unchanged);
+# -Managed no longer changes anything here - the key file is the same whatever the mode.
+# NOT MEASURED: that a key login works when sshd is started from the S4U task (registering one
+# unelevated is refused, so only this step can make it; the cycle's verify-solo ssh leg is the
+# witness), and that Windows Firewall admits a remote client through the rule.
 
 param(
     [ValidateSet('Install', 'Upgrade', 'Remove')] [string]$Action = 'Install',
@@ -57,8 +66,10 @@ param(
     [switch]$ApiNetwork,
     [ValidateSet('open', 'restrict', 'leave')] [string]$SshScope = 'leave',
     [switch]$SshIntoSd,
-    # SOLO 24: managed mode only - the block carries AuthorizedKeysFile and goes
-    # ahead of the other Match blocks, so the SD Core server can install its key.
+    # SOLO 24 made this change the sshd_config block.  SOLO 28: Solo's own sshd reads Solo's own key
+    # file in every mode, so it no longer changes the sshd; the one thing it does now is on an UPGRADE
+    # of a managed computer that has no rule for 4251 yet (an earlier build opened Microsoft's port-22
+    # rule instead): the rule is made open, because the master has to reach the computer.
     [switch]$Managed,
     # Ruling 17: Microsoft's OpenSSH MSI from the release folder, installed
     # first so the ssh steps below have a server to work on.  Install only.
@@ -88,6 +99,10 @@ if (-not [Environment]::Is64BitProcess -and [Environment]::Is64BitOperatingSyste
 }
 
 $TaskName = 'SD Core Solo'
+$SshTaskName = 'SD Core Solo SSH'
+$SshPort = 4251        # SOLO_SSH_PORT - solo-sshd.ps1 and solo-ssh-firewall.ps1 carry the same number
+# The markers of the block an EARLIER build wrote into the system sshd_config.  They are only ever
+# used to take it OUT now (Remove-OldSshBlock), on Install, Upgrade and Remove.
 $Begin = '# BEGIN SD Core Solo - added by its installer, removed by its uninstaller'
 $End   = '# END SD Core Solo'
 $Ps    = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
@@ -161,49 +176,31 @@ function Remove-OurBlock([string[]]$in) {
     return , [string[]]$keep.ToArray()
 }
 
-function Set-SshBlock([bool]$Want) {
+# SOLO 28 - WHAT THIS IS NOW: THE REMOVAL OF THE OLD ROUTE, AND NOTHING ELSE.  Until 2 Oct 2026 this
+# function (Set-SshBlock) WROTE a "Match User" block into the system sshd_config - before the first
+# Match line in managed mode, so the master's key in ~\.ssh\authorized_keys could win over the stock
+# "Match Group administrators" (probe-sshd-keyfile.ps1, 30 Sep) - recorded the system sshd's host-key
+# fingerprint where the user could read it, and set the system sshd to start at boot.  Solo's ssh is
+# its own sshd on its own port now (solo-sshd.ps1), so what is left is taking the old block OUT of a
+# machine an earlier build touched.  On a new install there is none and it says so.
+#
+# IT NEVER CHANGES THE SYSTEM sshd's STARTUP TYPE.  An earlier build set it to Automatic and that is
+# left as found: the full product may be using that sshd.  It restarts the system sshd only when it
+# really removed a block and the service is running (an open ssh session of the full product's is
+# dropped by a restart - the same cost the old code paid on every install).
+function Remove-OldSshBlock {
     $cfg = Join-Path $env:ProgramData 'ssh\sshd_config'
     $sshd = Find-Sshd
     Note ('sshd.exe     : ' + $(if ($sshd) { $sshd } else { 'none found' }))
     Note ('sshd_config  : ' + $cfg + '   exists: ' + (Test-Path -LiteralPath $cfg))
     if (-not (Test-Path -LiteralPath $cfg)) {
-        if ($Want) { Fail 'ssh into SD: there is no sshd_config (has sshd ever started?)' }
-        else { Note '  no sshd_config, nothing to remove' }
+        Note '  no sshd_config, no old block to remove'
         return
     }
     $original = [IO.File]::ReadAllLines($cfg)
     $new = Remove-OurBlock $original
-    if ($Want) {
-        $u = $ForUser.Split('\')
-        $dom = $u[0]; $name = $u[$u.Count - 1]
-        if ($u.Count -gt 1 -and $dom -ine $env:COMPUTERNAME) { $name = $name + '@' + $dom }
-        # 30 Sep 26 - SOLO 24: THE BLOCK GOES BEFORE THE FIRST Match LINE, NOT LAST.
-        # sshd takes the first value it sees per keyword, and the stock
-        # "Match Group administrators" sets AuthorizedKeysFile to a ProgramData file
-        # an unelevated process cannot write, so for an administrator (the usual
-        # Solo user) a block placed after it never wins.  MEASURED 30 Sep 2026 with
-        # probe-sshd-keyfile.ps1: as appended last the key in ~/.ssh/authorized_keys
-        # was refused; with this block first it was accepted and ran the forced
-        # sd.exe.  AuthorizedKeysFile is what lets the API session (the user,
-        # unelevated) install the master's key itself - gpl.bp/apisrvr request 49.
-        # UNMANAGED (standalone) KEEPS THE OLD BLOCK AND POSITION: no global password
-        # exists, so nothing can install a key and nothing changes for the user.
-        $blockLines = [string[]]@($Begin, ('Match User "' + $name.ToLower() + '"'),
-                                  ('    ForceCommand "' + $sdexe + '"'))
-        if ($Managed) { $blockLines += '    AuthorizedKeysFile .ssh/authorized_keys' }
-        $blockLines += @('    DisableForwarding yes', $End)
-        $at = -1
-        if ($Managed) {
-            for ($i = 0; $i -lt $new.Count; $i++) { if ($new[$i] -match '^\s*Match\s') { $at = $i; break } }
-        }
-        if ($at -lt 0) { $new = [string[]]($new + $blockLines) }
-        else {
-            $pre = [string[]]@(); if ($at -gt 0) { $pre = [string[]]$new[0..($at - 1)] }
-            $new = [string[]]($pre + $blockLines + $new[$at..($new.Count - 1)])
-        }
-    }
-    elseif ($new.Count -eq $original.Count) {
-        Note '  no SD Core Solo block present, nothing removed'
+    if ($new.Count -eq $original.Count) {
+        Note '  no SD Core Solo block in the system sshd_config - nothing to remove'
         return
     }
     $backup = $cfg + '.sdcoresolo-backup'
@@ -222,53 +219,20 @@ function Set-SshBlock([bool]$Want) {
         }
         Note '  sshd -t accepted it'
     }
-    # 30 Sep 26 - SOLO 24: request 49's reply carries sshd's ed25519 host-key
-    # fingerprint so the master can pin it.  The key's .pub sits in ProgramData\ssh,
-    # which an unelevated user cannot read (measured 30 Sep: access denied), so this
-    # elevated step records the fingerprint where the user's own process can.
-    # Managed only.  The key is unchanged until sshd's host keys are regenerated.
-    if ($Want -and $Managed -and $AppDir) {
-        try {
-            $pub = Join-Path $env:ProgramData 'ssh\ssh_host_ed25519_key.pub'
-            $t = ([IO.File]::ReadAllText($pub).Trim() -split '\s+')
-            $sha = [Security.Cryptography.SHA256]::Create()
-            $fp = 'SHA256:' + [Convert]::ToBase64String($sha.ComputeHash([Convert]::FromBase64String($t[1]))).TrimEnd('=')
-            $dest = Join-Path $AppDir 'sdsys\ssh-hostkey'
-            [IO.File]::WriteAllText($dest, $fp + "`r`n", (New-Object Text.UTF8Encoding($false)))
-            Note ('  sshd host key fingerprint recorded in ' + $dest + ': ' + $fp)
-        } catch {
-            Note ('  could not record the sshd host-key fingerprint: ' + $_.Exception.Message)
-        }
-    }
-    # Owner, 25 Sep 2026: ssh must be reachable unattended, from boot, with
-    # nobody signed in - so sshd itself is set to start at boot.  Only when the
-    # block is wanted; -Action Remove leaves the startup type as it finds it.
     $svc = Get-Service sshd -ErrorAction SilentlyContinue
-    if ($Want) {
-        if (-not $svc) { Fail 'there is no sshd service to start at boot' }
-        else {
-            Note ('  sshd before: ' + $svc.Status + ', ' + $svc.StartType)
-            if ($svc.StartType -ne 'Automatic') { Set-Service sshd -StartupType Automatic }
-            if ($svc.Status -eq 'Running') { Restart-Service sshd } else { Start-Service sshd }
-            $svc = Get-Service sshd
-            Note ('  sshd after : ' + $svc.Status + ', ' + $svc.StartType)
-            if ($svc.Status -ne 'Running' -or $svc.StartType -ne 'Automatic') { Fail 'sshd is not running and set to start at boot' }
-        }
-    }
-    elseif ($svc -and $svc.Status -eq 'Running') { Restart-Service sshd; Note '  sshd restarted' }
+    if ($svc -and $svc.Status -eq 'Running') { Restart-Service sshd; Note '  the system sshd was restarted so it re-reads its configuration' }
     $after = [IO.File]::ReadAllLines($cfg)
-    $present = [bool]($after -contains $Begin)
-    if ($present -eq $Want) { Note ('  PASS  SD Core Solo block ' + $(if ($Want) { 'present' } else { 'absent' }) + ' in sshd_config (backup ' + $backup + ')') }
-    else { Fail ('sshd_config block present=' + $present + ', wanted ' + $Want) }
+    if (-not ($after -contains $Begin)) { Note ('  PASS  the old SD Core Solo block is gone from the system sshd_config (backup ' + $backup + ')') }
+    else { Fail 'the old SD Core Solo block is still in the system sshd_config' }
 }
 
 # ---- the OpenSSH MSI (ruling 17) ------------------------------------------------
 # msiexec /qn is Windows Installer's own quiet switch; ADDLOCAL=Server is from
-# Microsoft's Win32-OpenSSH MSI page.  NOT MEASURED, so each is checked and
-# reported rather than assumed: whether the MSI makes the firewall rule (made
-# here, under Microsoft's name, when it did not - ssh-firewall.ps1 then finds
-# it), and whether sshd_config exists before sshd first starts (sshd writes it
-# on first start, so it is started and waited for).
+# Microsoft's Win32-OpenSSH MSI page.  SOLO 28: all Solo needs from it is sshd.exe and
+# ssh-keygen.exe - its own sshd runs from them (solo-sshd.ps1).  It does NOT need the system sshd
+# SERVICE, a rule for port 22 or a system sshd_config, so this no longer starts the service to wait
+# for a config, and no longer makes Microsoft's rule when the MSI did not; what the MSI did is
+# reported, not changed.  (Port 22 and that sshd are the full product's.)
 function Install-SshMsi([string]$Msi) {
     if (-not (Test-Path -LiteralPath $Msi)) { Fail ('the OpenSSH MSI is not at ' + $Msi); return }
     $existing = Find-Sshd
@@ -284,24 +248,16 @@ function Install-SshMsi([string]$Msi) {
     $sshd = Find-Sshd
     $svc = Get-Service sshd -ErrorAction SilentlyContinue
     Note ('  after      : sshd.exe ' + $(if ($sshd) { $sshd } else { 'NOT FOUND' }) + '   service ' + $(if ($svc) { [string]$svc.Status + ', ' + $svc.StartType } else { 'NONE' }))
-    if (-not $sshd -or -not $svc) { Fail 'the OpenSSH MSI reported success but left no sshd.exe or sshd service'; return }
+    if (-not $sshd) { Fail 'the OpenSSH MSI reported success but left no sshd.exe'; return }
+    $keygen = Join-Path (Split-Path $sshd) 'ssh-keygen.exe'
+    Note ('  ssh-keygen : ' + $keygen + '   exists: ' + (Test-Path -LiteralPath $keygen))
+    if (-not (Test-Path -LiteralPath $keygen)) { Fail 'the OpenSSH MSI left no ssh-keygen.exe beside sshd.exe, which Solo needs to make its host key'; return }
     $rule = @(Get-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -ErrorAction SilentlyContinue) +
             @(Get-NetFirewallRule -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'OpenSSH SSH Server*' -and $_.Direction -eq 'Inbound' })
-    if ($rule.Count -gt 0) { Note ('  firewall   : the MSI made ' + $rule[0].Name) }
-    else {
-        New-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -DisplayName 'OpenSSH SSH Server (sshd)' -Direction Inbound `
-            -Protocol TCP -LocalPort 22 -Action Allow -Enabled True | Out-Null
-        Note '  firewall   : the MSI made no rule; OpenSSH-Server-In-TCP created for port 22'
-    }
-    $cfg = Join-Path $env:ProgramData 'ssh\sshd_config'
-    if (-not (Test-Path -LiteralPath $cfg)) {
-        Start-Service sshd
-        $deadline = (Get-Date).AddSeconds(15)
-        while (-not (Test-Path -LiteralPath $cfg) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 250 }
-    }
-    Note ('  sshd_config: ' + $cfg + '   exists: ' + (Test-Path -LiteralPath $cfg))
-    if (-not (Test-Path -LiteralPath $cfg)) { Fail 'sshd started but wrote no sshd_config within 15 s' }
-    else { Note '  PASS  OpenSSH server installed' }
+    if ($rule.Count -gt 0) { Note ('  firewall   : the MSI made ' + $rule[0].Name + ' for port 22 - left as it is, Solo does not use port 22') }
+    else { Note '  firewall   : the MSI made no rule for port 22, and none was made - Solo does not use port 22' }
+    Note '  the system sshd service is not used by Solo; it was left as the MSI left it'
+    Note '  PASS  OpenSSH server programs installed'
 }
 
 # ---- the startup task ---------------------------------------------------------
@@ -380,6 +336,138 @@ function Remove-SoloTask {
     else { Note '  PASS  no startup task' }
 }
 
+# ---- Solo's own ssh server: the second startup task -----------------------------------------
+# SOLO 28.  The sshd is the USER's - solo-sshd.ps1 -Run, started by an S4U task as -ForUser, makes its
+# own files under <app>\ssh as that user.  What this step can do, because it is elevated and the
+# user's process is not, is register the task and CHECK THE RESULT instead of trusting the
+# registration, as Register-SoloTask does for SD itself.  The evidence, each reported on its own line:
+#   - the task ran (a last-run time after the start, or the Running state; asked again once at 10 s);
+#   - 4251 is LISTENING;
+#   - an sshd.exe whose command line names <app>\ssh\sshd_config is running, and its OWNER is -ForUser
+#     (the system sshd is also sshd.exe: never matched by name alone);
+#   - ssh-keyscan against 127.0.0.1:4251 returns the ed25519 key that is in <app>\ssh's .pub - so the
+#     thing answering is Solo's sshd and not whatever else holds the port.
+# NOT MEASURED when this was written: that a sshd started from an S4U token accepts a key login (only
+# the elevated step can make such a task; verify-solo's ssh leg, which logs in with a real key, is the
+# witness).  This check proves it listens, who runs it and whose host key it shows - not that login works.
+function Find-Keyscan {
+    foreach ($p in @((Join-Path $env:SystemRoot 'System32\OpenSSH\ssh-keyscan.exe'),
+                     (Join-Path $env:ProgramFiles 'OpenSSH\ssh-keyscan.exe'))) {
+        if (Test-Path -LiteralPath $p) { return $p }
+    }
+    return ''
+}
+
+function Get-SoloSshd {
+    $needle = (Join-Path $AppDir 'ssh\sshd_config').ToLower()
+    return @(Get-CimInstance Win32_Process -Filter "Name='sshd.exe'" -ErrorAction SilentlyContinue |
+             Where-Object { $_.CommandLine -and $_.CommandLine.ToLower().Contains($needle) })
+}
+
+function Test-SshPortListening {
+    return (@(Get-NetTCPConnection -State Listen -LocalPort $SshPort -ErrorAction SilentlyContinue).Count -gt 0)
+}
+
+function Register-SshTask {
+    $script = Join-Path $AppDir 'solo-sshd.ps1'
+    if (-not (Test-Path -LiteralPath $script)) { Fail ('solo-sshd.ps1 is not at ' + $script); return }
+    if (-not (Find-Sshd)) { Fail 'there is no sshd.exe to run Solo''s own ssh server'; return }
+    if (Get-ScheduledTask -TaskName $SshTaskName -ErrorAction SilentlyContinue) {
+        Stop-ScheduledTask -TaskName $SshTaskName -ErrorAction SilentlyContinue
+        Unregister-ScheduledTask -TaskName $SshTaskName -Confirm:$false
+        Note '  the previous ssh task was removed first'
+    }
+    # An sshd left by the previous build or run still holds the port; stopping the task need not take
+    # its child.  Ours only, found by command line.
+    $null = Invoke-Shipped 'solo-sshd.ps1' @('-Stop')
+
+    $arg = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $script + '" -Run'
+    Register-ScheduledTask -TaskName $SshTaskName `
+        -Action (New-ScheduledTaskAction -Execute $Ps -Argument $arg -WorkingDirectory $AppDir) `
+        -Principal (New-ScheduledTaskPrincipal -UserId $ForUser -LogonType S4U -RunLevel Limited) `
+        -Trigger (New-ScheduledTaskTrigger -AtStartup) `
+        -Settings (New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+                       -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) `
+                       -MultipleInstances IgnoreNew) | Out-Null
+    $t = Get-ScheduledTask -TaskName $SshTaskName -ErrorAction SilentlyContinue
+    if (-not $t) { Fail 'the ssh startup task was not registered'; return }
+    Note ('  task registered: "' + $SshTaskName + '" as ' + $t.Principal.UserId + ', ' + $t.Principal.LogonType + ', at startup, runs ' + $t.Actions[0].Execute + ' ' + $t.Actions[0].Arguments)
+
+    $startedAt = Get-Date
+    Start-ScheduledTask -TaskName $SshTaskName
+    $ran = $false
+    $asked2 = $false
+    $deadline = (Get-Date).AddSeconds(30)
+    while (-not $ran -and (Get-Date) -lt $deadline) {
+        Start-Sleep -Milliseconds 500
+        $ti = Get-ScheduledTaskInfo -TaskName $SshTaskName
+        if ($ti.LastRunTime -gt $startedAt.AddSeconds(-2) -or (Get-ScheduledTask -TaskName $SshTaskName).State -eq 'Running') { $ran = $true }
+        elseif (-not $asked2 -and ((Get-Date) - $startedAt).TotalSeconds -gt 10) {
+            Note '  the ssh task has not run after 10 s - starting it again'
+            Start-ScheduledTask -TaskName $SshTaskName
+            $asked2 = $true
+        }
+    }
+    Note ('  ssh task ran: ' + $ran + $(if ($asked2) { ' (after a second start)' } else { '' }))
+    $listening = $false
+    $deadline = (Get-Date).AddSeconds(30)
+    while (-not $listening -and (Get-Date) -lt $deadline) {
+        if (Test-SshPortListening) { $listening = $true } else { Start-Sleep -Milliseconds 500 }
+    }
+    $info = Get-ScheduledTaskInfo -TaskName $SshTaskName
+    Note ('  ssh task state ' + (Get-ScheduledTask -TaskName $SshTaskName).State + ', last result 0x' + ('{0:X}' -f $info.LastTaskResult) + ', port ' + $SshPort + ' listening: ' + $listening)
+    if (-not $listening) {
+        $lg = Join-Path $AppDir 'ssh\sshd.log'
+        if (Test-Path -LiteralPath $lg) { Get-Content -LiteralPath $lg -Tail 8 -ErrorAction SilentlyContinue | ForEach-Object { Note ('  | sshd.log: ' + $_) } }
+        else { Note ('  no ' + $lg + ' - the task''s solo-sshd.ps1 did not reach sshd') }
+        Fail ('nothing is listening on port ' + $SshPort + ' after the ssh task was started')
+        return
+    }
+    $mine = @()
+    foreach ($p in (Get-SoloSshd)) {
+        $o = Invoke-CimMethod -InputObject $p -MethodName GetOwner
+        $who = $o.Domain + '\' + $o.User
+        Note ('  sshd.exe pid ' + $p.ProcessId + ' session ' + $p.SessionId + ' owner ' + $who)
+        if ($who -ieq $ForUser) { $mine += $p }
+    }
+    if ($mine.Count -eq 0) { Fail ('port ' + $SshPort + ' listens, but no sshd.exe made from ' + (Join-Path $AppDir 'ssh\sshd_config') + ' is running as ' + $ForUser); return }
+    Note ('  PASS  Solo''s own sshd is running as ' + $ForUser + ' (session ' + $mine[0].SessionId + ') and listening on ' + $SshPort)
+
+    # The thing answering is Solo's: its ed25519 host key is the one on disk.
+    $keyscan = Find-Keyscan
+    $pubFile = Join-Path $AppDir 'ssh\ssh_host_ed25519_key.pub'
+    if ($keyscan -eq '' -or -not (Test-Path -LiteralPath $pubFile)) {
+        Note '  host key not compared (no ssh-keyscan.exe, or no host key file)'
+        return
+    }
+    $ko = Join-Path $env:TEMP 'sd-solo-keyscan.out'
+    $ke = Join-Path $env:TEMP 'sd-solo-keyscan.err'
+    $null = Start-Process -FilePath $keyscan -ArgumentList @('-t', 'ed25519', '-p', "$SshPort", '127.0.0.1') -NoNewWindow -Wait -PassThru `
+                -RedirectStandardOutput $ko -RedirectStandardError $ke
+    $seen = ''
+    foreach ($l in @(Get-Content -LiteralPath $ko -ErrorAction SilentlyContinue)) {
+        $f = $l -split '\s+'
+        if ($f.Count -ge 3 -and $f[1] -eq 'ssh-ed25519') { $seen = $f[2] }
+    }
+    $disk = ((Get-Content -LiteralPath $pubFile -Raw).Trim() -split '\s+')
+    if ($seen -ne '' -and $disk.Count -ge 2 -and $seen -eq $disk[1]) { Note '  PASS  the host key ssh-keyscan reads on 127.0.0.1:4251 is the one in <app>\ssh' }
+    else { Fail ('the host key served on port ' + $SshPort + ' is not Solo''s (ssh-keyscan read "' + $seen + '")') }
+}
+
+function Remove-SshTask {
+    if (Get-ScheduledTask -TaskName $SshTaskName -ErrorAction SilentlyContinue) {
+        Stop-ScheduledTask -TaskName $SshTaskName -ErrorAction SilentlyContinue
+    }
+    # Stopping the task need not end the sshd it started; this ends ours, by command line, never the system sshd.
+    $null = Invoke-Shipped 'solo-sshd.ps1' @('-Stop')
+    if (Get-ScheduledTask -TaskName $SshTaskName -ErrorAction SilentlyContinue) {
+        Unregister-ScheduledTask -TaskName $SshTaskName -Confirm:$false
+    }
+    if (Get-ScheduledTask -TaskName $SshTaskName -ErrorAction SilentlyContinue) { Fail 'the ssh startup task is still registered' }
+    elseif ((Get-SoloSshd).Count -gt 0) { Fail 'Solo''s sshd is still running after the ssh task was removed' }
+    else { Note '  PASS  no ssh task and no sshd of Solo''s running' }
+}
+
 try {
     Note ''
     Note '--- startup task'
@@ -413,20 +501,43 @@ try {
         Install-SshMsi $SshMsi
     }
 
-    if ($Action -eq 'Install') {
-        Note ''
-        Note '--- ssh firewall scope'
-        if ($SshScope -eq 'leave') { Note '  left as it is' }
-        else {
-            $c = Invoke-Shipped 'ssh-firewall.ps1' @('-Installed', $(if ($SshScope -eq 'open') { '-Open' } else { '-Restrict' }))
-            if ($c -ne 0) { Fail ('ssh-firewall.ps1 exited ' + $c) }
-        }
-    }
+    # SOLO 28.  The OLD route first, on every action: an earlier build's "Match User" block in the
+    # SYSTEM sshd_config comes OUT (it is a no-op where there is none - every new install).
+    Note ''
+    Note '--- the old ssh route (a block an earlier build wrote into the system sshd_config)'
+    Remove-OldSshBlock
 
-    if ($Action -ne 'Upgrade') {
-        Note ''
-        Note '--- sshd_config'
-        Set-SshBlock ($Action -eq 'Install' -and [bool]$SshIntoSd)
+    Note ''
+    Note ('--- ssh: SD Core Solo''s own sshd, port ' + $SshPort)
+    if ($Action -eq 'Remove') {
+        Remove-SshTask
+        $c = Invoke-Shipped 'solo-ssh-firewall.ps1' @('-Remove')
+        if ($c -ne 0) { Fail ('solo-ssh-firewall.ps1 -Remove exited ' + $c) }
+    }
+    else {
+        # Install: wherever OpenSSH is found or was just installed (ruling 5, "not a choice"); Upgrade: wherever
+        # sshd.exe is, so a Solo upgraded from the old model is moved to its own sshd without a question.
+        $wantSsh = ($Action -eq 'Install' -and [bool]$SshIntoSd) -or ($Action -eq 'Upgrade' -and ((Find-Sshd) -ne ''))
+        if ($wantSsh) {
+            Register-SshTask
+            if ($Action -eq 'Install' -and $SshScope -ne 'leave') {
+                # The one admin step Solo's ssh still has.
+                $c = Invoke-Shipped 'solo-ssh-firewall.ps1' @($(if ($SshScope -eq 'open') { '-Open' } else { '-Restrict' }))
+                if ($c -ne 0) { Fail ('solo-ssh-firewall.ps1 exited ' + $c) }
+            }
+            elseif ($Action -eq 'Upgrade') {
+                # An upgrade does not revisit a rule that is there, and no rule means this computer only,
+                # which is what -Restrict would make.  The exception is a MANAGED computer that has no
+                # rule yet: the master reached it over Microsoft's port 22 before, and that route is gone.
+                $haveRule = @(Get-NetFirewallRule -Name 'SD-Solo-SSH-In-TCP' -ErrorAction SilentlyContinue).Count -gt 0
+                Note ('  firewall   : rule SD-Solo-SSH-In-TCP present=' + $haveRule + '  managed=' + [bool]$Managed)
+                if ($Managed -and -not $haveRule) {
+                    $c = Invoke-Shipped 'solo-ssh-firewall.ps1' @('-Open')
+                    if ($c -ne 0) { Fail ('solo-ssh-firewall.ps1 -Open exited ' + $c) }
+                }
+            }
+        }
+        else { Note '  not set up: no OpenSSH server was found or chosen' }
     }
 }
 catch {
