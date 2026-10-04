@@ -17,7 +17,8 @@
 #      is audited via=stored                                  (ruling 21, piece 4)
 #   2. an interactive "sd" asks for the account password: a wrong one is refused
 #      and audited, the right one lands in the account                (ruling 21)
-#   3. the account and grant commands are not in the account's VOC    (ruling 6)
+#   3. the account and grant commands, and LOGTO (SOLO 29), are not in the
+#      account's VOC                                                  (ruling 6)
 #   4. the administrator gate, in one session: before ADMIN an admin verb
 #      (UPDATE.ACCOUNTS) and a direct VOC write (COPY into VOC) are refused; a
 #      wrong administrator password is refused; the right one unlocks; then both
@@ -555,10 +556,16 @@ try {
     # -----------------------------------------------------------------------
     Say ''
     Say '== 3. the account and grant commands are not there'
-    foreach ($v in @('CREATE.ACCOUNT', 'DELETE.ACCOUNT', 'MODIFY.ACCOUNT', 'GRANT', 'LIST.GRANTS')) {
+    foreach ($v in @('CREATE.ACCOUNT', 'DELETE.ACCOUNT', 'MODIFY.ACCOUNT', 'GRANT', 'LIST.GRANTS', 'LOGTO')) {
         $t = Invoke-Sd ('absent-' + $v) $v '' 'none'
         Check ($v + ' is not in the VOC') ((CountOf (Get-Lines $t) ('(?i)^' + [regex]::Escape($v) + ' is not in your VOC$')) -eq 1) ('want "' + $v + ' is not in your VOC"')
     }
+    # 04 Oct 26 - SOLO 29: LOGTO is removed (owner, via the Linux Solo chat, 3 Oct).
+    # CPROC's slot 17 is a stub that prints the same "is not in your VOC" for an
+    # account whose VOC still holds the record, so the row above cannot tell a
+    # record that is gone from one that is answered by the stub.  This one can.
+    $t = Invoke-Sd 'absent-LOGTO-record' 'CT VOC LOGTO' '' 'none'
+    Check 'and the LOGTO record itself is gone from the VOC (SOLO 29)' ((CountOf (Get-Lines $t) "(?i)^Record 'LOGTO' not found$") -eq 1) "want Record 'LOGTO' not found - UPDATE.ACCOUNTS should have retired the shipped one"
 
     # -----------------------------------------------------------------------
     Say ''

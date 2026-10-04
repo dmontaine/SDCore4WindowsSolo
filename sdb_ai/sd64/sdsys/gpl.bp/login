@@ -18,6 +18,9 @@
 * 
 * 
 * START-HISTORY:
+* 04 Oct 26 SD Core Solo - SOLO 29: UPDATE.VOC retires verbs.  The copy loop only
+*           adds and replaces, so LOGTO (removed in WS1.1-3) would have stayed in
+*           every account that already held it; the shipped record is deleted.
 * 02 Oct 26 SD Core Solo - SOLO 25: the login hold.  A new session is refused
 *           (13002) while BACKUP.ACCOUNT or RESTORE.ACCOUNT runs.
 * 28 Sep 26 SD Core Solo for Windows - ruling 37: the banner's product name.
@@ -1881,6 +1884,29 @@ accept.without.query:
    if overridden.count then
       display sysmsg(10166, overridden.count, convert(@fm, ' ', overridden.ids))
    end
+
+* 04 Oct 26 SD Core Solo - SOLO 29, RETIRED VERBS.  The loop above only adds and
+*   replaces, so a verb a release stops shipping would stay in every account that
+*   already has it.  LOGTO is the first (removed in WS1.1-3, as on Linux Solo's
+*   LS1.1-3); to retire another, add its id here and delete its files from the
+*   sdsys tree.  ONLY THE SHIPPED RECORD IS DELETED - a verb whose type, kind and
+*   number are exactly what the last release shipped (V, IN, 17).  A person's own
+*   paragraph or program that happens to be called LOGTO is theirs and is left
+*   alone.  Both spellings are tried because a VOC may hold either.
+   retired.ids = 'LOGTO' : @fm : 'logto'
+   for ri = 1 to dcount(retired.ids, @fm)
+      rid = retired.ids<ri>
+      old.rec = ''
+      readu old.rec from update.voc.f, rid then
+         if old.rec<1>[1,1] = 'V' and old.rec<2> = 'IN' and old.rec<3> = '17' then
+            delete update.voc.f, rid
+         end else
+            release update.voc.f, rid
+         end
+      end else
+         release update.voc.f, rid
+      end
+   next ri
 
    close sdsys.file
 *  18 Sep 26 Windows port - RELEASE_1.1 64: no tier.policy is opened in this

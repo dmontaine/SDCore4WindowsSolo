@@ -2,6 +2,20 @@ WS1.1-3 - in progress
 -------------
 Changes since WS1.1-2.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
 
+04 Oct 26  THE LOGTO VERB IS REMOVED.
+
+           SD Core Solo has one account, and SDSYS is never entered, so LOGTO
+           had nowhere to take you: it could only refuse, and it told you
+           "User not allowed in requested account" about your own account.
+           * Typing LOGTO now answers "LOGTO is not in your VOC", like any word
+             SD does not know.
+           * An upgrade removes LOGTO from your account's VOC when
+             UPDATE.ACCOUNTS runs, which the installer does for you.  Only the
+             record SD itself shipped is removed: a paragraph or program of your
+             own called LOGTO is left alone.
+           * The client library's SDLogto call is unchanged.
+           * "You can only log in to your own account" no longer suggests LOGTO.
+
 02 Oct 26  SD CORE SOLO HAS ITS OWN SSH PORT, 4251, AND CAN BE INSTALLED BESIDE
            SD CORE.
 

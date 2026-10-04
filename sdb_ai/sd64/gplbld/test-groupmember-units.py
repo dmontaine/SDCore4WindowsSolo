@@ -90,8 +90,10 @@ READS_STATUS = {
 FAIL_CLOSED = {
     # 25 Sep 26 - SD Core Solo: apisrvr's sdapi gate at SCRAM is gone too (no
     # groups; the credential record is the gate).
-    ("cproc", "if not(is_grp_member(@logname,acc.record<ACC$GROUP>)) then"):
-        "the logto gate: an access check fails closed with 10003",
+    # 04 Oct 26 - SD Core Solo (SOLO 29): cproc's last site, the logto gate
+    # "if not(is_grp_member(@logname,acc.record<ACC$GROUP>)) then", went with the
+    # LOGTO verb.  NO gpl.bp program calls is_grp_member now; the table is empty on
+    # purpose, and a new caller must be classified here or the guard goes red.
     # 25 Sep 26 - SD Core Solo (SOLO 4): LOGIN's sdusers gate, and every site in
     # createa, granta and modifya, went with those programs (no SD groups).
 }
@@ -226,6 +228,27 @@ def mutate(src, dst):
         f.write(text[:at] + tail2)
 
 
+def find_sites(bp_dir):
+    """Every (file, line number, stripped line) in bp_dir that calls
+    is_grp_member(): not a comment, not a deffun, not the program's own file."""
+    sites = []
+    for name in sorted(os.listdir(bp_dir)):
+        if name == "is_grp_member":
+            continue
+        path = os.path.join(bp_dir, name)
+        if not os.path.isfile(path):
+            continue
+        with open(path, encoding="latin-1") as f:
+            for i, line in enumerate(f, 1):
+                s = line.strip()
+                if s.startswith("*") or "is_grp_member(" not in s.lower():
+                    continue
+                if s.lower().startswith("deffun"):
+                    continue
+                sites.append((name, i, s))
+    return sites
+
+
 def static_rows():
     """The KERNEL and BASIC layers of the contract, read from source."""
     opk = os.path.join(GPLSRC, "op_kernel.c")
@@ -262,27 +285,32 @@ def static_rows():
                    "(the row this file exists for)")
 
     # The caller partition.
-    sites = []
-    for name in sorted(os.listdir(GPLBP)):
-        if name == "is_grp_member":
-            continue
-        path = os.path.join(GPLBP, name)
-        if not os.path.isfile(path):
-            continue
-        with open(path, encoding="latin-1") as f:
-            for i, line in enumerate(f, 1):
-                s = line.strip()
-                if s.startswith("*") or "is_grp_member(" not in s.lower():
-                    continue
-                if s.lower().startswith("deffun"):
-                    continue
-                sites.append((name, i, s))
-    # 25 Sep 26 - floor 5 -> 3, the count measured after SOLO 4 deleted
-    # createa, granta and modifya.  It moves with the tree or it is no floor.
-    # 25 Sep 26, later - 3 -> 1: SOLO 3 step 2 removed apisrvr's two sites;
-    # cproc's logto gate is the one left (measured: the walk found 1).
-    check(len(sites) >= 1,
-          "control: the walk found real call sites (%d)" % len(sites))
+    # 04 Oct 26 - SOLO 29: the walk is a function so a control can prove it finds
+    # a call it is shown.  Until now the control was "the walk found at least one
+    # real site", which stopped being true when LOGTO took the last one with it.
+    sites = find_sites(GPLBP)
+    ctl = tempfile.mkdtemp(prefix="sd-groupmember-walk-")
+    try:
+        for fname, body in (
+                ("planted", "   x = 1\n   if is_grp_member(a, b) then\n      y = 2\n   end\n"),
+                ("quiet", "* is_grp_member(a, b) in a comment\n"
+                          "deffun is_grp_member(user,group) calling '!is_grp_member'\n"),
+                ("is_grp_member", "   if is_grp_member(a, b) then\n")):
+            with open(os.path.join(ctl, fname), "w", encoding="latin-1") as f:
+                f.write(body)
+        planted = find_sites(ctl)
+    finally:
+        shutil.rmtree(ctl, ignore_errors=True)
+    check(len(planted) == 1 and planted[0][0] == "planted" and planted[0][1] == 2,
+          "control: the walk finds one planted call and skips a comment, a deffun "
+          "and the program's own file (found %r)" % (planted,))
+    # 25 Sep 26 - floor 5 -> 3 -> 1 as sites left.  04 Oct 26 - NOW AN EQUALITY, because
+    # the count reached zero and a floor of zero proves nothing: the walk must find
+    # exactly the sites declared above, none, and so a new caller is UNCLASSIFIED
+    # below and a removed one is stale.
+    check(len(sites) == len(READS_STATUS) + len(FAIL_CLOSED),
+          "the walk found exactly the declared call sites (%d found, %d declared)"
+          % (len(sites), len(READS_STATUS) + len(FAIL_CLOSED)))
     unclassified = []
     for name, i, s in sites:
         key = (name, s)

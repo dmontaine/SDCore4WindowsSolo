@@ -18,6 +18,12 @@
 * 
 * 
 * START-HISTORY:
+* 04 Oct 26 SD Core Solo - SOLO 29: LOGTO is removed (owner, in the Linux Solo
+*           chat 3 Oct 2026; Solo follows).  Solo has one account and SDSYS is
+*           never a target, so the verb could only refuse.  INT.LOGTO, its
+*           logto.reset flag, logto.authorised and the is_grp_member declaration
+*           (their one caller) are gone; slot 17 of the positional internal-verb
+*           table is now INT.REMOVED, so no verb after it moves.
 * 02 Oct 26 SD Core Solo - SOLO 27 (the multi-user port's RELEASE_1.1 108).  Message
 *           10149, printed by F1, names LISTV for the commands (it said LIST VOC,
 *           which lists every record, files and pointers too), no longer names a
@@ -272,18 +278,17 @@ $include keycode.h
 
 deffun errtext(err) calling '!errtext'
 
-* rev 0.9.0 *
-* 14 Aug 26 Windows port - restored with the ACC$GROUP test in logto.authorised
-deffun is_grp_member(user,group) calling '!is_grp_member'
 * 27 Sep 26 SD Core Solo - "deffun elevate ... calling '!elevate'" was here;
 * !elevate is retired (see the history).
-* rev 0.9.0 *
-* 13 Aug 26 Windows port - is_grp_member removed, no callers remain here
+* 04 Oct 26 SD Core Solo - SOLO 29: "deffun is_grp_member ... calling '!is_grp_member'"
+* was here for logto.authorised, its only caller, which went with LOGTO.  No call
+* site is left in gpl.bp; the program itself (and LOGIN's unused declaration) is
+* untouched.
 
 $define max.elements 500
 
-   logto.reset = @false      ;* 0555
-
+* 04 Oct 26 SD Core Solo - SOLO 29: "logto.reset = @false ;* 0555" was here.  The
+* flag was set by LOGTO RESET and nothing else, and LOGTO is gone.
 restart.cproc:
    * Save the Proc common variables
 
@@ -503,7 +508,7 @@ restart.cproc:
       end
 
       break on
-   end else           ;* Stacked CPROC, abort or LOGTO RESET
+   end else           ;* Stacked CPROC or abort
       * Trap very early abort so that we don't loop trying to access the VOC
 
       if not(fileinfo(voc, FL$OPEN)) then goto terminate.cproc
@@ -592,8 +597,6 @@ restart.cproc:
             message = sysmsg(5012, @userno) ;* Phantom nn : Abnormal termination.
             goto terminate.phantom
          end
-      end else if logto.reset then   ;* 0555
-         logto.reset = @false   ;* Clear flag but do not increment level
       end else        ;* Stacked CPROC
          if kernel(K$FLAGS, HDR.IS.CPROC) then  ;* 0409
             i = kernel(K$CPROC.LEVEL,kernel(K$CPROC.LEVEL,0)+1)
@@ -1761,7 +1764,7 @@ reparse:
                      int.help,                   ;* 14  HELP
                      int.update.accounts,         ;* 15  UPDATE.ACCOUNTS
                      int.who,                    ;* 16  WHO
-                     int.logto,                  ;* 17  LOGTO
+                     int.removed,                ;* 17  (LOGTO, removed in WS1.1-3)
                      int.if,                     ;* 18  IF
                      int.cleardata,              ;* 19  CLEARDATA
                      int.clearprompts,           ;* 20  CLEARPROMPTS
@@ -2718,334 +2721,19 @@ int.who:
    return
 
 *****************************************************************************
-* INT.LOGTO  -  LOGTO (Internal verb 17)
-
-int.logto:
-   * Grab hold of new account name before we look for an ON.LOGTO entry
-
-   call @parser(PARSER$GET.TOKEN, token.type, new.account, keyword)
-   if token.type = PARSER$END then
-      display sysmsg(5160) ;* Account name required
-      unwinding = 2
-      return
-   end
-
-* 20240330 mab only root can logto sdsys
-* 14 Aug 26 Windows port - RESTORED, as elevation rather than as uid zero.  It
-*   was removed on 13 Aug on the reasoning that entering SDSYS is what confers
-*   administrator rights rather than something they are needed for; the
-*   reversal in PROJECT_STATUS.md 5.6 turns that back round.  Elevation is the
-*   gate and it is applied at login, so LOGTO must not be a way around it.
+* INT.REMOVED  -  slot 17 of the internal verb table
 *
-*   The refusal is here rather than in logto.authorised, before the ACCOUNTS
-*   read, exactly as the pre-port source had it: naming SDSYS is refused for
-*   what it is, and no register lookup happens first.
+* LOGTO was internal verb 17 until WS1.1-3 (SOLO 29; owner, in the Linux Solo
+* chat, 3 Oct 2026).  Solo has one account and SDSYS is never a target, so the
+* verb could only refuse.  Its VOC record is gone from NEWVOC and LOGIN's
+* UPDATE.VOC deletes the shipped one from an account that still has it, so
+* normally nothing dispatches here; the slot stays because the table is
+* positional and a hole would move every verb after it.  An account restored
+* from an older backup can still hold the record, and then LOGTO must answer
+* the way an unknown verb does rather than do nothing.
 
-* 16 Aug 26 Windows port - ENTERING SDSYS IS WHAT OBTAINS PRIVILEGE, AND THE
-*   ONLY THING THAT DOES.  Owner's rule and owner's design, 16 Aug 2026: there
-*   is no ELEVATE verb, because "there should never be an elevation from within
-*   a normal session".  PROJECT_STATUS.md 7 step 4.
-*
-*   WHAT THIS REPLACED: a bare test of K$ADMINISTRATOR, which refused anybody
-*   who had not opened an ELEVATED TERMINAL.  That was never the intent - the
-*   installer's own dialog told administrators to do it and the owner did not
-*   ask for it - and it is not what the underlying gate on CREATE.ACCOUNT is,
-*   which is rev 0.9.0 and predates this port.  Windows still requires an
-*   elevated token to create a user; it is obtained here, for this session,
-*   rather than by elevating the terminal the administrator is sitting at.
-*
-*   !elevate ASKS UAC, so this is where the consent prompt appears.  It answers
-*   0 when the session is already elevated - the installer's account step, a
-*   bootstrap, "sd -internal" - and then nothing prompts and nothing changes.
-*
-* 05 Sep 26 Windows port - ***THE SENTENCE THAT STOOD HERE WAS FALSE.***
-*   PRE_RELEASE_FIXES 167.  It read:
-*
-*     "AND IT IS WHAT KEEPS ADMINISTRATOR WORK OFF ssh (5.6.2).  UAC draws its
-*      dialog on the interactive desktop, an ssh session has none, so !elevate
-*      fails there and this refuses - enforced by Windows rather than by a test
-*      here that could drift out of step with the rule."
-*
-*   ***!elevate DOES NOT FAIL OVER ssh - IT SUCCEEDS WITHOUT PROMPTING.***
-*   sd-elevate.ps1:126 short-circuits "exit 0" when the process token is
-*   already an administrator's, and over ssh it is: sshd runs as LocalSystem
-*   and builds an UNFILTERED token.  So this gate would have admitted an ssh
-*   session, silently, and the thing believed to be "enforced by Windows" was
-*   not being enforced at all.  Measured 5 Sep 2026.
-*
-*   ***AND THIS WAS THE SECOND DOOR, WHICH IS WHY THE SEED FIX IS NOT THE FIX.***
-*   Gating kernel.c's USR_ADMIN seed closes LOGIN's landing case and does
-*   nothing here - this gate never reads the seed.  Worse, :2858 below SETS the
-*   seed on entering SDSYS, so a session refused the landing recovered
-*   everything by typing "logto sdsys".
-*
-*   WHAT KEEPS ADMINISTRATOR WORK OFF ssh NOW IS A TEST IN SD, DELIBERATELY.
-*   LOGIN:560 refuses an administrator any session with no interactive desktop,
-*   ssh and the API alike, before an account is chosen.  Owner's ruling, 5 Sep
-*   2026, PROJECT_STATUS.md 5.25.  A test that can drift is better than a
-*   guarantee that was never there - and it is one a verifier can measure.
-   if upcase(new.account) = "SDSYS" then
-
-* 29 Aug 26 Windows port - PRE_RELEASE_FIXES 56.  A NON-ADMINISTRATOR IS NOT
-*   ADMITTED TO SDSYS, AND UNTIL NOW ONE COULD BE.  Owner's question, 29 Aug
-*   2026: "a non administrative user is never allowed into SDSYS?"  He was
-*   describing what he believed the product did.
-*
-*   IT DID NOT.  elevate('START') gates on Start-Process -Verb RunAs
-*   succeeding and tests NOBODY'S IDENTITY.  That verb gives an administrator
-*   a CONSENT prompt and a standard user a CREDENTIAL prompt - so a standard
-*   user holding an administrator's password reached SDSYS.  The IsInRole
-*   test at sd-elevate.ps1:103 is the "already elevated, nothing to launch"
-*   shortcut and is not a gate.
-*
-*   AND THE TRAIL NAMED THE WRONG PERSON WHEN IT HAPPENED: the helper runs as
-*   the administrator whose credentials were typed, while @logname and
-*   audit_message() still read the signed-in user, so ELEVATION GRANTED was
-*   recorded against somebody who did not consent.
-*
-*   BEFORE THE PROMPT, NOT AFTER.  A refusal that arrives after UAC has drawn
-*   its dialog has already asked a person for a password it was never going to
-*   accept, which teaches them to type it somewhere it is not wanted.
-*
-*   NO K$INTERNAL BYPASS, DELIBERATELY, and the next reader will wonder.  The
-*   internal paths that reach here are all elevated already - "sd -internal"
-*   is behind check_admin(), which asks IsElevated() - so the person behind
-*   them passes this test on its own.  A bypass would be an untested branch
-*   that only ever weakens the gate.
-* 31 Aug 26 Windows port - AND THE SD HALF TOO.  Owner's ruling, 31 Aug 2026,
-*   on PRE_RELEASE_FIXES 91: close this and LOGIN:573 together.  This test was
-*   K$OS.ADMINISTRATOR alone, which asks Windows and nothing else, so a person
-*   made a Windows administrator OUTSIDE SD - a domain group, a policy, a hand
-*   "net localgroup" - reached SDSYS with a STANDARD or PROGRAMMER account.
-*   5.22 says administrator means BOTH, and this is the second of the three
-*   places that has to say so.
-*
-*   ***THE ORDER MATTERS: BOTH HALVES ARE ASKED BEFORE !elevate.***  LOGIN's
-*   note at the same test - "a broken install should not draw a consent dialog
-*   to then refuse the login anyway" - applies here with more force, because a
-*   refusal AFTER UAC has asked for a password teaches somebody to type one
-*   where it was never going to be accepted.
-* 15 Sep 26 Windows port - RELEASE_1.1 45, the owner's "elevation is the only
-*   door to SDSYS" model.  THE GATE IS NOW K$OS.ELEVATED - did this session
-*   START elevated - NOT K$OS.ADMINISTRATOR, the person's admin membership.  An
-*   unelevated session, administrator or not, is refused HERE, before
-*   elevate('START'), so that call is no longer a SECOND DOOR: it used to be the
-*   UAC step-up that let an unelevated administrator reach SDSYS by typing "logto
-*   sdsys", and that route is now closed.  A session that STARTED elevated
-*   passes, and a process's elevation is immutable, so K$OS.ELEVATED still holds
-*   after a LOGTO down to a personal account - SDSYS -> personal -> SDSYS works,
-*   and elevate('START') below then only RE-REGISTERS the resident helper with no
-*   UAC (sd-elevate.ps1:119 short-circuits for an already-elevated token).
-*   Reverses the 5 Sep K_INTERACTIVE intent (an unelevated console admin reaching
-*   SDSYS via LOGTO+UAC) now that ssh/API admins are denied any session anyway,
-*   and neutralises the 16 Aug "LOGTO ends the elevated session" clear for
-*   re-entry.  keys.h's four-question table carries K$OS.ELEVATED (65).
-* 18 Sep 26 Windows port - RELEASE_1.1 64.  THE ELEVATION STEP-UP IS GONE WITH
-*   THE DOOR IT OPENED.  Owner's decision, 18 Sep 2026: "There will be one and
-*   only one administrator account SDSYS ... It will not be available with
-*   LOGTO."  The condition above is WITHDRAWN rather than tightened: a session
-*   that started elevated and held an SD administrator was still a route in,
-*   and the model gives SDSYS exactly one way in - the Windows SDSYS account,
-*   at LOGIN, from an elevated session.
-*
-*   NOTHING HERE CALLS elevate('START') ANY MORE, deliberately: a UAC consent
-*   must not be drawn to reach a door that is shut.  The helper was still
-*   re-registered here on re-entry and that goes with it.
-*
-*   21 Sep 26 - RELEASE_1.1 64 LEFTOVER, CLEARED.  elev.obtained could no longer
-*   be set true anywhere once this stopped calling elevate('START'), so its two
-*   bypasses in logto.authorised and the routine that released the helper were
-*   dead code.  All three are deleted, with the flag itself.
-*
-*   AND THE INTERNAL DOOR IS NOT THIS.  "sd -internal" is forced to SDSYS by
-*   sd.c and never reaches int.logto at all, so it is unaffected by this
-*   refusal.  Binding IT to the Windows SDSYS identity is the other half of 64.
-      display sysmsg(10002) ;* SDSYS Account access is restricted to privileged users
-      void kernel(K$AUDIT, 'LOGTO REFUSED account=SDSYS reason=SDSYS is not reachable by LOGTO')
-      unwinding = 2
-      return
-   end
-
-   * Look for options
-
-   loop
-      call @parser(PARSER$GET.TOKEN, token.type, token, keyword)
-   until token.type = PARSER$END
-      begin case
-         case keyword = KW$RESET
-            logto.reset = @true
-      end case
-   repeat
-
-   * Execute ON.LOGTO paragraph, if present
-
-   read voc.rec from voc, "ON.LOGTO" then
-      at.command = ""
-      new.sentence = "ON.LOGTO"
-      gosub proc.sentence
-   end
-
-   i = kernel(K$INVALIDATE.OBJECT, 0)   ;* 0400
-
-   @system.return.code = -ER$ARGS
-
-   acc.rec = ''
-   acc.record = ''
-   openpath @sdsys:@ds:'accounts' to acc.f then
-*      readv acc.rec from acc.f, upcase(new.account), ACC$PATH then
-      read acc.record from acc.f, upcase(new.account) then
-         acc.rec = parse.pathname.tokens(acc.record<ACC$PATH>)
-         new.account = upcase(new.account)
-      end
-      close acc.f
-   end
-
-   * new.account contains the account name
-   * acc.rec contains the pathname of the account (other fields removed)
-   * acc.record contains the full ACCOUNT record
-
-* 13 Aug 26 Windows port - LOGTO takes an account name and nothing else.
-*   Anything absent from ACCOUNTS used to be treated as a pathname to change
-*   directory to, which reached an account's directory without ever consulting
-*   its grant list.  An unregistered directory is not an account.  The refusal
-*   is the one an ungranted account gives, so the register cannot be probed to
-*   find out which account names exist.  See PROJECT_STATUS.md section 5.6.
-
-   if acc.rec = '' then
-      display sysmsg(10003) ;* User not allowed in requested account
-* 16 Aug 26 Windows port - PROJECT_STATUS.md 7 step 4.  The message deliberately
-*   does not say whether the account exists, so that the register cannot be
-*   probed - but the TRAIL may say, and should: somebody working through account
-*   names is the pattern this exists to make visible.
-      void kernel(K$AUDIT, 'LOGTO REFUSED account=' : upcase(new.account) : ' reason=not in the register')
-      if ospath(account.path, OS$CD) then return
-      display sysmsg(5162) ;* Fatal error : Cannot return to previous account
-      return to abort.cproc
-   end
-
-* rev 0.9.0 * is user member of account?
-* 14 Aug 26 Windows port - back to the group test on ACC$GROUP.  The grant list
-*   that replaced it on 13 Aug no longer authorises anything, and entering
-*   SDSYS is refused above unless the session is elevated.
-*   See PROJECT_STATUS.md section 5.6.
-
-   gosub logto.authorised
-   if not(logto.ok) then
-* 16 Aug 26 Windows port - PROJECT_STATUS.md 7 step 4.  The account exists and
-*   the caller is not in its ACC$GROUP - a refused grant, which is the other
-*   half of "who used the access" and the one an investigation starts from.
-      void kernel(K$AUDIT, 'LOGTO REFUSED account=' : upcase(new.account) : ' reason=not granted')
-      if ospath(account.path, OS$CD) then return
-      display sysmsg(5162) ;* Fatal error : Cannot return to previous account
-      return to abort.cproc
-   end
-
-   if not(ospath(acc.rec, OS$CD)) then
-      display sysmsg(5161) ;* Unable to change to new directory
-* 30 Aug 26 Windows port - AND NOW IT SAYS WHY.  PRE_RELEASE_FIXES.md 44.
-*   5161 alone is what a real administrator hits straight after create.account,
-*   and it explains nothing: "Unable to change to new directory", with no
-*   mention of the group, the token, or signing out.
-*
-*   ***5161 ITSELF IS DELIBERATELY UNCHANGED, BECAUSE IT IS SHARED.***  SETACC:67
-*   prints it too, for a different cause, so rewording it would make one call
-*   site clearer by making the other one wrong.  The explanation goes in a
-*   message printed only HERE, where the cause is known.
-*
-*   WHAT IS KNOWN HERE, AND IT IS NARROW: logto.authorised has just passed, so
-*   the grant EXISTS on the machine, and only the chdir failed.  That is the
-*   token-lag case almost every time - Windows fixes group membership at logon
-*   and create.account adds the group afterwards.  10150 says so, and then says
-*   what to look at if signing in again does not help, rather than asserting the
-*   cause it cannot actually rule out.  It names the path SD tried.
-      display sysmsg(10150, acc.rec)
-      * The grant is in place, but this sign-in cannot use it yet
-      if ospath(account.path, OS$CD) then return
-      display sysmsg(5162) ;* Fatal error : Cannot return to previous account
-      return to abort.cproc
-   end
-
-   openpath "voc" to new.voc else
-      display sysmsg(5163) ;* Directory is not a SD account
-      if ospath(account.path, OS$CD) then return
-      display sysmsg(5162) ;* Fatal error : Cannot return to previous account
-      return to abort.cproc
-   end
-
-   i = ospath("", os$flush.cache)
-   account.path = ospath("", os$cwd)     ;* @PATH
-
-* 13 Aug 26 Windows port - the account name used to be derived from the last
-*   element of the pathname when LOGTO was given a path.  It cannot be reached
-*   that way now, so new.account always holds the registered name.
-
-   who = new.account
-
-* 13 Aug 26 Windows port - administrator rights belong to SDSYS and are given
-*   up on the way out of it.  Nothing cleared the flag before, so they
-*   followed you into whatever account you moved to next, which made the
-*   rights a property of the session rather than of the account you are
-*   standing in.  See PROJECT_STATUS.md section 5.6.
-
-   if new.account = 'SDSYS' then
-      void kernel(K$ADMINISTRATOR, 1)
-   end else
-* 16 Aug 26 Windows port - AND THE PRIVILEGE GOES WITH THEM.  PROJECT_STATUS.md
-*   7 step 4.  The line below gives up SD's administrator rights; without the
-*   rest the elevated helper would outlive them, leaving the session able to do
-*   privileged work from an ordinary account - the opposite of what that line
-*   is for.  Owner's instruction, 16 Aug 2026: LOGTO ends the elevated session.
-*
-*   Asked before the flag is cleared, so this is quiet for the ordinary case:
-*   a session moving between two ordinary accounts never had privilege and
-*   writes nothing to the trail.
-      was.admin = kernel(K$ADMINISTRATOR, -1)
-      void kernel(K$ADMINISTRATOR, 0)
-
-      if was.admin then
-         void kernel(K$AUDIT, 'ADMIN LOCKED on LOGTO account=' : new.account)
-      end
-   end
-
-* 16 Aug 26 Windows port - PROJECT_STATUS.md 7 step 4.  Written after the move
-*   has actually happened - the directory change and the VOC open above can
-*   still fail - and after the administrator flag is set, so the record and the
-*   rights it describes cannot disagree.  @logname is NOT used: it is reassigned
-*   further down when CPROC drops to sdsys (5.6), and audit_message() takes the
-*   identity from the user table instead.
-   void kernel(K$AUDIT, 'LOGTO account=' : new.account)
-
-   voc = new.voc ; new.voc = 0   ;* Dereference temporary VOC file var
-
-   gosub find.private.catalogue
-
-   if logto.reset then
-      loop
-      while system(1029)
-         return to logto.unwind   ;* Yuck!! Clever but really nasty!
-logto.unwind:
-      repeat
-   end
-
-   @system.return.code = 0
-
-* 18 Aug 26 Windows port - the same fold as the LOGIN read above.  5.12 (b).
-   login.voc.id = "LOGIN"
-   read voc.rec from voc, login.voc.id else
-      login.voc.id = downcase(login.voc.id)
-      read voc.rec from voc, login.voc.id else login.voc.id = ""
-   end
-
-   if login.voc.id # "" then
-      at.command = ""
-      new.sentence = login.voc.id
-      break off
-      gosub proc.sentence
-      break on
-   end
-
-   if logto.reset then goto restart.cproc
-
+int.removed:
+   display sysmsg(5051, 'LOGTO') ;* LOGTO is not in your VOC
    return
 
 *****************************************************************************
@@ -4126,117 +3814,6 @@ get.voc.parser.rec:
       if voc.parser.rec[1,1] # 'X' then voc.parser.rec = ''
    end
    voc.parser.rec.keys = dcount(voc.parser.rec<2>, @vm)
-
-   return
-
-* ======================================================================
-* logto.authorised  -  May @logname enter the account LOGTO named?
-*
-* 14 Aug 26 Windows port.  Sets logto.ok.  See PROJECT_STATUS.md section 5.6.
-*
-* new.account holds the target account name, which is always a registered one,
-* and acc.record holds its ACCOUNTS record.
-*
-* You may enter an account if you are a member of the Windows group named in
-* its ACC$GROUP - which CREATE.ACCOUNT writes as sdu_<name> and puts the
-* account's own user into.  Granting somebody a second account is therefore
-* adding them to that group, and it is the operating system that records the
-* grant.  @logname does not change on the way in, so what is done there stays
-* attributed to whoever logged in.
-
-logto.authorised:
-   logto.ok = @false
-
-* An administrator running an internal command is the install and maintenance
-* path, as it is at LOGIN.  The bootstrap has no terminal and cannot be made to
-* prove anything.
-
-   if kernel(K$INTERNAL,-1) and kernel(K$ADMINISTRATOR,-1) then
-      logto.ok = @true
-      return
-   end
-
-* 31 Aug 26 Windows port - ***THE BARE "if kernel(K$ADMINISTRATOR,-1)" BYPASS
-* THAT STOOD HERE IS DELETED.  OWNER'S RULING, 31 Aug 2026, PRE_RELEASE_FIXES
-* 91: close this and LOGIN:573 together.***  It read the SESSION's privilege
-* flag and admitted the holder to every account.
-*
-* WHAT IT SAID FOR ITSELF, KEPT BECAUSE IT WAS TRUE OF THE MODEL IT WAS WRITTEN
-* FOR: an elevated session passes, because ACCOUNTS/SDSYS names a group that
-* does not exist on Windows, so testing the group would refuse administration
-* to everybody - elevation IS the authorisation, and root does not pass the
-* group test on Linux either.  It also absorbed an older test for standing in
-* SDSYS, on the reasoning that LOGIN is the only thing that puts anybody there.
-*
-* ***TWO THINGS KILLED IT, AND THE FIRST IS WHY 91 EXISTS.***  Its comment also
-* said "and nothing clears the flag afterwards", which was false from 16 Aug
-* 2026: the LOGTO path clears K$ADMINISTRATOR at :2825 on the way OUT of SDSYS,
-* so the first LOGTO silently disarmed every later one and the administrator
-* was refused with 10003 on their second.  And LOGIN sets that flag only on its
-* SDSYS case, so an administrator signing in AS THEMSELVES never had it at all
-* and was refused on their FIRST.
-*
-* ***THE SECOND IS THE OWNER'S, AND IT IS WHY THE REPLACEMENT IS NOT SIMPLY
-* WIDER: "a windows administrator does not have access unless they are granted
-* access and to grant access they have to have a personal account first."***
-* Three lines of CREATEA make that so - :821 adds the person to sdusers WHEN
-* THEIR ACCOUNT IS CREATED, so passing LOGIN:417's gate means an account
-* exists; :1441 sets make.admin ONLY under the ADMINISTRATOR keyword and :847
-* is what joins BUILTIN\Administrators, so SD makes a Windows administrator
-* only when it also writes the ADMINISTRATOR tier; :1617 forces that tier on
-* ADOPT.  ***SO FOR ANYBODY SD CREATED, BOTH HALVES MOVE TOGETHER AND THE TEST
-* BELOW ADMITS EVERYONE THIS ONE DID.***  What the deletion actually removes is
-* the one case where they diverge: a person made a Windows administrator
-* OUTSIDE SD - a domain group, a policy, a hand "net localgroup" - holding a
-* STANDARD or PROGRAMMER account.  Under 5.22 they are not an SD administrator.
-*
-* ***DO NOT RESTORE IT TO FIX A LOCKOUT.  THE GATE THAT DECIDES WHO REACHES
-* SDSYS IS int.logto's, AND LOGIN:573 IS THE OTHER ONE*** - both now ask the
-* same two halves this does, so a session standing in SDSYS necessarily passes
-* the test below.  Restoring this line would re-open the divergence at the one
-* place it cannot be seen.
-
-* 21 Sep 26 Windows port - RELEASE_1.1 64 leftover.  The second test that stood
-*   here - a session that had JUST obtained privilege, read from elev.obtained -
-*   is deleted with the flag (see the note at int.logto).  The
-*   administrator-as-themselves bypass went on 18 Sep: there is no SD
-*   administrator tier to test any more and an administrator's only SD account
-*   is SDSYS, which int.logto refuses outright.
-
-* 27 Aug 26 Windows port - A SUSPENDED ACCOUNT IS NOT ENTERED.  Owner, 27 Aug
-*   2026: "an account can be temporarily denied access".  LOGIN shuts the front
-*   door; this is the other one, because an account reached with LOGTO never
-*   goes through LOGIN at all.
-*
-*   ***AFTER THE PRIVILEGED BYPASS ABOVE, AND THAT IS A JUDGEMENT CALL RATHER
-*   THAN HIS RULING.***  An elevated session can still enter a suspended
-*   account: investigating a suspended account is the ordinary reason to look
-*   at one, and anyone elevated can lift the suspension anyway - so refusing
-*   them buys no security and costs the obvious diagnostic.  What a suspension
-*   denies is THE ACCOUNT'S OWN USER, which is the group test below.
-*
-*   IF THAT IS WRONG, THE FIX IS TO MOVE THIS BLOCK ABOVE THE INTERNAL TEST at
-*   the top of the routine, not to add a second test here.
-*
-* 18 Sep 26 Windows port - RELEASE_1.1 64.  SUSPENDED IS A STATE, NOT A FOURTH
-*   TIER: it lives in ACC$SUSPENDED (field 5) and the tier fields are gone.
-   if upcase(trim(acc.record<ACC$SUSPENDED>, ' ', 'B')) = 'SUSPENDED' then
-      display sysmsg(10107, new.account) ;* Account %1 is suspended
-      return
-   end
-
-   if not(is_grp_member(@logname,acc.record<ACC$GROUP>)) then
-      display sysmsg(10003) ;* User not allowed in requested account
-      return
-   end
-
-* 18 Sep 26 Windows port - RELEASE_1.1 64.  THE TIER-ORDERING GATE THAT STOOD
-*   HERE IS GONE WITH THE TIERS, and the group test above is the whole of this
-*   rule now.  What that leaves is worth stating rather than discovering: the
-*   grant IS Windows group membership, so "net localgroup" can still make one
-*   without SD knowing, and that test is what holds when it does.
-
-   logto.ok = @true
 
    return
 
