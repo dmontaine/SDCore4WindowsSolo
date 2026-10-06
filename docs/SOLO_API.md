@@ -66,8 +66,8 @@ parties log in as the one Solo account (ruling 10), with SCRAM:
   verb. Not the Windows password: option A cannot be built with unchanged
   clients, and an enrolled Windows password would go on working after a Windows
   password change.
-- **the master server, with the global password** (managed mode only, ruling
-  15) — the same account name; a session it opens has `K$ADMINISTRATOR` set, as
+- **the master server, with the global password** (only on a computer that has
+  one, ruling 15) — the same account name; a session it opens has `K$ADMINISTRATOR` set, as
   `ADMIN` does (ruling 12).
 
 **How one name takes two passwords, server-side only.** SCRAM's server-first
@@ -155,7 +155,7 @@ already; its SDSYS/elevation test is multi-user and is retargeted, not removed.
    (step 4).*
 4. **The second password on the same name**: `$GLOBAL` stored with the same
    salt; `apisrvr` checks the proof against both, `K$ADMINISTRATOR` on the
-   global match; standalone mode has only the one. Witness: the unchanged client
+   global match; a computer with no global password has only the one. Witness: the unchanged client
    logs in with each password, and a wrong one is refused naming neither.
    ***BUILT AND WITNESSED 25 Sep 2026.*** `cred_set`: the salt is the record's
    own, else its partner's (`$GLOBAL` ↔ the account), else fresh. `apisrvr`:

@@ -18,6 +18,8 @@
 *
 *
 * START-HISTORY:
+* 06 Oct 26 SD Core Solo - SOLO 36: [mode] reads "managed (a global password
+*           is set)" or "not managed (no global password)", as on Linux Solo.
 * 01 Oct 26 SD Core Solo - SOLO 25, ported from the multi-user product's
 *           RELEASE_1.1 116.
 * END-HISTORY
@@ -34,9 +36,9 @@
 * FROM gplbld sd-settings-os.ps1: sd.conf, ssh (the sshd service and
 * sshd_config's access lines), api (the certificate's subject, expiry and
 * thumbprint - never the key), firewall, and the "SD Core Solo" startup task.
-* READ HERE, because they are SD files Solo alone has: mode (standalone, or
-* managed when SDSYS $cred holds a $GLOBAL record - syncgcat's test; the record
-* itself is never read out) and policy (the denied verbs in SDSYS solo.policy,
+* READ HERE, because they are SD files Solo alone has: mode (managed when
+* SDSYS $cred holds a $GLOBAL record - syncgcat's test - and not managed
+* otherwise; the record itself is never read out) and policy (the denied verbs in SDSYS solo.policy,
 * rulings 34 and 36).  A section with nothing to report is left out.
 *
 * REFERENCE TEXT ONLY, owner 1 Oct 2026: nothing reads it back, so a part that
@@ -90,9 +92,9 @@ deffun ps_script_out(script, want.out) calling '!ps_script_out'
    lines<-1> = '[mode]'
    openpath @sdsys : @ds : '$cred' to cred.f then
       read g.rec from cred.f, '$GLOBAL' then
-         lines<-1> = 'managed (an SD Core server holds the global password)'
+         lines<-1> = 'managed (a global password is set)'
       end else
-         lines<-1> = 'standalone'
+         lines<-1> = 'not managed (no global password)'
       end
       close cred.f
    end else

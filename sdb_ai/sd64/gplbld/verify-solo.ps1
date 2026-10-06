@@ -430,7 +430,7 @@ Say ('script      : ' + $PSCommandPath)
 Say ('Solo tree   : ' + $Root)
 Say ('sd.exe      : ' + $SdExe + '   exists: ' + (Test-Path -LiteralPath $SdExe) + $(if (Test-Path -LiteralPath $SdExe) { '   written ' + (Get-Item -LiteralPath $SdExe).LastWriteTime } else { '' }))
 Say ('account     : ' + $Acct + '   (ruling 29; the Windows user is ' + $WinUser + ')')
-Say ('mode        : ' + $(if ($managed) { 'managed (b) - $GLOBAL present' } else { 'standalone (a) - no $GLOBAL' }))
+Say ('mode        : ' + $(if ($managed) { 'managed - $GLOBAL present' } else { 'not managed - no $GLOBAL' }))
 Say ('$STORED     : ' + $(if ($stored) { 'present' } else { 'ABSENT' }))
 Say ('API         : ' + $(if ($apiPort) { 'APIPORT on in ' + $Conf + ' - port ' + $apiPort + ' (fixed)' } else { 'no APIPORT (or zero) in ' + $Conf }))
 Say ('py          : ' + $(if ($script:Py) { $script:Py } else { 'NOT FOUND' }) + '   scram-probe: ' + $Scram + '   exists: ' + (Test-Path -LiteralPath $Scram))
@@ -630,7 +630,7 @@ try {
             $t = Invoke-Scram 'the global password' $globalPw @('WHO')
             Check 'an API login with the global password is VERIFIED' (($t -match '(?i)SCRAM: server signature VERIFIED') -and ($t -notmatch '(?i)REFUSED')) 'want VERIFIED'
         }
-        else { Skip 'the API with the global password' 'standalone mode has no global password' }
+        else { Skip 'the API with the global password' 'no global password on this computer' }
     }
 
     # -----------------------------------------------------------------------
@@ -641,7 +641,7 @@ try {
         Check 'the global password lands in the account' ((Lands $t) -and ((CountOf (Get-Lines $t) '^Wrong password$') -eq 0)) 'want the account line, no "Wrong password"'
         Check 'with the administrator commands already unlocked' ((CountOf (Get-Lines $t) '^Administrator commands are already unlocked') -eq 1) 'want ADMIN to say they are already unlocked (12006)'
     }
-    else { Skip 'the global password at a console' 'standalone mode has no global password' }
+    else { Skip 'the global password at a console' 'no global password on this computer' }
 
     # -----------------------------------------------------------------------
     Say ''
@@ -1232,7 +1232,7 @@ public static class SdSuiteCli {
     Check 'a: GLOBAL.BP.OUT is still empty' ($gbpN -eq 0) ('' + $gbpN + ' objects')
 
     if (-not $managed) {
-        Skip 'b: the SD Core server adds, runs and removes a global program' 'standalone - no global password'
+        Skip 'b: the SD Core server adds, runs and removes a global program' 'no global password on this computer'
     }
     else {
         $gSubDest  = Join-Path $bpDir $gSub
@@ -1315,7 +1315,7 @@ public static class SdSuiteCli {
     Check 'b: with ADMIN, DENY.VERBS is refused (12030)' (((CountOf (Get-Lines $t) '^The denied verbs can only be listed or changed by the SD Core server') -eq 2) -and ($t -notmatch '(?m)^DENY\.VERBS \d+:')) 'want two 12030 and no DENY.VERBS answer'
 
     if (-not $managed) {
-        Skip 'c: the SD Core server denies and allows a verb' 'standalone - no global password'
+        Skip 'c: the SD Core server denies and allows a verb' 'no global password on this computer'
     }
     else {
         $t = Invoke-Sd 'v-deny-list' '' ($globalPw + "`nDENY.VERBS`nOFF`n") 'the global password, DENY.VERBS, OFF'
@@ -1386,7 +1386,7 @@ public static class SdSuiteCli {
         Check 'a: with ADMIN, SET.PASSWORD GLOBAL is refused (12033)' ((CountOf (Get-Lines $t) '^The global password can only be changed by the SD Core server$') -eq 1) 'want 12033'
     }
     else {
-        Check 'a: standalone, SET.PASSWORD GLOBAL is refused (12034)' ((CountOf (Get-Lines $t) '^This computer is standalone - it has no global password$') -eq 1) 'want 12034'
+        Check 'a: no global password, SET.PASSWORD GLOBAL is refused (12034)' ((CountOf (Get-Lines $t) '^This computer has no global password - no SD Core server manages it$') -eq 1) 'want 12034'
     }
 
     # b: the account password, WITHOUT ADMIN, after the current one.
@@ -1435,7 +1435,7 @@ public static class SdSuiteCli {
 
     # d: the global password, from a global session - managed only.
     if (-not $managed) {
-        Skip 'd: the SD Core server changes the global password' 'standalone - no global password'
+        Skip 'd: the SD Core server changes the global password' 'no global password on this computer'
     }
     else {
         $tGlb = $globalPw + $suffix
@@ -1474,7 +1474,7 @@ public static class SdSuiteCli {
 
     # -----------------------------------------------------------------------
     # 30 Sep 26 - SOLO 24: API request 49, the SD Core server installs its ssh key.
-    # Managed mode only: a standalone computer has no global password.  A throwaway
+    # A managed computer only: one with no global password cannot receive the request.  A throwaway
     # key is made here, put through ADD/PRESENT/LIST/REMOVE/ABSENT with the global
     # password, refused with the account password (CONTROL), refused with a bad
     # argument, and used for a real ssh login to this machine - which must be
@@ -1494,7 +1494,7 @@ public static class SdSuiteCli {
     Say '== 18b. the ssh key request (SOLO 24, request 49; SOLO 28, own sshd on 4251)'
     $kgen = Join-Path $env:SystemRoot 'System32\OpenSSH\ssh-keygen.exe'
     $sshc = Join-Path $env:SystemRoot 'System32\OpenSSH\ssh.exe'
-    if (-not $managed) { Skip '18b: request 49' 'standalone - no global password, the request cannot be made' }
+    if (-not $managed) { Skip '18b: request 49' 'no global password on this computer, the request cannot be made' }
     elseif (-not $apiPort -or -not $script:Py -or -not (Test-Path -LiteralPath $Scram)) { Skip '18b: request 49' 'no API or no scram-probe - see leg 5' }
     elseif (-not (Test-Path -LiteralPath $kgen) -or -not (Test-Path -LiteralPath $sshc)) { Skip '18b: request 49' 'no OpenSSH client in System32' }
     else {

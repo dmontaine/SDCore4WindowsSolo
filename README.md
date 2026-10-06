@@ -16,14 +16,12 @@ what has changed. Documentation:
 
 ## What it is for
 
-The installer offers two modes, fixed at install time:
-
-- **Standalone** — a local, single-user database, used much as you would use
-  SQLite.
-- **Managed client** — a local store in a distributed setup, where a master
-  SD Core server on Linux holds the central data and manages its clients. A
-  global password, set by the installer, lets the master server reach the
-  client.
+A local, single-user database, used much as you would use SQLite. The
+installer asks for a global password, which may be left blank. With one, the
+computer is also a client of a master SD Core server on Linux, which holds the
+central data and manages its clients and signs in with that password; without
+one, nothing manages it. Whether there is a global password is fixed at install
+time.
 
 ## How it differs from SD Core for Windows
 
@@ -33,7 +31,7 @@ The installer offers two modes, fixed at install time:
 | Installs to | `C:\Program Files\SD` and `C:\ProgramData\SD` | `%USERPROFILE%\SDCoreSolo` |
 | Runs as | a Windows service | the user's own Windows account |
 | Account and grant commands | yes | removed |
-| Administrator commands | in the SDSYS account | from the user's own account, unlocked by an administrator password set at install (or, in managed mode, the global password) |
+| Administrator commands | in the SDSYS account | from the user's own account, unlocked by an administrator password set at install (or, on a managed computer, the global password) |
 
 - **Every session asks for the account password** — at the keyboard, over ssh,
   over the API, and for a one-shot `sd <command>`.

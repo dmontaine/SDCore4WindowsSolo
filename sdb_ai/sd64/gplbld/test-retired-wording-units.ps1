@@ -414,6 +414,25 @@ $RETIRED = @(
     @{ Ref = '20Sep-b'
        Retired     = 'command its tier does not allow'
        Replacement = 'Your database, accounts and settings are kept' }
+    # SOLO 36 (owner, 6 Oct 2026) - THERE IS NO "STANDALONE" AND NO MODE.  A computer is managed if and
+    # only if it has a global password, and the installer asks for one on every new install and accepts
+    # a blank.  The wording below is what the two screens and three messages said before; the replacements
+    # are the same words SD Core for Linux Solo uses, so the two products stay identical.
+    @{ Ref = 'SOLO36-a'
+       Retired     = 'This computer is standalone - it has no global password'
+       Replacement = 'This computer has no global password - no SD Core server manages it' }
+    @{ Ref = 'SOLO36-b'
+       Retired     = 'Managed client of an SD Core server'
+       Replacement = 'Leave blank if no SD Core server manages this computer' }
+    @{ Ref = 'SOLO36-c'
+       Retired     = 'The mode cannot be changed later without reinstalling'
+       Replacement = 'Leave blank if no SD Core server manages this computer' }
+    @{ Ref = 'SOLO36-d'
+       Retired     = 'managed (an SD Core server holds the global password)'
+       Replacement = 'managed (a global password is set)' }
+    @{ Ref = 'SOLO36-e'
+       Retired     = 'standalone - there is no SD Core server, so nothing to manage'
+       Replacement = 'no SD Core server manages it and there is nothing to manage' }
 )
 
 # --------------------------------------------------------------------------

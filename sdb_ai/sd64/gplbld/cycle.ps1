@@ -362,7 +362,7 @@ Write-Host ("   {0}, {1:N0} bytes, {2}" -f $setup.FullName, $setup.Length, $setu
 Copy-Item -LiteralPath (Join-Path $Gplbld 'sd-solo-setup.conf.sample') -Destination $Out -Force
 Write-Host ("   control file template: {0}" -f (Join-Path $Out 'sd-solo-setup.conf.sample'))
 if (Test-Path -LiteralPath (Join-Path $Out 'sd-solo-setup.conf')) {
-    Write-Host ("   CONTROL FILE PRESENT: {0} - this install will be MANAGED and take its answers from it" -f
+    Write-Host ("   CONTROL FILE PRESENT: {0} - this install will take its answers from it (a blank global password means NOT managed)" -f
                 (Join-Path $Out 'sd-solo-setup.conf')) -ForegroundColor Yellow
 }
 
@@ -442,7 +442,7 @@ if (($iGcat -lt $nGcat) -or ($iOut -lt $nOut)) {
     Fail ("the install is SHORT of the staged tree - gcat {0}/{1}, gpl.bp.out {2}/{3}." -f $iGcat, $nGcat, $iOut, $nOut)
 }
 # The passwords the wizard sets (SOLO 5, 15): $ADMIN, the account's own record
-# and $STORED (the DPAPI copy for one-shot commands); $GLOBAL in managed mode.
+# and $STORED (the DPAPI copy for one-shot commands); $GLOBAL when a global password was given.
 $credDir = Join-Path $SoloRoot 'sdsys\$cred'
 $credNames = @()
 try { $credNames = @(Get-ChildItem -LiteralPath $credDir -File -Force -ErrorAction Stop | ForEach-Object { $_.Name }) } catch { }

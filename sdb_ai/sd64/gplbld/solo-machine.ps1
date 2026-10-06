@@ -52,7 +52,11 @@
 #     changes the system sshd's startup type; an earlier build set it to Automatic and that is
 #     left as it is, because the full product may be using it.
 # -SshIntoSd means "set up Solo's own ssh server" (the name is kept so the installer's call is
-# unchanged); -Managed changes nothing here except the upgrade case noted at its parameter.
+# unchanged).  06 Oct 26 - SOLO 36: it is a CHOICE now (the owner reversed SOLO 28's "not a
+# choice"), so an Install without -SshIntoSd sets up nothing for ssh; and an UPGRADE sets Solo's
+# sshd up again only where it is already set up (its task is registered, or the old route's block
+# was just taken out) - it never turns ssh on for a computer whose user chose otherwise.  The
+# -Managed switch is gone: it only opened the ssh port on upgrading a managed computer.
 # NOT MEASURED: a Windows PASSWORD login through the SYSTEM sshd (the owner types his own; the
 # cycle's verify-solo leg uses a key, which stays possible as an extra), and that Windows
 # Firewall admits a remote client through the rule (WITNESSED 2 Oct 2026 for the first build).
@@ -66,11 +70,6 @@ param(
     [switch]$ApiNetwork,
     [ValidateSet('open', 'restrict', 'leave')] [string]$SshScope = 'leave',
     [switch]$SshIntoSd,
-    # SOLO 24 made this change the sshd_config block.  SOLO 28: Solo's own sshd reads Solo's own key
-    # file in every mode, so it no longer changes the sshd; the one thing it does now is on an UPGRADE
-    # of a managed computer that has no rule for 4251 yet (an earlier build opened Microsoft's port-22
-    # rule instead): the rule is made open, because the master has to reach the computer.
-    [switch]$Managed,
     # Ruling 17: Microsoft's OpenSSH MSI from the release folder, installed
     # first so the ssh steps below have a server to work on.  Install only.
     [string]$SshMsi = ''
@@ -103,6 +102,7 @@ $SshTaskName = 'SD Core Solo SSH'
 $SshPort = 4251        # SOLO_SSH_PORT - solo-sshd.ps1 and solo-ssh-firewall.ps1 carry the same number
 # The markers of the block an EARLIER build wrote into the system sshd_config.  They are only ever
 # used to take it OUT now (Remove-OldSshBlock), on Install, Upgrade and Remove.
+$script:oldBlockRemoved = $false   # SOLO 36: set by Remove-OldSshBlock when it took the old route's block out
 $Begin = '# BEGIN SD Core Solo - added by its installer, removed by its uninstaller'
 $End   = '# END SD Core Solo'
 $Ps    = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
@@ -159,7 +159,7 @@ Note ('this process : ' + $me.Name + '   elevated: ' + $elev + '   64-bit: ' + [
 Note ('for user     : ' + $ForUser + $(if ($me.Name -ieq $ForUser) { '   (approved by the user)' } else { '   (approved by ' + $me.Name + ')' }))
 Note ('app dir      : ' + $AppDir)
 Note ('sd-solo.exe  : ' + $sdexe + '   exists: ' + (Test-Path -LiteralPath $sdexe))
-Note ('choices      : api=' + [bool]$Api + ' apinetwork=' + [bool]$ApiNetwork + ' sshscope=' + $SshScope + ' sshintosd=' + [bool]$SshIntoSd + ' managed=' + [bool]$Managed)
+Note ('choices      : api=' + [bool]$Api + ' apinetwork=' + [bool]$ApiNetwork + ' sshscope=' + $SshScope + ' sshintosd=' + [bool]$SshIntoSd + ' sshmsi=' + [bool]$SshMsi)
 Note ('ssh msi      : ' + $(if ($SshMsi) { $SshMsi + '   exists: ' + (Test-Path -LiteralPath $SshMsi) } else { 'none - not installing an ssh server' }))
 
 $refuse = @()
@@ -243,7 +243,7 @@ function Remove-OldSshBlock {
     $svc = Get-Service sshd -ErrorAction SilentlyContinue
     if ($svc -and $svc.Status -eq 'Running') { Restart-Service sshd; Note '  the system sshd was restarted so it re-reads its configuration' }
     $after = [IO.File]::ReadAllLines($cfg)
-    if (-not ($after -contains $Begin)) { Note ('  PASS  the old SD Core Solo block is gone from the system sshd_config (backup ' + $backup + ')') }
+    if (-not ($after -contains $Begin)) { $script:oldBlockRemoved = $true; Note ('  PASS  the old SD Core Solo block is gone from the system sshd_config (backup ' + $backup + ')') }
     else { Fail 'the old SD Core Solo block is still in the system sshd_config' }
 }
 
@@ -588,9 +588,13 @@ try {
         if ($c -ne 0) { Fail ('solo-ssh-firewall.ps1 -Remove exited ' + $c) }
     }
     else {
-        # Install: wherever OpenSSH is found or was just installed (ruling 5, "not a choice"); Upgrade: wherever
-        # sshd.exe is, so a Solo upgraded from the old model is moved to its own sshd without a question.
-        $wantSsh = ($Action -eq 'Install' -and [bool]$SshIntoSd) -or ($Action -eq 'Upgrade' -and ((Find-Sshd) -ne ''))
+        # 06 Oct 26 - SOLO 36: Install: only when the installer asked for it (-SshIntoSd; the user's choice, or the
+        # control file's ssh=).  Upgrade: only where Solo's sshd is ALREADY set up - its task is registered, or the
+        # old route's block was just taken out (a Solo from before SOLO 28 is moved to its own sshd, as before) -
+        # and never on a computer whose user chose no ssh, which "wherever sshd.exe is" would have turned on.
+        $haveSshTask = [bool](Get-ScheduledTask -TaskName $SshTaskName -ErrorAction SilentlyContinue)
+        $wantSsh = ($Action -eq 'Install' -and [bool]$SshIntoSd) -or ($Action -eq 'Upgrade' -and ($haveSshTask -or $script:oldBlockRemoved))
+        if ($Action -eq 'Upgrade') { Note ('  upgrade: ssh task registered=' + $haveSshTask + '  old route block removed=' + [bool]$script:oldBlockRemoved) }
         if ($wantSsh) {
             Register-SshTask
             if ($Action -eq 'Install' -and $SshScope -ne 'leave') {
@@ -600,17 +604,14 @@ try {
             }
             elseif ($Action -eq 'Upgrade') {
                 # An upgrade does not revisit a rule that is there, and no rule means this computer only,
-                # which is what -Restrict would make.  The exception is a MANAGED computer that has no
-                # rule yet: the master reached it over Microsoft's port 22 before, and that route is gone.
+                # which is what -Restrict would make.  Until 06 Oct 26 (SOLO 36) a MANAGED computer with no rule
+                # was opened here, because the master reached it over Microsoft's port 22 before; the user
+                # may have chosen otherwise now, so nothing is opened by an upgrade.
                 $haveRule = @(Get-NetFirewallRule -Name 'SD-Solo-SSH-In-TCP' -ErrorAction SilentlyContinue).Count -gt 0
-                Note ('  firewall   : rule SD-Solo-SSH-In-TCP present=' + $haveRule + '  managed=' + [bool]$Managed)
-                if ($Managed -and -not $haveRule) {
-                    $c = Invoke-Shipped 'solo-ssh-firewall.ps1' @('-Open')
-                    if ($c -ne 0) { Fail ('solo-ssh-firewall.ps1 -Open exited ' + $c) }
-                }
+                Note ('  firewall   : rule SD-Solo-SSH-In-TCP present=' + $haveRule + ' (left as it is)')
             }
         }
-        else { Note '  not set up: no OpenSSH server was found or chosen' }
+        else { Note '  not set up: ssh was not chosen (or, on an upgrade, it was not set up before)' }
     }
 }
 catch {

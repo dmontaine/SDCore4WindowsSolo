@@ -337,7 +337,7 @@ try {
     # 28 Sep 26 - RULING 33: the global catalogue's server programs come from
     # GLOBAL.BP.OUT.  An upgrade replaces gcat and drops them, and the owner
     # ruled they are "cataloged at installation", so every install and upgrade
-    # re-runs the sync.  Standalone says so and succeeds.  The anchor is the
+    # re-runs the sync.  With no global password it says so and succeeds.  The anchor is the
     # verb's own last line with 0 refused; a refused object fails the step.
     $t = Invoke-Sd '-internal SYNC.GLOBAL.CATALOG' ''
     Judge 'global catalogue matches GLOBAL.BP.OUT' $t '(?m)^SYNC GLOBAL CATALOG DONE \d+ catalogued \d+ removed 0 refused\s*$'

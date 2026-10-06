@@ -13,8 +13,8 @@
 ;
 ; ORDER AT ssPostInstall, and why:
 ;   1. solo-setup.ps1, unelevated: sd -start, the account (ruling 10), the
-;      administrator password and, managed mode only, the global one (rulings
-;      12, 15); on an upgrade (a data tree already existed), UPDATE.ACCOUNTS
+;      administrator password and the global one when one was given (rulings
+;      12, 15; SOLO 36: it may be left blank); on an upgrade (a data tree already existed), UPDATE.ACCOUNTS
 ;      ALL - an upgrade replaces NEWVOC but rebuilds no account's own live
 ;      VOC, so without this a release that adds a verb ships it to nobody
 ;      (SOLO 9); sd -stop.  Sessions need a started SD; the stop hands SD over
@@ -118,8 +118,14 @@ UninstallDisplayName={#AppName} {#AppVer}
 ; 27 Sep 26 - RULING 24: NO "Add to PATH" BOX AND NO "Install Python" BOX.  The
 ; owner: "always install python in both modes ... add to path is always true in
 ; both modes".  PATH is always added (CurStepChanged); Python is installed
-; whenever no Python 3.13+ is registered.  Managed mode forces every box left
-; below (ruling 22), so the tasks page is skipped there.
+; whenever no Python 3.13+ is registered.
+; 06 Oct 26 - SOLO 36 (owner: one mode, the global password optional): NOTHING IS FORCED ANY MORE.  Ruling
+; 22 made the API and ssh on and open in managed mode; now both are a choice in every install, on this page
+; or, for a box the control file answers (api=, ssh=), there: a box the file answers is not shown
+; (its Check function), and the page is skipped when the file answers both.  ssh is a real choice too
+; (the owner, 6 Oct, reversing part of SOLO 28's "not a choice"): "Provide Solo's ssh server" starts
+; ticked where an OpenSSH server is already installed (what the install did before) and the install-the-
+; package box below starts unticked, as it always did.
 ; 06 Oct 26 - THE PARENT BOXES WERE NOT TICKABLE ON THEIR OWN (SOLO 34).  Found by the owner in a fresh VM:
 ; clicking "Let other computers reach it" ticked both boxes, clicking "Provide the SD Core API" alone did
 ; nothing - so "API on, other computers off" could not be chosen, though solo-machine.ps1 has the path for
@@ -128,27 +134,31 @@ UninstallDisplayName={#AppName} {#AppVer}
 ; automatically when none of its children is checked unless it carries checkablealone, so the parent
 ; cannot be ticked alone.  The full product has the flag on its parents; Solo's two did not.
 ; "unchecked" stays, or the flag would make the box tick by default.
-Name: "api"; Description: "Provide the SD Core API (port 4249)"; Flags: unchecked checkablealone
-Name: "api\network"; Description: "Let other computers reach it"; Flags: unchecked dontinheritcheck
-Name: "sshnetwork"; Description: "Let other computers reach Solo's ssh port (4251)"; \
-    Flags: unchecked; Check: SshServerFound
+Name: "api"; Description: "Provide the SD Core API (port 4249)"; Flags: unchecked checkablealone; Check: ApiAsked
+Name: "api\network"; Description: "Let other computers reach it"; Flags: unchecked dontinheritcheck; Check: ApiAsked
+; 06 Oct 26 - SOLO 36.  Was one box, "Let other computers reach Solo's ssh port (4251)", with Solo's sshd set
+; up whenever an OpenSSH server was found (SOLO 28).  Now a parent that turns Solo's sshd on, ticked by
+; default (so test-isstasks-units.py does not list it among the opt-in parents), and the same child as the API.
+Name: "ssh"; Description: "Provide Solo's ssh server (port 4251)"; Flags: checkablealone; Check: SshAskedFound
+Name: "ssh\network"; Description: "Let other computers reach it"; Flags: unchecked dontinheritcheck; Check: SshAskedFound
 ; 25 Sep 26 - RULING 17: the release carries Microsoft's OpenSSH MSI and
 ; python.org's Python .exe beside this installer (ssh-server\, python\) - both
 ; mandatory since ruling 23.  The MSI is installed only when no sshd already is
-; (optional in standalone, forced in managed, ruling 22).  Read from {src},
+; (optional in every install since SOLO 36; it was forced in managed mode, ruling 22).  Read from {src},
 ; never copied: the release is also a read-only USB stick (ruling 9).
 ; 06 Oct 26 (SOLO 34) - checkablealone as for "api" above, so the server can be installed without opening it to
 ; the network.  "unchecked" is NEW and is not optional: until now this box had no "unchecked" and showed
 ; unticked only because its child was unticked (the same automatic rule); with checkablealone it would
 ; have started TICKED and installed OpenSSH on every standalone install.
-Name: "installssh"; Description: "Install the OpenSSH server"; Flags: unchecked checkablealone; Check: SshMsiOffered
+Name: "installssh"; Description: "Install the OpenSSH server"; Flags: unchecked checkablealone; Check: SshAskedMsi
 Name: "installssh\network"; Description: "Let other computers reach it"; \
-    Flags: unchecked dontinheritcheck; Check: SshMsiOffered
+    Flags: unchecked dontinheritcheck; Check: SshAskedMsi
 ; 25 Sep 26 - NO BOX FOR "ssh lands in SD".  Ruling 5 makes it the product, not
 ; a choice; the box that was here ("Start SD Core Solo when I sign in over
 ; ssh") read to the owner as starting the SERVER on sign-in, which it never
-; did - SD starts at boot from the task.  Wherever OpenSSH is found Solo's own
-; sshd is set up and started at boot (solo-machine.ps1, SOLO 28).
+; did - SD starts at boot from the task.  When Solo's sshd is on it is set up and
+; started at boot (solo-machine.ps1, SOLO 28); since SOLO 36 whether it is on is
+; the "ssh" / "installssh" box above, or the control file's ssh=.
 
 [Dirs]
 Name: "{app}\user_accounts"; Flags: uninsneveruninstall
@@ -224,17 +234,22 @@ var
     a usable Python is already registered.  Sampled once, like the rest. }
   SshMsiPath, PythonExePath: String;
   PythonWasFound: Boolean;
-  { Ruling 15: the mode IS whether a global password was set.  Read from the
-    tree when the Mode page is skipped (upgrade, or a kept tree reinstalled). }
+  { Ruling 15: a computer is managed if and only if it has a global password.
+    Read from the tree when the passwords are not asked (upgrade, or a kept
+    tree reinstalled). }
   GlobalWasFound: Boolean;
   { SOLO 18: the optional control file beside the installer, new trees only.
-    Its presence means managed mode.  A password it gives is used only if it
-    passes the pages' own checks; anything missing or refused is asked for. }
+    SOLO 36: its presence no longer means anything but its own answers.  A
+    password it gives is used only if it passes the pages' own checks; anything
+    missing or refused is asked for - except the global password, where blank
+    or absent means "none" and nothing is asked. }
   UseControl, CfAdminOk, CfGlobalOk: Boolean;
   CfAdmin, CfGlobal: String;
   { 28 Sep 26 - ruling 34: the control file's deny-verbs line, as written. }
   CfDeny: String;
-  ModePage: TInputOptionWizardPage;
+  { 06 Oct 26 - SOLO 36: the control file's api= and ssh=, 'off', 'local' or
+    'open'; '' when not given or not one of those (then the Tasks page asks). }
+  CfApi, CfSsh: String;
   AdminPage, GlobalPage, AccountPage: TInputQueryWizardPage;
 
 function SetEnvironmentVariable(lpName: String; lpValue: String): BOOL;
@@ -402,12 +417,38 @@ begin
   CfGlobal := Trim(GetIniString('install', 'global-password', '', F));
   P := PasswordProblem(CfAdmin, CfAdmin);
   CfAdminOk := P = '';
-  Log('SD Core Solo: control file ' + F + ' - managed mode; admin-password ' + PasswordFate(CfAdmin, P));
-  P := PasswordProblem(CfGlobal, CfGlobal);
-  if (P = '') and (CfGlobal = CfAdmin) then
-    P := 'Use a password different from the administrator password.';
-  CfGlobalOk := P = '';
-  Log('SD Core Solo: control file global-password ' + PasswordFate(CfGlobal, P));
+  Log('SD Core Solo: control file ' + F + '; admin-password ' + PasswordFate(CfAdmin, P));
+  { 06 Oct 26 - SOLO 36: a blank or absent global-password is the answer "none": this computer will NOT
+    be managed, nothing is asked, and the log, install-summary.log and the finish page say so. }
+  if CfGlobal = '' then
+  begin
+    CfGlobalOk := False;
+    Log('SD Core Solo: control file gives no global password - this computer will NOT be managed by an SD Core server');
+  end
+  else
+  begin
+    P := PasswordProblem(CfGlobal, CfGlobal);
+    if (P = '') and (CfGlobal = CfAdmin) then
+      P := 'Use a password different from the administrator password.';
+    CfGlobalOk := P = '';
+    Log('SD Core Solo: control file global-password ' + PasswordFate(CfGlobal, P));
+  end;
+  { SOLO 36: api= and ssh=.  Anything but off, local or open is not an answer: the Tasks page asks. }
+  CfApi := Lowercase(Trim(GetIniString('install', 'api', '', F)));
+  if (CfApi <> 'off') and (CfApi <> 'local') and (CfApi <> 'open') then
+  begin
+    if CfApi <> '' then
+      Log('SD Core Solo: control file api "' + CfApi + '" is not off, local or open - asked for');
+    CfApi := '';
+  end;
+  CfSsh := Lowercase(Trim(GetIniString('install', 'ssh', '', F)));
+  if (CfSsh <> 'off') and (CfSsh <> 'local') and (CfSsh <> 'open') then
+  begin
+    if CfSsh <> '' then
+      Log('SD Core Solo: control file ssh "' + CfSsh + '" is not off, local or open - asked for');
+    CfSsh := '';
+  end;
+  Log('SD Core Solo: control file api "' + CfApi + '" ssh "' + CfSsh + '"');
   { 28 Sep 26 - ruling 34: verbs denied to the local user.  Not a secret, so
     logged whole; DENY.VERBS (run by solo-setup) checks each name. }
   CfDeny := Trim(GetIniString('install', 'deny-verbs', '', F));
@@ -438,7 +479,7 @@ begin
   { 27 Sep 26 - OWNER'S RULING: "installation package must always have the SSH
     MSI and Python exe available, otherwise it is an invalid installation
     package."  Refused in every mode, before anything is written.  Installing
-    them stays optional (ruling 17), except that managed mode needs ssh. }
+    them stays optional (ruling 17; SOLO 36: managed mode needs nothing). }
   if (SshMsiPath = '') or (PythonExePath = '') then
   begin
     Missing := '';
@@ -480,48 +521,98 @@ begin
   Result := (PythonExePath <> '') and not PythonWasFound;
 end;
 
-{ The "reach Solo's ssh port" box is offered wherever an ssh server's programs
-  are already on the computer; where only the MSI is offered its own child box
-  (installssh\network) asks the same thing. }
-function SshServerFound: Boolean;
+{ 06 Oct 26 - SOLO 36.  The control file's api= and ssh= answer a choice; a box
+  it answers is not shown on the Tasks page (these are the boxes' Check
+  functions), and the page is skipped when it answers both. }
+function ApiAnswered: Boolean;
 begin
-  Result := SshServerWasFound;
+  Result := UseControl and (CfApi <> '');
 end;
 
-{ The Mode page on a new tree (a control file means managed - SOLO 18); the
-  tree's own $GLOBAL otherwise (ruling 15). }
+function SshAnswered: Boolean;
+begin
+  Result := UseControl and (CfSsh <> '');
+end;
+
+function ApiAsked: Boolean;
+begin
+  Result := not ApiAnswered;
+end;
+
+{ "Provide Solo's ssh server" is offered where an OpenSSH server is already
+  installed; where only the MSI is offered, "Install the OpenSSH server" is. }
+function SshAskedFound: Boolean;
+begin
+  Result := SshServerWasFound and not SshAnswered;
+end;
+
+function SshAskedMsi: Boolean;
+begin
+  Result := SshMsiOffered and not SshAnswered;
+end;
+
+{ A computer is managed if and only if it has a global password (ruling 15).
+  On a new tree that is whether the Global page holds one - a control file's
+  accepted one is already in it; on an existing tree, the tree's own $GLOBAL.
+  SOLO 36: there is no Mode page. }
 function Managed: Boolean;
 begin
   if DataTreeWasAbsent then
-    Result := UseControl or (ModePage.SelectedValueIndex = 1)
+    Result := GlobalPage.Values[0] <> ''
   else
     Result := GlobalWasFound;
 end;
 
-
-{ 27 Sep 26 - OWNER'S RULING: "the api and ssh server should always be active
-  in managed mode", reachable from other computers (the master connects from
-  elsewhere).  So in managed mode each of these is on whatever its box says;
-  the boxes are ticked and greyed out on the tasks page to match. }
+{ 06 Oct 26 - SOLO 36: each of these is its box, or the control file's answer.
+  It was the box OR managed mode (the owner's ruling of 27 Sep, ruling 22),
+  which is withdrawn: the API and ssh are a choice in every install. }
 function ApiWanted: Boolean;
 begin
-  Result := WizardIsTaskSelected('api') or Managed;
+  if ApiAnswered then
+    Result := CfApi <> 'off'
+  else
+    Result := WizardIsTaskSelected('api');
 end;
 
 function ApiNetworkWanted: Boolean;
 begin
-  Result := WizardIsTaskSelected('api\network') or Managed;
+  if ApiAnswered then
+    Result := CfApi = 'open'
+  else
+    Result := WizardIsTaskSelected('api\network');
+end;
+
+{ Solo's own sshd on 4251 is set up (SOLO 28), and Microsoft's OpenSSH package
+  installed first when none is there. }
+function SshWanted: Boolean;
+begin
+  if SshAnswered then
+    Result := CfSsh <> 'off'
+  else if SshServerWasFound then
+    Result := WizardIsTaskSelected('ssh')
+  else
+    Result := WizardIsTaskSelected('installssh');
+end;
+
+{ Each branch asks only about the boxes that are on the page: the earlier code
+  never asked WizardIsTaskSelected about a box its Check had hidden either. }
+function SshOpenWanted: Boolean;
+begin
+  if SshAnswered then
+    Result := CfSsh = 'open'
+  else if SshServerWasFound then
+    Result := WizardIsTaskSelected('ssh\network')
+  else
+    Result := WizardIsTaskSelected('installssh\network');
 end;
 
 procedure InitializeWizard;
 begin
-  ModePage := CreateInputOptionPage(wpWelcome, 'Mode', 'How will this computer use SD Core Solo for Windows?',
-    'The mode cannot be changed later without reinstalling.', True, False);
-  ModePage.Add('Standalone');
-  ModePage.Add('Managed client of an SD Core server');
-  ModePage.SelectedValueIndex := 0;
+  { 06 Oct 26 - SOLO 36: THE MODE PAGE IS GONE (owner: "remove the standalone
+    version and just make entry of the global password ... optional").  A
+    computer is managed if and only if it has a global password.
 
-  { 28 Sep 26 - THE ORDER IS ACCOUNT, ADMINISTRATOR, GLOBAL (owner: "account
+    28 Sep 26 - THE ORDER IS ACCOUNT, ADMINISTRATOR, GLOBAL (owner: "account
     password, admin password, and if a managed client global password").  It
     was administrator, global, account.  The comparisons follow the order: the
     global page, now last, is checked against both earlier ones.
@@ -530,7 +621,7 @@ begin
     for it - local, ssh, API and one-shot - so it is asked on every new tree,
     whether or not the API box is ticked (it was the API password, after the
     tasks page, until the owner made it global). }
-  AccountPage := CreateInputQueryPage(ModePage.ID, 'Account password',
+  AccountPage := CreateInputQueryPage(wpWelcome, 'Account password',
     'SD Core Solo for Windows asks for this password whenever it is used.', '');
   AccountPage.Add('Password:', True);
   AccountPage.Add('Confirm password:', True);
@@ -540,8 +631,11 @@ begin
   AdminPage.Add('Password:', True);
   AdminPage.Add('Confirm password:', True);
 
+  { SOLO 36: asked on every new install; both boxes blank is the answer "no
+    global password", so this computer is not managed (the same sentence as
+    SD Core for Linux Solo's prompt). }
   GlobalPage := CreateInputQueryPage(AdminPage.ID, 'Global password',
-    'The SD Core server uses this password to manage this computer.', '');
+    'Leave blank if no SD Core server manages this computer.', '');
   GlobalPage.Add('Password:', True);
   GlobalPage.Add('Confirm password:', True);
 
@@ -549,7 +643,6 @@ begin
     then skipped; a page it did not answer is shown empty. }
   if UseControl then
   begin
-    ModePage.SelectedValueIndex := 1;
     if CfAdminOk then
     begin
       AdminPage.Values[0] := CfAdmin;
@@ -566,29 +659,43 @@ end;
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := False;
-  if PageID = ModePage.ID then
-    Result := (not DataTreeWasAbsent) or UseControl
-  else if PageID = AdminPage.ID then
+  if PageID = AdminPage.ID then
     Result := (not DataTreeWasAbsent) or (UseControl and CfAdminOk)
+  { SOLO 36: the global password is asked on every new tree.  A control file
+    settles it when it gives an accepted one or none at all (blank or absent);
+    one the rules refuse is asked for. }
   else if PageID = GlobalPage.ID then
-    Result := (not DataTreeWasAbsent) or (not Managed) or (UseControl and CfGlobalOk)
-  { SOLO 18: never with a control file - the owner's ruling is that the user
-    sets the account password at the first login, at the console. }
+    Result := (not DataTreeWasAbsent) or (UseControl and ((CfGlobal = '') or CfGlobalOk))
+  { SOLO 18: not with a control file that gives a global password - the
+    owner's ruling is that the user sets the account password at the first
+    login, at the console, and that route needs a $GLOBAL.  SOLO 36: with no
+    global password (a file with none, a refused one, or no file) the account
+    password is asked here, on every route. }
   else if PageID = AccountPage.ID then
-    Result := (not DataTreeWasAbsent) or UseControl
-  { Ruling 24 left no PATH or Python box, and managed mode forces every box
-    that is left (ruling 22), so the page has nothing to ask there. }
+    Result := (not DataTreeWasAbsent) or (UseControl and CfGlobalOk)
+  { SOLO 36: the page asks the API and ssh in every install; skipped on an
+    upgrade, and when the control file answers both. }
   else if PageID = wpSelectTasks then
-    Result := SoloWasInstalled or Managed
+    Result := SoloWasInstalled or (ApiAnswered and SshAnswered)
   else if PageID = wpReady then
     Result := UseControl and CfAdminOk and CfGlobalOk;
 end;
 
-{ 27 Sep 26 - the greyed "forced" boxes (ShowForcedTasks) went with ruling 24:
-  the tasks page is now shown in standalone mode only, where nothing is forced.
-  2 Oct 26 - SOLO 28: CurPageChanged is gone too.  It ticked the ssh box when
+{ 27 Sep 26 - the greyed "forced" boxes (ShowForcedTasks) went with ruling 24.
+  2 Oct 26 - SOLO 28: CurPageChanged went too.  It ticked the ssh box when
   Microsoft's port-22 rule was already open; Solo's port is its own now and
-  there is no such rule to find. }
+  there is no such rule to find.  06 Oct 26 - SOLO 36: CurPageChanged is back
+  for one sentence on the finish page. }
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  { A control file with no global password leaves this computer NOT managed -
+    also what a typo in the key name, or an old file, ends in.  Said once, as
+    SD Core for Linux Solo says it; no dialog. }
+  if (CurPageID = wpFinished) and UseControl and (CfGlobal = '') then
+    WizardForm.FinishedLabel.Caption := WizardForm.FinishedLabel.Caption + #13#10#13#10 +
+      'The control file gives no global password, so this computer will NOT be managed by an SD Core server.';
+end;
+
 function NextButtonClick(CurPageID: Integer): Boolean;
 var
   Problem: String;
@@ -599,7 +706,14 @@ begin
     Problem := PasswordProblem(AdminPage.Values[0], AdminPage.Values[1])
   else if CurPageID = GlobalPage.ID then
   begin
-    Problem := PasswordProblem(GlobalPage.Values[0], GlobalPage.Values[1]);
+    { SOLO 36: both boxes blank is the answer "no global password" - not
+      managed.  Anything else is a password and keeps every rule. }
+    if (GlobalPage.Values[0] = '') and (GlobalPage.Values[1] = '') then
+      Exit;
+    if (GlobalPage.Values[0] = '') or (GlobalPage.Values[1] = '') then
+      Problem := 'The passwords do not match.'
+    else
+      Problem := PasswordProblem(GlobalPage.Values[0], GlobalPage.Values[1]);
     if (Problem = '') and (GlobalPage.Values[0] = AdminPage.Values[0]) then
       Problem := 'Use a password different from the administrator password.';
     { Ruling 19: one login name, two passwords, the user's checked first - an
@@ -728,6 +842,42 @@ begin
   AppendSummary('solo-machine ' + Action + ' (exit ' + IntToStr(Result) + ')', ResultPath);
 end;
 
+function YesNo(B: Boolean): String;
+begin
+  if B then
+    Result := 'yes'
+  else
+    Result := 'no';
+end;
+
+{ 06 Oct 26 - SOLO 36: what the installer decided, before any step runs, in
+  install-summary.log.  Never a password.  The one fact an administrator may
+  not have meant - no global password, so not managed - is said in words. }
+procedure AppendChoices;
+var
+  S: String;
+begin
+  S := '=== installer choices ' + GetDateTimeString('yyyy-mm-dd hh:nn:ss', '-', ':') + #13#10 +
+       'new tree       : ' + YesNo(DataTreeWasAbsent) + #13#10 +
+       'control file   : ' + YesNo(UseControl) + #13#10 +
+       'managed        : ' + YesNo(Managed);
+  if not DataTreeWasAbsent then
+    S := S + ' (read from the tree; an upgrade never adds, changes or removes the global password)'
+  else if Managed then
+    S := S + ' (a global password was given)'
+  else
+    S := S + ' (no global password: this computer is NOT managed by an SD Core server)';
+  S := S + #13#10;
+  if SoloWasInstalled then
+    S := S + 'api and ssh    : not asked on an upgrade; the install keeps what it has' + #13#10
+  else
+    S := S + 'api            : ' + YesNo(ApiWanted) + '   reachable from other computers: ' + YesNo(ApiNetworkWanted) + #13#10 +
+             'ssh            : ' + YesNo(SshWanted) + '   reachable from other computers: ' + YesNo(SshOpenWanted) +
+             '   OpenSSH package to install: ' + YesNo(SshWanted and not SshServerWasFound) + #13#10;
+  SaveStringToFile(ExpandConstant('{app}\install-summary.log'), S + #13#10, True);
+  Log('SD Core Solo: ' + S);
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   Params, ReportPath, Extra, Failed: String;
@@ -736,6 +886,7 @@ begin
   if CurStep <> ssPostInstall then
     Exit;
   Failed := '';
+  AppendChoices;
 
   { 0. Python, per-user, unelevated (ruling 17).  InstallLauncherAllUsers=0, or
     the launcher alone would want elevation.  PrependPath=1: the helper finds
@@ -806,49 +957,35 @@ begin
   { 3. The one elevated step. }
   if SoloWasInstalled then
   begin
-    { SOLO 28: -Managed on an upgrade lets solo-machine.ps1 open Solo's ssh port for a managed computer
-      that has no rule for it yet (an earlier build opened Microsoft's port 22 for the master). }
-    Extra := '';
-    if Managed then
-      Extra := ' -Managed';
-    Code := RunMachineStep('Upgrade', Extra);
+    { 06 Oct 26 - SOLO 36: an upgrade asks nothing and keeps the API and ssh as they are.  It used to
+      pass -Managed so that solo-machine.ps1 opened Solo's ssh port for a managed computer with no rule
+      for it; that fallback is gone (a managed computer's user may have chosen otherwise). }
+    Code := RunMachineStep('Upgrade', '');
   end
   else
   begin
-    { Each choice is its box OR managed mode (the owner's ruling above). }
+    { 06 Oct 26 - SOLO 36: each choice is its box, or the control file's answer; nothing is forced. }
     Extra := '';
     if ApiWanted then
       Extra := Extra + ' -Api';
     if ApiNetworkWanted then
       Extra := Extra + ' -ApiNetwork';
-    { SOLO 28: Solo's ssh is its OWN sshd on port 4251 wherever sshd.exe is, or is
-      installed from the MSI.  Its firewall rule (solo-ssh-firewall.ps1) is open
-      to other computers when the box is ticked, or in managed mode (the master
-      has to reach it), and this-computer-only otherwise - the same shape as the
-      API's.  "leave" is only for a computer with no OpenSSH at all.  Managed
-      mode no longer changes the sshd's setup (the key file is the same in
-      both modes); -Managed is still passed and ignored by solo-machine.ps1. }
-    if SshServerWasFound then
+    { Solo's ssh is its OWN sshd on port 4251 (SOLO 28), set up only when it is wanted (SOLO 36), from an
+      OpenSSH server already installed or from the MSI beside the installer.  Its firewall rule
+      (solo-ssh-firewall.ps1) is open to other computers or this-computer-only - the same shape as the
+      API's.  "leave" means no Solo sshd and no package. }
+    if SshWanted then
     begin
-      if WizardIsTaskSelected('sshnetwork') or Managed then
+      if not SshServerWasFound then
+        Extra := Extra + ' -SshMsi "' + SshMsiPath + '"';
+      if SshOpenWanted then
         Extra := Extra + ' -SshScope open'
       else
         Extra := Extra + ' -SshScope restrict';
-    end
-    else if SshMsiOffered and (WizardIsTaskSelected('installssh') or Managed) then
-    begin
-      Extra := Extra + ' -SshMsi "' + SshMsiPath + '"';
-      if WizardIsTaskSelected('installssh\network') or Managed then
-        Extra := Extra + ' -SshScope open'
-      else
-        Extra := Extra + ' -SshScope restrict';
+      Extra := Extra + ' -SshIntoSd';
     end
     else
       Extra := Extra + ' -SshScope leave';
-    if SshServerWasFound or (SshMsiOffered and (WizardIsTaskSelected('installssh') or Managed)) then
-      Extra := Extra + ' -SshIntoSd';
-    if Managed then
-      Extra := Extra + ' -Managed';
     Code := RunMachineStep('Install', Extra);
   end;
   { 06 Oct 26 (SOLO 31): name only the sections that failed.  Exit 2 is the script REFUSING (nothing

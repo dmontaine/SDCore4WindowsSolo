@@ -2,6 +2,38 @@ WS1.1-3 - in progress
 -------------
 Changes since WS1.1-2.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
 
+06 Oct 26  NO MORE "STANDALONE" OR "MANAGED" CHOICE: THE GLOBAL PASSWORD IS
+           OPTIONAL.
+
+           The installer no longer asks which mode this computer is in.  It
+           asks for a global password on every new installation, and the
+           password may be left blank.  A computer that has a global password
+           is managed by an SD Core server; one that has none is not.  Nothing
+           else changes with it.
+           * The API and ssh are now a choice in every installation.  They
+             used to be switched on, and open to other computers, whenever a
+             global password was used.  An SD Core server that manages the
+             computer needs both on and open; the installer no longer does
+             that for you.
+           * "Provide Solo's ssh server (port 4251)" is a new box.  It is
+             ticked where an OpenSSH server is already installed.  Unticked,
+             Solo has no ssh server and the OpenSSH package is not installed.
+           * The install file (sd-solo-setup.conf) no longer means "managed".
+             It gains api= and ssh=, each off, local or open.  A blank or
+             missing global-password= means no global password, and nothing is
+             asked.  The installer says so in install-summary.log and on its
+             last page.
+           * With no global password the installer asks for the account
+             password, even from an install file.
+           * An upgrade asks nothing and never adds, changes or removes the
+             global password.  It no longer opens Solo's ssh port on a managed
+             computer that had no rule for it, and it sets up Solo's ssh server
+             again only where it is already set up.
+           * SET.PASSWORD GLOBAL on a computer with no global password now
+             says "This computer has no global password - no SD Core server
+             manages it".  SYNC.GLOBAL.CATALOG and SETTINGS.REPORT say the
+             same in their own words.
+
 06 Oct 26  THE INSTALLER'S API AND OPENSSH BOXES CAN BE TICKED ON THEIR OWN.
 
            On the installer's "Select Additional Tasks" page, "Provide the SD

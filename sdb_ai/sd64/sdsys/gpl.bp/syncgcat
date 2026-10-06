@@ -18,6 +18,9 @@
 *
 *
 * START-HISTORY:
+* 06 Oct 26 SD Core Solo - SOLO 36: no "standalone" mode; the no-$GLOBAL line
+*           now says there is no global password (agreed with SD Core for
+*           Linux Solo, same wording).
 * 28 Sep 26 SD Core Solo - new, ruling 33.
 * END-HISTORY
 *
@@ -52,9 +55,9 @@
 * WHO MAY RUN IT: a session signed in with the global password
 * (K$GLOBAL.SESSION - over the API, as the server does, or at a prompt), and
 * the installer ("sd -internal").  Anyone else gets 12028, ADMIN included.
-* In standalone mode (no $GLOBAL credential) there is nothing to manage: it
-* says so, changes nothing, and succeeds, so the installer can call it in both
-* modes.
+* With no $GLOBAL credential (no global password) no SD Core server manages
+* this computer, so there is nothing to manage: it says so, changes nothing,
+* and succeeds, so the installer can call it on every computer.
 *
 * A BAD OBJECT IS REFUSED BY NAME and the rest still go in; the success line
 * counts the refusals and the return code is not 0 when there were any.  The
@@ -92,14 +95,14 @@ $include err.h
       stop
    end
 
-*  Standalone: no $GLOBAL credential, so no server and nothing to manage.
+*  No $GLOBAL credential (no global password): no server and nothing to manage.
    managed = @false
    openpath @sdsys : @ds : '$cred' to cred.f then
       read g.rec from cred.f, '$GLOBAL' then managed = @true
       close cred.f
    end
    if not(managed) then
-      display 'SYNC.GLOBAL.CATALOG: standalone - there is no SD Core server, so nothing to manage.'
+      display 'SYNC.GLOBAL.CATALOG: this computer has no global password, so no SD Core server manages it and there is nothing to manage.'
       @system.return.code = 0
       display 'SYNC GLOBAL CATALOG DONE 0 catalogued 0 removed 0 refused'
       stop

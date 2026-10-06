@@ -6,17 +6,21 @@
 # every computer that does not already have SD Core Solo for Windows.  Without the file
 # the installer asks every question itself.
 #
-# It is for MANAGED MODE ONLY.  Its presence makes the install a managed
-# client of an SD Core server, so the API and the ssh server are always on
-# and reachable from other computers.
+# The file answers only what it gives.  Whether an SD Core server manages the
+# computer depends on the global password alone: give one and the computer is
+# managed; leave it blank and it is not.  Nothing else changes with it.
 #
 # Each item below is explained in comment lines, then a SAMPLE answer
 # (commented out), then the line for your answer.  Leave an answer blank and
-# the installer asks for it.  An answer the installer cannot accept (a
-# password that breaks the rules below) is asked for too.
+# the installer asks for it - EXCEPT the global password, where blank means
+# none (see below).  An answer the installer cannot accept (a password that
+# breaks the rules below, a word that is not off, local or open) is asked
+# for too.
 #
-# The ACCOUNT password is deliberately not here.  The user sets it at this
-# computer's keyboard the first time they run sd.
+# The ACCOUNT password is deliberately not here.  With a global password the
+# user sets it at this computer's keyboard the first time they run sd.
+# Without one the installer asks for it, so an install with no global
+# password cannot run unattended.
 #
 # Nothing else needs answering.  SD Core Solo for Windows is always added to the user's
 # PATH, and Python is always installed (from the python folder beside the
@@ -38,16 +42,40 @@ admin-password=
 #   The global password.  The SD Core server uses it to manage this
 #   computer, and it also unlocks the administrator commands.  The same rules
 #   as the administrator password, and it must be different from it.
+#   LEAVE IT BLANK, OR LEAVE THE LINE OUT, and this computer has no global
+#   password: no SD Core server manages it, and nothing is asked.  A mistyped
+#   name here ends the same way.  The installer says so in its log and on its
+#   last page.
 #global-password=Gl0bal-Sample!
 
 global-password=
+
+# api
+#   The SD Core API, port 4249.  off = not provided; local = provided to
+#   this computer only; open = provided to other computers too.  Blank: the
+#   installer asks.  An SD Core server that manages this computer needs it
+#   open.
+#api=open
+
+api=
+
+# ssh
+#   Solo's own ssh server, port 4251.  off = none, and Microsoft's OpenSSH
+#   package is not installed; local = this computer only; open = other
+#   computers too.  local and open install the package from the ssh-server
+#   folder when no OpenSSH server is on the computer.  Blank: the installer
+#   asks.  An SD Core server that manages this computer needs it open.
+#ssh=open
+
+ssh=
 
 # deny-verbs
 #   Commands the user of this computer may not run.  A comma-separated list
 #   of verb names; each then needs the administrator or global password
 #   first, like SD's own administrator commands.  ADMIN, OFF, QUIT and LO are
 #   never denied.  Leave it blank to deny nothing extra.  The SD Core server
-#   can change the list later with DENY.VERBS.
+#   can change the list later with DENY.VERBS - so on a computer with no
+#   global password the list stays as given until a reinstall.
 #deny-verbs=LISTF,CREATE.FILE
 
 deny-verbs=

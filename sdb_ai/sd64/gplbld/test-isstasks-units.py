@@ -106,7 +106,11 @@ if len(ps) < 2:
     sys.exit(2)
 
 check('Solo: every parent is tickable alone and opt-in', not violations(solo), '; '.join(violations(solo)))
-check('Solo: "api" and "installssh" are both parents the check saw', 'api' in ps and 'installssh' in ps, str(ps))
+check('Solo: "api", "ssh" and "installssh" are all parents the check saw', 'api' in ps and 'ssh' in ps and 'installssh' in ps, str(ps))
+# SOLO 36: "ssh" starts TICKED on purpose (Solo's sshd is set up where an OpenSSH server is already installed, as the
+# install did before ssh became a choice), so it is a parent but NOT an opt-in one: the check must not hold it to
+# `unchecked`, and must still hold it to `checkablealone`.
+check('Solo: "ssh" is a parent that is not held to unchecked', 'ssh' not in OPT_IN_PARENTS and 'unchecked' not in solo.get('ssh', set()), str(solo.get('ssh')))
 
 # MUTANT: strip the flag from the live text; the guard must go red.
 mut_text = solo_text.replace('checkablealone', '')
