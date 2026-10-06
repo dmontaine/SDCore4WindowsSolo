@@ -120,7 +120,15 @@ UninstallDisplayName={#AppName} {#AppVer}
 ; both modes".  PATH is always added (CurStepChanged); Python is installed
 ; whenever no Python 3.13+ is registered.  Managed mode forces every box left
 ; below (ruling 22), so the tasks page is skipped there.
-Name: "api"; Description: "Provide the SD Core API (port 4249)"; Flags: unchecked
+; 06 Oct 26 - THE PARENT BOXES WERE NOT TICKABLE ON THEIR OWN (SOLO 34).  Found by the owner in a fresh VM:
+; clicking "Let other computers reach it" ticked both boxes, clicking "Provide the SD Core API" alone did
+; nothing - so "API on, other computers off" could not be chosen, though solo-machine.ps1 has the path for
+; it (-Api without -ApiNetwork gives api-firewall.ps1 -Restrict).  Inno's own rule, read in the full
+; product's sd.iss (the comment before its [Tasks] group 2): a task with children is unchecked
+; automatically when none of its children is checked unless it carries checkablealone, so the parent
+; cannot be ticked alone.  The full product has the flag on its parents; Solo's two did not.
+; "unchecked" stays, or the flag would make the box tick by default.
+Name: "api"; Description: "Provide the SD Core API (port 4249)"; Flags: unchecked checkablealone
 Name: "api\network"; Description: "Let other computers reach it"; Flags: unchecked dontinheritcheck
 Name: "sshnetwork"; Description: "Let other computers reach Solo's ssh port (4251)"; \
     Flags: unchecked; Check: SshServerFound
@@ -129,7 +137,11 @@ Name: "sshnetwork"; Description: "Let other computers reach Solo's ssh port (425
 ; mandatory since ruling 23.  The MSI is installed only when no sshd already is
 ; (optional in standalone, forced in managed, ruling 22).  Read from {src},
 ; never copied: the release is also a read-only USB stick (ruling 9).
-Name: "installssh"; Description: "Install the OpenSSH server"; Check: SshMsiOffered
+; 06 Oct 26 (SOLO 34) - checkablealone as for "api" above, so the server can be installed without opening it to
+; the network.  "unchecked" is NEW and is not optional: until now this box had no "unchecked" and showed
+; unticked only because its child was unticked (the same automatic rule); with checkablealone it would
+; have started TICKED and installed OpenSSH on every standalone install.
+Name: "installssh"; Description: "Install the OpenSSH server"; Flags: unchecked checkablealone; Check: SshMsiOffered
 Name: "installssh\network"; Description: "Let other computers reach it"; \
     Flags: unchecked dontinheritcheck; Check: SshMsiOffered
 ; 25 Sep 26 - NO BOX FOR "ssh lands in SD".  Ruling 5 makes it the product, not
