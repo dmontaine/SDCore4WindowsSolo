@@ -35,7 +35,8 @@ Start-ScheduledTask -TaskName $name
 Start-Sleep -Seconds 8
 $info = Get-ScheduledTaskInfo -TaskName $name
 Say ("after 8 s: state " + (Get-ScheduledTask -TaskName $name).State + "   last run " + $info.LastRunTime + "   last result 0x" + ('{0:X}' -f $info.LastTaskResult))
-$sd = @(Get-Process sdwind -ErrorAction SilentlyContinue)
+# 06 Oct 26 (multi-user entry 124): SOLO'S daemon only (sd-solo.exe beside it), not the multi-user product's.
+$sd = @(Get-Process sdwind -ErrorAction SilentlyContinue | Where-Object { $_.Path -and (Test-Path -LiteralPath (Join-Path (Split-Path -Parent $_.Path) 'sd-solo.exe')) })
 Say ("sdwind processes: " + $sd.Count)
 
 Say ''
