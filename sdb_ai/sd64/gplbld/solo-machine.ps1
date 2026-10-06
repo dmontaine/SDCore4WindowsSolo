@@ -108,9 +108,30 @@ $End   = '# END SD Core Solo'
 $Ps    = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 
 $lines = New-Object System.Collections.ArrayList
-function Note([string]$s) { [void]$lines.Add($s) }
+# 06 Oct 26 (SOLO 31) - THE INSTALLER'S DIALOG NAMES ONLY WHAT FAILED.  It used to say "startup task, firewall
+# and ssh" whenever this script exited 1, even when the task, the rule and the sshd all passed and one check
+# failed.  Each "--- " heading below names a section; Fail records the short name of the section it happened
+# in, and the report ends with one line, "FAILED STEPS : a, b", which sd-solo.iss reads.  A failure before
+# any heading, or under a heading this table does not know, is called "setup" - never left out.
+$script:section = 'setup'
+$script:failedSteps = New-Object System.Collections.ArrayList
+function Get-SectionLabel([string]$heading) {
+    if ($heading -like '--- startup task*')           { return 'startup task' }
+    if ($heading -like '--- API firewall*')           { return 'API firewall rule' }
+    if ($heading -like '--- OpenSSH server*')         { return 'ssh server install' }
+    if ($heading -like '--- the old ssh route*')      { return 'ssh' }
+    if ($heading -like '--- ssh:*')                   { return 'ssh' }
+    return 'setup'
+}
+function Note([string]$s) {
+    if ($s.StartsWith('--- ')) { $script:section = Get-SectionLabel $s }
+    [void]$lines.Add($s)
+}
 $fails = New-Object System.Collections.ArrayList
-function Fail([string]$s) { Note ('  FAIL  ' + $s); [void]$fails.Add($s) }
+function Fail([string]$s) {
+    Note ('  FAIL  ' + $s); [void]$fails.Add($s)
+    if (-not $script:failedSteps.Contains($script:section)) { [void]$script:failedSteps.Add($script:section) }
+}
 function Save-Report {
     if ($Result) {
         try { [IO.File]::WriteAllLines($Result, [string[]]$lines.ToArray(), (New-Object Text.UTF8Encoding($false))) }
@@ -599,6 +620,10 @@ catch {
 
 Note ''
 if ($fails.Count -eq 0) { Note 'VERDICT      : PASS'; $code = 0 }
-else { Note ('VERDICT      : FAIL - ' + ($fails -join '; ')); $code = 1 }
+else {
+    Note ('VERDICT      : FAIL - ' + ($fails -join '; '))
+    Note ('FAILED STEPS : ' + (($script:failedSteps.ToArray()) -join ', '))
+    $code = 1
+}
 Save-Report
 exit $code

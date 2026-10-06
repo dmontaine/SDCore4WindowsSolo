@@ -665,12 +665,42 @@ begin
   RegWriteExpandStringValue(HKCU, 'Environment', 'Path', Copy(Paths, 2, Length(Paths) - 2));
 end;
 
+var
+  LastMachineReport: String;
+
+{ 06 Oct 26 (SOLO 31).  The names of the machine-step sections that failed, from the report's own
+  "FAILED STEPS : a, b" line (solo-machine.ps1), or '' when there is no such line.  The dialog used
+  to say "startup task, firewall and ssh" for any failure, including one check failing while all
+  three had worked. }
+function MachineFailedSteps: String;
+var
+  Text: AnsiString;
+  S: String;
+  P, E: Integer;
+begin
+  Result := '';
+  if (LastMachineReport = '') or not LoadStringFromFile(LastMachineReport, Text) then
+    Exit;
+  S := String(Text);
+  P := Pos('FAILED STEPS : ', S);
+  if P = 0 then
+    Exit;
+  S := Copy(S, P + Length('FAILED STEPS : '), Length(S));
+  E := Pos(#13, S);
+  if E = 0 then
+    E := Pos(#10, S);
+  if E > 0 then
+    S := Copy(S, 1, E - 1);
+  Result := Trim(S);
+end;
+
 function RunMachineStep(Action, Extra: String): Integer;
 var
   Params, ResultPath: String;
   Code: Integer;
 begin
   ResultPath := ExpandConstant('{tmp}\solo-machine.txt');
+  LastMachineReport := ResultPath;
   DeleteFile(ResultPath);
   Params := '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}') +
             '\solo-machine.ps1" -Action ' + Action + ' -ForUser "' + ForUser +
@@ -809,10 +839,18 @@ begin
       Extra := Extra + ' -Managed';
     Code := RunMachineStep('Install', Extra);
   end;
-  if Code = -1 then
+  { 06 Oct 26 (SOLO 31): name only the sections that failed.  Exit 2 is the script REFUSING (nothing
+    changed) and -1 is it not starting: those are "not run".  Any other failure with no names in the
+    report keeps the old three-step wording rather than saying nothing. }
+  if (Code = -1) or (Code = 2) then
     Failed := Failed + '  startup task, firewall and ssh (not run)' + #13#10
   else if Code <> 0 then
-    Failed := Failed + '  startup task, firewall and ssh' + #13#10;
+  begin
+    if MachineFailedSteps <> '' then
+      Failed := Failed + '  ' + MachineFailedSteps + #13#10
+    else
+      Failed := Failed + '  startup task, firewall and ssh' + #13#10;
+  end;
 
   if Failed <> '' then
     MsgBox('These steps did not complete:' + #13#10 + Failed + #13#10 +
