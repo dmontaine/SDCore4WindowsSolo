@@ -2,6 +2,32 @@ WS1.1-3 - in progress
 -------------
 Changes since WS1.1-2.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
 
+06 Oct 26  UNINSTALLING ASKS TO KEEP OR DELETE YOUR DATA AND CONFIGURATION,
+           AND A NEW INSTALLATION OFFERS THEM BACK.
+
+           The uninstaller used to leave everything in
+           %USERPROFILE%\SDCoreSolo and ask nothing, and a reinstall silently
+           used it all again, passwords included.  Now it asks, Keep first:
+           * Keep leaves your account sduser with its data, and sd.conf, in
+             the folder, with a small stamp file (.sdcore-kept).  Everything
+             else in the folder is removed: the passwords, the audit trail,
+             the list of denied commands, GLOBAL.BP.OUT, the API's TLS key,
+             Solo's ssh keys.
+           * Delete removes the whole folder.
+           * A silent uninstall never deletes; it keeps.
+           A new installation over a folder that holds kept data asks "Reload
+           your saved data and configuration into this new install?" (Yes is
+           the default).  Either way the old folder is moved aside to
+           SDCoreSolo.kept-<date and time>, never deleted, and the passwords
+           are asked again - the global one may be left blank, so this is how
+           to add one later, or to drop one.  Yes copies the account's files
+           into the new account, tries the saved sd.conf (if SD refuses it,
+           the default is kept and the installer says so), and brings the
+           account's commands up to date.  The install file takes
+           reload-data=yes or no for an unattended install.  A folder left by
+           an earlier release's uninstaller (it still holds sdsys) is
+           reinstalled over as before.
+
 06 Oct 26  NO MORE "STANDALONE" OR "MANAGED" CHOICE: THE GLOBAL PASSWORD IS
            OPTIONAL.
 

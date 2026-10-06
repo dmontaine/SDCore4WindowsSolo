@@ -39,8 +39,12 @@
 ; nothing equivalent is installed.  The uninstaller leaves both alone: they are
 ; separate products with their own entries in Apps.
 ;
-; WHAT IS NOT HERE YET (SOLO 8 in PROJECT_STATUS.md): the opt-in data removal
-; at uninstall (5.9.1 - the data is always kept for now), ruling 13's deletion
+; SOLO 37 (6 Oct 2026): THE UNINSTALLER ASKS KEEP OR DELETE (5.9.1's opt-in data
+; removal, built).  Keep leaves the account's files and sd.conf with a stamp and
+; removes the rest; a new install over that folder offers them back (see the
+; comments at CurStepChanged, PrepareToInstall and OfferDataRemoval).
+;
+; WHAT IS NOT HERE YET (SOLO 8 in PROJECT_STATUS.md): ruling 13's deletion
 ; of the gpl.bp source at the end of install, and dropping the multi-user
 ; scripts from stage.py's ship list (they are copied and never run).
 ;
@@ -251,9 +255,22 @@ var
     'open'; '' when not given or not one of those (then the Tasks page asks). }
   CfApi, CfSsh: String;
   AdminPage, GlobalPage, AccountPage: TInputQueryWizardPage;
+  { 06 Oct 26 - SOLO 37 (owner: removal and reinstall work the same on both
+    ports; the data stays in place).  The uninstaller's Keep leaves only the
+    account's files and sd.conf, with a stamp (.sdcore-kept).  A new install
+    over such a folder (KeptWasFound) offers them back; either answer moves the
+    old folder aside to KeptFolder ('' until then), and Yes then copies the
+    account's files and sd.conf into the new tree (solo-setup.ps1 -ReloadFrom).
+    CfReload is the control file's reload-data= ('yes', 'no' or ''). }
+  KeptWasFound: Boolean;
+  ReloadPage: TInputOptionWizardPage;
+  KeptFolder, CfReload: String;
 
 function SetEnvironmentVariable(lpName: String; lpValue: String): BOOL;
   external 'SetEnvironmentVariableW@kernel32.dll stdcall';
+
+function MoveFileW(lpExistingFileName: String; lpNewFileName: String): BOOL;
+  external 'MoveFileW@kernel32.dll stdcall';
 
 { RELEASE_1.1 110 (sd.iss UseWindowsPowerShellModules): a PowerShell 7
   PSModulePath breaks Windows PowerShell's own modules in every child. }
@@ -449,6 +466,16 @@ begin
     CfSsh := '';
   end;
   Log('SD Core Solo: control file api "' + CfApi + '" ssh "' + CfSsh + '"');
+  { SOLO 37: reload-data= answers the saved-data question: yes or no.  It does nothing where there is no
+    kept data, so one file can say it for every computer.  Anything else is not an answer. }
+  CfReload := Lowercase(Trim(GetIniString('install', 'reload-data', '', F)));
+  if (CfReload <> 'yes') and (CfReload <> 'no') then
+  begin
+    if CfReload <> '' then
+      Log('SD Core Solo: control file reload-data "' + CfReload + '" is not yes or no - ignored');
+    CfReload := '';
+  end;
+  Log('SD Core Solo: control file reload-data "' + CfReload + '"');
   { 28 Sep 26 - ruling 34: verbs denied to the local user.  Not a secret, so
     logged whole; DENY.VERBS (run by solo-setup) checks each name. }
   CfDeny := Trim(GetIniString('install', 'deny-verbs', '', F));
@@ -490,6 +517,11 @@ begin
     Exit;
   end;
   GlobalWasFound := FileExists(SoloRoot + '\sdsys\$cred\$GLOBAL');
+  { SOLO 37: kept data is what the uninstaller's Keep leaves - no sdsys, its stamp, and the account.  A tree
+    that still has sdsys (an earlier release's uninstall, or one copied from another Windows user) is NOT
+    kept data: it is reinstalled over as before. }
+  KeptWasFound := DataTreeWasAbsent and FileExists(SoloRoot + '\.sdcore-kept') and
+                  DirExists(SoloRoot + '\user_accounts\sduser');
   LoadControlFile;
   PythonWasFound := PythonInHive(HKCU) or PythonInHive(HKLM64) or PythonInHive(HKLM32);
   Log('SD Core Solo: beside the installer: msi="' + SshMsiPath + '" python="' +
@@ -497,7 +529,8 @@ begin
   Log('SD Core Solo: data tree absent=' + IntToStr(Ord(DataTreeWasAbsent)) +
       ' installed=' + IntToStr(Ord(SoloWasInstalled)) +
       ' sshd=' + IntToStr(Ord(SshServerWasFound)) +
-      ' global=' + IntToStr(Ord(GlobalWasFound)));
+      ' global=' + IntToStr(Ord(GlobalWasFound)) +
+      ' keptdata=' + IntToStr(Ord(KeptWasFound)));
   Result := True;
 end;
 
@@ -509,6 +542,16 @@ end;
 function DataTreeUpgrade: Boolean;
 begin
   Result := not DataTreeWasAbsent;
+end;
+
+{ 06 Oct 26 - SOLO 37.  Kept data is a folder the uninstaller's Keep left: no
+  sdsys (so the install is a NEW tree, every password asked), the stamp, and the
+  account.  Yes reloads it, No starts clean; both move the old folder aside, so
+  nothing is ever deleted.  The answer is read from the page, so going Back and
+  changing it works. }
+function ReloadChosen: Boolean;
+begin
+  Result := KeptWasFound and (ReloadPage.SelectedValueIndex = 0);
 end;
 
 function SshMsiOffered: Boolean;
@@ -554,7 +597,9 @@ end;
 { A computer is managed if and only if it has a global password (ruling 15).
   On a new tree that is whether the Global page holds one - a control file's
   accepted one is already in it; on an existing tree, the tree's own $GLOBAL.
-  SOLO 36: there is no Mode page. }
+  SOLO 36: there is no Mode page.  SOLO 37: kept data has no $GLOBAL (the
+  uninstaller removes the passwords), so a reinstall over it is a new tree that
+  asks for one - the way to add one later, or to drop one. }
 function Managed: Boolean;
 begin
   if DataTreeWasAbsent then
@@ -620,8 +665,22 @@ begin
     25 Sep 26 - rulings 18 and 21: THE ACCOUNT PASSWORD.  Every session asks
     for it - local, ssh, API and one-shot - so it is asked on every new tree,
     whether or not the API box is ticked (it was the API password, after the
-    tasks page, until the owner made it global). }
-  AccountPage := CreateInputQueryPage(wpWelcome, 'Account password',
+    tasks page, until the owner made it global).
+
+    06 Oct 26 - SOLO 37: THE FIRST PAGE AFTER THE WELCOME is the reload
+    question, shown only when the folder holds kept data (the same words as SD
+    Core for Linux Solo).  Yes is the default.  Either answer moves the old
+    folder aside, never deleting it; the passwords are asked either way. }
+  ReloadPage := CreateInputOptionPage(wpWelcome, 'Saved data', 'Saved data was found: ' + SoloRoot,
+    'Reload your saved data and configuration into this new install?', True, False);
+  ReloadPage.Add('Yes - reload them');
+  ReloadPage.Add('No - start clean; the saved data is moved aside, not deleted');
+  ReloadPage.SelectedValueIndex := 0;
+  { reload-data= in the control file answers it. }
+  if UseControl and (CfReload = 'no') then
+    ReloadPage.SelectedValueIndex := 1;
+
+  AccountPage := CreateInputQueryPage(ReloadPage.ID, 'Account password',
     'SD Core Solo for Windows asks for this password whenever it is used.', '');
   AccountPage.Add('Password:', True);
   AccountPage.Add('Confirm password:', True);
@@ -659,7 +718,12 @@ end;
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := False;
-  if PageID = AdminPage.ID then
+  { SOLO 37: asked only where kept data was found, and not when the control file
+    answers it (reload-data=) or answers everything else too (an unattended
+    install, where "no answer" means yes, as on Linux). }
+  if PageID = ReloadPage.ID then
+    Result := (not KeptWasFound) or (UseControl and ((CfReload <> '') or (CfAdminOk and CfGlobalOk)))
+  else if PageID = AdminPage.ID then
     Result := (not DataTreeWasAbsent) or (UseControl and CfAdminOk)
   { SOLO 36: the global password is asked on every new tree.  A control file
     settles it when it gives an accepted one or none at all (blank or absent);
@@ -694,6 +758,17 @@ begin
   if (CurPageID = wpFinished) and UseControl and (CfGlobal = '') then
     WizardForm.FinishedLabel.Caption := WizardForm.FinishedLabel.Caption + #13#10#13#10 +
       'The control file gives no global password, so this computer will NOT be managed by an SD Core server.';
+  { SOLO 37: where the old folder went.  It stays until the user deletes it. }
+  if (CurPageID = wpFinished) and (KeptFolder <> '') then
+  begin
+    if ReloadChosen then
+      WizardForm.FinishedLabel.Caption := WizardForm.FinishedLabel.Caption + #13#10#13#10 +
+        'Your saved data and configuration were reloaded. The previous folder is kept as ' + KeptFolder +
+        '; delete it when you are satisfied.'
+    else
+      WizardForm.FinishedLabel.Caption := WizardForm.FinishedLabel.Caption + #13#10#13#10 +
+        'Your saved data was moved to ' + KeptFolder + '. Nothing was deleted.';
+  end;
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
@@ -748,6 +823,29 @@ begin
   begin
     Exec(SdExe, '-stop', SoloRoot + '\usr\bin', SW_HIDE, ewWaitUntilTerminated, Code);
     Log('SD Core Solo: sd -stop before copying, exit ' + IntToStr(Code));
+  end;
+  { 06 Oct 26 - SOLO 37: kept data is moved aside, whichever way the user answered - "yes" copies what it
+    needs back from there (solo-setup.ps1 -ReloadFrom), "no" leaves it.  It is never deleted (the owner's
+    rule for every question here).  A move that fails stops the install before anything is written, with
+    the reason, rather than installing over the data. }
+  if KeptWasFound then
+  begin
+    KeptFolder := SoloRoot + '.kept-' + GetDateTimeString('yyyymmdd-hhnnss', '-', ':');
+    if DirExists(KeptFolder) or FileExists(KeptFolder) then
+    begin
+      Result := 'Cannot set the saved data aside: ' + KeptFolder + ' already exists.';
+      KeptFolder := '';
+      Exit;
+    end;
+    if not MoveFileW(SoloRoot, KeptFolder) then
+    begin
+      Result := 'Cannot set the saved data aside: ' + SoloRoot + ' could not be moved to ' + KeptFolder +
+                ' (error ' + IntToStr(DLLGetLastError) + '). Close anything using it and run the installer again.';
+      Log('SD Core Solo: ' + Result);
+      KeptFolder := '';
+      Exit;
+    end;
+    Log('SD Core Solo: saved data moved to ' + KeptFolder);
   end;
 end;
 
@@ -868,6 +966,14 @@ begin
   else
     S := S + ' (no global password: this computer is NOT managed by an SD Core server)';
   S := S + #13#10;
+  { SOLO 37: what happened to kept data - the answer, and where the old folder is. }
+  if KeptFolder <> '' then
+  begin
+    if ReloadChosen then
+      S := S + 'saved data     : RELOAD - the kept data and sd.conf go into the new tree; the old folder is ' + KeptFolder + #13#10
+    else
+      S := S + 'saved data     : START CLEAN - the kept data was moved to ' + KeptFolder + ', not reloaded' + #13#10;
+  end;
   if SoloWasInstalled then
     S := S + 'api and ssh    : not asked on an upgrade; the install keeps what it has' + #13#10
   else
@@ -923,6 +1029,9 @@ begin
   if DataTreeWasAbsent then
   begin
     Params := Params + ' -Passwords';
+    { SOLO 37: reload the kept data (moved aside by PrepareToInstall) into this new tree. }
+    if ReloadChosen and (KeptFolder <> '') then
+      Params := Params + ' -ReloadFrom "' + KeptFolder + '"';
     SetEnvironmentVariable('SD_SOLO_ADMIN_PW', AdminPage.Values[0]);
     if Managed then
     begin
@@ -1012,10 +1121,130 @@ begin
   Result := True;
 end;
 
+{ 06 Oct 26 - SOLO 37 (owner: uninstall asks about keeping the data AND the
+  configuration, and removal and reinstall work the same on both ports - SD Core
+  for Linux Solo's way).  PROJECT_STATUS 5.9.1's rule, built here for the first
+  time: the default keeps the user's data, the question names what Delete
+  destroys and where, and a SILENT uninstall never deletes it.  KEEP leaves the
+  account's files and sd.conf in place and removes everything else - the
+  passwords, the audit trail, the deny list, GLOBAL.BP.OUT, the TLS key, the ssh
+  pieces - with a stamp (.sdcore-kept) so a new install can tell kept data from
+  any other folder.  DELETE removes the whole folder.  Keep and Delete are command
+  links, Keep first so it is the focused one (the multi-user sd.iss KeepOrDelete
+  measured that Escape does nothing and that the order is forced by focus
+  following Labels[0]).  It returns "the user chose Delete". }
+function KeepOrDelete(const Instruction, Text: String): Boolean;
+var
+  Labels: TArrayOfString;
+begin
+  SetArrayLength(Labels, 2);
+  Labels[0] := 'Keep';
+  Labels[1] := 'Delete';
+  Result := TaskDialogMsgBox(Instruction, Text, mbConfirmation, MB_YESNO, Labels, 0) = IDNO;
+end;
+
+{ Everything inside Root except the uninstaller's own files (unins*, which Setup
+  removes after this returns) and the names in KeepDirs and KeepFiles (each is
+  '|name|name|', lower case).  A reparse point (a junction, a symbolic link) is
+  never followed and never deleted: it makes the result False. }
+function RemoveFolderContents(const Root, KeepDirs, KeepFiles: String): Boolean;
+var
+  FR: TFindRec;
+  Full, Tag: String;
+  IsDirectory, Keep: Boolean;
+begin
+  Result := True;
+  if FindFirst(AddBackslash(Root) + '*', FR) then
+  begin
+    try
+      repeat
+        if (FR.Name <> '.') and (FR.Name <> '..') then
+        begin
+          Full := AddBackslash(Root) + FR.Name;
+          IsDirectory := (FR.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0;
+          Tag := '|' + Lowercase(FR.Name) + '|';
+          if IsDirectory then
+            Keep := Pos(Tag, KeepDirs) > 0
+          else
+            Keep := (Pos(Tag, KeepFiles) > 0) or (CompareText(Copy(FR.Name, 1, 5), 'unins') = 0);
+          if not Keep then
+          begin
+            if (FR.Attributes and $400) <> 0 then
+              Result := False
+            else if IsDirectory then
+            begin
+              if not DelTree(Full, True, True, True) then
+                Result := False;
+            end
+            else if not DeleteFile(Full) then
+              Result := False;
+          end;
+        end;
+      until not FindNext(FR);
+    finally
+      FindClose(FR);
+    end;
+  end;
+end;
+
+{ KEEP: the account's files and sd.conf stay; everything else goes; the stamp is
+  written last, and only when there is an account to keep. }
+function KeepDataOnly(const Root: String): Boolean;
+begin
+  Result := RemoveFolderContents(Root, '|user_accounts|', '|sd.conf|.sdcore-kept|');
+  if DirExists(Root + '\user_accounts') then
+    if not RemoveFolderContents(Root + '\user_accounts', '|sduser|', '|') then
+      Result := False;
+  if DirExists(Root + '\user_accounts\sduser') then
+    SaveStringToFile(Root + '\.sdcore-kept',
+      'SD Core Solo for Windows {#AppVer} - kept data' + #13#10 +
+      'kept ' + GetDateTimeString('yyyy-mm-dd hh:nn:ss', '-', ':') + #13#10, False);
+end;
+
+procedure OfferDataRemoval;
+var
+  Root: String;
+  ChoseDelete: Boolean;
+begin
+  Root := ExpandConstant('{app}');
+  { A SILENT UNINSTALL NEVER DELETES THE USER'S DATA: there is nobody to answer, so it is Keep.  Written
+    as two statements, not "UninstallSilent or not KeepOrDelete(...)": Pascal Script does not promise to
+    skip the right-hand side, and a dialog in a silent uninstall is the failure this exists to prevent. }
+  ChoseDelete := False;
+  if not UninstallSilent then
+    ChoseDelete := KeepOrDelete('Keep or delete your SD Core Solo data and configuration?',
+      Root + #13#10#13#10 +
+      'Keep leaves your account sduser, its data and sd.conf in this folder, and a new installation ' +
+      'offers them back. Everything else in the folder is removed, the passwords included.' + #13#10#13#10 +
+      'Delete removes the whole folder, for good.');
+  if not ChoseDelete then
+  begin
+    if KeepDataOnly(Root) then
+    begin
+      Log('SD Core Solo: the account and sd.conf are kept in ' + Root);
+      if not UninstallSilent then
+        MsgBox('Your account and sd.conf were kept in ' + Root + '.' + #13#10#13#10 +
+               'A new installation offers them back. Deleting the folder removes them for good.',
+               mbInformation, MB_OK);
+    end
+    else
+      MsgBox('Some of ' + Root + ' could not be removed. The account and sd.conf were left in place.',
+             mbError, MB_OK);
+    Exit;
+  end;
+  if RemoveFolderContents(Root, '|', '|') then
+    MsgBox('Your SD Core Solo data and configuration were deleted from ' + Root + '.', mbInformation, MB_OK)
+  else
+    MsgBox('Some of ' + Root + ' could not be deleted. Delete the folder yourself.', mbError, MB_OK);
+end;
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   Code: Integer;
 begin
+  { After Setup has removed what it installed, so what is left is the data. }
+  if CurUninstallStep = usPostUninstall then
+    OfferDataRemoval;
   if CurUninstallStep = usUninstall then
   begin
     Exec(ExpandConstant('{app}\usr\bin\sd-solo.exe'), '-stop', ExpandConstant('{app}\usr\bin'),

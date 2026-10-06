@@ -2,7 +2,7 @@
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -File solo-setup.ps1
 #       -AppDir <install dir> -User <windows user name> -Report <file>
-#       [-Passwords] [-Global] [-Upgrade]
+#       [-Passwords] [-Global] [-Upgrade] [-ReloadFrom <dir>]
 #
 # Run by sd-solo.iss at ssPostInstall, as the user, NOT elevated.  Exit 0 every
 # step passed, 1 a step failed, 2 refused before doing anything.
@@ -12,6 +12,9 @@
 #                  sessions printed "SD has not been started" without it).
 #   2. sd -internal RUN gpl.bp solo_account    the account sduser (ruling 29)
 #   3. -Passwords: solo_password ADMIN, and with -Global also GLOBAL  (SOLO 5)
+#      -ReloadFrom <dir> (SOLO 37, the user chose to reload kept data): the kept account's files are copied
+#      into the new account, the kept sd.conf is tried (the default is put back if SD refuses it), and the
+#      account's VOC is refreshed
 #   4. -Upgrade: the dictionaries (SOLO 9, replacing upgrade-dicts.ps1) -
 #      {app}\gplbld\FILES_DICTS placed at sdsys\gplbld, sd -internal RUN gpl.bp
 #      WRITE_INSTALL_DICTS NO.PAGE (merges; every shipped record must be
@@ -57,7 +60,11 @@ param(
     [string]$Report = '',
     [switch]$Passwords,
     [switch]$Global,
-    [switch]$Upgrade
+    [switch]$Upgrade,
+    # 06 Oct 26 - SOLO 37: the folder the installer moved the user's kept data to ("<tree>.kept-<time>").
+    # On a NEW tree (-Passwords) it makes this run copy the kept account's files into the new account,
+    # try the kept sd.conf, and refresh the account's VOC.  Never combined with -Upgrade.
+    [string]$ReloadFrom = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -94,6 +101,7 @@ Note ('sd-solo.exe  : ' + $sdexe + '   exists: ' + (Test-Path -LiteralPath $sdex
 Note ('user         : ' + $User + '   (the Windows user; the SD account is sduser, ruling 29)')
 Note ('passwords    : ' + $(if ($Passwords) { 'ADMIN' + $(if ($Global) { ' and GLOBAL' } else { '' }) } else { 'not set by this run' }))
 Note ('upgrade      : ' + $(if ($Upgrade) { 'UPDATE.ACCOUNTS ALL will run' } else { 'not requested' }))
+Note ('reload from  : ' + $(if ($ReloadFrom) { $ReloadFrom + '   exists: ' + (Test-Path -LiteralPath $ReloadFrom) } else { 'not requested' }))
 Note ('admin pw     : ' + $(if ($adminPw) { 'given (' + $adminPw.Length + ' characters)' } else { 'NOT given' }))
 Note ('global pw    : ' + $(if ($globalPw) { 'given (' + $globalPw.Length + ' characters)' } else { 'NOT given' }))
 Note ('account pw   : ' + $(if ($accountPw) { 'given (' + $accountPw.Length + ' characters)' } else { 'NOT given' }))
@@ -107,6 +115,10 @@ if (-not $User) { $refuse += 'no user name' }
 if ($Passwords -and -not $adminPw) { $refuse += '-Passwords without an administrator password' }
 if ($Global -and -not $Passwords) { $refuse += '-Global without -Passwords' }
 if ($Global -and -not $globalPw) { $refuse += '-Global without a global password' }
+# SOLO 37: a reload goes into a NEW tree, from a folder that holds the kept account.
+if ($ReloadFrom -and -not $Passwords) { $refuse += '-ReloadFrom without -Passwords (it is for a new tree)' }
+if ($ReloadFrom -and $Upgrade) { $refuse += '-ReloadFrom with -Upgrade (an upgrade already keeps its data)' }
+if ($ReloadFrom -and -not (Test-Path -LiteralPath (Join-Path $ReloadFrom 'user_accounts\sduser'))) { $refuse += ('-ReloadFrom ' + $ReloadFrom + ' holds no user_accounts\sduser') }
 # It reaches sd's command line through cmd.exe, so only verb-name characters,
 # commas and spaces - nothing cmd could read as & | < > ^ or a quote.
 if ($denyVerbs -and ($denyVerbs -notmatch '^[A-Za-z0-9.$_, -]+$')) { $refuse += 'deny-verbs holds a character that cannot be in a verb name' }
@@ -264,6 +276,84 @@ try {
         }
     }
 
+    # 06 Oct 26 - SOLO 37 (owner: removal and reinstall work the same on both ports).  THE RELOAD: the new tree
+    # was just made, with a new account, its passwords and the default sd.conf; the user's kept data is in
+    # $ReloadFrom, moved aside by the installer.  Three steps, each printing what it did - counts before and after,
+    # never just a verdict - and a failure of any is a failed install, not a quiet skip:
+    #   1. SD is stopped and the new account's files are REPLACED, whole, by the kept account's (the new account
+    #      was made a moment ago, so nothing in it is the user's).
+    #   2. The kept sd.conf is tried: put in place, SD started, one session run.  If SD does not accept it (a line the
+    #      new release no longer knows, STARTUP= for one) the default is put back and the report says so; the kept
+    #      copy in $ReloadFrom is never touched, so it can be corrected and loaded by hand.
+    #   3. UPDATE.ACCOUNTS ALL below refreshes the account's VOC, because the kept account may be from an older release.
+    if ($ReloadFrom) {
+        Note ''
+        Note ('--- reload: ' + $ReloadFrom)
+        [void](Invoke-Sd '-stop' '')
+        $keptAcct = Join-Path $ReloadFrom 'user_accounts\sduser'
+        $newAcct = Join-Path $AppDir 'user_accounts\sduser'
+        $keptFiles = @(Get-ChildItem -LiteralPath $keptAcct -Recurse -Force -File -ErrorAction SilentlyContinue)
+        $keptBytes = ($keptFiles | Measure-Object -Property Length -Sum).Sum
+        Note ('  kept account : ' + $keptAcct + '   ' + $keptFiles.Count + ' file(s), ' + [int64]$keptBytes + ' bytes')
+        if (-not (Test-Path -LiteralPath $newAcct)) {
+            Note ('  FAIL  the new account folder is missing: ' + $newAcct)
+            $script:fails += 'reload: account folder'
+        }
+        else {
+            $before = @(Get-ChildItem -LiteralPath $newAcct -Recurse -Force -File -ErrorAction SilentlyContinue).Count
+            Note ('  new account  : ' + $newAcct + '   ' + $before + ' file(s) before')
+            try {
+                Get-ChildItem -LiteralPath $newAcct -Force | Remove-Item -Recurse -Force
+                Get-ChildItem -LiteralPath $keptAcct -Force | Copy-Item -Destination $newAcct -Recurse -Force
+                $afterFiles = @(Get-ChildItem -LiteralPath $newAcct -Recurse -Force -File -ErrorAction SilentlyContinue)
+                $afterBytes = ($afterFiles | Measure-Object -Property Length -Sum).Sum
+                Note ('  after        : ' + $afterFiles.Count + ' file(s), ' + [int64]$afterBytes + ' bytes')
+                if ($afterFiles.Count -eq $keptFiles.Count -and [int64]$afterBytes -eq [int64]$keptBytes -and $keptFiles.Count -gt 0) {
+                    Note '  PASS  reloaded: your saved data (the account''s files copied from the kept folder)'
+                }
+                else {
+                    Note '  FAIL  the new account does not hold what the kept account held'
+                    $script:fails += 'reload: account files'
+                }
+            }
+            catch {
+                Note ('  FAIL  copying the kept account failed: ' + $_.Exception.Message)
+                $script:fails += 'reload: account files'
+            }
+        }
+
+        $keptConf = Join-Path $ReloadFrom 'sd.conf'
+        $conf = Join-Path $AppDir 'sd.conf'
+        $defaultConf = Join-Path $work 'sd.conf.default'
+        if (-not (Test-Path -LiteralPath $keptConf)) {
+            Note '  configuration: none was saved (no sd.conf in the kept folder), the default was kept'
+            [void](Invoke-Sd '-start' '')
+        }
+        elseif (-not (Test-Path -LiteralPath $conf)) {
+            Note ('  FAIL  there is no default sd.conf to put back at ' + $conf)
+            $script:fails += 'reload: sd.conf'
+            [void](Invoke-Sd '-start' '')
+        }
+        else {
+            Copy-Item -LiteralPath $conf -Destination $defaultConf -Force
+            Copy-Item -LiteralPath $keptConf -Destination $conf -Force
+            [void](Invoke-Sd '-start' '')
+            $t = Invoke-Sd '-internal RUN gpl.bp solo_account' ''
+            $accepted = $t -match ('(?m)^SOLO ACCOUNT READY ' + [regex]::Escape($acct) + ' \S')
+            if ($accepted) {
+                Note '  PASS  configuration: reloaded (SD started on the kept sd.conf and ran a session)'
+            }
+            else {
+                $reason = (($t -split "`n") | Where-Object { $_.Trim() } | Select-Object -First 1)
+                [void](Invoke-Sd '-stop' '')
+                Copy-Item -LiteralPath $defaultConf -Destination $conf -Force
+                [void](Invoke-Sd '-start' '')
+                Note ('  configuration: NOT accepted by SD, the default was kept (' + $reason + ')')
+                Note ('  the kept copy is untouched: ' + $keptConf)
+            }
+        }
+    }
+
     # 28 Sep 26 - RULING 34: the verbs denied to the local user, from the
     # control file, on a new tree only (sd-solo.iss passes none otherwise).
     # DENY.VERBS SET normalises each name and drops ADMIN/OFF/QUIT/LO; a name
@@ -320,6 +410,12 @@ try {
         # pass on a tree that this script just confirmed has an account in it.
         $t = Invoke-Sd '-internal UPDATE.ACCOUNTS ALL' ''
         Judge 'accounts VOC refreshed' $t '(?m)^[1-9]\d* account\(s\) had their VOC updated'
+    }
+    elseif ($ReloadFrom) {
+        # SOLO 37: the reloaded account's VOC predates this release's templates, as after an upgrade.  The walk
+        # counts every account it WRITES, so the one account gives 1 and the anchor is the same as above.
+        $t = Invoke-Sd '-internal UPDATE.ACCOUNTS ALL' ''
+        Judge 'reloaded account VOC refreshed' $t '(?m)^[1-9]\d* account\(s\) had their VOC updated'
     }
 
     # 28 Sep 26 - RULING 26: NO SYSTEM BASIC SOURCE IN THE INSTALLED TREE.  The

@@ -69,6 +69,19 @@ api=
 
 ssh=
 
+# reload-data
+#   Only where the folder %USERPROFILE%\SDCoreSolo holds data kept by an
+#   earlier uninstall (the account sduser and sd.conf, with a .sdcore-kept
+#   stamp).  yes = reload it into the new installation; no = start clean, and
+#   the kept data is moved aside to SDCoreSolo.kept-<date and time>, never
+#   deleted.  Blank: the installer asks, or - when this file answers everything
+#   else too - reloads.  Where nothing is kept the line does nothing, so one
+#   file can say it for every computer.  The passwords are never in the kept
+#   data: they are asked (or read from this file) either way.
+#reload-data=yes
+
+reload-data=
+
 # deny-verbs
 #   Commands the user of this computer may not run.  A comma-separated list
 #   of verb names; each then needs the administrator or global password
