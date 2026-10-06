@@ -477,8 +477,30 @@ function Register-SshTask {
         if ($f.Count -ge 3 -and $f[1] -eq 'ssh-ed25519') { $seen = $f[2] }
     }
     $disk = ((Get-Content -LiteralPath $pubFile -Raw).Trim() -split '\s+')
-    if ($seen -ne '' -and $disk.Count -ge 2 -and $seen -eq $disk[1]) { Note '  PASS  the host key ssh-keyscan reads on 127.0.0.1:4251 is the one in the machine ssh folder' }
-    else { Fail ('the host key served on port ' + $SshPort + ' is not Solo''s (ssh-keyscan read "' + $seen + '")') }
+    if ($seen -ne '' -and $disk.Count -ge 2 -and $seen -eq $disk[1]) { Note '  PASS  the host key ssh-keyscan reads on 127.0.0.1:4251 is the one in the machine ssh folder'; return }
+    # 05 Oct 26 (SOLO 31) - A KEYSCAN THAT CANNOT NEGOTIATE MEASURED NOTHING, AND NOTHING IS WHAT IT READ.  Found on
+    # a fresh Windows 11 clone: the inbox System32 ssh-keyscan (OpenSSH_9.5p2) cannot talk to the 10.0 server this
+    # installer installs - "choose_kex: unsupported KEX method sntrup761x25519-sha512@openssh.com", exit 1, no
+    # output - so every install on a stock Windows 11 reported "startup task, firewall and ssh did not complete"
+    # with the task running, the rule made and the port listening.  That is a check that could not run, so it must
+    # not FAIL the install.  What the host key was there to prove - that the thing answering on the port is
+    # Solo's sshd - is measured directly instead: the process that owns the listening socket is one of the
+    # sshd.exe processes already found above (their command line names Solo's config, owner SYSTEM).  ANY OTHER
+    # empty read still fails: only a key-exchange refusal, which the stderr names, takes this path.
+    $errText = ((Get-Content -LiteralPath $ke -ErrorAction SilentlyContinue) -join ' ')
+    if ($seen -eq '' -and $errText -match 'choose_kex|unsupported KEX') {
+        $owners = @(Get-NetTCPConnection -State Listen -LocalPort $SshPort -ErrorAction SilentlyContinue | ForEach-Object { $_.OwningProcess } | Sort-Object -Unique)
+        $mineIds = @($mine | ForEach-Object { [int]$_.ProcessId })
+        $foreign = @($owners | Where-Object { $mineIds -notcontains [int]$_ })
+        Note ('  host key NOT compared: this ssh-keyscan cannot negotiate with this sshd (' + $errText.Trim() + ')')
+        if ($owners.Count -gt 0 -and $foreign.Count -eq 0) {
+            Note ('  PASS  every process listening on ' + $SshPort + ' is Solo''s sshd (pid ' + ($owners -join ', ') + ')')
+            return
+        }
+        Fail ('port ' + $SshPort + ' is held by pid ' + ($foreign -join ', ') + ', which is not Solo''s sshd (listeners found: ' + $owners.Count + ')')
+        return
+    }
+    Fail ('the host key served on port ' + $SshPort + ' is not Solo''s (ssh-keyscan read "' + $seen + '")')
 }
 
 function Remove-SshTask {
