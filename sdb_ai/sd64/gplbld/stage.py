@@ -1436,6 +1436,14 @@ def main():
                    # it is watched by assert-current like the rest of these -
                    # do NOT add it to that script's $neverShipped list.
                    'api-firewall.ps1',
+                   # 07 Oct 26 - SOLO 33, the owner's choice of option 1.  Turns the
+                   # API listener (APIPORT in sd.conf) on or off.  The installer's
+                   # unelevated step starts SD with the listener OFF so Windows shows
+                   # no firewall alert; solo-machine.ps1, elevated, switches it ON
+                   # after the firewall rule exists and before the startup task
+                   # starts SD.  Not the multi-user api-listener.ps1, which is
+                   # retired here (PF_RETIRED) with the remote.api verb it served.
+                   'solo-api-listener.ps1',
                    # 31 Aug 26 - sd-path.ps1, PRE_RELEASE_FIXES 89 and the
                    # owner's ruling of the same day.  An upgrade is to skip the
                    # tasks page and fire none of its actions, which left the

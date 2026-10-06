@@ -337,6 +337,15 @@ try {
         else {
             Copy-Item -LiteralPath $conf -Destination $defaultConf -Force
             Copy-Item -LiteralPath $keptConf -Destination $conf -Force
+            # SOLO 33: THE KEPT sd.conf MAY CARRY AN ACTIVE APIPORT, and this unelevated step starts SD before the
+            # firewall rule exists - the alert the installer was changed to avoid.  So the API line is switched OFF in
+            # the copy being tried; the elevated step switches it ON afterwards only if the API box was ticked.
+            $lp = Join-Path $AppDir 'solo-api-listener.ps1'
+            $lo = & (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') -NoProfile -ExecutionPolicy Bypass -File $lp -Off -ConfPath $conf 2>&1
+            $lcode = $LASTEXITCODE
+            foreach ($x in @($lo)) { Note ('  | ' + $x) }
+            Note ('  solo-api-listener.ps1 -Off exit ' + $lcode)
+            if ($lcode -ne 0) { Note '  FAIL  the kept sd.conf could not be made listener-free'; $script:fails += 'reload: sd.conf API line' }
             [void](Invoke-Sd '-start' '')
             $t = Invoke-Sd '-internal RUN gpl.bp solo_account' ''
             $accepted = $t -match ('(?m)^SOLO ACCOUNT READY ' + [regex]::Escape($acct) + ' \S')

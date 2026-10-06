@@ -210,13 +210,18 @@ Source: "{#Stage}\SDCoreSolo\*"; DestDir: "{app}"; \
 Source: "{#Stage}\SDCoreSolo\sdsys\*"; DestDir: "{app}\sdsys"; \
     Flags: recursesubdirs createallsubdirs uninsneveruninstall; Check: DataTreeAbsent
 
-; sd.conf: with APIPORT when the API box is ticked, without it (no listener)
-; when it is not - sd.iss's rule, stage.py derives the second from the first.
+; sd.conf: ALWAYS the one with APIPORT commented out (no listener).  7 Oct 26 - SOLO 33,
+; the owner's choice of option 1.  It used to be the APIPORT variant when the API box was
+; ticked, and then the unelevated solo-setup.ps1 step started SD with the listener on, in
+; the user's session, BEFORE any firewall rule existed: Windows showed its "allow this app?"
+; alert behind the consent prompt, and an Allow left two sdwind.exe rules open to every
+; address on Public.  Now that first start listens on nothing; solo-machine.ps1 (elevated)
+; makes the API firewall rule and then runs solo-api-listener.ps1 -On, and only then
+; starts the startup task, whose SD runs in session 0 and cannot show an alert.  So the API
+; box decides the listener through solo-machine.ps1, not through which file is copied here.
 ; Never overwritten, never uninstalled.
-Source: "{#Stage}\SDCoreSolo\sd.conf"; DestDir: "{app}"; \
-    Flags: onlyifdoesntexist uninsneveruninstall; Check: ApiWanted
 Source: "{#Stage}\SDCoreSolo\sd-standalone.conf"; DestDir: "{app}"; DestName: "sd.conf"; \
-    Flags: onlyifdoesntexist uninsneveruninstall; Check: not ApiWanted
+    Flags: onlyifdoesntexist uninsneveruninstall
 
 #include AddBackslash(Stage) + "upgrade.iss"
 
@@ -1214,8 +1219,10 @@ begin
   if not UninstallSilent then
     ChoseDelete := KeepOrDelete('Keep or delete your SD Core Solo data and configuration?',
       Root + #13#10#13#10 +
-      'Keep leaves your account sduser, its data and sd.conf in this folder, and a new installation ' +
-      'offers them back. Everything else in the folder is removed, the passwords included.' + #13#10#13#10 +
+      'Keep leaves your account sduser with its data, and sd.conf, in this folder. A new installation ' +
+      'offers them back.' + #13#10#13#10 +
+      'Keep removes these: every password, the audit trail, the list of denied commands, GLOBAL.BP.OUT, ' +
+      'the API''s TLS key, your ssh key file, the system files and the install logs.' + #13#10#13#10 +
       'Delete removes the whole folder, for good.');
   if not ChoseDelete then
   begin

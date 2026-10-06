@@ -118,6 +118,7 @@ $script:failedSteps = New-Object System.Collections.ArrayList
 function Get-SectionLabel([string]$heading) {
     if ($heading -like '--- startup task*')           { return 'startup task' }
     if ($heading -like '--- API firewall*')           { return 'API firewall rule' }
+    if ($heading -like '--- API listener*')           { return 'API listener' }
     if ($heading -like '--- OpenSSH server*')         { return 'ssh server install' }
     if ($heading -like '--- the old ssh route*')      { return 'ssh' }
     if ($heading -like '--- ssh:*')                   { return 'ssh' }
@@ -542,9 +543,17 @@ function Remove-SshTask {
 }
 
 try {
-    Note ''
-    Note '--- startup task'
-    if ($Action -eq 'Remove') { Remove-SoloTask } else { Register-SoloTask }
+    # 07 Oct 26 - SOLO 33, THE OWNER'S CHOICE OF OPTION 1: THE ORDER IS THE FIX.  On Install and Upgrade the firewall
+    # rule, and on Install the listener switch, come BEFORE the startup task.  Windows shows its "allow this app?"
+    # alert the first time a program listens with no rule - measured on 6 and 7 Oct 2026 in fresh guests - and the
+    # first listening start used to be solo-setup.ps1's unelevated "sd -start" in the user's session.  That start now
+    # listens on nothing (sd.conf ships with APIPORT commented out), and the only start that listens is this
+    # task's, in session 0, which cannot show an alert, with the rule already made.  A REMOVE keeps its old order.
+    if ($Action -eq 'Remove') {
+        Note ''
+        Note '--- startup task'
+        Remove-SoloTask
+    }
 
     if ($Action -ne 'Upgrade') {
         Note ''
@@ -566,6 +575,36 @@ try {
         Note '--- API firewall rule port'
         $c = Invoke-Shipped 'api-firewall.ps1' @('-Retarget')
         if ($c -ne 0) { Fail ('api-firewall.ps1 -Retarget exited ' + $c) }
+    }
+
+    # The listener follows the API box, on an install: ON after the rule above exists, OFF when the box is
+    # unticked (which also cleans a kept sd.conf that still carries an APIPORT line).  An upgrade keeps sd.conf.
+    if ($Action -eq 'Install') {
+        Note ''
+        Note '--- API listener switch'
+        $c = Invoke-Shipped 'solo-api-listener.ps1' @($(if ($Api) { '-On' } else { '-Off' }))
+        if ($c -ne 0) { Fail ('solo-api-listener.ps1 exited ' + $c) }
+    }
+
+    if ($Action -ne 'Remove') {
+        Note ''
+        Note '--- startup task'
+        Register-SoloTask
+        if ($Action -eq 'Install' -and $Api) {
+            Note ''
+            Note '--- API listener (running)'
+            $listen = @()
+            for ($k = 0; $k -lt 15 -and $listen.Count -eq 0; $k++) {
+                $listen = @(Get-NetTCPConnection -State Listen -LocalPort 4249 -ErrorAction SilentlyContinue)
+                if ($listen.Count -eq 0) { Start-Sleep -Seconds 1 }
+            }
+            foreach ($l in $listen) {
+                $pn = (Get-Process -Id $l.OwningProcess -ErrorAction SilentlyContinue).Name
+                Note ('  listener   : ' + $l.LocalAddress + ':4249  pid ' + $l.OwningProcess + '  ' + $pn)
+            }
+            if ($listen.Count -gt 0) { Note '  PASS  the API is listening on 4249 (SD started after the firewall rule and the listener switch)' }
+            else { Fail 'nothing is listening on port 4249 although the API was chosen' }
+        }
     }
 
     if ($Action -eq 'Install' -and $SshMsi) {

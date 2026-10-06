@@ -2,6 +2,30 @@ WS1.1-3 - in progress
 -------------
 Changes since WS1.1-2.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
 
+07 Oct 26  THE INSTALLER NO LONGER MAKES WINDOWS ASK "ALLOW THIS APP THROUGH
+           THE FIREWALL?" FOR SD.
+
+           During an install Windows Defender Firewall showed its own alert
+           for sdwind - behind the administrator consent prompt, and again
+           after it - even when "Let other computers reach it" was not
+           ticked.  Allowing it left two sdwind.exe rules that admit every
+           address on a Public network, which is wider than the box chose.
+           The cause was the installer's first start of SD, which opened the
+           API port before any firewall rule existed.
+           * That first start now opens no port: sd.conf is installed with
+             APIPORT commented out.
+           * The administrator step makes the API's firewall rule first, then
+             switches APIPORT on (solo-api-listener.ps1), then registers and
+             starts the startup task.  SD's listening start is therefore the
+             startup task's, which runs in session 0 and cannot show an alert,
+             with the rule already in place.
+           * The API box decides the listener: unticked, the installer
+             switches APIPORT off, even in a saved sd.conf that had it on.
+           * The report ends the step with a line that says the API is
+             listening on 4249, or fails the install.
+           Rules the old installers left are not removed; delete the two
+           sdwind.exe rules in Windows Defender Firewall if you see them.
+
 06 Oct 26  UNINSTALLING ASKS TO KEEP OR DELETE YOUR DATA AND CONFIGURATION,
            AND A NEW INSTALLATION OFFERS THEM BACK.
 
@@ -9,10 +33,10 @@ Changes since WS1.1-2.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
            %USERPROFILE%\SDCoreSolo and ask nothing, and a reinstall silently
            used it all again, passwords included.  Now it asks, Keep first:
            * Keep leaves your account sduser with its data, and sd.conf, in
-             the folder, with a small stamp file (.sdcore-kept).  Everything
-             else in the folder is removed: the passwords, the audit trail,
-             the list of denied commands, GLOBAL.BP.OUT, the API's TLS key,
-             Solo's ssh keys.
+             the folder, with a small stamp file (.sdcore-kept).  The dialog
+             lists what Keep removes: every password, the audit trail, the
+             list of denied commands, GLOBAL.BP.OUT, the API's TLS key, your
+             ssh key file, the system files and the install logs.
            * Delete removes the whole folder.
            * A silent uninstall never deletes; it keeps.
            A new installation over a folder that holds kept data asks "Reload
