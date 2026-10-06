@@ -255,7 +255,6 @@ bool bind_sysseg(bool create, char* errmsg) {
   sysseg->portmap_range = cfg->portmap_range;         /* PORTMAP */
   sysseg->api_port = cfg->api_port;                   /* APIPORT */
   strcpy((char*)(sysseg->sysdir), cfg->sysdir);       /* SDSYS */
-  strcpy((char*)(sysseg->startup), cfg->startup);     /* STARTUP */
 
   /* Create dynamically sized parts of segment */
 
@@ -891,23 +890,11 @@ bool start_sd() {
         }
       }
 
-      /* Run startup command, if defined */
-
-      if (sysseg->startup[0] != '\0') {
-    cpid = fork();
-    if (cpid == 0) { /* Child process */
-      for (i = 3; i < 1024; i++)
-        close(i);
-      daemon(1, 1);
-      /* converted to snprintf() -gwb 22Feb20 */
-      if (snprintf(path, MAX_PATHNAME_LEN + 1, "%s/bin/sd", sysseg->sysdir) >=
-          (MAX_PATHNAME_LEN + 1)) {
-        fprintf(stderr, "Overflowed file/pathname length in start_sd()!\n");
-        return FALSE;
-      } else
-        execl(path, path, "-aSDSYS", sysseg->startup, NULL);
-    }
-  }
+      /* 06 Oct 26 SD Core Solo - THE STARTUP COMMAND IS GONE (owner, the multi-user
+         RELEASE_1.1 119 / SOLO 26).  It exec'd "<sysdir>/bin/sd", a path that holds no
+         executable in an install, so a STARTUP= line never ran, and Solo has no SDSYS
+         to run it as.  An inert control is a defect, so the key is refused in
+         config.c with a message that says so.                                     */
 
   return TRUE;
 }
