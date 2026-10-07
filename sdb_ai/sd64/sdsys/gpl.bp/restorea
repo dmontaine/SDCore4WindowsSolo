@@ -3,6 +3,9 @@
 * Copyright (c) String Database
 *
 * START-HISTORY:
+* 06 Oct 26 SD Core Solo - parity audit J-3 (PAL-15): each account restored writes
+*              'RESTORE.ACCOUNT account=<name> archive=<zip file name>', the words
+*              SD Core for Linux and SD Core for Windows use.
 * 02 Oct 26 dm LINUX SOLO ONLY (owner, for BACKUP.ACCOUNT; applied here for symmetry): no
 *              name means sduser.  No longer byte-identical to the port.
 * 01 Oct 26 dm Written for S.50 (owner's request of 30 Sep 2026, rulings of
@@ -370,6 +373,13 @@ $include createacc.h
       gosub restore.one
       if one.ok then
          restored += 1
+* 06 Oct 26 SD Core Solo - parity audit J-3 (PAL-15): the restored account is on the
+*   audit trail with the archive's file name (not its directory), the same string
+*   on every port; the first line turns a Windows path's backslashes into @ds so the
+*   file name comes out the same as on Linux.
+         zip.leaf = change(zip.path, '\', @ds)
+         zip.leaf = field(zip.leaf, @ds, dcount(zip.leaf, @ds))
+         void kernel(K$AUDIT, 'RESTORE.ACCOUNT account=' : acc.name : ' archive=' : zip.leaf)
       end else
          failed += 1
          display sysmsg(13037, acc.name) ;* was not restored
