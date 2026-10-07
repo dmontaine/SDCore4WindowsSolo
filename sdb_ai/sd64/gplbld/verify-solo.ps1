@@ -372,6 +372,21 @@ function Printable([string]$s) {
     foreach ($c in $s.ToCharArray()) { if ([int]$c -lt 33 -or [int]$c -gt 126) { return $false } }
     return $true
 }
+# 06 Oct 26 - THE ACCOUNT HAS NO PASSWORD UNTIL SOMEONE SETS ONE.  An install from a control file never carries the
+# account password (the register then holds $ADMIN and $GLOBAL only, no record named for the account); a MANAGED tree
+# gets it at the first interactive sd-solo at the keyboard (login, set.first.password, SOLO 18), and an unmanaged tree
+# with no record is told to install again (message 12020).  The first message this script gave for it - "the account
+# password was refused ... mistyped, or login is broken" - named neither, and the owner was twice told his password
+# rule was the trouble (2 Oct 18:05 and 19:27, 6 Oct).  So it is asked BEFORE any password is requested, from the
+# register alone.  '' = go on; a register that cannot be read is not a reason to refuse here.
+function AccountPasswordRefusal([string]$CredDir, [string]$Acct, [bool]$Managed) {
+    if (-not (Test-Path -LiteralPath $CredDir)) { return '' }
+    if (Test-Path -LiteralPath (Join-Path $CredDir $Acct.ToUpper())) { return '' }
+    if ($Managed) {
+        return ('the account password has not been set: there is no ' + $Acct.ToUpper() + ' record in ' + $CredDir + '.  An install from a control file does not set it.  Run sd-solo once, at this computer''s keyboard (not over ssh), choose the account password when it asks, then run this again.')
+    }
+    return ('the account has no password: there is no ' + $Acct.ToUpper() + ' record in ' + $CredDir + ' and this tree is not managed, so nothing will ask for one.  Install again (cycle.ps1), and give the account password in the wizard.')
+}
 
 Add-Type -TypeDefinition @'
 using System;
@@ -443,6 +458,8 @@ if (-not (Test-Path -LiteralPath $SdExe)) { Refuse ('no sd.exe at ' + $SdExe + '
 if (-not $Acct) { Refuse 'no user name.' }
 if (-not (Test-Path -LiteralPath (Join-Path $Root ('user_accounts\' + $Acct)))) { Refuse ('no account folder user_accounts\' + $Acct + ' in the install.') }
 if ($winds.Count -eq 0) { Refuse 'no sdwind.exe from this tree is running.  Start it with its task: Start-ScheduledTask -TaskName "SD Core Solo"' }
+$acctWhy = AccountPasswordRefusal $CredDir $Acct $managed
+if ($acctWhy) { Refuse $acctWhy }
 
 Say ''
 Say '== assert-current'
