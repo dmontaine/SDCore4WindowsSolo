@@ -8,12 +8,12 @@
 # Exit 0 the file now says what was asked, 1 it could not be written or did not read back, 2 the
 # question could not be answered (no file, unreadable, nothing asked).
 #
-# WHY IT EXISTS (SOLO 33, owner's choice of option 1, 7 Oct 2026).  Windows shows its own "allow
+# WHY IT EXISTS (SOLO 33, owner's choice of option 1, 6 Oct 2026).  Windows shows its own "allow
 # this app through the firewall?" alert the first time a program LISTENS and no rule covers it.  The
 # installer's unelevated step starts SD (sd -start) to make the account, in the user's interactive
 # session; with APIPORT in sd.conf that start opened the API port, raised the alert behind the
 # consent prompt, and an Allow left two sdwind.exe rules open to ANY address on Public - wider than
-# the "reach" box the user left unticked.  Measured twice (6 and 7 Oct 2026, fresh guests).  So the
+# the "reach" box the user left unticked.  Measured twice (6 Oct 2026, fresh guests).  So the
 # installer now ships sd.conf with APIPORT commented out, that unelevated start listens on nothing,
 # and solo-machine.ps1 - elevated, AFTER it has made the firewall rule - runs this with -On, then
 # registers the startup task, whose sdwind starts in session 0 (which cannot show an alert) with the

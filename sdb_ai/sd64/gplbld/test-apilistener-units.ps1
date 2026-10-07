@@ -4,10 +4,10 @@
 #   powershell -ExecutionPolicy Bypass -File <this file>
 # Exit 0 = every row passes, 1 = a row failed, 2 = could not run.  No install, no VM, no elevation, no SD.
 #
-# WHY IT EXISTS.  Measured 6 and 7 Oct 2026 in fresh guests: Windows showed its "allow this app?" alert for sdwind
+# WHY IT EXISTS.  Measured 6 Oct 2026 in fresh guests: Windows showed its "allow this app?" alert for sdwind
 # during an install even with the "reach" box unticked, and an Allow left two sdwind.exe rules open to ANY address on
 # Public.  Cause: solo-setup.ps1's unelevated "sd -start" ran with APIPORT on, before any rule.  The owner chose
-# option 1 (7 Oct 2026): ship sd.conf with APIPORT commented out, make the rule in the elevated step, THEN switch the
+# option 1 (6 Oct 2026): ship sd.conf with APIPORT commented out, make the rule in the elevated step, THEN switch the
 # listener on (solo-api-listener.ps1), THEN start SD from the startup task (session 0, which cannot show an alert).
 # Nothing here can SEE the alert - that needs a guest - so this holds the three things that make it not happen:
 #   1. solo-api-listener.ps1 does what it says (rows 1-14, on scratch copies, round trips compared byte for byte);
@@ -152,7 +152,8 @@ $mt = ([IO.File]::ReadAllLines($machine) | Where-Object { $_ -notmatch '^\s*#' }
 $tryAt = $mt.IndexOf("`ntry {")
 $iRule = $mt.IndexOf("Invoke-Shipped 'api-firewall.ps1' @('-Restrict')", $tryAt)
 $iSwitch = $mt.IndexOf("Invoke-Shipped 'solo-api-listener.ps1'", $tryAt)
-$regCall = [regex]::Match($mt.Substring($tryAt), '(?m)^\s+Register-SoloTask\s*$')
+# SOLO 38 wrapped the call in "try { Register-SoloTask } catch { ... }", so it is no longer alone on its line.
+$regCall = [regex]::Match($mt.Substring($tryAt), '(?m)^\s+(try \{ )?Register-SoloTask( \})?\s*$')
 $iTask = if ($regCall.Success) { $tryAt + $regCall.Index } else { -1 }
 Write-Host ("  positions in the main flow: rule {0}, listener switch {1}, Register-SoloTask {2}" -f $iRule, $iSwitch, $iTask)
 Check 'solo-machine.ps1 makes the firewall rule, then switches the listener, and only then registers the startup task' ($iRule -gt 0 -and $iSwitch -gt $iRule -and $iTask -gt $iSwitch)

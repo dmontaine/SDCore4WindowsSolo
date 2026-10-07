@@ -2,7 +2,24 @@ WS1.1-3 - in progress
 -------------
 Changes since WS1.1-2.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
 
-07 Oct 26  THE INSTALLER NO LONGER MAKES WINDOWS ASK "ALLOW THIS APP THROUGH
+06 Oct 26  ON A STANDARD WINDOWS ACCOUNT, SD NOW STARTS WHEN YOU SIGN IN.
+
+           On an account that is not a Windows administrator, Windows refuses
+           the startup task that runs SD while nobody is signed in ("Access
+           is denied"), whoever sets it up. The installer reported the
+           startup task as failed and skipped the ssh steps after it.
+           * Where Windows refuses that task, the installer now registers a
+             task that starts SD, with no window, when that user signs in. SD
+             is not running before that. An administrator account is
+             unchanged: SD still starts when the computer starts.
+           * Signing out ends SD and leaves it marked as not shut down
+             cleanly, and SD will not start over that. The sign-in task runs
+             solo-start.ps1, which starts SD and, if SD refused for that
+             reason, clears it and starts again. It writes solo-start.log in
+             the SDCoreSolo folder.
+           * A failed startup task no longer skips the ssh steps.
+
+06 Oct 26  THE INSTALLER NO LONGER MAKES WINDOWS ASK "ALLOW THIS APP THROUGH
            THE FIREWALL?" FOR SD.
 
            During an install Windows Defender Firewall showed its own alert

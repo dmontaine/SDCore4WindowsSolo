@@ -1436,7 +1436,7 @@ def main():
                    # it is watched by assert-current like the rest of these -
                    # do NOT add it to that script's $neverShipped list.
                    'api-firewall.ps1',
-                   # 07 Oct 26 - SOLO 33, the owner's choice of option 1.  Turns the
+                   # 06 Oct 26 - SOLO 33, the owner's choice of option 1.  Turns the
                    # API listener (APIPORT in sd.conf) on or off.  The installer's
                    # unelevated step starts SD with the listener OFF so Windows shows
                    # no firewall alert; solo-machine.ps1, elevated, switches it ON
@@ -1444,6 +1444,13 @@ def main():
                    # starts SD.  Not the multi-user api-listener.ps1, which is
                    # retired here (PF_RETIRED) with the remote.api verb it served.
                    'solo-api-listener.ps1',
+                   # 06 Oct 26 - SOLO 38.  What the SIGN-IN startup task runs for an
+                   # account Windows will not give a boot-time task: starts SD with no
+                   # window and clears the shared segment a sign-out leaves behind
+                   # (without that, the first sign-out ends SD for good).  Run by the
+                   # user, unelevated, from the tree.  Ships, so assert-current
+                   # watches it - do NOT add it to that script's $neverShipped list.
+                   'solo-start.ps1',
                    # 31 Aug 26 - sd-path.ps1, PRE_RELEASE_FIXES 89 and the
                    # owner's ruling of the same day.  An upgrade is to skip the
                    # tasks page and fire none of its actions, which left the

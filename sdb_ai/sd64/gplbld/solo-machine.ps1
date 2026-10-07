@@ -103,6 +103,7 @@ $SshPort = 4251        # SOLO_SSH_PORT - solo-sshd.ps1 and solo-ssh-firewall.ps1
 # The markers of the block an EARLIER build wrote into the system sshd_config.  They are only ever
 # used to take it OUT now (Remove-OldSshBlock), on Install, Upgrade and Remove.
 $script:oldBlockRemoved = $false   # SOLO 36: set by Remove-OldSshBlock when it took the old route's block out
+$script:taskKind = ''              # SOLO 38: 'startup' (S4U, at boot) or 'sign-in' (Interactive: Windows refused S4U for this user)
 $Begin = '# BEGIN SD Core Solo - added by its installer, removed by its uninstaller'
 $End   = '# END SD Core Solo'
 $Ps    = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
@@ -289,15 +290,56 @@ function Register-SoloTask {
         Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
         Note '  the previous task was removed first'
     }
-    Register-ScheduledTask -TaskName $TaskName `
-        -Action (New-ScheduledTaskAction -Execute $sdexe -Argument '-start' -WorkingDirectory (Split-Path $sdexe)) `
-        -Principal (New-ScheduledTaskPrincipal -UserId $ForUser -LogonType S4U -RunLevel Limited) `
-        -Trigger (New-ScheduledTaskTrigger -AtStartup) `
-        -Settings (New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
-                       -ExecutionTimeLimit ([TimeSpan]::Zero)) | Out-Null
+    $action   = New-ScheduledTaskAction -Execute $sdexe -Argument '-start' -WorkingDirectory (Split-Path $sdexe)
+    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero)
+    # 06 Oct 26 - SOLO 38.  WINDOWS REFUSES THE S4U TASK ("Access is denied") FOR A STANDARD ACCOUNT, whoever
+    # registers it: measured in a guest, a standard user's own unelevated registration, an administrator's, and
+    # a SYSTEM task's were all refused, for a startup and a log-on trigger alike; an ADMINISTRATOR user's own
+    # S4U task is accepted (the case this build was made for).  What a standard user can have, with no
+    # elevation, is an Interactive task that runs when that user signs in.  So: S4U at startup first, exactly as
+    # before, and where Windows refuses it the sign-in task - SD then starts when the user signs in, not at
+    # boot - said plainly in the report.  A refusal of BOTH is a failure, as it always was.
+    $script:taskKind = 'startup'
+    try {
+        Register-ScheduledTask -TaskName $TaskName -Action $action -Settings $settings `
+            -Principal (New-ScheduledTaskPrincipal -UserId $ForUser -LogonType S4U -RunLevel Limited) `
+            -Trigger (New-ScheduledTaskTrigger -AtStartup) -ErrorAction Stop | Out-Null
+    }
+    catch {
+        Note ('  Windows refused a startup task that runs while nobody is signed in, for ' + $ForUser + ': ' + $_.Exception.Message.Trim())
+        Note ('  registering a task that starts SD when ' + $ForUser + ' signs in instead')
+        # THE SIGN-IN TASK MUST NOT RUN sd-solo.exe ITSELF, AND MUST NOT SHOW A WINDOW.  Measured on a guest, 6 Oct 2026:
+        #  1. An Interactive task shows the console of its program.  "sd -start" returns and leaves sdwind, which
+        #     stays attached to that console, so a window sat on the desktop with "SD (64 Bit) has been started" and
+        #     a cursor, no ":" prompt - and CLOSING IT STOPPED SD (sdwind present before the close, gone after).
+        #  2. A hidden PowerShell that starts SD with Start-Process -WindowStyle Hidden starts it with a console that
+        #     has no window, and nothing stays resident - but powershell.exe itself FLASHED a Windows Terminal window
+        #     for about 0.6 s (the default terminal host opens it before -WindowStyle Hidden applies; ten frames of
+        #     a capture at 0.17 s show it).
+        #  3. Giving PowerShell its own console host - conhost.exe --headless <powershell> ... - removes the flash:
+        #     121 frames across the start show no window, sdwind was up 1.4 to 1.7 s after the trigger, still up
+        #     12 s later, and no powershell.exe or sd-solo.exe was left.  (--headless is Windows 10 1809 or later;
+        #     where it fails sdwind does not appear and the check below fails the step, loudly.)
+        #  4. SIGNING OUT KILLS sdwind AND LEAVES ITS SHARED SEGMENT, and the next "sd -start" then refuses ("SD did
+        #     not shut down cleanly ... Run sd-solo -stop to clear it").  The first version of this task, after one
+        #     sign-out and sign-in, fired (last run 19:46:18, result 0x0) and started nothing - the hidden launcher
+        #     reports success whatever sd-solo said.  So the task runs solo-start.ps1 (shipped beside the programs),
+        #     which starts SD, clears that leftover with -stop when the start failed and no sdwind is running, starts
+        #     once more, and logs what it did to solo-start.log.  Its path is in double quotes in -File, so a user
+        #     name with a space or an apostrophe is safe.
+        $startScript = Join-Path $AppDir 'solo-start.ps1'
+        if (-not (Test-Path -LiteralPath $startScript)) { throw ('solo-start.ps1 is not in ' + $AppDir + ' - the sign-in task would have nothing to run') }
+        $conhost = Join-Path $env:SystemRoot 'System32\conhost.exe'
+        $action = New-ScheduledTaskAction -Execute $conhost -WorkingDirectory (Split-Path $sdexe) `
+            -Argument ('--headless "' + $Ps + '" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $startScript + '"')
+        Register-ScheduledTask -TaskName $TaskName -Action $action -Settings $settings `
+            -Principal (New-ScheduledTaskPrincipal -UserId $ForUser -LogonType Interactive -RunLevel Limited) `
+            -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $ForUser) -ErrorAction Stop | Out-Null
+        $script:taskKind = 'sign-in'
+    }
     $t = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
     if (-not $t) { Fail 'the startup task was not registered'; return }
-    Note ('  task registered: "' + $TaskName + '" as ' + $t.Principal.UserId + ', ' + $t.Principal.LogonType + ', at startup, runs ' + $t.Actions[0].Execute + ' ' + $t.Actions[0].Arguments)
+    Note ('  task registered: "' + $TaskName + '" as ' + $t.Principal.UserId + ', ' + $t.Principal.LogonType + ', ' + $(if ($script:taskKind -eq 'startup') { 'at startup' } else { 'at sign-in (no startup task: Windows refused it for this account)' }) + ', runs ' + $t.Actions[0].Execute + ' ' + $t.Actions[0].Arguments)
 
     # 30 Sep 26 - THE TASK CAN BE STARTED AND NEVER RUN.  A cycle at 18:52 registered
     # the task, Start-ScheduledTask returned without error, and the task then sat at
@@ -346,7 +388,10 @@ function Register-SoloTask {
     }
     if ($info.LastTaskResult -ne 0) { Fail ('the task''s "sd -start" exited 0x' + ('{0:X}' -f $info.LastTaskResult)) }
     elseif ($mine.Count -eq 0) { Fail 'the task ran and exited 0, but no sdwind.exe from this install is running as the user afterwards' }
-    else { Note ('  PASS  the SD server (sdwind.exe) is running as ' + $ForUser + ', session ' + $mine[0].SessionId) }
+    else {
+        Note ('  PASS  the SD server (sdwind.exe) is running as ' + $ForUser + ', session ' + $mine[0].SessionId)
+        if ($script:taskKind -eq 'sign-in') { Note ('  startup     : SD starts when ' + $ForUser + ' signs in; it does not start before that') }
+    }
 }
 
 function Remove-SoloTask {
@@ -543,9 +588,9 @@ function Remove-SshTask {
 }
 
 try {
-    # 07 Oct 26 - SOLO 33, THE OWNER'S CHOICE OF OPTION 1: THE ORDER IS THE FIX.  On Install and Upgrade the firewall
+    # 06 Oct 26 - SOLO 33, THE OWNER'S CHOICE OF OPTION 1: THE ORDER IS THE FIX.  On Install and Upgrade the firewall
     # rule, and on Install the listener switch, come BEFORE the startup task.  Windows shows its "allow this app?"
-    # alert the first time a program listens with no rule - measured on 6 and 7 Oct 2026 in fresh guests - and the
+    # alert the first time a program listens with no rule - measured on 6 Oct 2026 in fresh guests - and the
     # first listening start used to be solo-setup.ps1's unelevated "sd -start" in the user's session.  That start now
     # listens on nothing (sd.conf ships with APIPORT commented out), and the only start that listens is this
     # task's, in session 0, which cannot show an alert, with the rule already made.  A REMOVE keeps its old order.
@@ -589,7 +634,14 @@ try {
     if ($Action -ne 'Remove') {
         Note ''
         Note '--- startup task'
-        Register-SoloTask
+        # 06 Oct 26 - SOLO 38.  A throw here used to land in the catch at the bottom and END the whole step, so the
+        # ssh task, its rule and 4251 were never tried although ssh was chosen (measured, a standard user).  The
+        # startup task is recorded as a failed step and the rest goes on: nothing below depends on it.
+        try { Register-SoloTask }
+        catch {
+            Fail ('ERROR ' + $_.Exception.Message.Trim())
+            Note ('  ' + $_.ScriptStackTrace)
+        }
         if ($Action -eq 'Install' -and $Api) {
             Note ''
             Note '--- API listener (running)'

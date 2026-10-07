@@ -210,7 +210,7 @@ Source: "{#Stage}\SDCoreSolo\*"; DestDir: "{app}"; \
 Source: "{#Stage}\SDCoreSolo\sdsys\*"; DestDir: "{app}\sdsys"; \
     Flags: recursesubdirs createallsubdirs uninsneveruninstall; Check: DataTreeAbsent
 
-; sd.conf: ALWAYS the one with APIPORT commented out (no listener).  7 Oct 26 - SOLO 33,
+; sd.conf: ALWAYS the one with APIPORT commented out (no listener).  6 Oct 26 - SOLO 33,
 ; the owner's choice of option 1.  It used to be the APIPORT variant when the API box was
 ; ticked, and then the unelevated solo-setup.ps1 step started SD with the listener on, in
 ; the user's session, BEFORE any firewall rule existed: Windows showed its "allow this app?"

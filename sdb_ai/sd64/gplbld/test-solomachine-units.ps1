@@ -168,6 +168,114 @@ $isElev = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdent
 if ($isElev) { Write-Host 'SKIP  the unelevated-refusal row (this shell is elevated)' }
 else { Check 'unelevated: exit 2, "REFUSED : not elevated", "nothing was changed"' ($code -eq 2 -and (Test-Path $res) -and ((Get-Content $res -Raw) -match 'REFUSED\s+: not elevated') -and ((Get-Content $res -Raw) -match 'nothing was changed')) }
 
+# ---- 9. SOLO 38: the startup task for a user Windows will not give an S4U task --------------------------------
+# Measured 6 Oct 2026 (a guest): S4U is refused with "Access is denied" for a STANDARD user, whoever registers it
+# (that user unelevated, an administrator, SYSTEM), at startup or at log on; an Interactive task at log on is
+# accepted.  Register-SoloTask is loaded out of the file and run with the Task Scheduler cmdlets that change
+# anything (Register-, Unregister-, Start-, Stop-ScheduledTask) and the process lookups replaced by stubs, so no
+# task is made.  The New-ScheduledTask* cmdlets are the real ones: they only build objects.
+$fnTask = @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Register-SoloTask' }, $true))
+if ($fnTask.Count -ne 1) { Check 'Register-SoloTask exists exactly once' $false }
+else {
+    . ([scriptblock]::Create($fnTask[0].Extent.Text))
+    # THE MODULE IS LOADED BEFORE THE STUBS ARE DEFINED.  The first New-ScheduledTask* call auto-loads
+    # ScheduledTasks, and that load REPLACED the stubs (their Source became "ScheduledTasks"): the first version of
+    # this section ran the real Register-/Unregister-ScheduledTask against the real task "SD Core Solo" and was
+    # saved from deleting it only by being unelevated.  So: import first, define the stubs after, name the task
+    # something that can never be the real one, and refuse to run a case unless every mutating command resolves to
+    # a stub (a function with no Source) - see the gate below.
+    Import-Module ScheduledTasks -ErrorAction SilentlyContinue
+    $TaskName = 'ZZ-SoloMachine-UnitTest-NotARealTask'
+    $ForUser = 'ACE\don'
+    $Ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'   # solo-machine.ps1 defines this at its top
+    $AppDir = Join-Path $scratch 'app'
+    $sdexe = Join-Path $AppDir 'usr\bin\sd-solo.exe'
+    New-Item -ItemType Directory -Path $AppDir -Force | Out-Null
+    [IO.File]::WriteAllText((Join-Path $AppDir 'solo-start.ps1'), '# stand-in: the real one is solo-start.ps1')
+    $script:registered = New-Object System.Collections.ArrayList
+    $script:current = $null; $script:refuseS4U = $false; $script:refuseAll = $false; $script:taskKind = ''
+    function Register-ScheduledTask {
+        [CmdletBinding()] param($TaskName, $Action, $Principal, $Trigger, $Settings)
+        [void]$script:registered.Add([pscustomobject]@{ Logon = [string]$Principal.LogonType; User = [string]$Principal.UserId; Trigger = [string]$Trigger.CimClass.CimClassName
+                                                        Exec = [string]$Action.Execute; Args = [string]$Action.Arguments })
+        if ($script:refuseAll -or ($script:refuseS4U -and [string]$Principal.LogonType -eq 'S4U')) { throw 'Access is denied.' }
+        $script:current = [pscustomobject]@{ State = 'Ready'; Principal = [pscustomobject]@{ UserId = [string]$Principal.UserId; LogonType = [string]$Principal.LogonType }
+                                             Actions = @([pscustomobject]@{ Execute = $Action.Execute; Arguments = $Action.Arguments }) }
+    }
+    function Get-ScheduledTask { [CmdletBinding()] param($TaskName) return $script:current }
+    function Get-ScheduledTaskInfo { [CmdletBinding()] param($TaskName) return [pscustomobject]@{ LastRunTime = (Get-Date); LastTaskResult = 0 } }
+    function Start-ScheduledTask { [CmdletBinding()] param($TaskName) }
+    function Stop-ScheduledTask { [CmdletBinding()] param($TaskName) }
+    function Unregister-ScheduledTask { [CmdletBinding()] param($TaskName, $Confirm) }
+    function Get-CimInstance { [CmdletBinding()] param($ClassName, $Filter)
+        return [pscustomobject]@{ Name = 'sdwind.exe'; ExecutablePath = (Join-Path (Split-Path $sdexe) 'sdwind.exe'); ProcessId = 4242; SessionId = 2 } }
+    function Invoke-CimMethod { [CmdletBinding()] param($InputObject, $MethodName) return [pscustomobject]@{ Domain = 'ACE'; User = 'don' } }
+
+    $stubNames = 'Register-ScheduledTask', 'Get-ScheduledTask', 'Get-ScheduledTaskInfo', 'Start-ScheduledTask', 'Stop-ScheduledTask', 'Unregister-ScheduledTask', 'Get-CimInstance', 'Invoke-CimMethod'
+    $unstubbed = @($stubNames | Where-Object { $c = Get-Command $_ -ErrorAction SilentlyContinue; -not ($c -and $c.CommandType -eq 'Function' -and -not $c.Source) })
+    Check ('every command Register-SoloTask uses that changes or reads the machine is this test''s own stub (a REAL one would touch the real task); not stubbed: [' + ($unstubbed -join ', ') + ']') ($unstubbed.Count -eq 0)
+    $script:unsafe = ($unstubbed.Count -ne 0)
+
+    function Run-Task([bool]$refuseS4U, [bool]$refuseAll) {
+        if ($script:unsafe) { return 'NOT RUN: a stub is not in effect, so running Register-SoloTask could touch the real Task Scheduler' }
+        Reset-Run; $script:registered.Clear(); $script:current = $null; $script:taskKind = ''
+        $script:refuseS4U = $refuseS4U; $script:refuseAll = $refuseAll
+        $threw = ''
+        try { Register-SoloTask } catch { $threw = $_.Exception.Message }
+        return $threw
+    }
+    $r = @()
+    $threw = Run-Task $false $false
+    Write-Host ('--- S4U accepted: ' + (($script:registered | ForEach-Object { $_.Logon + '/' + $_.Trigger }) -join ', ') + ' kind=' + $script:taskKind + ' / ' + (($script:notes | ForEach-Object { $_.Trim() }) -join ' / '))
+    Check 'S4U accepted (an administrator user): ONE registration, S4U with a boot trigger, kind "startup", no fallback note, no failure' (
+        $threw -eq '' -and $script:registered.Count -eq 1 -and $script:registered[0].Logon -eq 'S4U' -and $script:registered[0].Trigger -eq 'MSFT_TaskBootTrigger' -and
+        $script:taskKind -eq 'startup' -and (($script:notes -join '|') -notmatch 'signs in') -and $script:fails.Count -eq 0 -and ($script:notes -join '|') -match 'PASS  the SD server \(sdwind\.exe\) is running as ACE\\don')
+    $threw = Run-Task $true $false
+    Write-Host ('--- S4U refused: ' + (($script:registered | ForEach-Object { $_.Logon + '/' + $_.Trigger }) -join ', ') + ' kind=' + $script:taskKind + ' / ' + (($script:notes | ForEach-Object { $_.Trim() }) -join ' / '))
+    Check 'S4U refused (a standard user): the S4U attempt first, then an INTERACTIVE task with a LOG-ON trigger for the same user, kind "sign-in"' (
+        $threw -eq '' -and $script:registered.Count -eq 2 -and $script:registered[0].Logon -eq 'S4U' -and $script:registered[1].Logon -eq 'Interactive' -and
+        $script:registered[1].Trigger -eq 'MSFT_TaskLogonTrigger' -and $script:registered[1].User -eq 'ACE\don' -and $script:taskKind -eq 'sign-in')
+    Check 'S4U refused: the report names Windows'' refusal and its reason, says SD starts at sign-in, and the step PASSES (no failure raised)' (
+        $script:fails.Count -eq 0 -and ($script:notes -join '|') -match 'Windows refused a startup task.*Access is denied' -and ($script:notes -join '|') -match 'at sign-in' -and
+        ($script:notes -join '|') -match 'SD starts when ACE\\don signs in; it does not start before that' -and ($script:notes -join '|') -match 'PASS  the SD server \(sdwind\.exe\)')
+    # The SIGN-IN task must not run sd-solo.exe itself: an Interactive task shows the program's console, sdwind
+    # stays attached to it, and closing the window stopped SD (measured, 6 Oct 2026).  It runs a HIDDEN PowerShell
+    # that starts SD with Start-Process -WindowStyle Hidden.  The S4U task (session 0, no desktop) is unchanged.
+    $threw = Run-Task $true $false
+    Check 'the S4U startup task still runs sd-solo.exe -start itself (session 0 has no window to show; unchanged)' (
+        $script:registered.Count -eq 2 -and $script:registered[0].Exec -eq $sdexe -and $script:registered[0].Args -eq '-start')
+    $conhostExe = Join-Path $env:SystemRoot 'System32\conhost.exe'
+    Check 'the SIGN-IN task runs conhost.exe --headless around PowerShell (no window, no Windows Terminal flash), which runs solo-start.ps1 from the tree - never sd-solo.exe itself' (
+        $script:registered[1].Exec -eq $conhostExe -and
+        $script:registered[1].Args -ceq ('--headless "' + $Ps + '" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + (Join-Path $AppDir 'solo-start.ps1') + '"') -and
+        $script:registered[1].Exec -ne $sdexe)
+    # A user name with a space and an apostrophe: the helper's path is a double-quoted -File argument, passed whole.
+    $appSave = $AppDir; $sdSave = $sdexe
+    $AppDir = Join-Path $scratch "O'Brien x"
+    $sdexe = Join-Path $AppDir 'usr\bin\sd-solo.exe'
+    New-Item -ItemType Directory -Path $AppDir -Force | Out-Null
+    [IO.File]::WriteAllText((Join-Path $AppDir 'solo-start.ps1'), '# stand-in')
+    $threw = Run-Task $true $false
+    Check 'a path with a space and an apostrophe is passed to -File whole, in double quotes' (
+        $threw -eq '' -and $script:registered[1].Args -ceq ('--headless "' + $Ps + '" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + (Join-Path $AppDir 'solo-start.ps1') + '"'))
+    # No helper in the tree = a loud failure, never a task that starts nothing.
+    Remove-Item -LiteralPath (Join-Path $AppDir 'solo-start.ps1') -Force
+    $threw = Run-Task $true $false
+    Check 'solo-start.ps1 missing from the tree: the registration throws (so the step FAILS) and no sign-in task is made' (
+        $threw -match 'solo-start\.ps1 is not in' -and $script:registered.Count -eq 1 -and $null -eq $script:current)
+    $AppDir = $appSave; $sdexe = $sdSave
+
+    $threw = Run-Task $false $true
+    Write-Host ('--- both refused: ' + (($script:registered | ForEach-Object { $_.Logon + '/' + $_.Trigger }) -join ', ') + ' threw=[' + $threw + ']')
+    Check 'both refused: both were tried, S4U first, and the error is thrown to the caller (it is not swallowed into a pass)' (
+        $script:registered.Count -eq 2 -and $script:registered[0].Logon -eq 'S4U' -and $script:registered[1].Logon -eq 'Interactive' -and $threw -match 'Access is denied')
+}
+# The caller records a throw as a failed step and CARRIES ON: a startup-task failure must not skip the ssh steps
+# (measured: it did, and ssh was never tried).  Read from the file with comments stripped.
+$codeNoComments = (($text -split "`n") | Where-Object { $_ -notmatch '^\s*#' }) -join "`n"   # NOT $code: section 8 reuses that name for an exit code
+Check 'the main flow wraps Register-SoloTask in try/catch that calls Fail, so a throw does not reach the outer catch and skip the ssh steps' (
+    $codeNoComments -match '(?s)try \{ Register-SoloTask \}\s*catch \{\s*Fail \(''ERROR '' \+ \$_\.Exception\.Message\.Trim\(\)\)')
+
 Check ('across every run above the system sshd was NEVER started or given a startup type (Start-Service ' + $script:startTotal + ' times, Set-Service ' + $script:setTotal + ' times)') ($script:startTotal -eq 0 -and $script:setTotal -eq 0)
 $env:ProgramData = $origProgramData
 
