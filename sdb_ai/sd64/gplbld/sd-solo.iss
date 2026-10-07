@@ -123,6 +123,12 @@ UninstallDisplayName={#AppName} {#AppVer}
 ; owner: "always install python in both modes ... add to path is always true in
 ; both modes".  PATH is always added (CurStepChanged); Python is installed
 ; whenever no Python 3.13+ is registered.
+; 06 Oct 26 - SOLO 39: THE FINISH PAGE SAYS WHAT DID NOT COMPLETE.  After a failed step the dialog said "These steps
+; did not complete" and the page behind it still said "Setup has finished installing ... on your computer" (seen on
+; a standard account, SOLO 38).  StepsNotCompleted carries the dialog's list to CurPageChanged, which puts it, the
+; log path and "Click Finish" on the page under the heading "Setup finished with problems", and fits the label's
+; height after the last sentence (the first try lost its last line, as the SOLO 36/37 sentences would have).  A clean
+; install is untouched.  Guard: test-finishfail-units.py.
 ; 06 Oct 26 - SOLO 36 (owner: one mode, the global password optional): NOTHING IS FORCED ANY MORE.  Ruling
 ; 22 made the API and ssh on and open in managed mode; now both are a choice in every install, on this page
 ; or, for a box the control file answers (api=, ssh=), there: a box the file answers is not shown
@@ -270,6 +276,11 @@ var
   KeptWasFound: Boolean;
   ReloadPage: TInputOptionWizardPage;
   KeptFolder, CfReload: String;
+  { 06 Oct 26 - SOLO 39.  The steps CurStepChanged found not completed, one per line as the
+    dialog lists them ('' when all passed).  The finish page reads it: it said "Setup has finished
+    installing ..." after a failed step, which the dialog before it contradicted.  Declared here
+    because CurPageChanged comes before CurStepChanged and Pascal needs the name first. }
+  StepsNotCompleted: String;
 
 function SetEnvironmentVariable(lpName: String; lpValue: String): BOOL;
   external 'SetEnvironmentVariableW@kernel32.dll stdcall';
@@ -757,6 +768,15 @@ end;
   for one sentence on the finish page. }
 procedure CurPageChanged(CurPageID: Integer);
 begin
+  { SOLO 39: a step that did not complete is a result, so the finish page says so instead of "Setup has
+    finished installing".  Same words as the dialog that preceded it; first, so the sentences below are
+    added to this text. }
+  if (CurPageID = wpFinished) and (StepsNotCompleted <> '') then
+  begin
+    WizardForm.FinishedHeadingLabel.Caption := 'Setup finished with problems';
+    WizardForm.FinishedLabel.Caption := 'These steps did not complete:' + #13#10 + StepsNotCompleted + #13#10 +
+      'Details: ' + ExpandConstant('{app}\install-summary.log') + #13#10#13#10 + 'Click Finish to exit Setup.';
+  end;
   { A control file with no global password leaves this computer NOT managed -
     also what a typo in the key name, or an old file, ends in.  Said once, as
     SD Core for Linux Solo says it; no dialog. }
@@ -774,6 +794,11 @@ begin
       WizardForm.FinishedLabel.Caption := WizardForm.FinishedLabel.Caption + #13#10#13#10 +
         'Your saved data was moved to ' + KeptFolder + '. Nothing was deleted.';
   end;
+  { SOLO 39: the label is only as tall as Inno's short default text needs, so whatever is added above is cut off
+    at the bottom - the failure text lost its last line on the first try (seen in the guest), and the two
+    sentences above would be clipped the same way.  Fitted once, after the last of them. }
+  if CurPageID = wpFinished then
+    WizardForm.FinishedLabel.AdjustHeight;
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
@@ -1115,9 +1140,13 @@ begin
       Failed := Failed + '  startup task, firewall and ssh' + #13#10;
   end;
 
+  StepsNotCompleted := Failed;
   if Failed <> '' then
+  begin
+    Log('SD Core Solo: steps not completed: ' + Failed);
     MsgBox('These steps did not complete:' + #13#10 + Failed + #13#10 +
            'Details: ' + ExpandConstant('{app}\install-summary.log'), mbError, MB_OK);
+  end;
 end;
 
 function InitializeUninstall: Boolean;
