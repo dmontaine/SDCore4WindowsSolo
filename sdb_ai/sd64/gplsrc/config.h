@@ -25,6 +25,7 @@
  *           Windows has no xinetd and no systemd socket activation, so the
  *           listener and the per-connection spawn are ours to provide.
  * 21 Aug 26 Windows port - NETDIRS added, for the containment gate
+ * 06 Oct 26 SD Core Solo - api_login removed (APILOGIN retired, PAW-5)
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -88,9 +89,9 @@ struct CONFIG {
    not mention SORTMRG.  The copy is bounds-checked now as well. */
 #define MAX_SH_CMD_LEN 255
 struct PCFG  {
-/* 20240219 mab mods to handle AF_UNIX sockets, security mode */ 
-  int16_t api_login;                    /* REQUIRE API LOGIN  APILOGIN 0 = UserName and Password are NOT validated, run as peer user. 1 = UserName and Password validated */
-  unsigned int codepage;                /* CODEPAGE: Set console codepage */
+/* 06 Oct 26 SD Core Solo - api_login (APILOGIN) removed: the setting is retired
+   and nothing reads it (parity audit PAW-5; Linux's S.18).  config.c ignores the key. */
+  unsigned int codepage;               /* CODEPAGE: Set console codepage */
   char dumpdir[MAX_PATHNAME_LEN+1];     /* DUMPDIR:  Directory for process dump files */
   bool exclrem;                         /* EXCLREM:  Exclude remote files from ACCOUNT.SAVE? */
   int16_t filerule;                     /* FILERULE: Rules for special filename formats */
