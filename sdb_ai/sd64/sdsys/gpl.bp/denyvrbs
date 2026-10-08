@@ -92,12 +92,12 @@ $include err.h
    arg = convert(' ', '', field(s, ' ', 3, 9999))
    if mode = '' then mode = 'LIST'
    if mode # 'LIST' and mode # 'ADD' and mode # 'REMOVE' and mode # 'SET' then
-      display 'DENY.VERBS [ADD|REMOVE|SET] verb,verb,...'
+      display 'deny.verbs [add|remove|set] verb,verb,...'
       stop
    end
 
    openpath @sdsys : @ds : 'solo.policy' to pol.f else
-      display 'DENY.VERBS: cannot open ' : @sdsys : @ds : 'solo.policy'
+      display 'deny.verbs: cannot open ' : @sdsys : @ds : 'solo.policy'
       stop
    end
 
@@ -124,7 +124,7 @@ $include err.h
             next j
          end
          if not(ok) then
-            display 'DENY.VERBS: "' : name : '" is not a verb name - refused'
+            display 'deny.verbs: "' : downcase(name) : '" is not a verb name - refused'
             bad += 1
             continue
          end
@@ -132,11 +132,11 @@ $include err.h
             locate name in list<1,1> setting pos then
                del list<1,pos>
             end else
-               display 'DENY.VERBS: ' : name : ' was not denied'
+               display 'deny.verbs: ' : downcase(name) : ' was not denied'
             end
          end else
             locate name in never<1,1> setting pos then
-               display 'DENY.VERBS: ' : name : ' is never denied - dropped'
+               display 'deny.verbs: ' : downcase(name) : ' is never denied - dropped'
                continue
             end
             locate name in list<1,1> setting pos else list<1,-1> = name
@@ -187,11 +187,11 @@ $include err.h
          close voc.f
       end
    end
-   if also # '' then display 'DENY.VERBS also denies, as the same command: ' : convert(@fm, ',', also)
+   if also # '' then display 'deny.verbs also denies, as the same command: ' : downcase(convert(@fm, ',', also))
 
    if bad = 0 then @system.return.code = 0
    n = dcount(list, @vm)
-   display 'DENY.VERBS ' : n : ': ' : convert(@vm, ',', list)
+   display 'deny.verbs ' : n : ': ' : downcase(convert(@vm, ',', list))
    stop
 end
 

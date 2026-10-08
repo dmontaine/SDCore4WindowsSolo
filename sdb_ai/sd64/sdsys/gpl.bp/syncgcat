@@ -102,14 +102,14 @@ $include err.h
       close cred.f
    end
    if not(managed) then
-      display 'SYNC.GLOBAL.CATALOG: this computer has no global password, so no SD Core server manages it and there is nothing to manage.'
+      display 'sync.global.catalog: this computer has no global password, so no SD Core server manages it and there is nothing to manage.'
       @system.return.code = 0
       display 'SYNC GLOBAL CATALOG DONE 0 catalogued 0 removed 0 refused'
       stop
    end
 
    openpath @sdsys : @ds : 'global.bp.out' to src.f else
-      display 'SYNC.GLOBAL.CATALOG: cannot open GLOBAL.BP.OUT (' : @sdsys : @ds : 'global.bp.out' : ')'
+      display 'sync.global.catalog: cannot open global.bp.out (' : @sdsys : @ds : 'global.bp.out' : ')'
       stop
    end
    mark.mapping src.f, off
@@ -126,7 +126,7 @@ $include err.h
       readnext id from 11 else exit
       call.name = '*' : downcase(id)
       read obj from src.f, id else
-         display 'SYNC.GLOBAL.CATALOG: ' : id : ' could not be read - refused'
+         display 'sync.global.catalog: ' : id : ' could not be read - refused'
          n.bad += 1
          continue
       end

@@ -7,7 +7,11 @@ Changes since WS1.1-2.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
            The messages that name one of SD's own commands or the words it
            takes now write them in lower case: "restore.account latest",
            "backup.account {to directory}", "set.backup.directory",
-           "update.accounts all".  Nothing about what the commands accept has
+           "update.accounts all", "set.password [admin | global]",
+           "sync.global.catalog: ...", "admin takes no argument but off".
+           deny.verbs answers in lower case too: "deny.verbs 2: listf,copy",
+           and the verb names it prints are lower case.  The list kept on
+           disk is unchanged.  Nothing about what the commands accept has
            changed; they never cared about case.  Messages that name a
            language keyword are not part of this change.  Made to match SD
            Core for Linux Solo.

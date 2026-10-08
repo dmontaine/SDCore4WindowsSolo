@@ -75,7 +75,7 @@ $include err.h
    end
 
    if arg # '' then
-      display 'ADMIN takes no argument but OFF.'
+      display 'admin takes no argument but off.'
       stop
    end
 

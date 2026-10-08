@@ -221,10 +221,10 @@ function Invoke-Sd([string]$SdArgs, [string]$InputText) {
 $disqualify = @('only the installer may run this', 'Connection terminated', 'has not been started',
                 'Cannot update every registered account from here', 'Command requires administrator privileges',
                 # SYNC.GLOBAL.CATALOG's refusals (12028, its own open failures, 3022)
-                'can only be changed by the SD Core server', 'cannot open GLOBAL.BP.OUT',
+                'can only be changed by the SD Core server', 'cannot open global.bp.out',
                 'Cannot open global catalogue directory',
                 # DENY.VERBS's refusals (ruling 34)
-                'is not a verb name', 'DENY.VERBS: cannot open',
+                'is not a verb name', 'deny.verbs: cannot open',
                 'Cannot open accounts register', 'does not take',
                 # WRITE_INSTALL_DICTS' refusals (and bootstrap.py's Invalid runfile)
                 'ERROR OPENING FILE', 'ERROR CANNOT OPEN', 'PROCESS ABORTED', 'READLIST EMPTY',
