@@ -148,7 +148,7 @@ $include err.h
       end else
          write convert(@vm, @fm, list) to pol.f, 'denied.verbs'
       end
-      void kernel(K$AUDIT, 'DENY.VERBS ' : mode : ' ' : arg : ' - now ' : convert(@vm, ',', list))
+      void kernel(K$AUDIT, 'deny.verbs ' : downcase(mode) : ' ' : arg : ' - now ' : convert(@vm, ',', list))
    end
    close pol.f
 

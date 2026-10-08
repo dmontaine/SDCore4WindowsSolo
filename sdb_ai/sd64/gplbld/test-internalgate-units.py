@@ -141,7 +141,7 @@ def gate_problems(login_text):
     for reason in ("no internal marker", "the internal marker had expired"):
         if ("audit.reason = '" + reason + "'") not in body:
             p.append("no audit reason: " + reason)
-    if "'INTERNAL SESSION ADMITTED account='" not in body:
+    if "'internal session admitted account='" not in body:
         p.append("an admission is not written to the audit trail")
     if "gate.writer[1, 80]" not in body:
         p.append("the writer text is not capped (the file is writable by more than the installer)")

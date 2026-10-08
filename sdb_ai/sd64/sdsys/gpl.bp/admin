@@ -68,7 +68,7 @@ $include err.h
 
    if arg = 'OFF' then
       void kernel(K$ADMINISTRATOR, 0)
-      void kernel(K$AUDIT, 'ADMIN LOCKED')
+      void kernel(K$AUDIT, 'admin locked')
       display sysmsg(12004) ;* Administrator commands locked
       @system.return.code = 0
       stop
@@ -94,7 +94,7 @@ $include err.h
    end
    if not(has.admin) then
       display sysmsg(12007) ;* No administrator password is set on this system
-      void kernel(K$AUDIT, 'ADMIN REFUSED reason=no $ADMIN credential')
+      void kernel(K$AUDIT, 'admin refused reason=no $ADMIN credential')
       stop
    end
 
@@ -115,7 +115,7 @@ $include err.h
    if not(ok) then
       sleep 2
       display sysmsg(12005) ;* Wrong password - administrator commands stay locked
-      void kernel(K$AUDIT, 'ADMIN REFUSED reason=wrong password')
+      void kernel(K$AUDIT, 'admin refused reason=wrong password')
       stop
    end
 
@@ -124,14 +124,14 @@ $include err.h
    granted = kernel(K$ADMINISTRATOR, 1)
    if not(granted) then
       display sysmsg(12005)
-      void kernel(K$AUDIT, 'ADMIN REFUSED reason=the flag was not granted')
+      void kernel(K$AUDIT, 'admin refused reason=the flag was not granted')
       stop
    end
 
 *  28 Sep 26 - ruling 33: the global password also marks the session as a
 *  $GLOBAL one (K$GLOBAL.SESSION); the administrator password does not.
    if via = 'global' then void kernel(K$GLOBAL.SESSION, 1)
-   void kernel(K$AUDIT, 'ADMIN UNLOCKED via=' : via)
+   void kernel(K$AUDIT, 'admin unlocked via=' : via)
    display sysmsg(12003) ;* Administrator commands unlocked for this session
    @system.return.code = 0
    stop

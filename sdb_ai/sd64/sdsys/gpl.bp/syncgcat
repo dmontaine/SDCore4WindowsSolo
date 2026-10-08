@@ -91,7 +91,7 @@ $include err.h
 
    if not(kernel(K$GLOBAL.SESSION, -1)) and not(kernel(K$INTERNAL, -1)) then
       display sysmsg(12028) ;* The global catalogue can only be changed by the SD Core server
-      void kernel(K$AUDIT, 'SYNC.GLOBAL.CATALOG REFUSED - not a global-password session')
+      void kernel(K$AUDIT, 'sync.global.catalog refused -not a global-password session')
       stop
    end
 
@@ -175,7 +175,10 @@ $include err.h
    close src.f
    close gcat.f
 
-   void kernel(K$AUDIT, 'SYNC.GLOBAL.CATALOG ' : n.cat : ' catalogued ' : n.rem : ' removed ' : n.bad : ' refused')
+*  7 Oct 26 - lower case (owner's ruling, "All lower case"; Linux T1830).  n.cat is a COUNT: downcase() changes
+*  nothing in a number and is there only because test-auditwords-units wants every word-position variable
+*  passed through it.
+   void kernel(K$AUDIT, 'sync.global.catalog ' : downcase(n.cat) : ' catalogued ' : n.rem : ' removed ' : n.bad : ' refused')
    if n.bad = 0 then @system.return.code = 0
    display 'SYNC GLOBAL CATALOG DONE ' : n.cat : ' catalogued ' : n.rem : ' removed ' : n.bad : ' refused'
    stop

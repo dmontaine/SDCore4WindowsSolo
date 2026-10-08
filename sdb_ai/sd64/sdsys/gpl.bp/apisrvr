@@ -591,7 +591,7 @@ openpath @sdsys:@ds:'accounts' to acc.f then
 end
 
 if account.path = '' then
-   void kernel(K$AUDIT, 'ACCOUNT REFUSED branch=1 no.path.in.register')
+   void kernel(K$AUDIT, 'account refused branch=1 no.path.in.register')
    server.error = SV$ERROR
    error.msg = sysmsg(10003) ;* User not allowed in requested account
    goto revert.to.old.account
@@ -615,7 +615,7 @@ end
 * 18 Sep 26 Windows port - RELEASE_1.1 64.  SUSPENDED IS A STATE, NOT A FOURTH
 *   TIER: it lives in ACC$SUSPENDED (field 5) and the tier fields are gone.
 if upcase(trim(acc.suspended, ' ', 'B')) = 'SUSPENDED' then
-   void kernel(K$AUDIT, 'ACCOUNT REFUSED branch=2 suspended')
+   void kernel(K$AUDIT, 'account refused branch=2 suspended')
    server.error = SV$ERROR
    error.msg = sysmsg(10003) ;* User not allowed in requested account
    goto revert.to.old.account
@@ -776,7 +776,7 @@ if index(acc.who, '\', 1) > 0 then acc.who = field(acc.who, '\', dcount(acc.who,
 acc.member = (new.account # 'SDSYS') and (new.account = acc.who)
 
 if not(acc.member) then
-   void kernel(K$AUDIT, 'ACCOUNT REFUSED branch=4 not.own.account user=' : acc.who : ' account=' : new.account)
+   void kernel(K$AUDIT, 'account refused branch=4 not.own.account user=' : acc.who : ' account=' : new.account)
    server.error = SV$ERROR
    error.msg = sysmsg(10003) ;* User not allowed in requested account
    goto revert.to.old.account
@@ -1334,7 +1334,7 @@ vb.local.login:
 *   sd.exe, is deleted (SOLO 3 step 5).
                abort.message = sysmsg(12021) ;* SDConnectLocal is not available... use SDConnect
                server.error = SV$ON.ERROR
-               void kernel(K$AUDIT, 'API REFUSED request=25 SDConnectLocal - disabled in SD Core Solo')
+               void kernel(K$AUDIT, 'api refusedrequest=25 SDConnectLocal - disabled in SD Core Solo')
                done = @true
                return
 
@@ -1530,7 +1530,7 @@ vb.scram.first:
                         scram.gserver = ''
                      end
                   end else
-                     void kernel(K$AUDIT, 'API NOTE user=' : scram.audit.name : ' - $GLOBAL does not share this account''s salt, so the global password cannot log in under this name (ruling 19)')
+                     void kernel(K$AUDIT, 'api note user=' : scram.audit.name : ' - $GLOBAL does not share this account''s salt, so the global password cannot log in under this name (ruling 19)')
                   end
                end
                scram.cred = ''
@@ -1836,9 +1836,9 @@ vb.scram.final:
 *                    28 Sep 26 - ruling 33: the master's session, marked as
 *                    $GLOBAL so it may manage the global catalog.
                      void kernel(K$GLOBAL.SESSION, 1)
-                     void kernel(K$AUDIT, 'API LOGIN user=' : scram.user : ' via=global - administrator commands unlocked')
+                     void kernel(K$AUDIT, 'api login user=' : scram.user : ' via=global - administrator commands unlocked')
                   end else
-                     void kernel(K$AUDIT, 'API LOGIN user=' : scram.user : ' via=global - administrator flag NOT set')
+                     void kernel(K$AUDIT, 'api login user=' : scram.user : ' via=global - administrator flag NOT set')
                   end
                end
 
@@ -1910,7 +1910,7 @@ exit.vb.scram.fail:
                   * A client-final with no client-first never reached the name,
                   * so there is nothing to report rather than an empty field.
                   if scram.audit.name = '' then scram.audit.name = '(none)'
-                  void kernel(K$AUDIT, 'API REFUSED user=' : scram.audit.name : ' reason=' : scram.refuse.reason)
+                  void kernel(K$AUDIT, 'api refuseduser=' : scram.audit.name : ' reason=' : scram.refuse.reason)
                   scram.refuse.reason = ''
                end
 
@@ -2467,7 +2467,7 @@ vb.mark.mapping:
 
 vb.sshkey:
                                                                      if not(kernel(K$GLOBAL.SESSION, -1)) then
-                                                                        void kernel(K$AUDIT, 'API SSHKEY refused - not a global session user=' : kernel(K$USERNAME, 0))
+                                                                        void kernel(K$AUDIT, 'api sshkey refused - not a global session user=' : kernel(K$USERNAME, 0))
                                                                         server.error = SV$ERROR
                                                                         error.msg = sysmsg(12036) ;* Only the SD Core server may manage ssh keys
                                                                         return
@@ -2548,7 +2548,7 @@ vb.sshkey:
                                                                      end
 
                                                                      if sk.text # '' then
-                                                                        void kernel(K$AUDIT, 'API SSHKEY ' : sk.verb : ' refused - ' : sk.text)
+                                                                        void kernel(K$AUDIT, 'api sshkey ' : downcase(sk.verb) : ' refused - ' : sk.text)
                                                                         * THE MASTER SEES THE SAME WORDS ON BOTH SYSTEMS (owner, 30 Sep 26;
                                                                         * agreed with the Linux Solo agent, who use these four reasons).  The
                                                                         * audit line above keeps the precise reason.
@@ -2568,7 +2568,7 @@ vb.sshkey:
 
                                                                      sk.who = sk.arg
                                                                      if sk.verb = 'ADD' then sk.who = sk.fpr
-                                                                     void kernel(K$AUDIT, 'API SSHKEY ' : sk.verb : ' ' : sk.res : ' fpr=' : sk.who : ' peer=' : system(42))
+                                                                     void kernel(K$AUDIT, 'api sshkey ' : downcase(sk.verb) : ' ' : downcase(sk.res) : ' fpr=' : sk.who : ' peer=' : system(42))
                                                                      begin case
                                                                         case sk.verb = 'ADD'
                                                                            response = sk.osuser : @fm : system(1015) : @fm : sk.fpr : @fm : sk.res : @fm : sk.hostkey : @fm : sk.port

@@ -2,6 +2,21 @@ WS1.1-3 - in progress
 -------------
 Changes since WS1.1-2.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
 
+07 Oct 26  THE AUDIT TRAIL'S WORDS ARE LOWER CASE.
+
+           Every word the audit trail writes before the first "=" is now lower
+           case, the command and the event name alike: "login account=ann",
+           "login refused account=ann ...", "restore.account ...",
+           "api refused ...", "account refused branch=2 ...", "admin refused
+           ...", "elevation granted ...", "solo password set admin".  What
+           follows an "=" is not changed: an account name keeps its case, and
+           so do the text of a reason and the command a person typed.  Made to
+           match SD Core for Linux.
+
+           Lines already in an audit file are not rewritten, so a file that
+           was started before this change holds both spellings.  Search it
+           without regard to case.
+
 07 Oct 26  SDSYS'S VOC NOW HAS THE SOUNDEX TEST KEYWORD.
 
            The keyword that tests a soundex code (~) was in every account's VOC
