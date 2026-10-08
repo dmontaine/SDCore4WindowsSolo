@@ -284,7 +284,7 @@ check("the unpack still checks the manifest (nothing changed by the name alone)"
 # and restorea and backupa treat no name as the account.
 # The owner refined it: no name FILLS IN sduser (it does not become ALL), so a backup is named for the account.
 ONE = "if not(all) and names = '' then names<-1> = 'sduser'"
-check("message 13016 shows the LATEST form", "RESTORE.ACCOUNT LATEST" in m16)
+check("message 13016 shows the LATEST form", "restore.account latest" in m16)
 check("SOLO: restorea fills in the name sduser when none is given", ONE in src)
 check("SOLO: backupa fills in the name sduser when none is given", ONE in (read("gpl.bp", "backupa") or ""))
 check("SOLO: neither turns a missing name into ALL",
