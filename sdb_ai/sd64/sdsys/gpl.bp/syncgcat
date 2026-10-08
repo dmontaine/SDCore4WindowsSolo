@@ -175,10 +175,9 @@ $include err.h
    close src.f
    close gcat.f
 
-*  7 Oct 26 - lower case (owner's ruling, "All lower case"; Linux T1830).  n.cat is a COUNT: downcase() changes
-*  nothing in a number and is there only because test-auditwords-units wants every word-position variable
-*  passed through it.
-   void kernel(K$AUDIT, 'sync.global.catalog ' : downcase(n.cat) : ' catalogued ' : n.rem : ' removed ' : n.bad : ' refused')
+*  7 Oct 26 - lower case (owner's ruling, "All lower case"; Linux T1830).  The three counts are numbers, which
+*  test-auditwords-units knows are not command words.
+   void kernel(K$AUDIT, 'sync.global.catalog ' : n.cat : ' catalogued ' : n.rem : ' removed ' : n.bad : ' refused')
    if n.bad = 0 then @system.return.code = 0
    display 'SYNC GLOBAL CATALOG DONE ' : n.cat : ' catalogued ' : n.rem : ' removed ' : n.bad : ' refused'
    stop
