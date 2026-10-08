@@ -1580,6 +1580,32 @@ public static class SdSuiteCli {
 
     # -----------------------------------------------------------------------
     Say ''
+    Say '== 18c. the syntax messages quote SD''s own commands in lower case (PAL-24 stage 2)'
+    # 8 Oct 26.  Messages 13006 (BACKUP.ACCOUNT) and 13016 (RESTORE.ACCOUNT) are the longest text the
+    # stage-2 lower-casing changed, and Linux asked what they PRINT.  Both are read-only error paths:
+    # "BACKUP.ACCOUNT ALL <name>" is refused with 13006 (ALL and a name together) and a bare
+    # "RESTORE.ACCOUNT" with 13016 (no archive), so nothing is backed up or restored.  ADMIN first:
+    # both verbs refuse a locked session with 2001 before they parse anything, and the CONTROL below
+    # says so if that happened.  The anchors are CASE-SENSITIVE on purpose - this leg exists to see
+    # lower case - and the disqualifier is a printed "Syntax:" line that still has the capitals.
+    $t = Invoke-Pe 'v-syntax' @('BACKUP.ACCOUNT ALL sduser', 'RESTORE.ACCOUNT') -Admin
+    $L = Get-Lines $t
+    Check 'CONTROL: the session was unlocked (no 2001, "Command requires administrator privileges")' ($t -notmatch 'Command requires administrator privileges') 'ADMIN did not unlock the session'
+    $n1 = @($L | Where-Object { $_ -cmatch '^Syntax: backup\.account \{to directory\}$' }).Count
+    $n2 = @($L | Where-Object { $_ -cmatch '^Without to, the directory saved by set\.backup\.directory is used\.$' }).Count
+    $n3 = @($L | Where-Object { $_ -cmatch '^Syntax: restore\.account archive \{no\.query\}$' }).Count
+    $n4 = @($L | Where-Object { $_ -cmatch '^restore\.account latest \{no\.query\}$' }).Count
+    $n5 = @($L | Where-Object { $_ -cmatch '^latest uses the newest backup made on this computer that holds the account\.$' }).Count
+    $nUp = @($L | Where-Object { $_ -cmatch '^Syntax: (BACKUP|RESTORE)\.' -or $_ -cmatch '^(RESTORE\.ACCOUNT|LATEST uses)' }).Count
+    Check '13006 prints "Syntax: backup.account {to directory}" once' ($n1 -eq 1) ('found ' + $n1)
+    Check '13006 prints the set.backup.directory sentence in lower case once' ($n2 -eq 1) ('found ' + $n2)
+    Check '13016 prints "Syntax: restore.account archive {no.query}" once' ($n3 -eq 1) ('found ' + $n3)
+    Check '13016 prints "restore.account latest {no.query}" once' ($n4 -eq 1) ('found ' + $n4)
+    Check '13016 prints the "latest uses the newest backup" sentence once' ($n5 -eq 1) ('found ' + $n5)
+    Check 'no printed syntax line still quotes a command in capitals' ($nUp -eq 0) ('found ' + $nUp)
+
+    # -----------------------------------------------------------------------
+    Say ''
     Say '== 19. the daemon runs on a standard token'
     $winds = @(Get-Process -Name sdwind -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $WindExe })
     Say ('    sdwind.exe from this tree: ' + $winds.Count)
