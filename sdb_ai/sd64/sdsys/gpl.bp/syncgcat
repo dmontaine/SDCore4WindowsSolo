@@ -91,7 +91,7 @@ $include err.h
 
    if not(kernel(K$GLOBAL.SESSION, -1)) and not(kernel(K$INTERNAL, -1)) then
       display sysmsg(12028) ;* The global catalogue can only be changed by the SD Core server
-      void kernel(K$AUDIT, 'sync.global.catalog refused -not a global-password session')
+      void kernel(K$AUDIT, 'sync.global.catalog refused - not a global-password session')
       stop
    end
 

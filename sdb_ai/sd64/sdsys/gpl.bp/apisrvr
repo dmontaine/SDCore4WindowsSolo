@@ -1334,7 +1334,7 @@ vb.local.login:
 *   sd.exe, is deleted (SOLO 3 step 5).
                abort.message = sysmsg(12021) ;* SDConnectLocal is not available... use SDConnect
                server.error = SV$ON.ERROR
-               void kernel(K$AUDIT, 'api refusedrequest=25 SDConnectLocal - disabled in SD Core Solo')
+               void kernel(K$AUDIT, 'api refused request=25 SDConnectLocal - disabled in SD Core Solo')
                done = @true
                return
 
@@ -1910,7 +1910,7 @@ exit.vb.scram.fail:
                   * A client-final with no client-first never reached the name,
                   * so there is nothing to report rather than an empty field.
                   if scram.audit.name = '' then scram.audit.name = '(none)'
-                  void kernel(K$AUDIT, 'api refuseduser=' : scram.audit.name : ' reason=' : scram.refuse.reason)
+                  void kernel(K$AUDIT, 'api refused user=' : scram.audit.name : ' reason=' : scram.refuse.reason)
                   scram.refuse.reason = ''
                end
 
