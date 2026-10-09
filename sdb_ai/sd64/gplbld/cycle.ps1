@@ -389,6 +389,12 @@ if (Test-Path -LiteralPath $unins) {
     while ((Test-Path -LiteralPath $unins) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
     Write-Host ("   uninstaller ran; {0} {1}" -f $unins, $(if (Test-Path -LiteralPath $unins) { 'STILL PRESENT - it did not finish in 180s' } else { 'gone' }))
     if (Test-Path -LiteralPath $unins) { Fail "the uninstaller did not finish - was its elevation prompt declined?" }
+    # unins000.exe disappearing is not the end: its copy (_unins.tmp, in %TEMP%) is still doing the Keep
+    # cleanup, and step 6 below ran under it twice (8 and 9 Oct 2026).  Wait for the process too.
+    $deadline = (Get-Date).AddSeconds(60)
+    while ((Get-Process -Name '_unins', 'unins*' -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+    $still = @(Get-Process -Name '_unins', 'unins*' -ErrorAction SilentlyContinue)
+    Write-Host ("   uninstaller process(es) still running after the wait: {0}" -f $still.Count)
 } else {
     Write-Host "   nothing to uninstall ($unins absent)"
 }
@@ -398,8 +404,9 @@ if (Test-Path -LiteralPath $unins) {
 # cycle.  The uninstaller keeps sdsys, user_accounts and sd.conf on purpose, so
 # without this the next install is an UPGRADE of whatever tree came first.
 Step 6 "Deleting $SoloRoot"
-if (Test-Path -LiteralPath $SoloRoot) {
+for ($try = 1; $try -le 6 -and (Test-Path -LiteralPath $SoloRoot); $try++) {
     Remove-Item -LiteralPath $SoloRoot -Recurse -Force -ErrorAction SilentlyContinue
+    if (Test-Path -LiteralPath $SoloRoot) { Write-Host "   attempt $try left it in place; trying again"; Start-Sleep -Seconds 1 }
 }
 if (Test-Path -LiteralPath $SoloRoot) {
     Fail "could not delete $SoloRoot - something still has a handle on it.  Close any SD session or Explorer window and run this again."

@@ -64,7 +64,9 @@ def violations(text):
     offer = strip_comments(body(text, 'procedure', 'OfferDataRemoval'))
     kod = strip_comments(body(text, 'function', 'KeepOrDelete'))
     helper = strip_comments(body(text, 'function', 'RemoveFolderContents'))
-    keep = strip_comments(body(text, 'function', 'KeepDataOnly'))
+    # KeepDataOnly retries KeepDataPass (9 Oct 2026: a delete held for an instant is not a file that cannot be
+    # removed), so the Keep deletions live in the pair; every rule below reads them together.
+    keep = strip_comments(body(text, 'function', 'KeepDataPass')) + strip_comments(body(text, 'function', 'KeepDataOnly'))
     prep = strip_comments(body(text, 'function', 'PrepareToInstall'))
     code = strip_comments(text)
 
@@ -116,7 +118,7 @@ with open(SOLO, 'rb') as fh:
     text = fh.read().decode('utf-8', 'replace')
 
 for kind, need in (('procedure', 'OfferDataRemoval'), ('function', 'KeepOrDelete'), ('function', 'RemoveFolderContents'),
-                   ('function', 'KeepDataOnly'), ('function', 'PrepareToInstall')):
+                   ('function', 'KeepDataPass'), ('function', 'KeepDataOnly'), ('function', 'PrepareToInstall')):
     if not body(text, kind, need):
         print('test-uninstallkeep-units: VOID - no ' + need + ' found; the parse measured nothing.')
         sys.exit(2)

@@ -1223,12 +1223,30 @@ end;
 
 { KEEP: the account's files and sd.conf stay; everything else goes; the stamp is
   written last, and only when there is an account to keep. }
-function KeepDataOnly(const Root: String): Boolean;
+function KeepDataPass(const Root: String): Boolean;
 begin
   Result := RemoveFolderContents(Root, '|user_accounts|', '|sd.conf|.sdcore-kept|');
   if DirExists(Root + '\user_accounts') then
     if not RemoveFolderContents(Root + '\user_accounts', '|sduser|', '|') then
       Result := False;
+end;
+
+{ A delete that fails is tried again, up to five times half a second apart: a handle held for an
+  instant (the daemon's last, a scanner, the indexer) is not a file that cannot be removed.  Seen
+  twice on 8 and 9 Oct 2026 (the "could not be removed" box); what held it was gone by the time
+  anyone looked. }
+function KeepDataOnly(const Root: String): Boolean;
+var
+  Tries: Integer;
+begin
+  Result := KeepDataPass(Root);
+  Tries := 1;
+  while (not Result) and (Tries < 5) do
+  begin
+    Sleep(500);
+    Result := KeepDataPass(Root);
+    Tries := Tries + 1;
+  end;
   if DirExists(Root + '\user_accounts\sduser') then
     SaveStringToFile(Root + '\.sdcore-kept',
       'SD Core Solo for Windows {#AppVer} - kept data' + #13#10 +
@@ -1264,8 +1282,13 @@ begin
                mbInformation, MB_OK);
     end
     else
-      MsgBox('Some of ' + Root + ' could not be removed. The account and sd.conf were left in place.',
-             mbError, MB_OK);
+    begin
+      Log('SD Core Solo: some of ' + Root + ' could not be removed; the account and sd.conf were left in place');
+      { A silent uninstall has nobody to click OK, and the box held it open. }
+      if not UninstallSilent then
+        MsgBox('Some of ' + Root + ' could not be removed. The account and sd.conf were left in place.',
+               mbError, MB_OK);
+    end;
     Exit;
   end;
   if RemoveFolderContents(Root, '|', '|') then
