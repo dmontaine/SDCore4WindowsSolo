@@ -10,7 +10,9 @@ Changes since WS1.1-2.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
            "update.accounts all", "set.password [admin | global]",
            "sync.global.catalog: ...", "admin takes no argument but off".
            deny.verbs answers in lower case too: "deny.verbs 2: listf,copy",
-           and the verb names it prints are lower case.  The list kept on
+           and the verb names it prints are lower case.  The last line of
+           sync.global.catalog is "sync global catalog done <n> catalogued
+           <n> removed <n> refused", in lower case.  The list kept on
            disk is unchanged.  Nothing about what the commands accept has
            changed; they never cared about case.  Messages that name a
            language keyword are not part of this change.  Made to match SD

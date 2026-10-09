@@ -18,6 +18,8 @@
 *
 *
 * START-HISTORY:
+* 08 Oct 26 SD Core Solo - the machine line "sync global catalog done ..." is
+*           lower case (Linux T2330 batch, owner's "all lower case"); case only.
 * 06 Oct 26 SD Core Solo - SOLO 36: no "standalone" mode; the no-$GLOBAL line
 *           now says there is no global password (agreed with SD Core for
 *           Linux Solo, same wording).
@@ -61,7 +63,7 @@
 *
 * A BAD OBJECT IS REFUSED BY NAME and the rest still go in; the success line
 * counts the refusals and the return code is not 0 when there were any.  The
-* last line is "SYNC GLOBAL CATALOG DONE <n> catalogued <n> removed <n>
+* last line is "sync global catalog done <n> catalogued <n> removed <n>
 * refused" - a caller anchors on that.
 *
 * END-DESCRIPTION
@@ -104,7 +106,7 @@ $include err.h
    if not(managed) then
       display 'sync.global.catalog: this computer has no global password, so no SD Core server manages it and there is nothing to manage.'
       @system.return.code = 0
-      display 'SYNC GLOBAL CATALOG DONE 0 catalogued 0 removed 0 refused'
+      display 'sync global catalog done 0 catalogued 0 removed 0 refused'
       stop
    end
 
@@ -179,7 +181,7 @@ $include err.h
 *  test-auditwords-units knows are not command words.
    void kernel(K$AUDIT, 'sync.global.catalog ' : n.cat : ' catalogued ' : n.rem : ' removed ' : n.bad : ' refused')
    if n.bad = 0 then @system.return.code = 0
-   display 'SYNC GLOBAL CATALOG DONE ' : n.cat : ' catalogued ' : n.rem : ' removed ' : n.bad : ' refused'
+   display 'sync global catalog done ' : n.cat : ' catalogued ' : n.rem : ' removed ' : n.bad : ' refused'
    stop
 end
 
