@@ -2,6 +2,17 @@ WS1.1-3 - in progress
 -------------
 Changes since WS1.1-2.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
 
+09 Oct 26  THE AUDIT TRAIL NAMES THE SSH KEY AND WHO ASKED.
+
+           The ssh key request's audit lines now read the same as SD Core for
+           Linux Solo's: the fingerprint is written as "fp=" (it was "fpr="),
+           adding a key also records the Windows account it went to
+           ("user="), removing one records the fingerprint and how many keys
+           remain ("remaining="), listing records how many keys there are,
+           and every refusal ends with the address of the caller
+           ("peer=").  The not-a-global-session refusal gives the address
+           instead of the user name.
+
 08 Oct 26  SD'S OWN COMMANDS ARE LOWER CASE WHEN A MESSAGE QUOTES THEM.
 
            The messages that name one of SD's own commands or the words it

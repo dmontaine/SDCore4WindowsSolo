@@ -19,6 +19,12 @@
 *
 *
 * START-HISTORY:
+* 09 Oct 26 SD Core Solo - the sshkey request's audit lines take SD Core for Linux Solo's shape
+*           (Linux T0040/T0130, agreed T0100): key name fp= (was fpr=); add gains user=<os user>;
+*           remove writes fp=<fingerprint> remaining=<n>; list writes "<n> key(s)"; every
+*           refusal ends in peer=<addr> and the not-a-global-session one drops user=.  The refusal
+*           reason is downcase()d so a capital in a helper reason (SHA256) cannot sit before the
+*           first "=".
 * 05 Oct 26 SD Core Solo - SOLO 30: a refused login's audit record is written BEFORE the
 *           three second failed-login delay (scram.delay, tested at exit.vb.scram.fail), as
 *           SD Core for Linux did after losing records when the client dropped inside the
@@ -2467,7 +2473,7 @@ vb.mark.mapping:
 
 vb.sshkey:
                                                                      if not(kernel(K$GLOBAL.SESSION, -1)) then
-                                                                        void kernel(K$AUDIT, 'api sshkey refused - not a global session user=' : kernel(K$USERNAME, 0))
+                                                                        void kernel(K$AUDIT, 'api sshkey refused - not a global session peer=' : system(42))
                                                                         server.error = SV$ERROR
                                                                         error.msg = sysmsg(12036) ;* Only the SD Core server may manage ssh keys
                                                                         return
@@ -2548,7 +2554,7 @@ vb.sshkey:
                                                                      end
 
                                                                      if sk.text # '' then
-                                                                        void kernel(K$AUDIT, 'api sshkey ' : downcase(sk.verb) : ' refused - ' : sk.text)
+                                                                        void kernel(K$AUDIT, 'api sshkey ' : downcase(sk.verb) : ' refused - ' : downcase(sk.text) : ' peer=' : system(42))
                                                                         * THE MASTER SEES THE SAME WORDS ON BOTH SYSTEMS (owner, 30 Sep 26;
                                                                         * agreed with the Linux Solo agent, who use these four reasons).  The
                                                                         * audit line above keeps the precise reason.
@@ -2568,7 +2574,17 @@ vb.sshkey:
 
                                                                      sk.who = sk.arg
                                                                      if sk.verb = 'ADD' then sk.who = sk.fpr
-                                                                     void kernel(K$AUDIT, 'api sshkey ' : downcase(sk.verb) : ' ' : downcase(sk.res) : ' fpr=' : sk.who : ' peer=' : system(42))
+                                                                     * 9 Oct 26 - Linux Solo's shapes (T0040/T0130): fp= not fpr=; add gains user=, remove
+                                                                     * gains remaining=, list writes the count.  The typed fingerprint keeps its case: it
+                                                                     * is after the first "=".
+                                                                     begin case
+                                                                        case sk.verb = 'ADD'
+                                                                           void kernel(K$AUDIT, 'api sshkey add ' : downcase(sk.res) : ' fp=' : sk.who : ' user=' : sk.osuser : ' peer=' : system(42))
+                                                                        case sk.verb = 'REMOVE'
+                                                                           void kernel(K$AUDIT, 'api sshkey remove ' : downcase(sk.res) : ' fp=' : sk.who : ' remaining=' : sk.count : ' peer=' : system(42))
+                                                                        case 1
+                                                                           void kernel(K$AUDIT, 'api sshkey list ' : dcount(sk.fprs, @fm) : ' key(s) peer=' : system(42))
+                                                                     end case
                                                                      begin case
                                                                         case sk.verb = 'ADD'
                                                                            response = sk.osuser : @fm : system(1015) : @fm : sk.fpr : @fm : sk.res : @fm : sk.hostkey : @fm : sk.port
