@@ -32,10 +32,19 @@ function Write-StartLog([string]$LogFile, [string]$Text) {
     } catch { }
 }
 
-# True while an sdwind process exists.  The sign-in task is the only thing that starts SD on this computer's
-# behalf, and two Solo installs cannot share a computer, so the name is enough.
-function Test-SdRunning {
-    return (@(Get-Process -Name sdwind -ErrorAction SilentlyContinue).Count -gt 0)
+# True while SOLO'S OWN sdwind is running: an sdwind whose executable sits in $BinDir (usr\bin, beside sd-solo.exe).
+# NOT "any process named sdwind" (the version here until 9 Oct 2026, SOLO 42): SD Core for Windows runs a daemon of
+# the same name, and the owner ruled on 2 Oct 2026 that both products run at once.  With Core up and Solo's start
+# failing, the name test said "running", so the leftover was never cleared, Solo stayed down and the log and exit
+# code said it was up.  Core's daemon runs as SYSTEM, so its path is UNREADABLE from this user's session, while
+# Solo's own runs as this user and is readable: an unreadable path therefore does NOT count (the reverse of Core's
+# scripts, where an unreadable path counts).
+function Test-SdRunning([string]$BinDir) {
+    if (-not $BinDir) { return $false }
+    $mine = ([IO.Path]::GetFullPath($BinDir)).TrimEnd('\')
+    return (@(Get-Process -Name sdwind -ErrorAction SilentlyContinue | Where-Object {
+        $_.Path -and (([IO.Path]::GetDirectoryName($_.Path)).TrimEnd('\') -ieq $mine)
+    }).Count -gt 0)
 }
 
 # Runs sd-solo.exe with one argument, hidden, waits for IT (not for the daemon it leaves), and returns its exit code
@@ -62,14 +71,15 @@ function Start-SoloSd([string]$SdExe, [string]$LogFile) {
     if (-not (Test-Path -LiteralPath $SdExe)) { Write-StartLog $LogFile 'sd-solo.exe is not there - nothing started'; return 1 }
     $r = Invoke-SoloSd $SdExe '-start'
     Write-StartLog $LogFile ('sd-solo -start: exit ' + $r.Code + $(if ($r.Message) { ' | ' + $r.Message } else { '' }))
-    if ($r.Code -ne 0 -and -not (Test-SdRunning)) {
+    $bin = Split-Path -Parent $SdExe
+    if ($r.Code -ne 0 -and -not (Test-SdRunning $bin)) {
         Write-StartLog $LogFile 'the start failed and no sdwind is running (a sign-out or a crash left it): clearing with sd-solo -stop, then starting once more'
         $s = Invoke-SoloSd $SdExe '-stop'
         Write-StartLog $LogFile ('sd-solo -stop: exit ' + $s.Code + $(if ($s.Message) { ' | ' + $s.Message } else { '' }))
         $r = Invoke-SoloSd $SdExe '-start'
         Write-StartLog $LogFile ('sd-solo -start (second): exit ' + $r.Code + $(if ($r.Message) { ' | ' + $r.Message } else { '' }))
     }
-    $up = Test-SdRunning
+    $up = Test-SdRunning $bin
     Write-StartLog $LogFile ('result: sdwind running = ' + $up)
     if ($up) { return 0 } else { return 1 }
 }

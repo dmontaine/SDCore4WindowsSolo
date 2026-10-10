@@ -40,7 +40,7 @@ Check 'sd-solo.exe is started HIDDEN, only its stderr is captured, and it is wai
     $code -match 'Start-Process -FilePath \$SdExe -ArgumentList \$Arg -WindowStyle Hidden -PassThru -RedirectStandardError' -and $code -match '\$p\.WaitForExit\(\)' -and $code -match '\$null = \$p\.Handle')
 Check 'it never uses Start-Process -Wait (that waits for sdwind too, so the helper never finished and the installer failed the step)' ($code -notmatch 'Start-Process[^\r\n]*-Wait')
 Check 'the only place -stop is asked for is behind "failed AND no sdwind running"' (
-    ([regex]::Matches($code, "'-stop'")).Count -eq 1 -and $code -match '(?s)if \(\$r\.Code -ne 0 -and -not \(Test-SdRunning\)\) \{.*?Invoke-SoloSd \$SdExe ''-stop''')
+    ([regex]::Matches($code, "'-stop'")).Count -eq 1 -and $code -match '(?s)if \(\$r\.Code -ne 0 -and -not \(Test-SdRunning \$bin\)\) \{.*?Invoke-SoloSd \$SdExe ''-stop''')
 
 # ---- 2. drive Start-SoloSd against a stand-in -------------------------------------------------------------------
 $scratch = Join-Path $env:TEMP ('sdsolostart-units-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
@@ -83,6 +83,39 @@ exit /b 1
 
 # Load the real functions, then replace ONLY the process check.
 . ([scriptblock]::Create((($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true) | ForEach-Object { $_.Extent.Text }) -join "`n`n")))
+# ---- 2a. THE REAL Test-SdRunning, against FAKE DAEMONS (SOLO 42, 9 Oct 2026) ------------------------------------
+# The stand-in below replaces Test-SdRunning, so until 9 Oct nothing here ever ran the real one - which decided
+# "SD is running" by the NAME sdwind, so SD Core for Windows' daemon (same name, both products run at once) made a
+# failed Solo start look like a running one.  Two fake daemons are real processes named sdwind (copies of ping.exe)
+# in two scratch folders; the check must count only the one in Solo's own folder.
+$realFn = (Get-Command Test-SdRunning).ScriptBlock
+function Test-SdRunningReal([string]$d) { & $realFn $d }
+$fakeBins = @{}
+foreach ($k in 'mine', 'other') {
+    $dir = Join-Path $scratch ('fake-' + $k)
+    New-Item -ItemType Directory -Path $dir | Out-Null
+    Copy-Item -LiteralPath (Join-Path $env:SystemRoot 'System32\PING.EXE') -Destination (Join-Path $dir 'sdwind.exe')
+    $fakeBins[$k] = $dir
+}
+function Start-FakeDaemon([string]$dir) { Start-Process -FilePath (Join-Path $dir 'sdwind.exe') -ArgumentList '-n', '90', '127.0.0.1' -WindowStyle Hidden -PassThru }
+$pOther = $null; $pMine = $null
+try {
+    $pOther = Start-FakeDaemon $fakeBins['other']
+    Start-Sleep -Seconds 1
+    Check 'FIXTURE CONTROL: the other product''s fake sdwind is a live process and the OLD name-only test would call SD running' (
+        @(Get-Process -Name sdwind -ErrorAction SilentlyContinue | Where-Object { $_.Id -eq $pOther.Id }).Count -eq 1)
+    Check 'THE DEFECT (SOLO 42): only ANOTHER folder''s sdwind is running -> Solo''s check says NOT running' (-not (Test-SdRunningReal $fakeBins['mine']))
+    $pMine = Start-FakeDaemon $fakeBins['mine']
+    Start-Sleep -Seconds 1
+    Check 'Solo''s own sdwind (this folder) is running, the other product''s too -> running' (Test-SdRunningReal $fakeBins['mine'])
+    Check 'the same check asked about the other folder finds the other daemon (it matches by folder, not by "the first sdwind")' (Test-SdRunningReal $fakeBins['other'])
+    Stop-Process -Id $pMine.Id -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 1
+    Check 'Solo''s own daemon stopped while the other product''s keeps running -> NOT running' (-not (Test-SdRunningReal $fakeBins['mine']))
+    Check 'an empty folder answers false instead of throwing' (-not (Test-SdRunningReal ''))
+} finally {
+    foreach ($p in @($pOther, $pMine)) { if ($p) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } }
+}
 function Test-SdRunning { return ((Test-Path (Join-Path $env:SOLO_STUB_DIR 'running.flag')) -or (Test-Path (Join-Path $env:SOLO_STUB_DIR 'mode_running.flag'))) }
 $stubbed = (Get-Command Test-SdRunning).ScriptBlock.ToString() -match 'SOLO_STUB_DIR'
 Check 'Test-SdRunning is the stand-in''s (so no real sdwind is looked at)' $stubbed
