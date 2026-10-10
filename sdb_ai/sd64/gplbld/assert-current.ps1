@@ -804,8 +804,19 @@ function Find-UnshippedAppFiles {
     # unins000.exe and unins000.dat are Inno's own uninstaller, written by the
     # installer rather than shipped by stage.py, so they are not leftovers; the
     # digits are matched because a repeat install can produce unins001.
+    #
+    # 10 Oct 26 - PYTHON'S OWN COMPONENT LOGS.  The installer runs Python's setup
+    # with /log {app}\python-install.log, and Python's setup writes one more log
+    # per component beside it, named python-install_000_core_JustForMe.log and so
+    # on.  They exist only where Python was actually installed, which is a fresh
+    # computer: on a host that already had Python 3.13+ nothing ran, so the check
+    # passed here for weeks and refused on the first fresh VM (verify-solo ->
+    # assert-current -> STALE, 9 files, nothing measured).  The base name is
+    # still matched as shipped by sd-solo.iss; the suffixed ones are not shipped
+    # and not ours to delete.
     Get-ChildItem $AppRoot -File -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -notmatch '^unins\d+\.(exe|dat)$' } |
+        Where-Object { $_.Name -notmatch '^unins\d+\.(exe|dat)$' -and
+                       $_.Name -notmatch '^python-install_\d{3}_[A-Za-z0-9]+_JustForMe\.log$' } |
         ForEach-Object {
             $seen++
             if (-not (& $ShipsAs $_.Name)) { $orphans += $_.Name }

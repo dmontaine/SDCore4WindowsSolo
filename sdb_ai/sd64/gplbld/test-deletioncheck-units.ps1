@@ -174,7 +174,8 @@ Write-Host '7. leftover files in {app}'
 $appDir = Join-Path $env:TEMP ('sdapp-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
 New-Item -ItemType Directory -Path $appDir -Force | Out-Null
 foreach ($n in @('deny-logon.ps1', 'install-ssh.ps1', 'changelog',
-                 'unins000.exe', 'unins000.dat')) {
+                 'unins000.exe', 'unins000.dat',
+                 'python-install_000_core_JustForMe.log', 'python-install_008_path_JustForMe.log')) {
     Set-Content -LiteralPath (Join-Path $appDir $n) -Value 'x' -Encoding ascii
 }
 New-Item -ItemType Directory -Path (Join-Path $appDir 'usr') -Force | Out-Null
@@ -190,6 +191,7 @@ Check 'nothing reported when everything ships' ($a.Orphans.Count -eq 0) "got: $(
 Check "Inno's uninstaller is not counted (Checked = 3)" ($a.Checked -eq 3) "Checked = $($a.Checked)"
 Check 'unins000.exe is not reported' (-not ($a.Orphans -contains 'unins000.exe')) "got: $($a.Orphans -join ', ')"
 Check 'usr\sd.exe is not descended into' (-not ($a.Orphans -contains 'sd.exe')) "got: $($a.Orphans -join ', ')"
+Check "Python's component logs are not counted (10 Oct 26: a fresh VM install)" ($a.Checked -eq 3) "Checked = $($a.Checked)"
 
 $b = Find-UnshippedAppFiles -AppRoot $appDir -ShipsAs $shipsSome
 Check 'CONTROL: a retired script IS reported' ($b.Orphans -contains 'install-ssh.ps1') "got: $($b.Orphans -join ', ')"
