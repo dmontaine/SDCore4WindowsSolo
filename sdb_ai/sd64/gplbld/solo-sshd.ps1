@@ -64,6 +64,13 @@ param(
     [string]$OsUser = ''
 )
 
+# 09 Oct 26 - RELEASE_1.1 111, the wider exposure (SD Core for Windows measured it the same day).  The Solo docs
+# (17a) tell a person to run this script by hand, and a PowerShell 7 window passes its module folders on to the 5.1
+# this starts, where Get-Acl (Get-AclProblems, below) fails to load.  Set to Windows PowerShell's own folders, as
+# the full product's scripts now do; SET, not removed, because an absent value is rebuilt from machine and user
+# settings.  Before any cmdlet.
+$env:PSModulePath = "$env:ProgramFiles\WindowsPowerShell\Modules;$env:SystemRoot\system32\WindowsPowerShell\v1.0\Modules"
+
 # 'Continue', NOT 'Stop': under Stop, Windows PowerShell 5.1 turns a native command's stderr into
 # a terminating error even on success (PROJECT_STATUS 6).  Every native call is checked by its
 # exit code and by the file it was meant to make.
