@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 09 Oct 26 SD Core Solo - messages 10176 and 10177 (several lines, field marks)
+*            are shown a line at a time instead of as one line with raw marks.
 * 14 Sep 26 Windows port - RELEASE_1.1 5 D2.  The rebuild refuses a file that
 *           holds two ids differing only by case (10177) instead of silently
 *           dropping one; CASE refused outside internal mode (10176).
@@ -153,7 +155,16 @@ $include err.h
             *   rebuilt file NOCASE whatever this asks (op_dio1.c), so CASE
             *   would be silently ineffective.  Refused, except in internal
             *   mode, where tooling builds the upgrade witness's fixture.
-            if not(kernel(K$INTERNAL, -1)) then stop sysmsg(10176)
+            *   9 Oct 26 SD Core Solo - 10176 IS SEVERAL LINES: its newlines are
+            *   field marks (messages.c), so it is shown a line at a time (parity
+            *   audit; SD Core for Windows and Linux do the same).
+            if not(kernel(K$INTERNAL, -1)) then
+               case.msg = sysmsg(10176)
+               for case.i = 1 to dcount(case.msg, @FM)
+                  crt case.msg<case.i>
+               next case.i
+               stop
+            end
             case.insensitive = @false
 
          case keyword = KW$DEFAULT
@@ -382,7 +393,12 @@ convert.file:
                      exit
                   end
                repeat
-               display sysmsg(10177, id, other, trimf(dict.flag : ' ' : file.name))
+*              9 Oct 26 SD Core Solo - 10177 IS SEVERAL LINES (field marks, see
+*              10176 above): shown a line at a time.
+               twin.msg = sysmsg(10177, id, other, trimf(dict.flag : ' ' : file.name))
+               for twin.i = 1 to dcount(twin.msg, @FM)
+                  display twin.msg<twin.i>
+               next twin.i
                if fileinfo(new.fu, FL$OPEN) then close new.fu
                if not(ospath(new.path, os$delete)) then
                   display sysmsg(6172) ;* Failed to delete temporary file

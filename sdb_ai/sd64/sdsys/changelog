@@ -2,6 +2,15 @@ WS1.1-3 - in progress
 -------------
 Changes since WS1.1-2.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
 
+09 Oct 26  CREATE.FILE AND CONFIGURE.FILE SHOW THEIR LONG MESSAGES AS LINES.
+
+           CREATE.FILE ... CASE (and CONFIGURE.FILE ... CASE) refuse the CASE
+           keyword with a three-line explanation, and CONFIGURE.FILE's refusal
+           of a file holding two ids that differ only by case is four lines.
+           Both were printed as one long line with a stray character between
+           the lines; they now print one line per line, as SD Core for Windows
+           does.  Nothing about what the commands accept has changed.
+
 09 Oct 26  solo-sshd.ps1 NOW WORKS WHEN TYPED INTO A POWERSHELL 7 WINDOW.
 
            It asks Windows PowerShell for its own modules before it does

@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 09 Oct 26 SD Core Solo - message 10176 (several lines, field marks) is shown a
+*            line at a time instead of as one line with raw field marks.
 * 14 Sep 26 Windows port - the default dictionary record is @id, not @ID, as
 *            the shipped dictionaries are.  RELEASE_1.1_FIXES.md 5, stage 2b.
 * 19 Aug 26 Windows port - the F/Q file-pointer VOC ids are lower case:
@@ -205,7 +207,17 @@ $define default.split.load 80
          *   (CONFIGURE.FILE) can only be witnessed on a case-sensitive file
          *   holding twins, and sd -internal is the only way to build one.
          case keyword = KW$CASE
-            if not(kernel(K$INTERNAL, -1)) then stop sysmsg(10176)
+*           9 Oct 26 SD Core Solo - 10176 IS SEVERAL LINES: its newlines are field
+*           marks (messages.c), so stop sysmsg() printed it as ONE line with raw
+*           field-mark characters between the lines.  Shown a line at a time, as
+*           SD Core for Windows and SD Core for Linux do (parity audit).
+            if not(kernel(K$INTERNAL, -1)) then
+               case.msg = sysmsg(10176)
+               for case.i = 1 to dcount(case.msg, @FM)
+                  crt case.msg<case.i>
+               next case.i
+               stop
+            end
             keep.case = @true
 
          * ---------- NO.QUERY

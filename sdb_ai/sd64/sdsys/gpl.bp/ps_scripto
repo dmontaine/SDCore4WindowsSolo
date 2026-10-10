@@ -18,6 +18,9 @@
 *
 *
 * START-HISTORY:
+* 09 Oct 26 SD Core Solo - every script now starts by setting PSModulePath to
+*           Windows PowerShell's own module folders (parity with SD Core for
+*           Windows, RELEASE_1.1 111).
 * 27 Sep 26 SD Core Solo - the elevated-helper branch is gone with !elevate
 *           and sd-elevate*.ps1: nothing in Solo starts a helper (SDSYS is
 *           never a login target, ruling 11), so every RUN answered 9 and fell
@@ -101,6 +104,18 @@ $include int$keys.h
       set.status 1
       return rc : @fm : out
    end
+
+*  9 Oct 26 SD Core Solo - RELEASE_1.1 111, parity with SD Core for Windows (its
+*  27 Sep fix, witnessed 9 Oct).  An sd started from a PowerShell 7 window
+*  inherits PowerShell 7's PSModulePath and passes it to the Windows PowerShell
+*  this starts, where a Security-module cmdlet (ConvertTo-SecureString, Get-Acl)
+*  then fails to load.  No script Solo runs through here calls one today (scanned
+*  9 Oct), so this closes a gap rather than a live fault: the next script that
+*  does would otherwise fail only in a PowerShell 7 window.  Setting it as the
+*  script's FIRST LINE is early enough, because a module loads on first use.
+*  SET, NOT REMOVED: an absent value is rebuilt from the machine and user
+*  settings, which is one place the bad value can live.
+   script = '$env:PSModulePath = "$env:ProgramFiles\WindowsPowerShell\Modules;$env:SystemRoot\system32\WindowsPowerShell\v1.0\Modules"' : @fm : script
 
 *  PSTMP, NOT THE ACCOUNT DIRECTORY, and this FAILS CLOSED if it is absent
 *  rather than falling back.  gpl.bp/ps_script's header carries the full
