@@ -124,6 +124,12 @@ if ($TimeConnect) {
     Say ('--- timing: 5 SCRAM exchanges to 127.0.0.1:' + $ApiPort + ' with scram-probe.py (' + $probe + ')')
     if (-not (Test-Path -LiteralPath $probe)) {
         Say '  REFUSED: scram-probe.py was not found, so no timing was taken.'
+    } elseif (-not (Get-Command py -ErrorAction SilentlyContinue)) {
+        # SOLO 44.  The call itself throws when py is not on PATH, which a window opened BEFORE Python was installed
+        # does not have (the installer changes the PATH of new processes only), so nothing reached $out and the
+        # verdict said "first output: " with nothing after it.
+        Say '  REFUSED: py (the Python launcher) is not on PATH in this window, so no timing was taken.'
+        Say '           Open a NEW PowerShell window (the installer changes the PATH of new windows only) and run this again.'
     } else {
         $env:SD_SCRAM_PASSWORD = 'witness-dummy-not-a-password'
         for ($i = 1; $i -le 5; $i++) {
@@ -131,7 +137,14 @@ if ($TimeConnect) {
             $out = & py -3 $probe --user zz-timing-probe --port $ApiPort 2>&1 | Out-String
             $sw.Stop()
             $verdict = (($out -split "`r?`n") | Where-Object { $_ -match '^SCRAM:' } | Select-Object -First 1)
-            if (-not $verdict) { $verdict = 'NO SCRAM VERDICT LINE - first output: ' + (($out -split "`r?`n" | Select-Object -First 2) -join ' | ') }
+            if (-not $verdict) {
+                # 10 Oct 26 (SOLO 44): on a guest without MSYS2's libssl, or with no py on PATH, the client says why on a
+                # line of its own ("CANNOT RUN - TLS: no libssl could be loaded", "The term 'py' is not recognized") and the
+                # time is Python's start-up.  The first two lines of output were only the banner, so the reason was lost.
+                $why = (($out -split "`r?`n") | Where-Object { $_ -match 'CANNOT RUN|not recognized|Traceback|Error' } | Select-Object -First 1)
+                if (-not $why) { $why = 'first output: ' + (($out -split "`r?`n" | Select-Object -First 2) -join ' | ') }
+                $verdict = 'NO SCRAM VERDICT - this time is NOT a connection time.  ' + $why
+            }
             Say ('  try ' + $i + ': ' + [int]$sw.Elapsed.TotalMilliseconds + ' ms  ' + $verdict)
         }
         Remove-Item Env:\SD_SCRAM_PASSWORD -ErrorAction SilentlyContinue
