@@ -696,13 +696,19 @@ begin
   if UseControl and (CfReload = 'no') then
     ReloadPage.SelectedValueIndex := 1;
 
+  { 10 Oct 26 - the owner, at the wizard of a fresh VM: the pages did not say what a password must be, so it was
+    learned only from the refusal.  "It should be the same as Core": finish-install.ps1 states the rule once
+    before it asks (its PwRuleText, message 10920 word for word), so each page here carries the same sentence
+    above its boxes.  test-pwcomplex-units asserts it is on all three. }
   AccountPage := CreateInputQueryPage(ReloadPage.ID, 'Account password',
-    'SD Core Solo for Windows asks for this password whenever it is used.', '');
+    'SD Core Solo for Windows asks for this password whenever it is used.',
+    'A password needs at least 8 characters, with a lower-case letter, an upper-case letter, a digit and a symbol.');
   AccountPage.Add('Password:', True);
   AccountPage.Add('Confirm password:', True);
 
   AdminPage := CreateInputQueryPage(AccountPage.ID, 'Administrator password',
-    'This password unlocks the administrator commands.', '');
+    'This password unlocks the administrator commands.',
+    'A password needs at least 8 characters, with a lower-case letter, an upper-case letter, a digit and a symbol.');
   AdminPage.Add('Password:', True);
   AdminPage.Add('Confirm password:', True);
 
@@ -710,7 +716,8 @@ begin
     global password", so this computer is not managed (the same sentence as
     SD Core for Linux Solo's prompt). }
   GlobalPage := CreateInputQueryPage(AdminPage.ID, 'Global password',
-    'Leave blank if no SD Core server manages this computer.', '');
+    'Leave blank if no SD Core server manages this computer.',
+    'A password needs at least 8 characters, with a lower-case letter, an upper-case letter, a digit and a symbol.');
   GlobalPage.Add('Password:', True);
   GlobalPage.Add('Confirm password:', True);
 

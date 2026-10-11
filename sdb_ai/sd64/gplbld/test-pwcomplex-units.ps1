@@ -183,6 +183,15 @@ $msgText = (Get-Content -LiteralPath $msg -Raw).Trim()
 $issText = Get-Content -LiteralPath "$sd64/gplbld/sd-solo.iss" -Raw
 Check ("sd-solo.iss's refusal is message 10920 word for word") ($issText.Contains("'" + $msgText + "'")) `
       ("10920: '" + $msgText + "' is not a quoted string in sd-solo.iss")
+# 10 Oct 26 - the owner: the Solo password pages say what a password must be, as Core's prompt does (it states the
+# rule before it asks).  The sentence is the refusal's plus one on each of the Account, Administrator and Global pages.
+$quoted = [regex]::Matches($issText, [regex]::Escape("'" + $msgText + "'")).Count
+Check ("the rule is on the three password pages and in the refusal (4 quoted copies)") ($quoted -eq 4) ("quoted copies in sd-solo.iss: " + $quoted)
+foreach ($pg in 'AccountPage', 'AdminPage', 'GlobalPage') {
+    $m = [regex]::Match($issText, $pg + ' := CreateInputQueryPage\([^;]*?\);', 'Singleline')
+    Check ($pg + " carries the rule above its boxes") ($m.Success -and $m.Value.Contains("'" + $msgText + "'")) `
+          ($pg + ' call: ' + $(if ($m.Success) { 'found, rule missing' } else { 'not found' }))
+}
 
 # --------------------------------------------------------------------------
 Section '4. the partition: every prompt that sets a password runs the rule'
