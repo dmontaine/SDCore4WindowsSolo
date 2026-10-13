@@ -90,6 +90,11 @@
 #      administrator password with ADMIN, the global one by a global session
 #      - each to a temporary one, proved, and put back; the API still
 #      verifies afterwards                                          (ruling 39)
+# 18d. SET.TRIGGER takes a lower-case trigger name, and an index holds the
+#      record ids as the file stores them (RELEASE_1.1 137 and 138): a file, a
+#      catalogued subroutine and a D-type index in the account, no ADMIN.
+#      Ported from SD Core for Windows' verify-trigak.ps1, which was measured
+#      red on the pre-fix install; this leg's first run is owed.
 #  19. the daemon runs on a standard token: Medium integrity, Administrators
 #      deny-only or absent                                         (ruling 16)
 # Not measured here, because they need hands or another machine: ssh landing in
@@ -1603,6 +1608,191 @@ public static class SdSuiteCli {
     Check '13016 prints "restore.account latest {no.query}" once' ($n4 -eq 1) ('found ' + $n4)
     Check '13016 prints the "latest uses the newest backup" sentence once' ($n5 -eq 1) ('found ' + $n5)
     Check 'no printed syntax line still quotes a command in capitals' ($nUp -eq 0) ('found ' + $nUp)
+
+    # -----------------------------------------------------------------------
+    Say ''
+    Say '== 18d. SET.TRIGGER takes a lower-case name; an index holds the record ids as the file stores them'
+    # 13 Oct 26 - RELEASE_1.1 137 and 138 (Linux mails T0110 and T2330), ported from gplbld/verify-trigak.ps1 in
+    # SD Core for Windows, which was measured RED on the pre-fix install and carries the full reasoning.  137: stage 3a
+    # lower-cased the trigger name but left settrig's character sets upper case, so SET.TRIGGER refused every name that
+    # starts with a letter (3002).  138: dh_write.c and dh_del.c gave the index routine the record id upper-cased on a
+    # NOCASE file, which BUILD.INDEX does not, so a new r4 was indexed R4, a deleted r3 stayed, a changed r1 left r1 and
+    # added R1.  No ADMIN is needed: CREATE.FILE, CATALOG, SET.TRIGGER and the index verbs are not among the eight
+    # (leg 17).  THIS LEG WAS NOT RUN WHEN IT WAS WRITTEN - Solo's sessions need the account password - so its first run
+    # is the first cycle after the fix; the Core step is the one that was measured.  Lists are compared as sorted sets,
+    # CASE SENSITIVELY, and the control S0 (an index BUILT from three lower-case ids) must hold before any verdict.
+    $tgFile = 'zztf137'; $tgSub = 'zztrg137'; $akFile = 'zzak138'
+    $tgW = 'zzak138w'; $tgS = 'zzak138s'; $tgR = 'zzak138r'
+    $tgProgs = @($tgSub, $tgW, $tgS, $tgR)
+    $tgAcct = Join-Path $Root ('user_accounts\' + $Acct)
+    $tgCities = @('Paris', 'Rome', 'Oslo', 'Copenhagen')
+    # The lists one tagged line printed, as ONE canonical string: ids sorted ordinally, cities in a fixed order, case kept.
+    function Tg-Lists([string]$text, [string]$tag) {
+        $m = [regex]::Match($text, '(?m)^' + [regex]::Escape($tag) + '\[(.*)\]\s*$')
+        if (-not $m.Success) { return $null }
+        $per = @{}
+        foreach ($part in ($m.Groups[1].Value -split ';')) {
+            $eq = $part.IndexOf('=')
+            if ($eq -lt 1) { continue }
+            $ids = @($part.Substring($eq + 1) -split ',' | Where-Object { $_ -ne '' })
+            [Array]::Sort($ids, [StringComparer]::Ordinal)
+            $per[$part.Substring(0, $eq)] = ($ids -join ',')
+        }
+        return (($tgCities | ForEach-Object { $_ + '=' + $per[$_] }) -join ';')
+    }
+    function Tg-Want([string]$paris, [string]$rome, [string]$oslo, [string]$cph) { return "Paris=$paris;Rome=$rome;Oslo=$oslo;Copenhagen=$cph" }
+    function Tg-Ids([string]$text) {
+        $m = [regex]::Match($text, '(?m)^IDS\[(.*)\]\s*$')
+        if (-not $m.Success) { return $null }
+        $ids = @($m.Groups[1].Value -split ',' | Where-Object { $_ -ne '' })
+        [Array]::Sort($ids, [StringComparer]::Ordinal)
+        return ($ids -join ',')
+    }
+    $tgSweep = {
+        $null = Invoke-Pe 'tg-sweep' @("DELETE.CATALOG $tgSub", "DELETE.FILE $tgFile NO.QUERY", "DELETE.FILE $akFile NO.QUERY")
+        foreach ($d in @($bpDir, $outDir)) {
+            if (Test-Path -LiteralPath $d) {
+                foreach ($f in @(Get-ChildItem -LiteralPath $d -File | Where-Object { $tgProgs -contains $_.Name.ToLower() })) {
+                    Remove-Item -LiteralPath $f.FullName -Force -ErrorAction SilentlyContinue
+                }
+            }
+        }
+    }
+    if (-not (Test-Path -LiteralPath $bpDir)) {
+        Check 'the trigger and index leg could run' $false 'the account bp is missing'
+    }
+    else {
+        try {
+            & $tgSweep
+            # --- A. SET.TRIGGER (137) ---------------------------------------------------
+            [IO.File]::WriteAllText((Join-Path $bpDir $tgSub), ("subroutine $tgSub`n   return`nend`n"), [Text.Encoding]::ASCII)
+            $t = Invoke-Pe 'tg-a-make' @("CREATE.FILE $tgFile", "BASIC BP $tgSub", "CATALOG BP $tgSub")
+            $L = Get-Lines $t
+            $okA = ((CountOf $L '^0 error\(s\)') -ge 1) -and ((CountOf $L '^[1-9][0-9]* error') -eq 0) -and
+                   ((CountOf $L ('^' + $tgSub + ' added to')) -ge 1) -and (Test-Path -LiteralPath (Join-Path $tgAcct $tgFile))
+            Check 'a: the trigger fixture built (file made, subroutine compiled and catalogued)' $okA 'want 0 error(s), "zztrg137 added to ...", and the file on disk'
+            if ($okA) {
+                $t1 = Invoke-Pe 'tg-a-set' @("SET.TRIGGER $tgFile $tgSub PRE.WRITE")
+                $t2 = Invoke-Pe 'tg-a-read' @("SET.TRIGGER $tgFile")
+                $L1 = Get-Lines $t1; $L2 = Get-Lines $t2
+                Check 'a: a lower-case trigger name is not refused with 3002 "Illegal trigger function name"' ((CountOf $L1 '^Illegal trigger function name$') -eq 0) 'SET.TRIGGER refuses a name that starts with a letter (RELEASE_1.1 137)'
+                Check ('a: 3005 names the trigger ' + $tgSub) ((CountOf $L1 ('^Trigger function: ' + $tgSub + '$')) -eq 1) 'want one "Trigger function: zztrg137" line'
+                Check 'a: 3006 lists the mode PRE.WRITE' ((CountOf $L1 '^Modes: PRE\.WRITE$') -eq 1) 'want one "Modes: PRE.WRITE" line'
+                $m2 = @($L2 | Where-Object { $_ -cmatch '^Trigger function: (\S+)$' })
+                Check ('a: a new session reads the trigger back from the file, stored as ' + $tgSub) (($m2.Count -eq 1) -and ($m2[0] -ceq ('Trigger function: ' + $tgSub))) ('read back: ' + $(if ($m2.Count) { $m2[0] } else { '(no 3005 line)' }))
+                Check 'a: it reads back the mode PRE.WRITE and not 3001 "File has no trigger function"' (((CountOf $L2 '^Modes: PRE\.WRITE$') -eq 1) -and ((CountOf $L2 '^File has no trigger function$') -eq 0)) 'the file header holds no trigger'
+                $up = $tgSub.ToUpper()
+                $t3 = Invoke-Pe 'tg-a-set-up' @("SET.TRIGGER $tgFile $up POST.WRITE")
+                $t4 = Invoke-Pe 'tg-a-read-up' @("SET.TRIGGER $tgFile")
+                $L3 = Get-Lines $t3; $L4 = Get-Lines $t4
+                $m4 = @($L4 | Where-Object { $_ -cmatch '^Trigger function: (\S+)$' })
+                Check ('a: ' + $up + ' typed upper case is accepted, reported lower case, mode POST.WRITE') (((CountOf $L3 ('^Trigger function: ' + $tgSub + '$')) -eq 1) -and ((CountOf $L3 '^Modes: POST\.WRITE$') -eq 1) -and ((CountOf $L3 '^Illegal trigger function name$') -eq 0)) 'want 3005 with the lower-case name and 3006 POST.WRITE'
+                Check ('a: the file stores the lower-case name ' + $tgSub + ', not the typed ' + $up) (($m4.Count -eq 1) -and ($m4[0] -ceq ('Trigger function: ' + $tgSub))) ('stored: ' + $(if ($m4.Count) { $m4[0] } else { '(no 3005 line)' }))
+                $t5 = Invoke-Pe 'tg-a-bad' @("SET.TRIGGER $tgFile zz^bad137 PRE.WRITE", "SET.TRIGGER $tgFile zznosuch137 PRE.WRITE")
+                $L5 = Get-Lines $t5
+                Check 'a: CONTROL - a name with an illegal character is refused with 3002' ((CountOf $L5 '^Illegal trigger function name$') -ge 1) 'no 3002 - the name check is gone, or the parser changed the token'
+                Check 'a: a legal name nobody catalogued is refused with 3003, past the name check' (((CountOf $L5 '^Trigger function is not catalogued$') -eq 1) -and ((CountOf $L5 '^Illegal trigger function name$') -eq 1)) 'want one 3003 (zznosuch137) beside the one 3002 (zz^bad137)'
+            }
+
+            # --- B. the index holds the ids as the file stores them (138) --------------
+            $showSub = @(
+                'show:'
+                "   x = ''"
+                '   for i = 1 to 4'
+                '      v = vals<i>'
+                "      selectindex 'CITY', v from f to 5"
+                "      readlist l from 5 else l = ''"
+                "      x := v:'=':change(l, @fm, ','):';'"
+                '   next i'
+                '   return'
+            ) -join "`n"
+            $valsLine = "   vals = 'Paris':@fm:'Rome':@fm:'Oslo':@fm:'Copenhagen'"
+            $srcW = @(
+                "   open '$akFile' to f else stop 'no file'"
+                "   open 'DICT $akFile' to d else stop 'no dict'"
+                "   write 'D':@fm:'1':@fm:'':@fm:'City':@fm:'12L':@fm:'S' on d, 'CITY'"
+                "   write 'Paris' on f, 'r1'"
+                "   write 'Rome' on f, 'r2'"
+                "   write 'Paris' on f, 'r3'"
+                '   end'
+            ) -join "`n"
+            $srcS = @(
+                "   open '$akFile' to f else stop 'no file'"
+                $valsLine
+                "   gosub show ; crt 'S0[':x:']'"
+                "   write 'Paris' on f, 'r4'"
+                "   gosub show ; crt 'S1[':x:']'"
+                "   delete f, 'r3'"
+                "   gosub show ; crt 'S2[':x:']'"
+                "   write 'Rome' on f, 'r1'"
+                "   gosub show ; crt 'S3[':x:']'"
+                "   write 'Oslo' on f, 'R2'"
+                "   gosub show ; crt 'S4[':x:']'"
+                "   write 'Copenhagen' on f, 'R2'"
+                "   gosub show ; crt 'S5[':x:']'"
+                '   select f to 6'
+                "   readlist ids from 6 else ids = ''"
+                "   crt 'IDS[':change(ids, @fm, ','):']'"
+                '   stop'
+                $showSub
+                '   end'
+            ) -join "`n"
+            $srcR = @(
+                "   open '$akFile' to f else stop 'no file'"
+                $valsLine
+                "   gosub show ; crt 'RB[':x:']'"
+                '   stop'
+                $showSub
+                '   end'
+            ) -join "`n"
+            foreach ($pr in @(@($tgW, $srcW), @($tgS, $srcS), @($tgR, $srcR))) {
+                [IO.File]::WriteAllText((Join-Path $bpDir $pr[0]), $pr[1] + "`n", [Text.Encoding]::ASCII)
+            }
+            $t = Invoke-Pe 'tg-b-make' @("CREATE.FILE $akFile", "BASIC BP $tgW", "BASIC BP $tgS", "BASIC BP $tgR")
+            $L = Get-Lines $t
+            $okB = ((CountOf $L '^0 error\(s\)') -eq 3) -and ((CountOf $L '^[1-9][0-9]* error') -eq 0) -and (Test-Path -LiteralPath (Join-Path $tgAcct $akFile))
+            Check 'b: the index fixture built (file made, three programs compiled with 0 errors)' $okB 'want three "0 error(s)" and the file on disk'
+            if ($okB) {
+                $t = Invoke-Pe 'tg-b-index' @("RUN BP $tgW", "CREATE.INDEX $akFile CITY", "BUILD.INDEX $akFile CITY", "LIST.INDEX $akFile ALL")
+                $L = Get-Lines $t
+                $okI = ((CountOf $L '^Added index for CITY$') -eq 1) -and ((CountOf $L '^Number of indices = 1$') -eq 1)
+                Check 'b: CREATE.INDEX added the index and LIST.INDEX reads back exactly one (2617, 2620)' $okI 'want "Added index for CITY" and "Number of indices = 1"'
+                if ($okI) {
+                    $t = Invoke-Pe 'tg-b-steps' @("RUN BP $tgS")
+                    $S = @{}
+                    foreach ($tag in @('S0', 'S1', 'S2', 'S3', 'S4', 'S5')) { $S[$tag] = Tg-Lists $t $tag }
+                    $gotIds = Tg-Ids $t
+                    foreach ($tag in @('S0', 'S1', 'S2', 'S3', 'S4', 'S5')) { Say ('    ' + $tag + '  ' + $(if ($null -eq $S[$tag]) { '(not printed)' } else { $S[$tag] })) }
+                    Say ('    IDS  ' + $(if ($null -eq $gotIds) { '(not printed)' } else { $gotIds }))
+                    $s0ok = ($S['S0'] -ceq (Tg-Want 'r1,r3' 'r2' '' ''))
+                    Check 'b: CONTROL S0 - an index BUILT from the file holds three lower-case ids as stored' $s0ok ('got [' + $S['S0'] + '] - the fixture or the printing is wrong, so no verdict below means anything')
+                    if ($s0ok) {
+                        Check 'b: S1 - a new record r4 is indexed under r4 (not R4)'                                   ($S['S1'] -ceq (Tg-Want 'r1,r3,r4' 'r2' '' ''))  ('got [' + $S['S1'] + ']')
+                        Check 'b: S2 - deleting r3 takes r3 out of the index'                                          ($S['S2'] -ceq (Tg-Want 'r1,r4' 'r2' '' ''))     ('got [' + $S['S2'] + ']')
+                        Check 'b: S3 - changing r1 from Paris to Rome moves r1 (out of Paris, into Rome)'              ($S['S3'] -ceq (Tg-Want 'r4' 'r1,r2' '' ''))     ('got [' + $S['S3'] + ']')
+                        Check 'b: S4 - writing r2 under the spelling R2, same size (in place), moves the stored r2'    ($S['S4'] -ceq (Tg-Want 'r4' 'r1' 'r2' ''))      ('got [' + $S['S4'] + ']')
+                        Check 'b: S5 - writing it under R2 again, larger (deleted and added again), moves the stored r2' ($S['S5'] -ceq (Tg-Want 'r4' 'r1' '' 'r2'))   ('got [' + $S['S5'] + ']')
+                        Check 'b: the file holds r1, r2, r4 - the FIRST spelling of an id stays through a rewrite under another' ($gotIds -ceq 'r1,r2,r4') ('got [' + $gotIds + ']')
+                        $t = Invoke-Pe 'tg-b-rebuild' @("BUILD.INDEX $akFile CITY", "RUN BP $tgR")
+                        $rebuilt = Tg-Lists $t 'RB'
+                        Say ('    RB   ' + $(if ($null -eq $rebuilt) { '(not printed)' } else { $rebuilt }))
+                        Check 'b: an index kept up to date by the writes says what an index built from the file says' (($null -ne $rebuilt) -and ($rebuilt -ceq $S['S5'])) ('maintained [' + $S['S5'] + '], rebuilt [' + $rebuilt + ']')
+                    }
+                }
+            }
+        }
+        finally {
+            & $tgSweep
+            $left = @()
+            foreach ($d in @($bpDir, $outDir)) {
+                if (Test-Path -LiteralPath $d) { $left += @(Get-ChildItem -LiteralPath $d -File | Where-Object { $tgProgs -contains $_.Name.ToLower() } | ForEach-Object { $_.FullName }) }
+            }
+            $left += @(Get-ChildItem -LiteralPath $tgAcct -Force -ErrorAction SilentlyContinue |
+                       Where-Object { $_.Name -match ('(?i)^(' + $tgFile + '|' + $akFile + ')(\.(dic|out))?$') } | ForEach-Object { $_.FullName })
+            Say ('    cleanup: left ' + $left.Count)
+            Check 'the trigger and index fixtures are removed from the account' ($left.Count -eq 0) ('delete by hand: ' + ($left -join ', '))
+        }
+    }
 
     # -----------------------------------------------------------------------
     Say ''
