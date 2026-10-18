@@ -89,6 +89,8 @@
 /* 28 Sep 26 SD Core Solo - cygwin_conv_path(), for global_write_refused(). */
 #include <sys/cygwin.h>
 
+#include <time.h>
+
 /* Modified by Composer AI - 2026/06/10.
    k_error() longjmps back to the kernel command loop and never returns,
    but the analyzer cannot see this across translation units. Redeclare
@@ -310,6 +312,8 @@ void op_clrfile() {
     }
 
     fptr->file_lock = -process.user_no; /* Mark clearfile in progress */
+    if (took_lock)
+      fptr->file_lock_time = (int32_t)time(NULL); /* item 487 */
     if (fptr->ref_ct > 1)
       Sleep(1000); /* Ensure all activity finished */
     EndExclusive(REC_LOCK_SEM);
