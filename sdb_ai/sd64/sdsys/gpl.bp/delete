@@ -171,7 +171,11 @@ deffun voc_guard(f) calling '!voc_guard'
          select file to 11
          loop
             readnext record.name from 11 else exit
-            recordlocku file, record.name
+            * 18 Oct 26 Windows port - from Linux 0cbb8b9 (12 Oct 26): - openQM 50: a record another user holds locked is reported and skipped, not waited for
+            readvu dummy from file, record.name, 0 locked
+               display sysmsg(12078, record.name) ;* Record 'xx' is locked by another user and was not deleted
+               continue
+            end then null else null
             delete file, record.name
             record.count += 1
          repeat
@@ -192,7 +196,10 @@ delete.record:
    if record.name = '' then
       display sysmsg(2107) ;* Null record name ignored
    end else
-      readvu dummy from file,record.name,0 then
+      readvu dummy from file,record.name,0 locked
+         display sysmsg(12078, record.name) ;* Record 'xx' is locked by another user and was not deleted
+         return
+      end then
          if not(voc_guard(file)) then     ;* 25 Sep 26 SOLO 5, ruling 14
             release file, record.name
             @system.return.code = -ER$PERM
