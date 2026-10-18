@@ -406,6 +406,7 @@ void op_clrfile() {
    op_delete()  -  Delete record                                          */
 
 void op_delete() {
+  hsm_io(HSM_DELETE);
   /* Stack:
 
      |=============================|=============================|
@@ -608,6 +609,7 @@ void op_read() {
    op_readv()  -  Read specific field from a record                       */
 
 void op_readv() {
+  hsm_io(HSM_READ); /* 14 Oct 26: Hot Spot Monitor counts, sheet 491 */
   /* Stack:
 
      |=============================|=============================|
@@ -860,6 +862,7 @@ void op_mapmarks() {
    op_write()  -  Write record                                            */
 
 void op_write() {
+  hsm_io(HSM_WRITE);
   /* Stack:
 
      |=============================|=============================|
@@ -1102,6 +1105,7 @@ exit_op_write:
    op_writev()  -  Write specific field to a record                       */
 
 void op_writev() {
+  hsm_io(HSM_WRITE);
   /* Stack:
 
      |=============================|=============================|
@@ -1169,6 +1173,7 @@ exit_op_writev:
    read_record()  -  Read a record                                        */
 
 Private void read_record(bool matread) {
+  hsm_io(HSM_READ);
   /* Stack:
 
      |=============================|=============================|
