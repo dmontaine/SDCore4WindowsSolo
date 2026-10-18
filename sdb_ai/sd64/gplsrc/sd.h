@@ -187,7 +187,7 @@ int SdShmOpen(const char * name, int flags, int mode);
 int SdShmUnlink(const char * name);
 
 /* KERNEL.C */
-int16_t assign_user_no(int16_t user_table_index);
+int16_t assign_user_no(int16_t user_table_index, bool interactive);
 bool init_kernel(void);
 int16_t in_group(char * name);
 char * account(void);
