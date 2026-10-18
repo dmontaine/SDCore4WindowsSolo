@@ -1835,6 +1835,7 @@ reparse:
 *   the database under the invoking user's own token, and an administrator's
 *   rights come from K$ADMINISTRATOR, seeded in kernel.c before any BASIC runs.
 *   PROJECT_STATUS.md 5.5, 5.7; PRE_RELEASE_FIXES 168.
+                  void kernel(K$CLASS.MAIN, 1)   ;* a class module named by a catalogued command is run through its MAIN (16 Oct 26, Fixes item 484)
                   call @s
                   s = ''   ;* Allow unload of object code
 
@@ -1849,6 +1850,7 @@ reparse:
                   if voc.via.k and index(voc.rec<3>, '/', 1) then verb = field(voc.rec<3>, '/', dcount(voc.rec<3>, '/'))
                   voc.via.k = @false
 
+                  void kernel(K$CLASS.MAIN, 1)   ;* a class module named by a catalogued command is run through its MAIN (16 Oct 26, Fixes item 484)
                   call @verb
                   verb = ''       ;* 0541 Ensure link lost
 
