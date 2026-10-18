@@ -3,7 +3,7 @@ WS1.2-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
 
 18 Oct 26  THE VOC AND THE SERVER'S FILES ARE PROTECTED FROM MORE COMMANDS.
-           The fault is in LS1.1-3.
+           The fault is in WS1.1-3.
 
            Changing the VOC needs ADMIN, and changing gcat, global.bp.out or
            solo.policy needs a session signed in with the global password
@@ -21,9 +21,9 @@ Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
            messages the older commands use.
 
            Nothing else changes: the commands work as before on any ordinary
-           file, and with ADMIN they work on the VOC.  The API server's check
-           has not been run against a live API session; the command checks
-           have.
+           file, and with ADMIN they work on the VOC.  The checks were run on
+           SD Core Solo for Linux; none of them has been run on Windows yet,
+           and the API server's has not been run against a live API session.
 
            The API CLEARFILE request also cleared whichever file a stale
            counter pointed at instead of the file the client named.  It now
