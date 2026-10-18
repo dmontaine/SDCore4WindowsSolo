@@ -19,6 +19,9 @@
 *
 *
 * START-HISTORY:
+* 18 Oct 26 Windows port - from Linux 9f067b8 (11 Oct 26): A record of a data collection file is a collection when it is read, which
+*           the response cannot hold: it goes to the client as its JSON text.
+*           COMPILED ONLY - the API server was not run against a collection file.
 * 09 Oct 26 SD Core Solo - the sshkey request's audit lines take SD Core for Linux Solo's shape
 *           (Linux T0040/T0130, agreed T0100): key name fp= (was fpr=); add gains user=<os user>;
 *           remove writes fp=<fingerprint> remaining=<n>; list writes "<n> key(s)"; every
@@ -479,6 +482,11 @@ loop
 return.status.set: ;* Return to here if ST already set
 
    if server.error = SV$ON.ERROR then response = @abort.message
+
+   * 18 Oct 26 Windows port - from Linux 9f067b8 (11 Oct 26): - a record read from a data collection file is a collection; the client is sent its JSON
+   * text, the compact form the file holds
+   jt = jtype(response)
+   if jt = 'collection' or jt = 'array' then response = jbuild(response)
 
    if logging then
       s = oconv(iconv(server.error, 'ISL'):iconv(st, 'ILL'):response, 'MX0C')
