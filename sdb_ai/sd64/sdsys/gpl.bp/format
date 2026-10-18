@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 18 Oct 26 Windows port - from Linux df5e076 (18 Oct 26): Solo carry A (owner's ruling B): the file it rewrites asks !voc_guard.
 * 19 Aug 26 Windows port - the default source file is bp, not BP.  5.12 (b).
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
 * END-HISTORY
@@ -43,6 +44,7 @@ $catalog $format
 $include parser.h
 $include err.h
 
+deffun voc_guard(f) calling '!voc_guard'   ;* 18 Oct 26, Solo carry A
 
    parser = "!PARSER"
 
@@ -87,6 +89,15 @@ $include err.h
    * Open the file
 
    open file.name to src.f else stop sysmsg(2019) ;* File not found
+
+* 18 Oct 26 Windows port - from Linux df5e076 (18 Oct 26): - Solo carry A, owner's ruling B: every record done below is rewritten in the file opened here, which is a direct edit
+*   of a VOC (or of a global file) if one is named, and this program is $internal, so the C test lets it through.  Asked once, before the
+*   active select list is read and before any record is locked, so a refusal leaves the list and the records as they were (voc_guard
+*   has said why).
+   if not(voc_guard(src.f)) then
+      @system.return.code = -ER$PERM
+      stop
+   end
 
 
    * Get record id(s)

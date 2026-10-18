@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 18 Oct 26 Windows port - from Linux df5e076 (18 Oct 26): Solo carry A (owner's ruling B): setting or removing a trigger asks !voc_guard for the file.
 * 18 Oct 26 Windows port - from Linux f0af637 (16 Oct 26): A directory file can have a trigger (QM4 Fixes item 177): it is kept in the file's %header% file and takes
 *               effect when the file is next opened.
 * 11 Oct 26 Windows port - RELEASE_1.1 137.  The name is checked in upper case:
@@ -51,6 +52,7 @@ $include int$keys.h
 $include parser.h
 $include err.h
 
+deffun voc_guard(f) calling '!voc_guard'   ;* 18 Oct 26, Solo carry A
 
    parser = "!PARSER"
 
@@ -96,6 +98,18 @@ $include err.h
 
    call @parser(PARSER$GET.TOKEN, token.type, token, keyword)
    trigger.name = downcase(token)   ;* 14 Sep 26 RELEASE_1.1 5 stage 3a: call names are lower
+
+* 18 Oct 26 Windows port - from Linux df5e076 (18 Oct 26): - Solo carry A, owner's ruling B: setting a trigger ("" removes one) changes a VOC or a global file: the %header% record, and
+*   code that runs on every later write.  This program is $internal, so the C test lets it through.  Asked as soon as a second argument shows
+*   that a change is wanted, so a refused session hears the gate and not a complaint about the trigger name, and before the exclusive-access
+*   test names who holds the file.  The report form (no second argument) is a read and is left alone.  Nested IFs: BASIC does not
+*   short-circuit AND.
+   if token.type # PARSER$END then
+      if not(voc_guard(fu)) then
+         @system.return.code = -ER$PERM
+         stop
+      end
+   end
 
    begin case
       case token.type = PARSER$END     ;* Report trigger state

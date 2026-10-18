@@ -18,6 +18,7 @@
 *
 *
 * START-HISTORY:
+* 18 Oct 26 Windows port - from Linux df5e076 (18 Oct 26): Solo carry A (owner's ruling B): FROM asks !voc_guard for the file it names.
 * 18 Oct 26 Windows port - from Linux e02672d (11 Oct 26): 1.2-0 bundle A-7 (openQM ref 158).
 * END-HISTORY
 *
@@ -40,6 +41,8 @@ $catalog $sortlst
 $include err.h
 $include keys.h
 $include parser.h
+
+deffun voc_guard(f) calling '!voc_guard'   ;* 18 Oct 26, Solo carry A
 
    parser = "!PARSER"
 
@@ -73,6 +76,13 @@ $include parser.h
    open file.name to list.f else
       @system.return.code = -status()
       stop sysmsg(3248, status()) ;* Error xx opening the list file
+   end
+
+* 18 Oct 26 Windows port - from Linux df5e076 (18 Oct 26): - Solo carry A, owner's ruling B: FROM names any file, and this program is $internal, so the C test lets its WRITE through.
+*   It asks about the file opened, before the record is locked.  The default $savedlists is neither a VOC nor a global file.
+   if not(voc_guard(list.f)) then
+      @system.return.code = -ER$PERM
+      stop
    end
 
    readu list.rec from list.f, list.name else

@@ -18,6 +18,9 @@
 * 
 *  
 * START-HISTORY:
+* 18 Oct 26 Windows port - from Linux df5e076 (18 Oct 26): Solo carry A (owner's ruling B): this program is $internal, so the C test lets its writes through, and it
+*               asks !voc_guard itself before it changes a file the user named: REFORMAT and SREFORMAT ask for the TO file (the
+*               clause and the Output file: prompt, check.reformat.target), PAGESEQ asks for the control file.
 * 18 Oct 26 Windows port - from Linux 15e0f1c (17 Oct 26): L-type links in a query (link%item) go through $linkref and $icomp, so they reach A, S and E items and
 *               follow a link to a link and a link's file expression (QM4 Fixes 7); they reached D, I and C items one
 *               link away.
@@ -86,6 +89,8 @@ $include err.h
 $include bcomp.h
 $include pcl.h
 $include qdisp.h
+
+deffun voc_guard(f) calling '!voc_guard'   ;* 18 Oct 26, Solo carry A
 
 $define VLIST.NAME.FMT "12.L"
 equ NUL to char(0)
@@ -1404,6 +1409,7 @@ template.found:
          open upcase(reformat.filename) to reformat.f then exit
          display sysmsg(1427, reformat.filename)  ;* Cannot open %1
       repeat
+      gosub check.reformat.target   ;* 18 Oct 26 dm, Solo carry A: the file typed at the prompt is asked like the TO clause's
    end
 
 *-----------------------------------------------------------------------------
@@ -2493,6 +2499,18 @@ final.exit:
 * **********************************************************************
 
 * ======================================================================
+* CHECK.REFORMAT.TARGET  -  may this session change the file REFORMAT is to write?  (18 Oct 26 dm, Solo carry A)
+*
+* Called after reformat.f is open, from the TO clause and from the Output file: prompt, before a record is read or written.  The
+* file is looked at as opened (voc_guard), so a Q-pointer to a VOC is caught under any name.  The reason has been displayed when it
+* comes back refused, and no lock is held at either call.
+
+check.reformat.target:
+   if voc_guard(reformat.f) then return
+   @system.return.code = -ER$PERM
+   goto exit.qproc
+
+* ======================================================================
 * PARSE.COMMAND.OPTIONS  -  Process option keywords, fields, etc
 
 parse.command.options:
@@ -3185,6 +3203,14 @@ label.template.found:
                end
             end
 
+* 18 Oct 26 Windows port - from Linux df5e076 (18 Oct 26): - Solo carry A, owner's ruling B: the page number is written back into a record of this file when the report ends, whatever the
+*   file is (this program is $internal, so the C test lets the write through).  Asked now, before the record is read and locked below, so a
+*   refusal holds no lock.
+            if not(voc_guard(pageseq.f)) then
+               @system.return.code = -ER$PERM
+               goto exit.qproc
+            end
+
             * Page sequence control record name
             gosub get.token
             if token = '' then
@@ -3391,6 +3417,7 @@ label.template.found:
                   reformat.filename = upcase(reformat.filename)
                end
             end
+            gosub check.reformat.target   ;* 18 Oct 26 dm, Solo carry A
 
 * --- TOTAL
          case keyword = KW$TOTAL and (report.command or reformat.command)

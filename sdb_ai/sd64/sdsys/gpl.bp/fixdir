@@ -13,6 +13,7 @@
 * GNU General Public License for more details.
 *
 * START-HISTORY:
+* 18 Oct 26 Windows port - from Linux df5e076 (18 Oct 26): Solo carry A (owner's ruling B): the directory file it rewrites asks !voc_guard (the global files are directory files).
 * 18 Oct 26 Windows port - from Linux 0cbb8b9 (12 Oct 26): 1.2-0 openQM ref 458.  The syntax is SD's own.
 * END-HISTORY
 *
@@ -38,6 +39,8 @@ $include err.h
 $include keys.h
 $include parser.h
 
+deffun voc_guard(f) calling '!voc_guard'   ;* 18 Oct 26, Solo carry A
+
    parser = "!PARSER"
 
    @system.return.code = -ER$ARGS      ;* Preset for command format errors
@@ -58,6 +61,14 @@ $include parser.h
 
    open fname to f else stop sysmsg(12071, fname) ;* Cannot open xx
    if fileinfo(f, FL$TYPE) # FL$TYPE.DIR then stop sysmsg(12076, fname) ;* xx is not a directory file
+
+* 18 Oct 26 Windows port - from Linux df5e076 (18 Oct 26): - Solo carry A, owner's ruling B: gcat, global.bp.out and solo.policy are directory files, and every record changed below is a
+*   change to the file opened here.  This program is $internal, so the C test (global_write_refused) lets it through.  Asked once, for the
+*   file opened, before the select and before any record is read (voc_guard has said why when it refuses).
+   if not(voc_guard(f)) then
+      @system.return.code = -ER$PERM
+      stop
+   end
 
    if ids = '' then
       select f to 11

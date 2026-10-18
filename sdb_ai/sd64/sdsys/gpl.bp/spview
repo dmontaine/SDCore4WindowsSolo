@@ -18,6 +18,10 @@
 * 
 * 
 * START-HISTORY:
+* 18 Oct 26 Windows port - from Linux df5e076 (18 Oct 26): Solo carry A (owner's ruling B): X (delete the item shown) asks !voc_refusal for the file it has open before it asks
+*               "Delete xx from xx (Y/N)?" and before it locks the record, and a refusal is told on the prompt line with nothing
+*               deleted.  SP.VIEW is $internal, which the C test lets through.  Viewing and spooling a record are reads and are not
+*               asked.  Not voc_guard(): it DISPLAYs, which would write over the page.
 * 18 Oct 26 Windows port - from Linux ab4dab3 (13 Oct 26): BY / BY.DSND field {NO.CASE} sorts the pick list (it is passed to SELECT,
 *               list 11); Return pages forward in a record; Esc-Z pages back (openQM page).
 * 18 Oct 26 Windows port - from Linux 37b0630 (12 Oct 26): X deletes the item being shown, after asking; one taken from the
@@ -42,6 +46,8 @@ $include err.h
 $include int$keys.h
 $include keys.h
 $include keyin.h
+
+deffun voc_refusal(f) calling '!voc_refusal'   ;* 18 Oct 26, Solo carry A
 
    parser = "!PARSER"
    prompt ''
@@ -307,6 +313,17 @@ show.item:
 
 delete.item:
    item.deleted = @false
+
+* 18 Oct 26 SD Core Solo - SOLO 46 (Linux Solo df5e076, owner's ruling B): deleting a record of a VOC or of a global file needs ADMIN or the global session.  The
+*   answer is by the file OPEN in data.f, so a Q-pointer is caught.  Asked before the question and before the lock, and the reason goes on
+*   the prompt line as every complaint here does (voc_guard() would DISPLAY over the page).  $hold and every ordinary file pass, as before.
+   refusal = voc_refusal(data.f)
+   if refusal then
+      prompt.text = sysmsg(refusal) ;* 12008 The VOC needs ADMIN / 12028 the global files need the global session
+      display @(0,prompt.line) : @(-13) : fmt(prompt.text, info.fmt) : @(-14) :
+      c = keycode()
+      return
+   end
 
    prompt.text = sysmsg(12110, item.name, file.name) ;* Delete xx from xx (Y/N)?
    display @(0,prompt.line) : @(-13) : fmt(prompt.text, info.fmt) : @(-14) :

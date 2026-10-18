@@ -2,6 +2,33 @@ WS1.2-0 - SD Core Solo for Windows, in progress
 -------------
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
 
+18 Oct 26  THE VOC AND THE SERVER'S FILES ARE PROTECTED FROM MORE COMMANDS.
+           The fault is in LS1.1-3.
+
+           Changing the VOC needs ADMIN, and changing gcat, global.bp.out or
+           solo.policy needs a session signed in with the global password
+           (ADMIN is not enough for those).  Only some of the commands that
+           change a file you name checked this.  These did not, and so could
+           be pointed at the VOC, or at one of the server's files, and would
+           change it: GET.LIST ... DELETING, SAVE.LIST, DELETE.LIST,
+           SORT.LIST and COPY.LIST with IN, FROM or TO naming the file,
+           MAP FILE, FORMAT, FIXDIR, GENERATE, COMPILE.DICT DATA, SET.TRIGGER,
+           REFORMAT ... TO, the PAGESEQ clause of a report, SP.VIEW (deleting
+           the item shown), COMO ... IN, BASIC's object file, and CREATE.FILE
+           on a file that already exists.  Over the API, WRITE, DELETE and
+           CLEARFILE also did not check.  Each now asks, before it changes
+           anything, and tells you why when it refuses, with the same two
+           messages the older commands use.
+
+           Nothing else changes: the commands work as before on any ordinary
+           file, and with ADMIN they work on the VOC.  The API server's check
+           has not been run against a live API session; the command checks
+           have.
+
+           The API CLEARFILE request also cleared whichever file a stale
+           counter pointed at instead of the file the client named.  It now
+           clears the file named.
+
 18 Oct 26  FILEINFO KEY 1021 AND THE PICK STYLE CALL "FILE NAME" (QM4 FIXES TAB, BATCH E).
 
              FL$WHO      FILEINFO(file, 1021) now answers as the openQM manual says FL$WHO does: the user numbers of

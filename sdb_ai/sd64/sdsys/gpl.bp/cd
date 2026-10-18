@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 18 Oct 26 Windows port - from Linux df5e076 (18 Oct 26): Solo carry A (owner's ruling B): the file it compiles into (CD DATA file) asks !voc_guard before any record is read.
 * 14 Sep 26 Windows port - RELEASE_1.1 5 stage 2a: an item named on the
 *           command line folds, and is written back under the id that matched.
 * 13 Sep 26 Windows port - Enter at "Use active select list" (2050) means N
@@ -66,6 +67,8 @@ $include syscom keys.h
 $include dictdict.h
 $include bcomp.h
 $include int$keys.h
+
+deffun voc_guard(f) calling '!voc_guard'   ;* 18 Oct 26, Solo carry A
 
 
    @system.return.code = -1      ;* Preset for command format errors
@@ -157,6 +160,17 @@ $include int$keys.h
 
                file.name = upcase(file.name)
             end
+         end
+
+* 18 Oct 26 Windows port - from Linux df5e076 (18 Oct 26): - Solo carry A, owner's ruling B: CD DATA treats the records of an ordinary file as dictionary items, cuts each at its object
+*   code and writes it back, so on a VOC or a global file it would damage what ADMIN and the global session protect.  This program is
+*   $internal, which the C test lets through, so it asks.  Asked for either form, since the file opened is all voc_guard looks at (the
+*   dictionary of an ordinary file is never a VOC), once, before an id is read or a record locked; the active select list is dropped as
+*   DELETE does.
+         if not(voc_guard(dict.f)) then
+            @system.return.code = -ER$PERM
+            clearselect
+            stop
          end
 
          * Look for record ids

@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 18 Oct 26 Windows port - from Linux df5e076 (18 Oct 26): Solo carry A (owner's ruling B): DELETING asks !voc_guard for the file IN names.
 * 18 Aug 26 Windows port - the $SAVEDLISTS VOC id is now $savedlists
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
 * END-HISTORY
@@ -48,6 +49,8 @@ $include keys.h
 
 $include syscom.h
 $include parser.h
+
+deffun voc_guard(f) calling '!voc_guard'   ;* 18 Oct 26, Solo carry A
 
 
    parser = "!PARSER"
@@ -113,6 +116,17 @@ $include parser.h
    open saved.name to saved.lists.file else
       @system.return.code = -status()
       stop sysmsg(3248, status()) ;* Error xx opening $savedlists
+   end
+
+* 18 Oct 26 Windows port - from Linux df5e076 (18 Oct 26): - Solo carry A, owner's ruling B: only DELETING changes the file (a plain GET.LIST reads it), and IN names any file.  This
+*   program is $internal, so the C test (voc_write_refused, global_write_refused) lets its DELETE through; it asks about the file opened,
+*   before the record is read and before the select list is formed, so a refusal leaves the select list as it was.  The default
+*   $savedlists is neither a VOC nor one of the global files, so voc_guard answers true for it.
+   if deleting then
+      if not(voc_guard(saved.lists.file)) then
+         @system.return.code = -ER$PERM
+         stop
+      end
    end
 
 * ---------------  Step 3 -  Fetch the select list

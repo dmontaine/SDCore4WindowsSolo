@@ -1,0 +1,93 @@
+* VOC_REFUSAL
+* Why may this session not change the file it has opened?  0 if it may, else the message number.
+* Copyright (c) 2026 Ladybridge Systems, All Rights Reserved
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 3, or (at your option)
+* any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software Foundation,
+* Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+*
+*
+* START-HISTORY:
+* 18 Oct 26 SD Core Solo - SOLO 46, from SD Core Solo for Linux 2a9b736 (LSOLO 52): the rule that was
+*           the body of !voc_guard, split out so that a program that cannot display (the API server,
+*           SP.VIEW) can ask it.  It returns 0 or the message number (12008 / 12028) and displays
+*           nothing; !voc_guard is this plus a display.  Linux's version tests the full path of the
+*           global files; this one keeps !voc_guard's own test (the last two components, either
+*           spelling of the Windows path) unchanged.
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*    deffun voc_refusal(f) calling '!voc_refusal'
+*    n = voc_refusal(file.var)        ;* 0, 12008 or 12028
+*
+* Owner's rulings 12 and 14, 25 Sep 2026: a DIRECT edit of the VOC needs the
+* administrator password (ADMIN).  op_dio3.c refuses a user program's own
+* write, delete or clear of a VOC in C; the verbs that edit a file the user
+* names are $internal, which the C test lets through, so they ask this (through
+* !voc_guard) instead - and since the 18 Oct 26 carry, so do the verbs that
+* change a file the user names in other ways (DELETE.LIST, COPY.LIST, FIXDIR,
+* GENERATE, COMO ... IN, and the rest listed in the changelog) and the API
+* server.
+*
+* IT LOOKS AT THE FILE THAT WAS OPENED, NOT AT THE NAME THAT WAS TYPED, so a
+* Q-pointer to a VOC, or "voc" in any case, is caught.  A VOC is a DH (dynamic)
+* file whose last path component is "voc" - the same rule as
+* voc_write_refused() in C.  The dictionary, voc.dic, is not the VOC.
+*
+* Returns 0 when the edit may go ahead: not a VOC, or ADMIN is on.  Otherwise
+* 12008 (the VOC needs ADMIN) or 12028 (SDSYS's gcat, global.bp.out and
+* solo.policy need a global-password session, ADMIN not being enough).
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+function voc_refusal(f)
+$catalog !voc_refusal
+
+$include keys.h
+$include int$keys.h
+
+   p = downcase(convert(char(92), '/', fileinfo(f, FL$PATH)))
+   if p[len(p), 1] = '/' then p = p[1, len(p) - 1]
+   last = field(p, '/', dcount(p, '/'))
+
+*  28 Sep 26 SD Core Solo - RULING 33: SDSYS's gcat and global.bp.out are the
+*  SD Core server's, changed only by a session signed in with the global
+*  password - ADMIN is NOT enough, so this comes before the ADMIN test.  The
+*  C gate (op_dio3.c global_write_refused) lets $internal verbs through, and
+*  COPY, ED, DELETE and the rest are $internal.  Recognised by the last TWO
+*  components, sdsys/gcat and sdsys/global.bp.out: the SDSYS path has two
+*  spellings (/c/... and C:/...), and matching the tail cannot miss either -
+*  a lookalike elsewhere is refused too, which is the safe direction.
+   if fileinfo(f, FL$TYPE) = FL$TYPE.DIR then
+      tail = field(p, '/', dcount(p, '/') - 1) : '/' : last
+*     28 Sep 26 - and sdsys/solo.policy, ruling 34's deny list.
+      if tail = 'sdsys/gcat' or tail = 'sdsys/global.bp.out' or tail = 'sdsys/solo.policy' then
+         if kernel(K$GLOBAL.SESSION, -1) then return 0
+         return 12028 ;* The global catalogue can only be changed by the SD Core server
+      end
+   end
+
+   if kernel(K$ADMINISTRATOR, -1) then return 0
+
+   if fileinfo(f, FL$TYPE) # FL$TYPE.DH then return 0
+
+   if last # 'voc' then return 0
+
+   return 12008 ;* The VOC can only be changed after ADMIN
+end
+
+* END-CODE

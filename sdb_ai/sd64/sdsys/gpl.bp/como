@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 18 Oct 26 Windows port - from Linux df5e076 (18 Oct 26): Solo carry A (owner's ruling B): IN dirfile asks !voc_guard for the directory file it names.
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
 * 18 Oct 26 Windows port - from Linux f3a22e8 (12 Oct 26): openQM 8, 9, 361: APPEND, IN dirfile, and record names mapped as for a directory file.
 * END-HISTORY
@@ -42,6 +43,8 @@ $include err.h
 
 $include parser.h
 $include syscom.h
+
+deffun voc_guard(f) calling '!voc_guard'   ;* 18 Oct 26, Solo carry A
 
 $define default.como.dir "$COMO"
 $define como.dir.voc.name "$COMO"
@@ -156,6 +159,13 @@ como.on:
       if fileinfo(alt.f, FL$TYPE) # FL$TYPE.DIR then
          @system.return.code = -ER$NDIR
          stop sysmsg(1428, alt.dir) ;* xx is not a directory file
+      end
+*     18 Oct 26 Windows port - from Linux df5e076 (18 Oct 26): - Solo carry A, owner's ruling B: the COMO file is made, or appended to, in this directory file, which can be one of the
+*     global files (gcat, global.bp.out, solo.policy).  This program is $internal, so the C test does not ask; voc_guard does, for the file as
+*     opened, before the output is started.
+      if not(voc_guard(alt.f)) then
+         @system.return.code = -ER$PERM
+         stop
       end
       target.dir = fileinfo(alt.f, FL$PATH)
       close alt.f

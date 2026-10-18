@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 18 Oct 26 Windows port - from Linux df5e076 (18 Oct 26): Solo carry A (owner's ruling B): a file that already exists (a component added, or a single file made a multifile) asks
+*               !voc_guard for each of its data parts before anything is changed.
 * 18 Oct 26 Windows port - from Linux e876ab7 (13 Oct 26): COLLECTION makes a data collection file (the DHF_COLLECTION header bit):
 *               READ gives a collection and WRITE takes one.
 * 09 Oct 26 SD Core Solo - message 10176 (several lines, field marks) is shown a
@@ -68,6 +70,8 @@ $include int$keys.h
 $include parser.h
 $include keys.h
 $include err.h
+
+deffun voc_guard(f) calling '!voc_guard'   ;* 18 Oct 26, Solo carry A
 
 $define default.merge.load 50
 $define default.split.load 80
@@ -341,6 +345,12 @@ $define default.split.load 80
          end else
             if component = '' then component = file.name
 
+* 18 Oct 26 Windows port - from Linux df5e076 (18 Oct 26): - Solo carry A, owner's ruling B: from here the verb changes a file that already exists - it moves a single file's parts into a
+*   subdirectory and rewrites its pointer, or adds a component to its pointer - so a VOC or a global file is left alone unless the session may
+*   change it.  This program is $internal, so the C test lets it through.  It is asked before the "Convert to multifile" question, since the
+*   answer would make no difference.
+            gosub guard.existing.file
+
             if voc.rec<2> # '' and voc.rec<4> = '' then   ;* 0262
                * We need to make this into a multifile.
 
@@ -577,6 +587,29 @@ $define default.split.load 80
 
    @system.return.code = 0
 
+   return
+
+
+* ======================================================================
+* guard.existing.file  -  may this session change the file that VOC.REC (an existing F record) describes?  (18 Oct 26 dm, Solo carry A)
+*   Each data path of the record is opened and asked of !voc_guard as opened (it looks at the last component of the path and the type of the
+*   file: a DH file called voc, or one of the global directory files).  The dictionary path (field 3) is not looked at: converting an
+*   ordinary file does not touch its dictionary.  A refusal stops the verb with the reason, and nothing has been changed (the VOC record
+*   lock goes when the program ends).  A path that cannot be opened is left to the verb, which will fail on it itself.
+
+guard.existing.file:
+   for ek = 1 to dcount(voc.rec<2>, @vm)
+      ek.path = voc.rec<2, ek>
+      if ek.path # '' then
+         openpath ek.path to ek.f then
+            if not(voc_guard(ek.f)) then
+               @system.return.code = -ER$PERM
+               stop
+            end
+            close ek.f
+         end
+      end
+   next ek
    return
 end
 
