@@ -639,12 +639,11 @@ restart.cproc:
          * 0190 Reverted to pre-1.4-4 technique of building a paragraph.
 
          * 18 Oct 26 Windows port - from Linux b51c637 (16 Oct 26): - OPTION STACKED.ACCOUNT (QM4 gap 248): the account this level started in, for revert.account.  What
-         *   is held is only what LOGTO changes: the working directory, the name, the VOC and the two OS-access switches.
+         *   is held is only what moving to another account changes: the working directory, the name and the VOC (Linux also
+         *   holds the two OS-access switches: the S.63 gate, which is held here and not carried).
          stk.path = ospath("", os$cwd)
          stk.account.path = account.path
          stk.who = who
-         stk.sh = kernel(K$SH, -1)
-         stk.os.exec = kernel(K$OS.EXEC, -1)
 
          pa.name = ""
          pa.rec = "PA" : @fm : xeq.command
@@ -2902,16 +2901,15 @@ revert.account:
       display sysmsg(5162) ;* Fatal error : Cannot return to previous account
       return to abort.cproc
    end
-   if kernel(K$ADMINISTRATOR, -1) then
-      call !EUID_SET('sdsys', rstat)
-   end
+* 18 Oct 26 SD Core Solo - THE LINUX BODY OF THIS PARAGRAPH IS ADAPTED, NOT COPIED (carry of b51c637).  It put the effective user
+*   back to sdsys with !EUID_SET for an administrator's session (no effective-user drop exists on Windows) and set the two
+*   OS-access switches back (the S.63 gate, held and not carried).  Solo has no LOGTO (SOLO 29), so nothing
+*   here changes the administrator state: it is not an account's property in this product.
    i = ospath("", os$flush.cache)
    account.path = stk.account.path
    who = stk.who
    void kernel(K$SET.ACCOUNT, who)
    voc = new.voc ; new.voc = 0
-   void kernel(K$SH,      stk.sh)
-   void kernel(K$OS.EXEC, stk.os.exec)
    void kernel(K$AUDIT, 'logto revert account=' : who)
    i = kernel(K$INVALIDATE.OBJECT, 0)
    gosub find.private.catalogue
