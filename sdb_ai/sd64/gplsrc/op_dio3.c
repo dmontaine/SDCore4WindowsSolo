@@ -87,10 +87,13 @@
 #include "config.h"
 #include "locks.h"
 #include "sdclient.h"
+#include "options.h"
 /* 28 Sep 26 SD Core Solo - cygwin_conv_path(), for global_write_refused(). */
 #include <sys/cygwin.h>
 
 #include <time.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 /* Modified by Composer AI - 2026/06/10.
    k_error() longjmps back to the kernel command loop and never returns,
@@ -1554,6 +1557,16 @@ bool map_t1_id(char *id, int16_t id_len, char *mapped_id) {
 
   p = id;
   q = mapped_id;
+
+  /* 15 Oct 26 (openQM GIT): with the option on, the two names git keeps in a working directory are not mapped, so that a directory file
+     can hold a project's source with its own .gitignore and .gitattributes */
+  if (map_dir_ids && Option(OptGit) && (id_len > 0) && (*id == '.') &&
+      (((id_len == 14) && !memcmp(id, ".gitattributes", 14)) || ((id_len == 10) && !memcmp(id, ".gitignore", 10)))) {
+    memcpy(mapped_id, id, id_len);
+    mapped_id[id_len] = '\0';
+    return TRUE;
+  }
+
 // rev 0.9-3  map ~ to %T and . to %D (consistent with what dir_select in op_dio4.c)
 //            but only when mapping to on
   if (map_dir_ids){
@@ -1971,6 +1984,11 @@ exit_dir_write:
     CloseFile(t1_fu);
   if (t1_buffer != NULL)
     t1_buffer_free();
+
+  /* 15 Oct 26 (openQM DIR.DTM): the option makes a write to a directory file count as a change of the directory, whose date and time
+     modified the operating system moves only when a name is added or removed, not when a record is replaced */
+  if ((process.status == 0) && Option(OptDirDtm))
+    (void)utimensat(AT_FDCWD, pathname, NULL, 0);
 
   return process.status == 0;
 }
