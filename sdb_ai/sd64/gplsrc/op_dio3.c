@@ -460,6 +460,7 @@ void op_delete() {
   fvar_descr = e_stack - 2;
   k_get_file(fvar_descr);
   fvar = fvar_descr->data.fvar;
+  ProfFile(PROF_DELETE, fvar); /* the application event profiler (16 Oct 26) */
 
   txn_id = (fvar->flags & FV_NON_TXN) ? 0 : process.txn_id;
 
@@ -665,6 +666,7 @@ void op_readv() {
   descr = e_stack - 3;
   k_get_file(descr);
   fvar = descr->data.fvar;
+  ProfFile(PROF_READ, fvar); /* READV: the application event profiler (16 Oct 26) */
   txn_id = (fvar->flags & FV_NON_TXN) ? 0 : process.txn_id;
 
   if (field_no != 0) {
@@ -914,6 +916,7 @@ void op_write() {
   fvar_descr = e_stack - 2;
   k_get_file(fvar_descr);
   fvar = fvar_descr->data.fvar;
+  ProfFile(PROF_WRITE, fvar); /* the application event profiler (16 Oct 26) */
 
   txn_id = (fvar->flags & FV_NON_TXN) ? 0 : process.txn_id;
 
@@ -1153,6 +1156,16 @@ void op_writev() {
     }
   }
 
+  if (prof_mask & PROF_WRITE) /* WRITEV: the application event profiler (16 Oct 26); the file variable is third from the top */
+  {
+    DESCRIPTOR* prof_d = e_stack - 3;
+
+    while (prof_d->type == ADDR)
+      prof_d = prof_d->data.d_addr;
+    if (prof_d->type == FILE_REF)
+      ProfFile(PROF_WRITE, prof_d->data.fvar);
+  }
+
   /* Push lock flag onto e-stack; zero for WRITEV, non-zero for WRITEVU */
 
   InitDescr(e_stack, INTEGER);
@@ -1243,6 +1256,7 @@ Private void read_record(bool matread) {
   fvar_descr = e_stack - 2;
   k_get_file(fvar_descr);
   fvar = fvar_descr->data.fvar;
+  ProfFile(PROF_READ, fvar); /* READ, READU, READL and MATREAD: the application event profiler (16 Oct 26) */
   txn_id = (fvar->flags & FV_NON_TXN) ? 0 : process.txn_id;
 
   /* Get target descr */
