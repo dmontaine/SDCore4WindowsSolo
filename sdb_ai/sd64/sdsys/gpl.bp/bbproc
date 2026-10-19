@@ -25,6 +25,7 @@
 *
 *
 * START-HISTORY:
+* 18 Oct 26 Windows port - from Linux Solo 2a9b736 (Solo carry A): voc_refusal and voc_guard join the bootstrap list: BASIC calls !voc_guard.
 * 18 Oct 26 Windows port - from Linux 3b43525 (15 Oct 26): login_inhibit joins the bootstrap list: LOGIN calls it (QM4 gaps Q-8, INHIBIT.LOGIN).
 * 19 Aug 26 Windows port - $include gpl.bp, the VOC id having moved.  5.12 (b).
 * 19 Aug 26 Windows port - the bootstrap now CREATES the SDSYS files in lower
@@ -276,6 +277,12 @@ src.list<-1> = 'ACC_HOLD'
 *   same reason as !acc_hold (the bootstrap's own SECOND.COMPILE session included).  LOGIN_INHIBIT calls no catalogued
 *   routine, so the chain ends here.
 src.list<-1> = 'LOGIN_INHIBIT'
+* 18 Oct 26 Windows port - from Linux Solo 2a9b736 (Solo carry A, SOLO 46): BASIC (the bootstrap's SECOND.COMPILE runs it) asks
+*   !voc_guard before it writes the object file of the source file it was given, and !voc_guard asks !voc_refusal; both must
+*   exist before the first BASIC runs.  The first Solo cycle after the carry stopped at SECOND.COMPILE with "Unable to load
+*   '!voc_guard' object code in $basic" because this hunk had not been carried.
+src.list<-1> = 'VOC_REFUSAL'
+src.list<-1> = 'VOC_GUARD'
 src.list<-1> = 'TERM'
 
 src.cnt = dcount(src.list,@FM) 
