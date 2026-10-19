@@ -239,6 +239,8 @@ WRITERS = {
     # 28 Sep 26 - probe-solo-rename.py (piece 5) deleted with ruling 29.
     "probe-solo-dpapi.py": "os.path.join(SDSYS, '$internal')",
     "probe-solo-api.py": "os.path.join(SDSYS, '$internal')",
+    # 19 Oct 26 - RELEASE_1.1 158: INHIBIT.LOGIN / MASTER.LOGIN witness, built on probe-solo-api.py's sd_in().
+    "probe-solo-inhibit.py": "os.path.join(SDSYS, '$internal')",
     # 26 Sep 26 - SOLO 9: sdsys-seat.ps1 and the verify-* writers deleted.
 }
 NON_WRITERS = {
