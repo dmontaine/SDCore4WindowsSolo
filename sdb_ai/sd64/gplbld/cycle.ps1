@@ -277,7 +277,11 @@ $stopExe = $null
 if (Test-Path -LiteralPath $SoloSd) { $stopExe = $SoloSd }
 elseif (Test-Path -LiteralPath $LegacySd) { $stopExe = $LegacySd; Write-Host "   (an install from before the rename: stopping it as $LegacySd)" }
 if ($stopExe) {
+    # Windows PowerShell 5.1 turns a native command's stderr into a terminating error under 'Stop' when 2>&1 is used, and
+    # "sd -stop" warns on stderr ("sdwind (pid N) is still running", 18 Oct 2026): that aborted this step before it could wait.
+    $ErrorActionPreference = 'Continue'
     $stopOut = (& $stopExe -stop 2>&1 | Out-String)
+    $ErrorActionPreference = 'Stop'
     $stopOut -split "`r?`n" | Where-Object { $_.Trim() } | ForEach-Object { Write-Host "     $_" }
 } else {
     Write-Host "   no Solo install at $SoloSd"
