@@ -122,6 +122,7 @@
         }
         'fix-b10' = @{
             '203: with NO.SOURCE.WARNING' = 'the probe writes the VOC record $debug.options, which an ordinary account may not (errlog: Error 3035 writing record at zzb10op)'
+            '545: the adds4000-at entry'  = 'the -at terminfo entries (the AccuTerm types) were removed by RELEASE_1.1 139, area 6c: there is no adds4000-at entry on purpose'
         }
         'flushdh' = @{
             '83: the default form waits' = 'the second process that waits at an INPUT is started by the suite itself, without the account password Solo asks for at every session, so it never logs in; and killing it at the end leaves a lost user (row 152)'
