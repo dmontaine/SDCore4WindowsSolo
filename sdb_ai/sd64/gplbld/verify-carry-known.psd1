@@ -51,6 +51,9 @@
         'sortwide'     = 'starts sd -internal (SORTNEXT, SORTDATA are restricted): forced to the real SDSYS, elevated only; the suite writes its programs into the box account'
         'sselectv'     = 'starts sd -internal: forced to the real SDSYS, elevated only; the suite writes its programs into the box account'
         'txnstatus'    = 'starts sd -internal: forced to the real SDSYS, elevated only; the suite writes its programs into the box account'
+        # Found 18 Oct 2026: zzedvw writes the VOC record $ED.OPTIONS, which sduser may not (errlog: "Error 3035 ... writing record"),
+        # so the program ends in the debugger and the session spins at full CPU on the exhausted stdin until it is killed.
+        'edext'        = 'writes and deletes the VOC record $ED.OPTIONS, which an ordinary account may not: the program stops in the debugger and the session spins on the exhausted stdin'
     }
     Rows = @{
         # A line ends with CR LF here unless a mode is chosen: the owner PERMITTED this default on 18 Oct 2026 (Linux mail T1930,
