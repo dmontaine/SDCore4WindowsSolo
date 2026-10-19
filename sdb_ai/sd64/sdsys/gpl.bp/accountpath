@@ -19,6 +19,7 @@
 * START-HISTORY:
 * 18 Oct 26 Windows port - from Linux c608b9f (15 Oct 26): Written for QM4 gaps bundle Q-4 (ACCOUNT.PATH), as a function in BASIC that bcomp knows by name.
 * 18 Oct 26 Windows port - a register path that starts @USRDIR (Solo stores @USRDIR/<name>) is expanded as PATHTKN does, so ACCOUNT.PATH of Solo's own account is no longer null (verify-carry func-q1, RELEASE_1.1 151).
+* 18 Oct 26 Windows port - Solo's @PATH is relative to the tree ("/user_accounts/sduser": the MSYS root is the tree), so the own-account test puts the tree's place in front of it.
 * END-HISTORY
 *
 * START-DESCRIPTION:
@@ -68,6 +69,14 @@ $include int$keys.h
       if not(ok) then
          own = convert(char(92), '/', @path)
          if own[2, 1] = ':' then own = '/cygdrive/' : downcase(own[1, 1]) : own[3, 99999]
+         * Solo: the MSYS root "/" is the tree itself (C:\Users\..\SDCoreSolo), so @PATH reads "/user_accounts/sduser" - the probe of 18 Oct 26
+         * (verify-carry zzpath, RELEASE_1.1 151) - and the tree's own place is put in front of it to meet the drive letter spelling above.
+         if own[1, 1] = '/' and own[1, 10] # '/cygdrive/' then
+            tree = convert(char(92), '/', @sdsys)
+            if upcase(tree[len(tree) - 5, 6]) = '/SDSYS' then tree = tree[1, len(tree) - 6]
+            if tree[2, 1] = ':' then tree = '/cygdrive/' : downcase(tree[1, 1]) : tree[3, 99999]
+            own = tree : own
+         end
          own = upcase(own) : '/'
          here = upcase(path) : '/'
          ok = (here[1, len(own)] = own)
