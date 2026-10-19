@@ -120,8 +120,19 @@
         'option-a4' = @{
             'CONTROL: a backslash opens a quoted string' = 'OPTION BACKSLASH.NOT.QUOTE is accepted and does nothing here: a backslash is a path separator and the parser never splits at one (deviation 1 of the area 1 mail)'
         }
+        'edbug' = @{
+            'with NO.EV.POSITION in $ED.OPTIONS' = 'the probe writes the VOC record $ED.OPTIONS, which an ordinary account may not (errlog: Error 3035 writing record at zzevo...)'
+        }
+        # Solo's VOC has no LOGTO (read from the session output of lang-a15, 18 Oct 2026: W3 printed 0).
+        'mode-q16' = @{
+            'Q-16 MATREAD as the WHILE condition'  = 'reads the VOC record LOGTO, which Solo has not'
+            'Q-16 MATREADU as the condition'       = 'reads the VOC record LOGTO, which Solo has not'
+            'Q-16 MATREADL as the condition'       = 'reads the VOC record LOGTO, which Solo has not'
+        }
         'proc-a5' = @{
-            'one user (this session)'             = 'counts every logged-in user: a phantom left by an earlier suite or a console session of the owner makes it 2; it passes when run alone'
+            'THE ROW: WHO USER shows the login name' = 'a Solo session is signed in as the account (the output reads "SDUSER sduser"), not as the Windows user the suite expects to see ("Don")'
+            'value 1 is the user number and value 6' = 'follows the WHO USER row: the login name is sduser here, not the Windows user'
+            'one user (this session)'            = 'counts every logged-in user: a phantom left by an earlier suite or a console session of the owner makes it 2; it passes when run alone'
         }
         'sys-b2' = @{
             '1024, 1027, 1028, 1034, 1036:'       = 'FILEINFO 1031 (CREATING.SEQKEY, Linux d6a86a7 and 400500c of the held QMClient chain) is not carried: the key answers a null string'

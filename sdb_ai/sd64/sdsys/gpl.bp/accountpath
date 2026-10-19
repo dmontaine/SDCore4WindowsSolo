@@ -18,6 +18,7 @@
 *
 * START-HISTORY:
 * 18 Oct 26 Windows port - from Linux c608b9f (15 Oct 26): Written for QM4 gaps bundle Q-4 (ACCOUNT.PATH), as a function in BASIC that bcomp knows by name.
+* 18 Oct 26 Windows port - a register path that starts @USRDIR (Solo stores @USRDIR/<name>) is expanded as PATHTKN does, so ACCOUNT.PATH of Solo's own account is no longer null (verify-carry func-q1, RELEASE_1.1 151).
 * END-HISTORY
 *
 * START-DESCRIPTION:
@@ -60,6 +61,7 @@ $include int$keys.h
    * are brought to that spelling, so that the answer starts with a slash as on Linux and the own-account test compares like
    * with like (18 Oct 26: the first run found ACCOUNT.PATH of the caller's own account empty, because the two spellings never matched).
    if path # '' then
+      if upcase(path[1, 7]) = '@USRDIR' then path = config('USRDIR') : path[8, 99999]
       path = convert(char(92), '/', path)
       if path[2, 1] = ':' then path = '/cygdrive/' : downcase(path[1, 1]) : path[3, 99999]
       ok = kernel(K$ADMINISTRATOR, -1)
