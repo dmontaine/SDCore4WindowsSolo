@@ -58,6 +58,7 @@
  *  OBJECTS=n     Limit on loaded object code count (0 = no limit)
  *  OBJMEM=n      Limit on locade object size (kb, 0 = no limit)
  *  SDCLIENT=n    SDClient rules (0=all, 1=no call/exec, 2=restricted call)
+ *  SCREENTHEME=name  The screen library's default theme: mono, classic or blue (default none = mono)
  *  SDSYS=path    SDSYS directory path
  *  SAFEDIR=1     Use careful update to directory files
  *  SORTMEM=n     Threshold for disk based sort (units of 1kb)
@@ -163,6 +164,7 @@ struct CONFIG* read_config(char* errmsg) {
   pcfg.sh1[0] = '\0';         /* SH1:      Command to run single shell */
   pcfg.sortmem = 4194304;     /* SORTMEM:  4Mb default switch to disk sort (1Mb until 1.2-0; openQM item 535) */
   pcfg.sortmrg = 4;           /* SORTMRG:  Files merged in one pass */
+  pcfg.screentheme[0] = '\0'; /* SCREENTHEME: the screen library's own default (mono) */
   pcfg.sortworkdir[0] = '\0'; /* SORTWORK: Use Q_MSYS directory */
   pcfg.tempdir[0] = '\0';     /* TEMPDIR:  Temporary directory */
   pcfg.spooler[0] = '\0';     /* SPOOLER:  Default spooler name */
@@ -433,6 +435,10 @@ struct CONFIG* read_config(char* errmsg) {
         strcpy(pcfg.sortworkdir, rec + 9);
       else if (strncmp(rec, "SPOOLER=", 8) == 0)
         strcpy(pcfg.spooler, rec + 8);
+      else if (strncmp(rec, "SCREENTHEME=", 12) == 0) {
+        strncpy(pcfg.screentheme, rec + 12, sizeof(pcfg.screentheme) - 1);
+        pcfg.screentheme[sizeof(pcfg.screentheme) - 1] = '\0';
+      }
       /* 06 Oct 26 SD Core Solo - STARTUP was removed (multi-user RELEASE_1.1 119, SOLO 26):
          it never ran here.  A line still carrying it is refused BY NAME, not as an unknown
          word, so whoever wrote it is told what to do rather than left to guess. */
