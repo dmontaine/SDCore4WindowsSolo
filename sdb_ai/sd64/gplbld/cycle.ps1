@@ -387,12 +387,18 @@ if ($SkipInstall) {
 # wait is on unins000.exe disappearing, not on the process.
 Step 5 "Uninstalling"
 $unins = Join-Path $SoloRoot 'unins000.exe'
+# 19 Oct 2026: Test-Path THREW "Access is denied" (ErrorActionPreference is Stop) on the poll below while the
+# uninstaller was deleting unins000.exe - a file that is delete-pending refuses to be opened.  That is the file
+# still being there, not a failure: a throw counts as present, and the 180 s deadline still decides.
+function Test-UninsPresent([string]$Path) {
+    try { return [bool](Test-Path -LiteralPath $Path -ErrorAction Stop) } catch { return $true }
+}
 if (Test-Path -LiteralPath $unins) {
     & $unins /VERYSILENT
     $deadline = (Get-Date).AddSeconds(180)
-    while ((Test-Path -LiteralPath $unins) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
-    Write-Host ("   uninstaller ran; {0} {1}" -f $unins, $(if (Test-Path -LiteralPath $unins) { 'STILL PRESENT - it did not finish in 180s' } else { 'gone' }))
-    if (Test-Path -LiteralPath $unins) { Fail "the uninstaller did not finish - was its elevation prompt declined?" }
+    while ((Test-UninsPresent $unins) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+    Write-Host ("   uninstaller ran; {0} {1}" -f $unins, $(if (Test-UninsPresent $unins) { 'STILL PRESENT - it did not finish in 180s' } else { 'gone' }))
+    if (Test-UninsPresent $unins) { Fail "the uninstaller did not finish - was its elevation prompt declined?" }
     # unins000.exe disappearing is not the end: its copy (_unins.tmp, in %TEMP%) is still doing the Keep
     # cleanup, and step 6 below ran under it twice (8 and 9 Oct 2026).  Wait for the process too.
     $deadline = (Get-Date).AddSeconds(60)
