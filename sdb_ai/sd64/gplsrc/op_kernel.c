@@ -305,6 +305,10 @@ void op_kernel() {
             (process.program.flags & HDR_INTERNAL)) {
           strcpy(process.username, uname);
           strcpy((char *)(my_uptr->username), uname);
+          /* 20 Oct 26 SD Core Solo - RELEASE_1.1 163: apisrvr calls this only after the SCRAM proof is accepted, so from here the
+             API server is past the login and op_tio.c lifts the packet-length limit from 64 KB to the largest string. */
+          if (is_sdApiSrvr)
+            api_logged_in = TRUE;
         }
       }
       /* Report the name as it actually stands, so a refused caller is simply

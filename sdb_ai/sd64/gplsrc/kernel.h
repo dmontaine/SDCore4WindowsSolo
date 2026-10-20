@@ -44,6 +44,9 @@ Public bool is_phantom init(FALSE);  /* Process is a phantom */
 Public bool is_sdApiSrvr init(FALSE); /* Process is a sdApiSrvr */
 /* 26 Sep 26 SD Core Solo - api_preauth (sd -H) removed with the handover,
    SOLO 3 step 5. */
+/* 20 Oct 26 SD Core Solo - RELEASE_1.1 163 (Linux S.71).  The API server has accepted the SCRAM proof: K_SET_USERNAME (op_kernel.c),
+   which apisrvr calls only then, sets it.  op_tio.c api_before_login() reads it to pick the packet-length limit. */
+Public bool api_logged_in init(FALSE);
 Public bool class_main_ok init(FALSE); /* Set by op_run() and op_chain() for the one k_call() they make: a class module may run its MAIN (16 Oct 26, Fixes item 484) */
 Public bool is_nt init(FALSE);       /* Windows NT/2000/XP? */
 
