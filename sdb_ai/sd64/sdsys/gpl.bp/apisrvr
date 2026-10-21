@@ -19,6 +19,8 @@
 *
 *
 * START-HISTORY:
+* 20 Oct 26 SD Core Solo - RELEASE_1.1 165 (the OS switch, Linux Solo 7c6bbfc): the account's SH and OS.EXECUTE switches are read from its register record
+*           (ACC$SH, ACC$OS.EXEC) and loaded with K$SH and K$OS.EXEC once the account is entered, off unless the record says yes.
 * 19 Oct 26 Windows port - RELEASE_1.1 158 (Linux d6a86a7, 15 Oct 26, sheet 170): the MASTER.LOGIN paragraph of the SDSYS VOC is run for an API session,
 *           once, when it first enters an account, before the account's own LOGIN.
 * 18 Oct 26 SD Core for Linux Solo (Solo carry A, owner's ruling B) - WRITE, WRITEU, DELETE, DELETEU and CLEARFILE ask !voc_refusal for the
@@ -601,6 +603,13 @@ end
 *   test, went with it - SOLO 3 step 5.)
 account.path = ''
 acc.suspended = ''
+* 20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH (Linux Solo 7c6bbfc, "api should read switches").  The account's SH and
+*   OS.EXECUTE switches are read here from its register record, as LOGIN reads them at sign-on, and are set only once the account has
+*   been entered (below), so a refusal or a revert leaves the previous account's switches with the previous account.  FAIL CLOSED:
+*   both start off for every call, and an account with no record keeps them off.  Without this an API session would never hold either
+*   switch, so an account given SH or OS over SET.OS.ACCESS would have neither over the API.
+api.sh.grant = @false
+api.os.grant = @false
 * 17 Sep 26 Windows port - RELEASE_1.1 55.  ***EVERY REFUSAL HERE NAMES ITS
 *   BRANCH ON THE AUDIT TRAIL, AND THAT IS KEPT RATHER THAN REMOVED WITH THE
 *   DIAGNOSTICS IT ARRIVED WITH.***  All five refusals answer the caller with
@@ -616,6 +625,8 @@ openpath @sdsys:@ds:'accounts' to acc.f then
    read acc.rec from acc.f, new.account then
       account.path = parse.pathname.tokens(acc.rec<ACC$PATH>)
       acc.suspended = acc.rec<ACC$SUSPENDED>
+      api.sh.grant = (upcase(trim(acc.rec<ACC$SH>)) = 'YES')
+      api.os.grant = (upcase(trim(acc.rec<ACC$OS.EXEC>)) = 'YES')
    end
    close acc.f
 end
@@ -857,6 +868,13 @@ read voc.rec from voc, "$PRIVATE.CATALOGUE" then
 end
 
 i = kernel(K$PRIVATE.CATALOGUE, private.catalogue)
+
+* 20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH (Linux Solo 7c6bbfc): every way out of this routine that keeps the new account has
+*   passed; load its switches now (see where they were read, above), BEFORE MASTER.LOGIN and the account's own LOGIN paragraph run, so
+*   those run under the account's switches and not the previous ones.  The administrator flag is not touched: an API session carries none,
+*   so the owner over the API is held to the account's own switches like anybody else.
+void kernel(K$SH,      api.sh.grant)
+void kernel(K$OS.EXEC, api.os.grant)
 
 * 19 Oct 26 Windows port - from Linux d6a86a7 (sheet 170): the MASTER.LOGIN paragraph of the SDSYS VOC is run for an API session as CPROC
 *   runs it for an interactive or phantom one: once, when the session first enters an account, before that account's own LOGIN.  There is

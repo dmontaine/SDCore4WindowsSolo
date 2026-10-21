@@ -31,6 +31,8 @@
 #      in the installed tree; every install and upgrade), then
 #      sd -internal SYNC.GLOBAL.CATALOG  (ruling 33 - the server's programs in
 #      GLOBAL.BP.OUT back into the global catalogue after gcat is replaced)
+#   5a. (20 Oct 26, RELEASE_1.1 165, the OS switch) SD_SOLO_OS_ACCESS none|sh|os|both, new tree and upgrade:
+#      sd -internal SET.OS.ACCESS SH ON / OS ON for what it names, then SET.OS.ACCESS alone to read both switches back.
 #   6. sd -stop    the machine step (solo-machine.ps1) starts it again from the
 #                  scheduled task, which is the process that should own it.
 # Each -internal session gets the one-shot marker LOGIN demands (ruling 13,
@@ -89,6 +91,11 @@ $accountPw = [Environment]::GetEnvironmentVariable('SD_SOLO_ACCOUNT_PW', 'Proces
 # 28 Sep 26 - ruling 34: the control file's deny-verbs line (not a secret).
 $denyVerbs = "" + [Environment]::GetEnvironmentVariable('SD_SOLO_DENY_VERBS', 'Process')
 [Environment]::SetEnvironmentVariable('SD_SOLO_DENY_VERBS', $null, 'Process')
+# 20 Oct 26 - RELEASE_1.1 165, THE OS SWITCH (Linux Solo acd94b9 "ask during install"; the owner: "carry the switch").  The answer to
+# "turn on the shell and OS access?": none, sh, os or both (not a secret).  Passed on a new tree AND on an upgrade.  none, or nothing
+# at all, turns nothing on: both switches stay as they are, which is OFF on a new account.
+$osAccess = ("" + [Environment]::GetEnvironmentVariable('SD_SOLO_OS_ACCESS', 'Process')).Trim().ToLowerInvariant()
+[Environment]::SetEnvironmentVariable('SD_SOLO_OS_ACCESS', $null, 'Process')
 # SOLO 2: the tree finds itself from sd.exe's location; a stray SD_CONFIG would
 # point it somewhere else.
 [Environment]::SetEnvironmentVariable('SD_CONFIG', $null, 'Process')
@@ -106,9 +113,12 @@ Note ('admin pw     : ' + $(if ($adminPw) { 'given (' + $adminPw.Length + ' char
 Note ('global pw    : ' + $(if ($globalPw) { 'given (' + $globalPw.Length + ' characters)' } else { 'NOT given' }))
 Note ('account pw   : ' + $(if ($accountPw) { 'given (' + $accountPw.Length + ' characters)' } else { 'NOT given' }))
 Note ('deny verbs   : ' + $(if ($denyVerbs) { '"' + $denyVerbs + '"' } else { 'none given' }))
+Note ('os access    : ' + $(if ($osAccess) { '"' + $osAccess + '"' } else { 'not given (nothing is turned on)' }))
 
 # The null cases, refused out loud.
 $refuse = @()
+# 20 Oct 26 - RELEASE_1.1 165: only the four words are an answer; it reaches sd's command line through cmd.exe.
+if ($osAccess -and ($osAccess -notmatch '^(none|sh|os|both)$')) { $refuse += 'os-access is not none, sh, os or both' }
 if (-not $AppDir -or -not (Test-Path -LiteralPath $sdexe)) { $refuse += 'no sd-solo.exe under the app dir' }
 if (-not (Test-Path -LiteralPath $sdsys)) { $refuse += 'no sdsys under the app dir' }
 if (-not $User) { $refuse += 'no user name' }
@@ -225,6 +235,8 @@ $disqualify = @('only the installer may run this', 'Connection terminated', 'has
                 'Cannot open global catalogue directory',
                 # DENY.VERBS's refusals (ruling 34)
                 'is not a verb name', 'deny.verbs: cannot open',
+                # SET.OS.ACCESS's refusals (RELEASE_1.1 165): 10114 (register unchanged) and 12931 (syntax)
+                'Unable to change the state of', 'Syntax: set.os.access',
                 'Cannot open accounts register', 'does not take',
                 # WRITE_INSTALL_DICTS' refusals (and bootstrap.py's Invalid runfile)
                 'ERROR OPENING FILE', 'ERROR CANNOT OPEN', 'PROCESS ABORTED', 'READLIST EMPTY',
@@ -371,6 +383,25 @@ try {
         $t = Invoke-Sd ('-internal DENY.VERBS SET ' + ($denyVerbs -replace ' ', '')) ''
         Judge 'denied verbs set' $t '(?m)^DENY\.VERBS \d+: '
     }
+
+    # 20 Oct 26 - RELEASE_1.1 165, THE OS SWITCH.  The shell and OS access are two switches of the one account, fields 7 and 8 of the
+    # register record accounts/sduser, OFF as delivered.  What the installer was told to turn on is turned on here with the verb (an
+    # internal session is an administrator, and SET.OS.ACCESS is the one place the fields are written), and the state is READ BACK
+    # every time, on every install and upgrade: that line is what the summary shows, and it proves the verb works on this tree.
+    # SET.OS.ACCESS ... ON of a switch that is already on answers "already had that access", which is a pass.  The sd-solo session
+    # that signs in later loads the switches at ITS sign-on, so nothing running is affected.
+    if (($osAccess -eq 'sh') -or ($osAccess -eq 'both')) {
+        $t = Invoke-Sd '-internal SET.OS.ACCESS SH ON' ''
+        Judge 'shell switched on' $t '(?m)^(Account sduser has SH yes, OS\.EXECUTE (yes|no)|sduser already had that access; nothing changed)\s*$'
+    }
+    if (($osAccess -eq 'os') -or ($osAccess -eq 'both')) {
+        $t = Invoke-Sd '-internal SET.OS.ACCESS OS ON' ''
+        Judge 'OS access switched on' $t '(?m)^(Account sduser has SH (yes|no), OS\.EXECUTE yes|sduser already had that access; nothing changed)\s*$'
+    }
+    $t = Invoke-Sd '-internal SET.OS.ACCESS' ''
+    Judge 'OS access switches read back' $t '(?m)^Account sduser has SH (yes|no), OS\.EXECUTE (yes|no)\s*$'
+    $osLine = @(($t -split "`n") | Where-Object { $_ -match '^Account sduser has SH (yes|no), OS\.EXECUTE (yes|no)\s*$' }) | Select-Object -Last 1
+    Note ('  os access now: ' + $osLine)
 
     if ($Upgrade) {
         # SDSYS's dictionaries are made by the bootstrap and named in no

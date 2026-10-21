@@ -92,3 +92,15 @@ reload-data=
 #deny-verbs=LISTF,CREATE.FILE
 
 deny-verbs=
+
+# os-access
+#   The shell and OS access (20 Oct 2026).  Both are OFF as delivered, and the
+#   administrator can change them later (ADMIN, then SET.OS.ACCESS).  none =
+#   turn on neither; sh = the SH verb and "!"; os = OS.EXECUTE, files and
+#   directories outside the account, Python and the editors that run outside
+#   SD; both = both.  Blank: the installer asks.  Either switch lets whoever
+#   signs in do what the Windows user can do.  Used on a new installation
+#   only: an upgrade asks.
+#os-access=none
+
+os-access=

@@ -329,11 +329,25 @@
    compiled into BASIC programs shared byte for byte).  This port keeps 58-89 for its own keys; 90-96
    are LEFT EMPTY here on purpose (Linux's K_REAL_USER, K_LOGIN_UID and the S.63 gate keys
    K_SH, K_OS_EXEC, K_PATH_OK, K_PATH_IN are not carried: PAM and the held OS-access gates), except
-   92, K_WINSIZE (below), which came with the screen library (area 6a).  GPL.BP/INT$KEYS.H carries the same numbers.
+   92, K_WINSIZE (below), which came with the screen library (area 6a), and, in SOLO ONLY since 20 Oct 26, 93 to 95 (the OS switch,
+   below).  K_PATH_IN (96) stays empty.  GPL.BP/INT$KEYS.H carries the same numbers.
      K_SET_ACCOUNT  the account the session is in, for the user table.  The argument is the account name, set only from
                     a $internal program (LOGIN, CPROC's logto, APISRVR, which own entry to an account), and the name
                     as it stands is returned.  K_USERS answers it as the ninth value of each user.
      K_USER_PEAK    the most user table cells in use at once since SD started (sysseg->users_peak).               */
+/* 20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH (the owner, relayed by Linux 20 Oct: "carry the switch"; Linux Solo 7c6bbfc,
+   whose numbers these are: SD Core's S.63 keys at SD Core's numbers, which were left free above).  The OS-access switches of the one
+   account are back, OFF unless the administrator turns them on with SET.OS.ACCESS.
+     K_SH       the session may use SH and "!".  Set only from a $internal program, like K_ADMINISTRATOR.
+     K_OS_EXEC  the session may use OS.EXECUTE and reach OS paths outside its own account.  Same rule.
+     K_PATH_OK  the argument is a pathname; the answer is 1 if THIS ACCOUNT may open it - whoever asks.  An $internal program is
+                exempt from the gate itself, so one that acts for the user must ask here; it cannot be the way round the gate.
+   LOGIN loads the first two from fields 7 and 8 of the account's register record (blank is OFF); APISRVR loads them when it enters
+   the account itself.  GPL.BP/INT$KEYS.H carries the same numbers.  K_PATH_IN (96) is not carried: it serves SD Core's SD.ACCOUNTS
+   gate, and Solo has one account.                                                                                              */
+#define K_SH                 93
+#define K_OS_EXEC            94
+#define K_PATH_OK            95
 #define K_SET_ACCOUNT        97
 #define K_USER_PEAK          98
 /* 14 Oct 26 dm - 1.2-0 sheet item 389 (INPUT var, length, fill).  The compiler cannot add an element to the stack of OP_INPUT /

@@ -218,6 +218,12 @@
       * 13 Oct 26 dm (Linux 7ff476f) - The terminal's own size: kernel(K$WINSIZE, '') answers width, a field mark, height as the kernel last
       *   read them from the tty (start-up and every SIGWINCH), or null when it could not.  Must match gplsrc/keys.h.
       $define K$WINSIZE          92      ;* The terminal's size from the tty
+      * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH (Linux Solo 7c6bbfc): SD Core's S.63 keys at SD Core's numbers (Solo only).
+      *   K$SH and K$OS.EXEC are settable only from $internal code (LOGIN and APISRVR load them from ACC$SH / ACC$OS.EXEC at account
+      *   entry; get with -1); K$PATH.OK asks whether THIS ACCOUNT may open a pathname.  Must match gplsrc/keys.h.
+      $define K$SH                93      ;* may use SH and "!"
+      $define K$OS.EXEC           94      ;* may use OS.EXECUTE and reach OS paths outside its account
+      $define K$PATH.OK           95      ;* 1 if this account may open the pathname
 
       * PTERM() action keys
       $define PT$BREAK           1       ;* Trap break character as break?

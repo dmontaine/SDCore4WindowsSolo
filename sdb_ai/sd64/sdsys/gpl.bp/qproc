@@ -18,6 +18,7 @@
 * 
 *  
 * START-HISTORY:
+* 20 Oct 26 SD Core Solo - RELEASE_1.1 165 (the OS switch, Linux Solo 7c6bbfc): the delimited report's TO pathname asks the OS-access gate (K$PATH.OK) before the file is opened.
 * 18 Oct 26 Windows port - from Linux df5e076 (18 Oct 26): Solo carry A (owner's ruling B): this program is $internal, so the C test lets its writes through, and it
 *               asks !voc_guard itself before it changes a file the user named: REFORMAT and SREFORMAT ask for the TO file (the
 *               clause and the Output file: prompt, check.reformat.target), PAGESEQ asks for the control file.
@@ -769,6 +770,16 @@ parse.default.phrase:
 
       if lptr >= 0 then
          display sysmsg(7300) ;* Output filename cannot be used with LPTR
+         goto exit.qproc
+      end
+
+* 20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH (Linux Solo 7c6bbfc).  This program is $internal, so the kernel does not ask the
+*   OS-access gate for the OPENSEQ below, and the report is written, or appended, wherever the name points.  Asked here, as the session,
+*   BEFORE the file is opened, so a refusal has created, truncated and locked nothing (the overwrite question below is only reached by a
+*   path that passed).  APPENDING is the same open, so it is covered by the same test.
+      if not(kernel(K$PATH.OK, csv.pathname)) then
+         @system.return.code = -ER$PERM
+         display sysmsg(12185, @who) ;* %1 has no OS access, so a file or directory outside its own account cannot be reached by pathname
          goto exit.qproc
       end
 

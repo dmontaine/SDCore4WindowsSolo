@@ -1,0 +1,148 @@
+* SETOSACC
+* SET.OS.ACCESS verb
+* Copyright (c) String Database
+*
+* START-HISTORY:
+* 20 Oct 26 SD Core Solo - RELEASE_1.1 165.  Carried from SD Core for Linux Solo 7c6bbfc (written there 20 Oct 26), on the owner's word of
+*           20 Oct 2026, relayed by Linux: "carry the switch".  Nothing in the program is Windows-specific: the register record is the
+*           same (fields 7 and 8 of accounts/sduser) and so are the verb, its words and its messages (10102, 10114, 10080, 11926 as 12931).
+*           THE OWNER'S WORDS FOR THE DESIGN, 20 Oct 2026, to Linux: two words like SD Core ("q4 two words like core"), the verb SET.OS.ACCESS
+*           with SH ON|OFF and OS ON|OFF ("q5 yes"), and the installer asks ("q6 ask during install"); his ruling of 18 Oct already said the
+*           switch is OFF unless the administrator turns it on.  This is Solo's own: SD Core has MODIFY.ACCOUNT SH-ON / SH-OFF / OS-ON / OS-OFF
+*           for many accounts (reading os.users), and Solo has one account and no such verb.
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*    SET.OS.ACCESS            shows the state of the two switches and changes nothing
+*    SET.OS.ACCESS SH ON      lets the account use the SH verb and "!"
+*    SET.OS.ACCESS SH OFF     takes that back
+*    SET.OS.ACCESS OS ON      lets the account use OS.EXECUTE, the Python helper, the editors that run outside SD, and reach files and
+*                             directories outside its own account by pathname
+*    SET.OS.ACCESS OS OFF     takes that back
+*
+*    An administrator verb (ADMIN first), and ONE action per command: SH and OS are independent switches, and a command that names
+*    both, or neither, or anything else is the syntax message and changes nothing.  Both are OFF as delivered.  The switches are
+*    fields 7 and 8 of the register record accounts/sduser (ACC$SH, ACC$OS.EXEC), 'yes' or 'no'; ONLY 'yes' is on, so a blank field,
+*    or a record with fewer fields, is off.  LOGIN loads them at the NEXT sign-on (and APISRVR at the next API login), never into
+*    a session that is already running.  The administrator needs no switch: ADMIN passes the gate on its own.
+*
+*    The answer is the state of BOTH switches afterwards (10102), because SH OFF says nothing about OS and the administrator should
+*    be told where both now stand.  The change is written to the audit trail in lower case.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+program $set.os.access
+$catalog $SETOSACC
+
+$include keys.h
+$include int$keys.h
+$include parser.h
+$include err.h
+$include header.h
+
+   prompt ''
+   @system.return.code = -ER$ARGS
+
+   if not(kernel(K$ADMINISTRATOR, -1)) then
+      stop sysmsg(2001)  ;* Command requires administrator privileges
+   end
+
+*  Solo's one account is always sduser (ruling 29); an internal session (the installer's) has another @logname, so the name is not read.
+   acc.name = 'sduser'
+
+   parser = "!PARSER"
+   call @parser(PARSER$RESET, 0, @sentence, 0)
+   call @parser(PARSER$GET.TOKEN, token.type, token, keyword)   ;* the verb
+   word.1 = '' ; word.2 = '' ; word.3 = ''
+   call @parser(PARSER$GET.TOKEN, token.type, token, keyword)
+   if token.type # PARSER$END then
+      word.1 = token
+      call @parser(PARSER$GET.TOKEN, token.type, token, keyword)
+      if token.type # PARSER$END then
+         word.2 = token
+         call @parser(PARSER$GET.TOKEN, token.type, token, keyword)
+         if token.type # PARSER$END then word.3 = token      ;* a third word is always the syntax message
+      end
+   end
+
+   openpath @sdsys:@ds:'accounts' to acc.f else
+      @system.return.code = -ER$FAILED
+      stop sysmsg(10114, acc.name)  ;* Unable to change the state of %1; its state in the register is unchanged
+   end
+
+   if word.1 = '' then
+*     No argument: say where both switches stand, change nothing.
+      read acc.rec from acc.f, acc.name else acc.rec = ''
+      close acc.f
+      os.sh.now = 'no'
+      if upcase(trim(acc.rec<ACC$SH>)) = 'YES' then os.sh.now = 'yes'
+      os.ex.now = 'no'
+      if upcase(trim(acc.rec<ACC$OS.EXEC>)) = 'YES' then os.ex.now = 'yes'
+      @system.return.code = 0
+      crt sysmsg(10102, acc.name, os.sh.now, os.ex.now)  ;* Account %1 has SH %2, OS.EXECUTE %3
+      stop
+   end
+
+*  One action: SH or OS, then ON or OFF, and nothing after.
+   os.field = 0 ; os.want = @false
+   begin case
+      case upcase(word.1) = 'SH' ; os.field = ACC$SH
+      case upcase(word.1) = 'OS' ; os.field = ACC$OS.EXEC
+   end case
+   begin case
+      case upcase(word.2) = 'ON'  ; os.want = @true
+      case upcase(word.2) = 'OFF' ; os.want = @false
+      case 1 ; os.field = 0
+   end case
+   if os.field = 0 or word.3 # '' then
+      close acc.f
+      crt sysmsg(12931)  ;* Syntax: set.os.access   or   set.os.access sh on|off   or   set.os.access os on|off
+      stop
+   end
+
+   readu acc.rec from acc.f, acc.name else
+      release acc.f, acc.name
+      close acc.f
+      @system.return.code = -ER$FAILED
+      stop sysmsg(10114, acc.name)
+   end
+   os.was = (upcase(trim(acc.rec<os.field>)) = 'YES')
+   if os.was = os.want then
+      release acc.f, acc.name
+      close acc.f
+      @system.return.code = 0
+      crt sysmsg(10080, acc.name)  ;* %1 already had that access; nothing changed
+      stop
+   end
+
+   acc.new = acc.rec
+   if os.want then acc.new<os.field> = 'yes' else acc.new<os.field> = 'no'
+   acc.written = @true
+   write acc.new to acc.f, acc.name on error acc.written = @false
+   if not(acc.written) then
+      release acc.f, acc.name
+      close acc.f
+      @system.return.code = -ER$FAILED
+      stop sysmsg(10114, acc.name)
+   end
+   release acc.f, acc.name
+   close acc.f
+
+*  THE RESULTING STATE OF BOTH FIELDS, NOT A SENTENCE ABOUT ONE: SH OFF says nothing about OS, so saying where both now stand is what
+*  tells the administrator the command did only what it named.
+   @system.return.code = 0
+   os.sh.now = 'no'
+   if upcase(trim(acc.new<ACC$SH>)) = 'YES' then os.sh.now = 'yes'
+   os.ex.now = 'no'
+   if upcase(trim(acc.new<ACC$OS.EXEC>)) = 'YES' then os.ex.now = 'yes'
+   void kernel(K$AUDIT, 'set.os.access ' : downcase(word.1) : ' ' : downcase(word.2) : ' account=' : acc.name)
+   crt sysmsg(10102, acc.name, os.sh.now, os.ex.now)  ;* Account %1 has SH %2, OS.EXECUTE %3
+   stop
+
+end
+
+* END-CODE

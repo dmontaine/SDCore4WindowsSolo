@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, the OS switch (Linux Solo 7c6bbfc): K_SH, K_OS_EXEC and K_PATH_OK (93 to 95), SD Core's S.63 cases, Solo only.
  * 18 Oct 26 Windows port - from Linux 7f7a4fd (16 Oct 26): K_PHANTOM_USER: PHANTOM USER n takes the user number n from those PHANTOMS keeps (QM4 gaps).
  * 31 Dec 23 SD launch - prior history suppressed
  * 28 Jul 24 mab remove op_cnctport() / CONNECT.PORT not supported
@@ -538,12 +539,57 @@ void op_kernel() {
           (is_admin && (connection_type != CN_SOCKET)) ? TRUE : FALSE;
     } break;
 
+    /* 20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH (Linux Solo 7c6bbfc, SD Core's S.63 carried onto the one account).  The
+       account's OS-access switches, set exactly like K_ADMINISTRATOR: only a $internal program (LOGIN and APISRVR, which own entry to
+       the account) may change them, and they are loaded there from ACC$SH / ACC$OS.EXEC (fields 7 and 8 of the register record).  A
+       non-internal caller cannot reach KERNEL at all (BCOMP), and an internal one that is not LOGIN or APISRVR has no reason to call
+       it with a positive argument.  USR_OS_EXEC is what os_gate_open() reads (op_sh.c); USR_SH is read by CPROC's SH gate through
+       kernel(K$SH, -1).  A refused or negative-argument call is simply told the flag as it stands.                                  */
+
+    case K_SH:
+      GetInt(descr);
+      n = descr->data.value;
+      if (n >= 0) {
+        if (process.program.flags & HDR_INTERNAL) {
+          if (n > 0)
+            my_uptr->flags |= USR_SH;
+          else
+            my_uptr->flags &= ~USR_SH;
+        }
+      }
+      result.data.value = (my_uptr->flags & USR_SH) != 0;
+      break;
+
+    case K_OS_EXEC:
+      GetInt(descr);
+      n = descr->data.value;
+      if (n >= 0) {
+        if (process.program.flags & HDR_INTERNAL) {
+          if (n > 0)
+            my_uptr->flags |= USR_OS_EXEC;
+          else
+            my_uptr->flags &= ~USR_OS_EXEC;
+        }
+      }
+      result.data.value = (my_uptr->flags & USR_OS_EXEC) != 0;
+      break;
+
+    /* May THIS ACCOUNT open this pathname?  An $internal program is exempt from the gate itself (it has to be, to do its work), so
+       one that opens a file on the user's behalf asks here first.  The answer is the account's, whoever is asking.  */
+    case K_PATH_OK: {
+      char path_ok_name[MAX_PATHNAME_LEN + 1];
+
+      result.data.value = 0;
+      if (k_get_c_string(descr, path_ok_name, MAX_PATHNAME_LEN) > 0)
+        result.data.value = os_path_ok_for_account(path_ok_name) ? 1 : 0;
+    } break;
+
     /* 14 Oct 26 dm - sheet items 24, 29 and 38.  K_SET_ACCOUNT: the account the session is in, for the user table
        (LISTU, !LISTU).  Set only from a $internal program, like K_SET_USERNAME; the name as it stands is returned,
        so a refused caller is told what it still is.  An overlength name (k_get_c_string answers -1) sets nothing.
        K_USER_PEAK: the most user table cells in use at once since SD started.
        18 Oct 26 Windows port - carried from Linux 0b6a207 with Linux's key numbers (97, 98); the S.63 gate keys
-       it sits among (K_SH, K_OS_EXEC, K_PATH_OK, K_PATH_IN) are not carried here.                          */
+       it sits among are K_SH, K_OS_EXEC and K_PATH_OK (above it, Solo only since 20 Oct 26) and K_PATH_IN (not carried). */
     case K_SET_ACCOUNT:
       {
         char aname[MAX_ACCOUNT_NAME_LEN + 1];

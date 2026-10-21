@@ -199,7 +199,12 @@ Check 'os_user_permitted() does NOT test HDR_INTERNAL (the test that admits ever
 # may (SOLO 4), and the last exception - a socket session, whose test was the
 # USR_ADMIN one - was lifted once an API session was witnessed running as the
 # user (gplbld/probe-solo-api.py).
-Check 'os_user_permitted() answers TRUE (Solo: the one user may)' $true `
+# 20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH.  SOLO 4's "the one user may" is WITHDRAWN: this answers os_gate_open() (the
+# administrator, or an account whose OS switch was loaded at sign-on), so OS.EXECUTE, SH and the Python gate (sd_os_permitted calls this)
+# are OFF as delivered.  The row that used to assert "answers TRUE" now asserts the opposite, and test-osswitch-units.py holds the rest.
+Check 'os_user_permitted() answers os_gate_open() (Solo OS switch, RELEASE_1.1 165)' $true `
+      (($null -ne $osBody) -and ($osBody -match 'return\s+os_gate_open\(\)\s*;'))
+Check 'os_user_permitted() no longer answers TRUE to everybody (SOLO 4 withdrawn)' $false `
       (($null -ne $osBody) -and ($osBody -match 'return\s+TRUE\s*;'))
 Check 'os_user_permitted() no longer excepts a socket session' $false `
       (($null -ne $osBody) -and ($osBody -match 'CN_SOCKET'))

@@ -18,6 +18,7 @@
  *
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, the OS switch (Linux Solo 7c6bbfc): open_file() asks os_path_open_ok() for an OPENPATH pathname.
  * 18 Oct 26 Windows port - from Linux fca584f (12 Oct 26): open_file() acts on the NON.TRANSACTIONAL option of OPEN and OPENPATH (P_NON_TXN; item 64).
  * 18 Oct 26 Windows port - from Linux 8c2dfc4 (12 Oct 26): open_file() acts on the mode letters N and R in field 6 of the
  *           F-type VOC entry (openQM items 380 and 197); _voc_ref returns them.
@@ -699,6 +700,16 @@ Private void open_file(bool map_name) /* Map file name via VOC entry */
   }
 
   fullpath(pathname, mapped_name);
+
+  /* 20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH (Linux Solo 7c6bbfc).  OPENPATH names an OS path directly, which is "a file
+     external to SD".  An account that has not been given OS access reaches only paths inside its own directory (a $internal program is
+     trusted, and asks the account's own question through K_PATH_OK when it acts for the user).  ER_PERM rather than an abort, as the
+     network gate below: OPEN ... ELSE is the BASIC idiom, and 3035 says "permission", not the "not found" of 3024.  A file named
+     through the VOC is an SD file and is not asked this here (a VOC pointer is held in _voc_ref).                                  */
+  if (!map_name && !os_path_open_ok(pathname)) {
+    process.status = ER_PERM;
+    goto exit_op_open;
+  }
 
   /* 21 Aug 26 Windows port - THE CONTAINMENT GATE, and this one call covers
      both OPEN and OPENPATH.  Everything above either mapped a VOC name or

@@ -231,8 +231,12 @@ struct USER_ENTRY
      #define USR_MSG_OFF     0x0040 /* Message reception disabled */
      #define USR_WAKE        0x0080 /* Set by op_wake, cleared by op_pause */
      #define USR_GLOBAL      0x0100 /* Signed in with $GLOBAL - ruling 33, K_GLOBAL_SESSION */
-     /* Linux's USR_SH is also 0x0100 and its USR_OS_EXEC 0x0200 (the S.63 OS-access gates, held and not carried): when they
-        are, one of the two uses of 0x0100 has to move.  0x0200 is free here.  */
+     /* 20 Oct 26 SD Core Solo - RELEASE_1.1 165, the OS switch (the owner: "carry the switch"; Linux Solo 7c6bbfc).  The two OS-access
+        switches of the one account, loaded at account entry (LOGIN, APISRVR) from fields 7 and 8 of its register record; see keys.h
+        K_SH.  Linux's USR_SH is 0x0100 in SD Core, which is USR_GLOBAL here, so USR_SH is 0x2000 (Linux Solo made the same choice);
+        USR_OS_EXEC is SD Core's 0x0200.  A flag word of the user table, never written to disk, so the numbers are this tree's own.  */
+     #define USR_SH          0x2000 /* may use the SH verb and "!" */
+     #define USR_OS_EXEC     0x0200 /* may use OS.EXECUTE, and reach OS paths outside its own account */
      /* 15 Oct 26 QM4 gaps Q-5: the application signal.  SIGNAL(user) sets it in a process of the same login user (or in
         any process, from an administrator); SYSTEM(1062) in that process reads it and clears it.                */
      #define USR_SIGNAL      0x0400 /* SIGNAL() has been raised for this process */

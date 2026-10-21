@@ -18,6 +18,9 @@
 * 
 * 
 * START-HISTORY:
+* 20 Oct 26 SD Core Solo - RELEASE_1.1 165, the OS switch (Linux Solo 7c6bbfc; SD Core's S.63 second sitting, carried): a VOC pointer is held
+*               to the OS gate - an F-pointer's target and a Q-pointer's must be inside the account's own directory or the stock VOC's own,
+*               unless the session is the administrator or holds OS; refusal is ER$PERM.  SD Core's group test and K$PATH.IN are not here.
 * 18 Oct 26 Windows port - from Linux 8c2dfc4 (12 Oct 26): A fourth argument returns field 6 of the F-type entry, in capitals, for the mode letters N (open
 *               non-transactionally) and R (read-only) that open_file() acts on (openQM items 380 and 197).  A
 *               Q-pointer gives the field 6 of the F-type entry it leads to.
@@ -54,6 +57,20 @@ $include err.h
 $include int$keys.h
 $include keys.h
 
+* 20 Oct 26 dm - THE SOLO OS SWITCH, SD Core's S.63 second sitting carried.  A VOC pointer is a way to name a file, and without this an
+*   account that does not hold OS could write an F-pointer in its own VOC (the VOC is the administrator's, but CREATE.FILE ... PATHNAME
+*   writes one as a side effect), naming any directory the Linux user may read, and open it as an SD file.  Two rules now, for everybody but
+*   the administrator and an account that holds OS:
+*     1. The file an F-pointer finally names must be inside the account's own directory, or be what the STOCK VOC says: the record of the
+*        same id in SDSYS's NEWVOC names the same path.  The stock pointers ($map, syscom, sd.voclib, dict.dict, voc, newvoc, $acc, and
+*        the dictionaries that live in SDSYS) need this last clause.
+*     2. A Q-pointer that names an account or a path is followed only if it is the stock record, or the place it leads to is inside the
+*        account's own directory (SD Core's group test is not here: Solo has one account, and SDSYS is not one anybody may enter).
+*   Refusal is ER$PERM, 3035, as for OPENSEQ.
+   vr.admin = kernel(K$ADMINISTRATOR, -1)
+   vr.free = vr.admin or kernel(K$OS.EXEC, -1)      ;* the administrator, or an account that holds OS
+   cur.id = ''
+   f.raw = ''
 
    vflags = ''     ;* Field 6 of the F-type entry that names the file, upper case (open_file() in op_dio1.c)
    voc.id = field(filename, ',', 1)
@@ -141,6 +158,12 @@ $include keys.h
             case upcase(x1) = 'PATH'   ;* Could be a pathname
                if bitand(rules, 4) then
                   pathname = field(voc.id, ':', 2, 99) ;* Must allow PATH:C:/a/b
+* 20 Oct 26 dm - the administrator who turned this form on (FILERULE) did not turn off the OS gate: a path outside the account is still OS's.
+                  if not(vr.free) and not(kernel(K$PATH.OK, pathname)) then
+                     pathname = ''
+                     set.status ER$PERM
+                     return
+                  end
                   set.status 0
                   return
                end
@@ -164,9 +187,11 @@ $include keys.h
 parse.as.q.pointer:
    for depth = 1 to 10
       type = upcase(voc.rec[1,1])
+      cur.id = if depth = 1 then voc.id else qfile        ;* the id of the VOC record being read, for the stock test
       begin case
          case type = "F"
             pathname = voc.rec<fno>
+            f.raw = pathname                                ;* as written, before @SDSYS and the like are expanded
             vflags = upcase(voc.rec<6>)
 
             if fno = 2 then
@@ -215,6 +240,16 @@ parse.as.q.pointer:
 						end
             end
 
+* 20 Oct 26 dm - where the file finally is.  See the note at the top.
+            if not(vr.free) then
+               gosub check.f.path
+               if not(path.ok) then
+                  pathname = ''
+                  set.status ER$PERM
+                  return
+               end
+            end
+
             set.status 0
             return
 
@@ -234,6 +269,7 @@ parse.as.q.pointer:
             end
 
             qpath = voc.rec<2>
+            q.named = qpath                    ;* as the pointer wrote it
             if qpath = '' then
                * A null account name means use the current account.
                * If this is the entry in a chain of Q-pointers, use the
@@ -257,6 +293,15 @@ parse.as.q.pointer:
                if len(qpath) = 0 then
                   set.status ER$NPN
                   return
+               end
+
+* 20 Oct 26 dm - only to a place the account may use (see the note at the top).
+               if not(vr.admin) then
+                  gosub check.q.hop
+                  if not(q.ok) then
+                     set.status ER$PERM
+                     return
+                  end
                end
 
                * Open target VOC file
@@ -306,6 +351,46 @@ parse.as.q.pointer:
 
    set.status ER$VNF
 
+   return
+
+* ----------------------------------------------------------------------------------------------------------
+* 20 Oct 26 dm - The stock VOC is the allow-list: the record of the same id in SDSYS's NEWVOC.  Read each time it is needed, which is
+* only for a pointer that leads outside the account.
+stock.record:
+   stock.found = @false
+   stock.rec = ''
+   if cur.id # '' then
+      openpath @sdsys:@ds:'newvoc' to stock.f then
+         read stock.rec from stock.f, downcase(cur.id) then
+            stock.found = @true
+         end
+         close stock.f
+      end
+   end
+   return
+
+* May a restricted account use the file this F-pointer names (pathname, absolute; f.raw as written)?
+check.f.path:
+   path.ok = kernel(K$PATH.OK, pathname)            ;* inside the account's own directory
+   if not(path.ok) then
+      gosub stock.record
+      if stock.found then
+         if upcase(stock.rec[1,1]) = 'F' and stock.rec<fno> = f.raw then
+            path.ok = @true
+         end
+      end
+   end
+   return
+
+* May a restricted account follow this Q-pointer?  q.named is what the pointer wrote, qpath where it leads.
+check.q.hop:
+   q.ok = @false
+   gosub stock.record
+   if stock.found and upcase(stock.rec[1,1]) = 'Q' and stock.rec<2> = q.named and stock.rec<3> = voc.rec<3> then
+      q.ok = @true                                  ;* a stock pointer
+   end else
+      q.ok = vr.free or kernel(K$PATH.OK, qpath)    ;* a place inside the account, or the OS gate's yes
+   end
    return
 end
 

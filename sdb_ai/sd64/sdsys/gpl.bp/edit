@@ -15,6 +15,7 @@
 * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 *
 * START-HISTORY:
+* 20 Oct 26 SD Core Solo - RELEASE_1.1 165 (the OS switch, Linux Solo 7c6bbfc): micro and Microsoft Edit need the OS switch (K$OS.EXEC); the administrator passes.
 * 06 Oct 26 SD Core Solo - the working-copy path, the editor's path and micro's
 *           configuration home are put into the PowerShell command with every
 *           single quote doubled; a record id or a profile name containing one
@@ -482,7 +483,21 @@ check.permitted:
 
 *  25 Sep 26 SD Core Solo (SOLO 4) - OS.USERS IS GONE; a session with a
 *  terminal is the one user, who may run an editor like anything else.
-   permitted = @true
+*  20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH (Linux Solo 7c6bbfc; the owner, relayed by Linux: "carry the switch").  SOLO 4's
+*  "may run an editor like anything else" is withdrawn.  Running an editor outside SD (micro, Microsoft Edit) is reaching the operating
+*  system, and who may do that is the same grant that governs OS.EXECUTE from inside a program: the account's OS switch (K$OS.EXEC),
+*  loaded at sign-on; K$ADMINISTRATOR covers the administrator session.  This program is $internal, so op_sh admits its os.execute on
+*  HDR_INTERNAL and never asks; testing here refuses before anything is created and says what to do about it.  ed needs none of it.
+   if kernel(K$ADMINISTRATOR, -1) or kernel(K$OS.EXEC, -1) then
+      permitted = @true
+      return
+   end
+
+   error.text  = verb.text : ' is not available to ' : @logname : '.' : char(10)
+   error.text := 'It runs an editor outside SD, so it needs OS.EXECUTE'
+   error.text := ' permission, which the administrator grants with' : char(10)
+   error.text := '   set.os.access os on' : char(10)
+   error.text := 'ed, the line editor, needs none of this.'
 return
 
 * ---------------------------------------------------------------------------

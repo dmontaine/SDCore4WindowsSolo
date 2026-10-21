@@ -17,6 +17,9 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, the OS switch (Linux Solo 7c6bbfc): os_path_ok_for_account() and os_path_open_ok() - may this
+ *           account open this OS pathname - built on net_path_permitted()'s containment helpers (net_normalise, has_parent_ref, path_within)
+ *           rather than Linux's POSIX realpath() version.
  * 18 Oct 26 Windows port - from Linux a0a1ad6 (17 Oct 26): FILEINFO key 1021 is FL_WHO, the openQM form (a list of user numbers); the text form FL_HOLDERS that SD's
  *               messages use is key 1100 now (QM4 Fixes 62).
  * 18 Oct 26 Windows port - from Linux fa146d9 (16 Oct 26): OSPATH key 15 (OS_OWNER) gives the owner's user name, for DIR_DICT's OWNER item (QM4 Fixes 181).
@@ -1672,6 +1675,14 @@ Private char* net_sysdir_shared[] = {"$ipc",     "$map",    "$map.dic",
 Private bool net_raw_permitted(char* path, bool for_write) {
   char resolved[MAX_PATHNAME_LEN + 1];
 
+  /* 20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH (Linux Solo 7c6bbfc: "every key that looks at or changes the file system
+     asks the OS-access gate about the path").  The OSPATH keys this function guards, CHOWN and OSRENAME all take a pathname and hand it
+     to the operating system, so they ask the account's question FIRST, for every session: an account without OS access reaches only
+     its own directory, an $internal program is trusted (os_path_open_ok).  What follows is the network containment, unchanged.     */
+
+  if (!os_path_open_ok(path))
+    return FALSE;
+
   if (connection_type != CN_SOCKET)
     return TRUE;
 
@@ -1787,6 +1798,67 @@ bool net_path_permitted(char* path,     /* Absolute, as left by fullpath() */
   }
 
   return FALSE;
+}
+
+/* ======================================================================
+   os_path_ok_for_account()  -  May THIS ACCOUNT open this OS pathname?
+   os_path_open_ok()         -  The same, for a caller (an $internal program is trusted)
+
+   20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH (Linux Solo 7c6bbfc; the owner, relayed by Linux: "carry the switch").  A
+   pathname handed to OPENSEQ, OPENPATH, DIR(), DIGEST, OSPATH, OPENTEMP, a print unit, the socket trace log or a VOC pointer names a
+   file external to SD.  An account the administrator has not given OS access (os_gate_open(): the administrator, or the OS switch
+   loaded at sign-on) reaches only paths inside its own directory.
+
+   LINUX SOLO'S VERSION RESOLVES THE NAME WITH POSIX realpath() AND COMPARES PREFIXES; THIS ONE IS BUILT FROM THIS FILE'S OWN CONTAINMENT
+   HELPERS, because the two namespaces (C:/... and /c/...), the case folding and the surviving ".." are exactly what net_path_permitted()
+   already measured and handles (see net_normalise() above): the name goes through fullpath(), is folded into the POSIX namespace, is
+   refused while it still holds "..", and must be at or below the account's directory (SYSCOM_ACCOUNT_PATH, the account the session is
+   standing in; the process's working directory is the same place).  A name it cannot resolve is a no.  Nothing is widened: unlike the
+   network gate there are no SDSYS entries, no NETDIRS and no global.bp.out here - the shipped system files are reached by $internal
+   programs, which are trusted by os_path_open_ok() below.
+
+   It does NOT look at the connection: an API session is the user in Solo and is held to the switch like the console.  A link inside the
+   account that points out of it is followed by sdrealpath() as far as the runtime resolves it, which is also how the network gate
+   behaves; the containment is the operating system's for anything the runtime cannot see.                                         */
+
+bool os_path_ok_for_account(const char* name) {
+  char resolved[MAX_PATHNAME_LEN + 1];
+  char cand[MAX_PATHNAME_LEN + 1];
+  char root[MAX_PATHNAME_LEN + 1];
+  char item[MAX_PATHNAME_LEN + 1];
+  DESCRIPTOR* descr;
+
+  if (os_gate_open())
+    return TRUE;
+
+  if ((name == NULL) || (*name == '\0') || (strlen(name) > MAX_PATHNAME_LEN))
+    return FALSE;
+
+  strcpy(resolved, name);
+  if (!fullpath(resolved, resolved))
+    return FALSE;
+
+  if (!net_normalise(resolved, cand))
+    return FALSE;
+
+  if (has_parent_ref(cand))
+    return FALSE;
+
+  if (process.syscom != NULL) {
+    descr = Element(process.syscom, SYSCOM_ACCOUNT_PATH);
+    if (k_get_c_string(descr, item, MAX_PATHNAME_LEN) > 0) {
+      if (net_normalise(item, root) && path_within(cand, root))
+        return TRUE;
+    }
+  }
+
+  return FALSE;
+}
+
+bool os_path_open_ok(const char* name) {
+  if (process.program.flags & HDR_INTERNAL)
+    return TRUE;
+  return os_path_ok_for_account(name);
 }
 
 /* ======================================================================

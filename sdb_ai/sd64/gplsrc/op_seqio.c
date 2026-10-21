@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, the OS switch (Linux Solo 7c6bbfc): OPENSEQ by pathname and DELETESEQ of a pathname ask os_path_open_ok().
  * 18 Oct 26 Windows port - from Linux 8c2dfc4 (12 Oct 26): op_openseq() opens a block device, a floppy disk drive among
  *               them (openQM item 112).
  * 24 Aug 26 Windows port - WRITESEQ to a PORT sent "\r\n" with a byte count of
@@ -222,6 +223,15 @@ void op_delseq() {
     if (file_name[strlen(file_name) - 1] != DS)
       strcat(file_name, DSS);
     strcat(file_name, rec_name);
+  } else {
+    /* 20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH (Linux Solo 7c6bbfc).  With no record name the file name IS an OS
+       pathname, and DELETESEQ removes it.  That is an OS file external to SD, so it is asked as OPENSEQ asks: an account without OS
+       access reaches only paths inside its own directory (ER_PERM, which is the ELSE branch).  The record form above names an SD
+       directory file through the VOC and is not asked.                                                                         */
+    if (!os_path_open_ok(file_name)) {
+      process.status = ER_PERM;
+      goto exit_op_delseq;
+    }
   }
 
   /* Check file exists */
@@ -551,6 +561,16 @@ Private void openseq(bool map_name) {
       goto exit_op_openseq;
     }
     ProfEvent(PROF_OPENSEQ, file_name, file_name_len); /* OPENSEQ by pathname: the application event profiler (16 Oct 26) */
+
+    /* 20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH (Linux Solo 7c6bbfc).  OPENSEQ by pathname (and a port, which is an OS
+       device) is an OS file external to SD.  An account without OS access reaches only paths inside its own directory (see
+       os_path_ok_for_account, op_dio2.c); an $internal program is trusted.  A file named through the VOC (the OPENSEQ file, record
+       form above) is an SD file and is not asked this here.  ER_PERM is the ELSE branch, as the network gate's refusal below.       */
+
+    if (!os_path_open_ok(file_name)) {
+      process.status = ER_PERM;
+      goto exit_op_openseq;
+    }
 
     /* Check if looks like a port name */
 

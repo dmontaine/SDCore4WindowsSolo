@@ -17,6 +17,9 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, the OS switch (Linux Solo 7c6bbfc): SOLO 4's "the one user may" is withdrawn.  os_gate_open()
+ *           (the administrator, or an account given OS ON) is what os_user_permitted() answers, so OS.EXECUTE, SH and Python are OFF as
+ *           delivered and the administrator turns them on (SET.OS.ACCESS).
  * 26 Sep 26 SD Core Solo - SOLO 3 step 5: the socket-session exception is
  *           lifted; an API session is the user and may reach the OS.
  * 25 Sep 26 SD Core Solo - SOLO 4: os.users is gone; the one user may reach
@@ -236,7 +239,15 @@ Private bool os_user_permitted(PRIV_WHY* why) {
   if (why != NULL)
     *why = PRIV_ANSWERED;
 
-  /* 25 Sep 26 SD Core Solo (SOLO 4) - THE ONE USER MAY.  OS.USERS is gone:
+  /* 20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH.  WITHDRAWS "THE ONE USER MAY" BELOW.  The owner's 18 Oct ruling on Linux
+     Solo, answered for Windows Solo on 20 Oct ("carry the switch"): a delivered Solo has the shell and OS access OFF, and the
+     administrator turns them on (SET.OS.ACCESS).  The question is now os_gate_open(): the administrator, or an account whose OS switch
+     was loaded at sign-on.  An API session is held to it too (APISRVR loads the switches when it enters the account), as SOLO 3 step 5
+     had made it the user's own and nothing more.  A caller from the Python gate (sd_os_permitted) asks THIS, so Python is behind the
+     same switch as OS.EXECUTE, as constraint 4 of section 8 wants.  It is answered from the user table, so it cannot fail to complete:
+     why stays PRIV_ANSWERED.
+
+     25 Sep 26 SD Core Solo (SOLO 4) - THE ONE USER MAY (withdrawn above).  OS.USERS is gone:
      every session is the user who owns the tree and runs as them, so the
      operating system is theirs already (PROJECT_STATUS.md, "WHAT SD CORE SOLO
      IS").  The multi-user record read is in sd4windows' history.
@@ -246,7 +257,20 @@ Private bool os_user_permitted(PRIV_WHY* why) {
      OS; a Solo API session is the user (witnessed before this was lifted:
      SH over the API reported the user's own token name, with Administrators
      not enabled - gplbld/probe-solo-api.py), so it gets the same answer.  */
-  return TRUE;
+  return os_gate_open();
+}
+
+/* ======================================================================
+   os_gate_open()  -  Has THIS ACCOUNT been given OS access?
+
+   20 Oct 26 SD Core Solo - RELEASE_1.1 165, from Linux Solo 7c6bbfc (Core's S.63).  The administrator always has it; anyone else has
+   it only if the administrator switched it on (SET.OS.ACCESS OS ON), which LOGIN and APISRVR load into the user table at account entry
+   as USR_OS_EXEC.  It does NOT look at HDR_INTERNAL, because the question is about the person, not about the program: an $internal
+   program that acts for the user (QPROC writing a CSV report to a pathname) is exempt from the gate itself and must not become the way
+   round it.  os_permitted() above adds the HDR_INTERNAL trust for OS.EXECUTE; os_path_open_ok() (op_dio2.c) does the same for paths.  */
+
+bool os_gate_open(void) {
+  return (my_uptr->flags & (USR_ADMIN | USR_OS_EXEC)) != 0;
 }
 
 /* ======================================================================

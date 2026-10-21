@@ -374,6 +374,13 @@
       *   delta any more, so nothing writes or reads it.  FIELD 4 REMAINS
       *   POISONED, per the note above: records written between 13 and 14 Aug
       *   2026 still carry a grant list there.
+      * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH (Linux Solo 7c6bbfc; the owner: "carry the switch").  FIELDS 7 AND 8 ARE
+      *   BACK, at SD Core's field numbers, for Solo's one account: ACC$SH and ACC$OS.EXEC.  yes means on and anything else, blank
+      *   included, is off, so a record with fewer fields is off.  LOGIN and APISRVR load them as K$SH and K$OS.EXEC at account entry;
+      *   the administrator changes them with SET.OS.ACCESS.  They are NOT a tier and NOT a second wall: the kernel asks the user-table
+      *   bits (os_gate_open, op_sh.c), and these fields are only where the bits come from.  FIELD 6 STAYS DELETED.
+      $define ACC$SH           7     ;* may use the SH verb and "!" (yes/no)
+      $define ACC$OS.EXEC      8     ;* may use OS.EXECUTE, and reach OS paths outside its account (yes/no)
       deffun parse.pathname.tokens(path) calling "!PATHTKN"
       
       * encrytption decryption  *

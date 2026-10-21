@@ -262,6 +262,11 @@ var
   CfAdmin, CfGlobal: String;
   { 28 Sep 26 - ruling 34: the control file's deny-verbs line, as written. }
   CfDeny: String;
+  { 20 Oct 26 - RELEASE_1.1 165, THE OS SWITCH (Linux Solo acd94b9; the owner: "carry the switch", and Linux's "ask during install"):
+    the control file's os-access=, none, sh, os or both; '' when not given or not one of those (then the page asks).  On a new tree only,
+    like the rest of the control file.  OsAccessPage is the question, shown on a new install AND on an upgrade. }
+  CfOsAccess: String;
+  OsAccessPage: TInputOptionWizardPage;
   { 06 Oct 26 - SOLO 36: the control file's api= and ssh=, 'off', 'local' or
     'open'; '' when not given or not one of those (then the Tasks page asks). }
   CfApi, CfSsh: String;
@@ -496,6 +501,41 @@ begin
     logged whole; DENY.VERBS (run by solo-setup) checks each name. }
   CfDeny := Trim(GetIniString('install', 'deny-verbs', '', F));
   Log('SD Core Solo: control file deny-verbs "' + CfDeny + '"');
+  { 20 Oct 26 - RELEASE_1.1 165: os-access= answers the shell and OS access question (see OsAccessPage).  Anything else is not an
+    answer and the page asks. }
+  CfOsAccess := Lowercase(Trim(GetIniString('install', 'os-access', '', F)));
+  if (CfOsAccess <> 'none') and (CfOsAccess <> 'sh') and (CfOsAccess <> 'os') and (CfOsAccess <> 'both') then
+  begin
+    if CfOsAccess <> '' then
+      Log('SD Core Solo: control file os-access "' + CfOsAccess + '" is not none, sh, os or both - asked for');
+    CfOsAccess := '';
+  end;
+  Log('SD Core Solo: control file os-access "' + CfOsAccess + '"');
+end;
+
+{ 20 Oct 26 - RELEASE_1.1 165, THE OS SWITCH.  The answer to "turn on the shell and OS access?" as the word solo-setup.ps1 takes:
+  none, sh, os or both.  The control file answers it on a new tree; otherwise it is what the page's two boxes say, and an unticked page
+  (also what a silent install gets, as Inno shows no page) is none: nothing is turned on, so on a new account both stay off and on an
+  upgrade they stay as they were. }
+function OsAccessWord: String;
+var
+  ShOn, OsOn: Boolean;
+begin
+  if UseControl and (CfOsAccess <> '') then
+  begin
+    Result := CfOsAccess;
+    Exit;
+  end;
+  ShOn := OsAccessPage.Values[0];
+  OsOn := OsAccessPage.Values[1];
+  if ShOn and OsOn then
+    Result := 'both'
+  else if ShOn then
+    Result := 'sh'
+  else if OsOn then
+    Result := 'os'
+  else
+    Result := 'none';
 end;
 
 function InitializeSetup: Boolean;
@@ -721,6 +761,19 @@ begin
   GlobalPage.Add('Password:', True);
   GlobalPage.Add('Confirm password:', True);
 
+  { 20 Oct 26 - RELEASE_1.1 165, THE OS SWITCH (the owner: "ask during install" - Linux Solo's installer asks the same two questions - and
+    his ruling that both are OFF as delivered).  Two boxes, both unticked: the shell (the SH verb and "!") and OS access (OS.EXECUTE, files
+    outside the account, Python, the editors that run outside SD).  Shown on a new install AND on an upgrade, the one run in which an existing
+    Solo, whose shell was never gated before, would otherwise lose it without a word.  The installer's text is options and results only
+    (the 20 Sep rule); what each does, and that an upgrade changes the default, is in the installation page of the Solo docs.  After the
+    last password page, so an upgrade, which skips them, reaches it straight after the welcome. }
+  OsAccessPage := CreateInputOptionPage(GlobalPage.ID, 'Shell and OS access',
+    'Both are off unless you turn them on.', 'Turn on for your account:', False, False);
+  OsAccessPage.Add('Shell (SH and !)');
+  OsAccessPage.Add('OS access (OS.EXECUTE, files outside the account, Python, editors)');
+  OsAccessPage.Values[0] := False;
+  OsAccessPage.Values[1] := False;
+
   { SOLO 18: the control file's accepted answers fill their pages, which are
     then skipped; a page it did not answer is shown empty. }
   if UseControl then
@@ -762,6 +815,10 @@ begin
     Result := (not DataTreeWasAbsent) or (UseControl and CfGlobalOk)
   { SOLO 36: the page asks the API and ssh in every install; skipped on an
     upgrade, and when the control file answers both. }
+  { 20 Oct 26 - RELEASE_1.1 165: the OS switch question is asked on a new install and on an upgrade, and skipped only when a control
+    file (a new tree) answers it. }
+  else if PageID = OsAccessPage.ID then
+    Result := UseControl and (CfOsAccess <> '')
   else if PageID = wpSelectTasks then
     Result := SoloWasInstalled or (ApiAnswered and SshAnswered)
   else if PageID = wpReady then
@@ -1017,6 +1074,9 @@ begin
     S := S + 'api            : ' + YesNo(ApiWanted) + '   reachable from other computers: ' + YesNo(ApiNetworkWanted) + #13#10 +
              'ssh            : ' + YesNo(SshWanted) + '   reachable from other computers: ' + YesNo(SshOpenWanted) +
              '   OpenSSH package to install: ' + YesNo(SshWanted and not SshServerWasFound) + #13#10;
+  { 20 Oct 26 - RELEASE_1.1 165: the answer, so install-summary.log says what was asked for (none leaves both switches as they are:
+    off on a new account, unchanged on an upgrade). }
+  S := S + 'shell and OS   : ' + OsAccessWord + '   (none leaves both as they are)' + #13#10;
   SaveStringToFile(ExpandConstant('{app}\install-summary.log'), S + #13#10, True);
   Log('SD Core Solo: ' + S);
 end;
@@ -1063,6 +1123,9 @@ begin
   Params := '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}') +
             '\solo-setup.ps1" -AppDir "' + ExpandConstant('{app}') + '" -User "' +
             GetUserNameString + '" -Report "' + ReportPath + '"';
+  { 20 Oct 26 - RELEASE_1.1 165: the shell and OS access answer, for a new tree and an upgrade alike (solo-setup.ps1 turns on what it
+    names with SET.OS.ACCESS and reads the state back; none turns on nothing). }
+  SetEnvironmentVariable('SD_SOLO_OS_ACCESS', OsAccessWord);
   if DataTreeWasAbsent then
   begin
     Params := Params + ' -Passwords';
@@ -1093,6 +1156,7 @@ begin
   SetEnvironmentVariable('SD_SOLO_GLOBAL_PW', '');
   SetEnvironmentVariable('SD_SOLO_ACCOUNT_PW', '');
   SetEnvironmentVariable('SD_SOLO_DENY_VERBS', '');
+  SetEnvironmentVariable('SD_SOLO_OS_ACCESS', '');
   AppendSummary('solo-setup (exit ' + IntToStr(Code) + ')', ReportPath);
   if Code <> 0 then
     Failed := Failed + '  account and passwords' + #13#10;

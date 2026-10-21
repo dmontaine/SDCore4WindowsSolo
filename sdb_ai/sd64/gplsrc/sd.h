@@ -374,6 +374,12 @@ bool get_voc_file_reference(char * voc_name, bool get_dict_name,
                             char * path, char * vflags);
 void flush_dh_cache(void);
 
+/* The OS-access switches (20 Oct 26, RELEASE_1.1 165: Linux Solo's OS switch, S.63's gate on the one account).  os_gate_open() is in
+   OP_SH.C; the two path functions are in OP_DIO2.C beside the containment helpers they use. */
+bool os_gate_open(void);
+bool os_path_ok_for_account(const char * name);
+bool os_path_open_ok(const char * name);
+
 /* OP_DIO3.C - line terminator modes of directory and sequential files (16 Oct 26, QM4 Fixes item 452) */
 u_char crlf_from_vflags(const char * vflags);
 /* ...and the trigger function of a directory file (16 Oct 26, QM4 Fixes item 177) */
@@ -381,7 +387,8 @@ void dir_trigger_open(FILE_VAR * fvar, const char * dirpath);
 void dir_trigger_close(FILE_VAR * fvar);
 int dir_set_trigger(FILE_VAR * fvar, const char * name, int modes);
 bool is_dir_header(const char * name);
-/* (Linux's OP_SH.C gate functions os_gate_open, os_path_ok_for_account, os_path_open_ok and os_path_inside belong to the held S.63 gates.) */
+/* (Linux's OP_SH.C gate functions are declared above since 20 Oct 26, the Solo OS switch; Linux's os_path_inside is Windows' own
+   op_dio2.c containment, not this.) */
 
 /* OP_DIO2.C */
 bool delete_path(char * path);

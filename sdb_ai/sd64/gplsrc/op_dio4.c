@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, the OS switch (Linux Solo 7c6bbfc): DIR() asks os_path_open_ok() for the pathname it lists.
  * 18 Oct 26 Windows port - from Linux fa146d9 (16 Oct 26): dir_select() closes the oldest cached file and tries again when opendir() fails at the open-file limit (QM4 Fixes 279).
  * 18 Oct 26 Windows port - from Linux ff49d57 (15 Oct 26): $MODE SELECTV default select list variable (openQM item 85): readnext() takes P_DEF_SELLIST, an unassigned
  *               default variable being an empty list
@@ -1401,7 +1402,12 @@ void op_dir() {
   descr = e_stack - 1;
   path_len = k_get_c_string(descr, pathname, MAX_PATHNAME_LEN);
   if (path_len > 0) {
-    if ((dfu = opendir(pathname)) != NULL) {
+    /* 20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH (Linux Solo 7c6bbfc).  DIR() lists an OS directory by pathname, which is "a
+       file external to SD" exactly as OPENSEQ and OPENPATH name one.  An account without OS access lists only a directory inside its own;
+       the answer is a null string and STATUS() 3035, as OPEN ... ELSE gets.  A $internal program is trusted and asks the account itself. */
+    if (!os_path_open_ok(pathname)) {
+      process.status = ER_PERM;
+    } else if ((dfu = opendir(pathname)) != NULL) {
       if (pathname[path_len - 1] == DS)
         pathname[path_len - 1] = '\0';
 

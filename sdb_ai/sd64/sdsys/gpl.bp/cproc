@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 20 Oct 26 SD Core Solo - RELEASE_1.1 165 (the OS switch, Linux Solo 7c6bbfc): os.command (the SH verb and "!") asks K$ADMINISTRATOR / K$SH and refuses with 10053.
 * 18 Oct 26 Windows port - from Linux 3b43525 (15 Oct 26): QM4 gaps Q-16: KEEP.SELECT.  CLEAR.SELECT does not clear list 0 at the end of a command in which a
 *           program ran KEEP.SELECT (K$KEEP.SELECT, set by !keepselect, cleared as each outermost command starts).
 * 04 Oct 26 SD Core Solo - SOLO 29: LOGTO is removed (owner, in the Linux Solo
@@ -3826,7 +3827,13 @@ os.command:
 * 25 Sep 26 SD Core Solo (SOLO 4) - OS.USERS IS GONE: the one user has the
 *   shell, pipes and all, as they would at their own prompt.  sh.listed stays
 *   as the name the tests below already read, always true now.
-   sh.listed = @true
+* 20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH (Linux Solo 7c6bbfc; the owner, relayed by Linux: "carry the switch").  SOLO 4's
+*   "always true" is withdrawn: the shell is OFF as delivered, and sh.listed is now the account's SH switch (K$SH, loaded from ACC$SH at
+*   sign-on by LOGIN and, for an API session, by APISRVR; SET.OS.ACCESS SH ON turns it on).  Everything below keeps its meaning with
+*   "listed" read as "has the SH switch": the administrator passes the gate on its own (K$ADMINISTRATOR) but, not being listed, keeps the
+*   metacharacter ban, exactly as an elevated unlisted session did on SD Core; an account with the switch has a real shell, pipes
+*   and all.  The reply when refused is 10053, as on SD Core.
+   sh.listed = kernel(K$SH, -1)
 
    if not(kernel(K$ADMINISTRATOR, -1)) and not(sh.listed) then
       display sysmsg(10053, @logname) ;* %1 is not permitted to use the shell

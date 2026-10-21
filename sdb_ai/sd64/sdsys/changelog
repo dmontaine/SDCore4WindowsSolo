@@ -2,6 +2,28 @@ WS1.2-0 - SD Core Solo for Windows, in progress
 -------------
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
 
+20 Oct 26  THE SHELL AND OPERATING SYSTEM ACCESS ARE OFF UNTIL THE ADMINISTRATOR TURNS THEM ON (FROM SD CORE FOR LINUX SOLO).
+
+             What        Until now every session of the one account could use the shell (SH and !), OS.EXECUTE, the Python helper, the editors
+                        EDIT and MICRO, and could open, list or write files and directories anywhere the Windows user could. There are now two
+                        switches, SH and OS, both OFF as delivered. SH lets the account use the SH verb and !. OS lets it use OS.EXECUTE, the
+                        Python helper and the editors, and reach files and directories OUTSIDE its own account directory by pathname: OPENSEQ,
+                        OPENPATH, DELETESEQ, DIR(), DIGEST of a file, the file-system keys of OSPATH(), a print file named with SETPTR ... AS
+                        PATHNAME or SETPU, a CSV report's TO pathname, and a VOC pointer to a file outside the account. Inside the account's own
+                        directory nothing changes. After ADMIN the session passes both, with one exception: the SH verb still refuses a command
+                        containing a shell metacharacter unless the SH switch was given. The administrator changes the switches with a new
+                        command, SET.OS.ACCESS (SH ON, SH OFF, OS ON, OS OFF; with no argument it shows both), which writes the account's
+                        register record and the audit trail; a change is seen at the next sign-on, and the API server reads the switches when
+                        it enters the account. The installer asks, on a new installation and on an upgrade, on a page called Shell and OS access
+                        (two boxes, both unticked); the control file's os-access= (none, sh, os or both) answers it on a new installation.
+                        A silent installation, or an unticked page, turns nothing on.
+             Why it      The operating system was open to everyone who held the account password, over ssh and the API as well as at the
+             matters     keyboard. The owner's rule is that a delivered system is tight and the administrator loosens it.
+             Upgrading   BEFORE THIS RELEASE THE SHELL AND OS ACCESS WERE ALWAYS ON. An upgrade asks the same page; tick each switch you
+                        want to keep. Unticked, an upgrade turns nothing on and a program of yours that runs a shell command, opens a file
+                        outside the account or starts Python stops working until you turn the switch on with ADMIN and SET.OS.ACCESS.
+             Not here    OPENTEMP and a print unit's SPOOLER command do not exist in this release, so there is nothing to switch for them.
+
 20 Oct 26  AN API CLIENT THAT HANGS UP AT THE WRONG MOMENT, OR SENDS A FALSE PACKET LENGTH, NO LONGER TIES UP THE SERVER PROCESS (FROM SD CORE FOR LINUX).
 
              What        The process that answers one API connection read each request as a four-byte length followed by that many bytes.

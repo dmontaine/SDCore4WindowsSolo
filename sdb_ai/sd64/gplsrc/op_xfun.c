@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, the OS switch (Linux Solo 7c6bbfc): DIGEST of a file asks os_path_open_ok() before the network gate.
  * 18 Oct 26 Windows port - from Linux 7aba47d (16 Oct 26): XF_GET, the GET statement (QM4 Fixes item 583); XF_OSPATH 31 (OSPATH for
  *               any program, behind the S.63 gate) and XF_FCONTROL 29 (400500c) are NOT carried.
  * 18 Oct 26 Windows port - from Linux 3b43525 (15 Oct 26): XF_DIGEST for QM4 gaps bundle Q-13 (DIGEST()).
@@ -313,11 +314,18 @@ Private int32_t x_signal(int32_t uid) {
    on this port is contained only for a network session (net_path_permitted() in op_dio2.c; a local session is limited by
    Windows itself), so DIGEST of a file asks the same and nothing more.  An $internal program is exempt, as for OPENSEQ.  */
 
+/* 20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH (Linux Solo 7c6bbfc).  Solo now has the gate Linux asks here: DIGEST of an
+   operating system file is an OS path, asked as OPENSEQ asks it - an account without OS access reaches only its own directory
+   (os_path_open_ok(), op_dio2.c; an $internal program is trusted there).  The network containment below stays for an API session: the
+   OS switch widens what the account may open, not what a network session may.                                                        */
+
 Private bool digest_path_ok(char* name) {
   char resolved[MAX_PATHNAME_LEN + 1];
 
   if (process.program.flags & HDR_INTERNAL)
     return TRUE;
+  if (!os_path_open_ok(name))
+    return FALSE;
   if (connection_type != CN_SOCKET)
     return TRUE;
   if (!fullpath(resolved, name))
