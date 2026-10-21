@@ -4,6 +4,7 @@
       
       $list off
       * 26 Sep 26 SD Core Solo - SD_DPAPI_PROTECT 111, SD_DPAPI_UNPROTECT 112
+      * 20 Oct 26 SD Core Solo - SD_DPAPI_PROTECT and SD_DPAPI_UNPROTECT moved to 130 and 131 (Linux mail 2026-10-20T2330)
       * 27 Aug 26 Windows port - corrected the ACC$PRIOR.TIER note: the equality
       *                      guard, not an inner test, is what keeps field 6
       *                      write-once (PRE_RELEASE 21)
@@ -415,8 +416,8 @@
       * 26 Sep 26 SD Core Solo - SOLO 15 piece 4, mirrored from gplsrc/keys.h:
       *   the one-shot account password, DPAPI for this Windows user.
       *   $internal callers only.
-      $define SD_DPAPI_PROTECT   111  ;* win32dpapi encrypt, 1 arg
-      $define SD_DPAPI_UNPROTECT 112  ;* win32dpapi decrypt, 1 arg
+      $define SD_DPAPI_PROTECT   130  ;* win32dpapi encrypt, 1 arg; 130 to 139 are Windows-only keys (was 111, 112)
+      $define SD_DPAPI_UNPROTECT 131  ;* win32dpapi decrypt, 1 arg
       * 20 Oct 26 SD Core Solo - from Linux 00a5888, mirrored from gplsrc/keys.h: encryption layer 3, the key ring of the XE conversion.
       *   Args: 'set', name, base64 key (answers the key id, 8 hex digits) / 'clear', name or * (answers how many) / 'list'.
       $define SD_KEYRING      120  ;* sd_keyring key ring: set, clear, list

@@ -27,6 +27,8 @@
  * 25 Aug 26 Windows port - VFS stripped: the C never implemented it
  * 29 Aug 26 Windows port - K_OS_ADMINISTRATOR added.  PRE_RELEASE_FIXES 56
  * 26 Sep 26 SD Core Solo - SD_DPAPI_PROTECT 111, SD_DPAPI_UNPROTECT 112
+ * 20 Oct 26 SD Core Solo - SD_DPAPI_PROTECT and SD_DPAPI_UNPROTECT moved to 130 and 131: Linux keeps 111 (SD_FILE_PRIVATE, S.65) and takes 112
+ *           and up; 130 to 139 are Windows-only SDEXT keys that Linux will not allocate (Linux mail 2026-10-20T2330)
  * 26 Sep 26 SD Core Solo - K_ASSUME_USER 61, K_IMPERSONATING 62, K_HANDOFF 66,
  *           K_API_PREAUTH 67 retired (SOLO 3 step 5)
  * END-HISTORY
@@ -695,10 +697,10 @@
    user (win32dpapi.c).  PROTECT: text in, base64 blob out.  UNPROTECT: base64
    blob in, text out, "" when this user cannot open it.  $internal callers
    only - op_sdext.c refuses anyone else.  Solo only: not in Linux's table. */
-#define SD_DPAPI_PROTECT   111  /* win32dpapi encrypt, 1 arg */
-#define SD_DPAPI_UNPROTECT 112  /* win32dpapi decrypt, 1 arg */
+#define SD_DPAPI_PROTECT   130  /* win32dpapi encrypt, 1 arg; 130 to 139 are Windows-only keys (was 111, 112) */
+#define SD_DPAPI_UNPROTECT 131  /* win32dpapi decrypt, 1 arg */
 /* 20 Oct 26 SD Core Solo - from Linux 00a5888 (18 Oct 26), encryption layer 3.  The process-held key ring of the XE conversion
-   (sd_keyring.c).  Same number as Linux (120).  Linux's 111 (SD_FILE_PRIVATE, S.65) is not carried and 111 is the DPAPI key above.
+   (sd_keyring.c).  Same number as Linux (120).  Linux's 111 (SD_FILE_PRIVATE, S.65) is not carried; 111 and 112 are left to Linux.
    Args: the operation in lower case, then "set": name, base64 key (answers the key id as 8 hex digits); "clear": name or * for all
    (answers how many keys went); "list": none (answers one field per key: name, key id and 1 if it is the one new values are
    encrypted with, value-mark separated).  Mirrored in sdsys/syscom/keys.h. */
