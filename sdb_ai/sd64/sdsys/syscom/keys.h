@@ -417,6 +417,9 @@
       *   $internal callers only.
       $define SD_DPAPI_PROTECT   111  ;* win32dpapi encrypt, 1 arg
       $define SD_DPAPI_UNPROTECT 112  ;* win32dpapi decrypt, 1 arg
+      * 20 Oct 26 SD Core Solo - from Linux 00a5888, mirrored from gplsrc/keys.h: encryption layer 3, the key ring of the XE conversion.
+      *   Args: 'set', name, base64 key (answers the key id, 8 hex digits) / 'clear', name or * (answers how many) / 'list'.
+      $define SD_KEYRING      120  ;* sd_keyring key ring: set, clear, list
 
       * 13 Aug 26 Windows port - embedded python keys removed with the
       *   interpreter.  See PROJECT_STATUS.md 5.15.
