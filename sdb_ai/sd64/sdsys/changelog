@@ -2,6 +2,102 @@ WS1.2-0 - SD Core Solo for Windows, in progress
 -------------
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
 
+24 Oct 26  THERE IS A PAGE FOR THE GATES: TOOL.GATES SHOWS WHAT THIS ACCOUNT MAY DO AND WHY, AND THE ADMINISTRATOR TURNS A GATE ON OR OFF FROM IT.
+           Carried from SD Core's gates pages, in Solo's shape (SOLO CARRY 20).
+
+             What        tool.gates (any session; a full-screen page, 140 by 43 or more) lists the four gates this account has - Shell
+                         (sh), OS.EXECUTE (os), Remote files (net) and the AI (ai) - with whether each is ON or off FOR THIS SESSION, what
+                         the register says (the administrator only: what the next sign-on will load), that it is delivered off, that it
+                         reaches beyond SD, and when a change reaches you. A box explains the row under the cursor: what ON lets the account
+                         do, what it can still do with it off, and the command that changes it. After admin, Enter turns the gate on the
+                         cursor's row ON or off through its own verb - set.os.access, set.net.access or set.ai gate - shown in a box with
+                         what it does and answered Run or Cancel (Cancel is what Enter chooses); turning a gate ON asks for its name to
+                         be typed. The page asks the system and never tries an operation to find out; a session that is not the
+                         administrator sees the page and cannot change anything (Enter says so and opens no box).
+             Why it      The four switches were four verbs, a register record and the AI helper's own setting, and a change made by the
+             matters     administrator was not visible to the session that made it until the next sign-on. One page now shows the session's
+                         state beside the register's, so "I turned it on and it is still off" has an answer on the screen.
+             Does not    Turn anything on by itself, offer a key that turns everything on, change a gate for a session that is already
+                         running, or change what is delivered: every gate is still off. SD Core's page lists many accounts and has route
+                         gates (ssh, api, files); Solo has one account and no such per-account gates, so its page has four rows.
+
+24 Oct 26  THE ADMINISTRATOR HAS A SESSIONS AND LOCKS PAGE: TOOL.SESSIONS SHOWS WHO IS SIGNED ON AND WHAT IS LOCKED, AND LOGS A SESSION OUT, RELEASES A LOCK OR STOPS NEW
+           LOGINS THROUGH THE VERBS THAT ALREADY DO IT. Carried from SD Core (SOLO CARRY 20).
+
+             What        tool.sessions (after admin; a full-screen page, 140 by 43 or more) lists every session - user number,
+                         process, when it signed on, its kind (user, phantom, API or SDNet), the login user, the account, where it
+                         came from, and whether it is yours or a logout is pending - and below it every lock: the user, the file,
+                         the type (a whole-file lock, read-and-update, read, or a session WAITING for a lock), the record id, since
+                         when, and whether a session with that user number is still signed on. Both lists are read again every
+                         three seconds without a key and on F5, and the cursor stays on the same user or lock, not the same row. A
+                         box explains the row under the cursor and shows the exact command its key would run. L logs the selected
+                         session out (the user number is typed again to confirm), U releases the selected lock, I stops or allows
+                         new sessions; each shows its command and what it does in a box answered Run or Cancel (Cancel is what Enter
+                         chooses) and runs the real logout, unlock or inhibit.login verb. The page offers L for any session but the
+                         one it runs in, and for a session whose process is gone L is the cure: the entry is cleared and every lock it
+                         held is released (the kernel does this before it signals anything). U refuses a waiting row, and a record id
+                         that has a character the page will not put in a command or is a word unlock reads as a keyword. While
+                         inhibit.login is on, only this session and the phantoms it starts can sign in, and the hold lapses if this
+                         session is lost; the box says so.
+             Why it      Ending a session and releasing a lock were three verbs and a listing to read by eye, with the user number
+             matters     copied between them. Logout and unlock write no audit line of their own, so ending a session or freeing a
+                         lock left no trace; the page writes one line for every command it ran (tool run app=tool.sessions
+                         command=... status=...), as well as the line that says it was started.
+             Does not    Change anything by itself, run any other command, or send a message to a user (not built). The logout and
+                         unlock verbs still write no audit line when typed at the prompt: that is not changed here.
+             Also        The Run / Cancel box cut a long explanation line at its edge, so the tail of a sentence never showed. The
+                         box now wraps every line of its explanation the way it already wrapped the command, so every page that uses
+                         it shows whole sentences. The Sessions and Locks page of the Getting Started set no longer says that logout
+                         cannot clear a session whose process is gone: it does, and releases the locks (tried on Solo, 24 Oct).
+
+23 Oct 26  THE HOME SCREEN IS NOW WHERE A SESSION STARTS: TILES, A TERMINAL AND
+           SIGN OUT; THE ADMINISTRATOR'S SETTINGS FOR IT; [?] HELP ON THE
+           ADMINISTRATOR'S PAGES; AND pdf TO READ THE DOCUMENTATION. Carried
+           from SD Core's changes of 22 and 23 October.
+
+           What        (1) A session on a terminal opens the home screen: tiles
+                       for the Editor (sed), the IDE, the Record editor (ced), a
+                       Terminal and the Keys test (tool.keys), and Sign out at
+                       the top right. The arrow keys, Tab, a letter, Enter, the
+                       mouse and the wheel move and start; F5 builds it again,
+                       F10 opens its menu bar, Ctrl-Q signs out. The Terminal tile
+                       gives the ordinary prompt and exit comes back to the
+                       screen; the verbs are home, menu and exit (at a prompt that
+                       did not come from the screen, exit ends the session as
+                       quit does). (2) The administrator (admin first):
+                       set.start.default menu or terminal chooses where a session
+                       starts; set.tile sduser <tile> off or on takes a tile off
+                       the page (editor, ide, ced, terminal, keys; sign out
+                       cannot be turned off); set.pins on lets the account add
+                       programs of its own to its screen (my.menu); tool.menus is
+                       the page that shows those settings and runs the verbs once
+                       you answer Run. (3) Every row of that page has a [?]
+                       (F1, ? or a click) with a short help box, kept in the file
+                       context.help (load.help fills it). (4) pdf shows a
+                       documentation PDF in a reader the administrator has
+                       allowed (set.viewer; tool.viewers is the page for it), for
+                       the account even though its os switch is off; docs.install
+                       copies the PDF files in. (5) The IDE's menu bar showed
+                       "Message not found" for all six of its menus since 22
+                       October (six message files were left out of that carry);
+                       they are there now.
+           Why it      A person who signs on sees what they can do, and the
+           matters     administrator can keep an account to that screen. A
+                       document can be read without opening the shell to anyone.
+           Does not    THE DELIVERED START CHANGES: a session on a terminal now
+                       opens the home screen. If you want the command prompt as
+                       before, type admin and then set.start.default terminal.
+                       There is no Switch account (Solo has one account). Turning
+                       Terminal off keeps the person from the prompt the screen
+                       gives, not from the programs behind the other tiles; an
+                       account kept to the screen should have the editor and
+                       IDE tiles off as well. Nothing is allowed to show a
+                       document as delivered: the installer asks, and the answer
+                       is No unless you type y. The PDF files themselves are not
+                       in the source; docs.install copies them. Not built yet:
+                       sub-menus, a live line on a tile and a list of the last
+                       commands.
+
 22 Oct 26  THE SCREEN LIBRARY, THE EDITORS AND THE TERMINAL DIAGNOSTIC, AS IN
            SD CORE: SED, IDE, CED, TOOL.KEYS, NEW CONTROLS AND ACCELERATOR KEYS.
            Carried from SD Core's changes of 14 to 22 October.

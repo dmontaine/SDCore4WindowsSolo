@@ -739,6 +739,9 @@ terminate.phantom:
    * Main command processor loop
 
 connected.port:
+* 23 Oct 26 dm - Solo carry 14 (S.75, the home screen): an account whose setting says menu starts in the home screen; the command prompt is what is left when it returns.  Only on a
+*   terminal (a piped session never has its commands read as keys, and the bootstrap runs before the routine exists).  Solo has one account, so there is no second call after a LOGTO.
+   if @tty[1, 5] = '/dev/' then call !home_entry('signon')
    loop
       gosub reset.environment
       gosub set.links             ;* Unsnap subroutine links

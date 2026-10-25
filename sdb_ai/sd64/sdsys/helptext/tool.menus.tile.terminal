@@ -1,0 +1,5 @@
+The Terminal tile
+06-administrator-commands
+Leaves the home screen for the ordinary command prompt. The verb menu (or exit) comes back to the home screen.
+With this tile OFF and the account starting in the home screen, nobody is ever left at the command prompt: when the screen ends for any reason the session is signed out. If the account starts at the prompt it keeps it. You are asked to type the account's name before this is turned off.
+It is a wall only for the prompt the home screen gives. The editor, IDE and record editor tiles run the account's own programs, so to keep the account to the tiles you give it, turn those off too. A shell needs the sh switch (set.os.access), which is off as delivered.

@@ -1,0 +1,90 @@
+* TK_CONFIRM
+* The full-screen toolkit, shared base: the box that shows the exact command and asks whether to run it (plan sections 2.5 and G4).
+* Copyright (c) 2026, SD Core for Linux.  This program is free software; you can redistribute
+* it and/or modify it under the terms of the GNU General Public License, version 3 or later.
+*
+* START-HISTORY:
+* 22 Oct 26 dm  New (S.75, TK-0.4).
+* 23 Oct 26 dm  The wrapping loop is $tk_wrap now (the same algorithm, moved; the menu management page and the help box use it too).
+* 24 Oct 26 dm  The lines of the explanation are wrapped like the sentence: the box cut a line at its edge, and the tail of the ai gate's 150-character sentence (tool.gates) never showed.
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*   call $tk_confirm(sentence, lines, typed, res, msg)
+*
+*     sentence  the command exactly as the tool will give it to $tk_run (the caller passes the same variable to both)
+*     lines     the explanation under it, one to a field ($tk_explain makes it); may be null.  A line longer than the box is wrapped at spaces; an empty line stays empty
+*     typed     null for a Run / Cancel box; a name the person must type for a second step (an account's name, for a destructive action or a gate that
+*               reaches beyond SD)
+*     res       returned: 'run' only when Run was chosen and, when a name was asked for, the name was typed exactly; 'cancel' for Cancel, Esc, an input
+*               that ended, a session with no terminal; 'wrong' for a name that was not the one asked for
+*     msg       returned: null for 'run'; else the line for the status bar (12826 nothing was run, or 12815 naming the name asked for)
+*
+*   THE DEFAULT BUTTON IS CANCEL: Enter alone never runs a command.  Run is chosen by its letter (r) or by moving to it.  The sentence is shown wrapped at
+*   spaces, never cut, and never altered.  A session with no terminal cannot answer, so nothing runs ('cancel').  The typed name is compared as typed
+*   (with surrounding spaces taken off), exactly.  This routine runs nothing and changes nothing: the caller runs the command with $tk_run when
+*   res is 'run'.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+subroutine tk_confirm(sentence, lines, typed, res, msg)
+$catalog $tk_confirm
+
+$include sl.h
+$include tk.h
+
+   res = 'cancel'
+   msg = sysmsg(12826)
+   if system(25) then return
+
+   call $sl_scr('get', scr)
+   wrapw = scr<SL.S.W> - 16
+   if wrapw > 100 then wrapw = 100
+   if wrapw < 20 then wrapw = 20
+
+   body = sysmsg(12816)
+   call $tk_wrap(sentence, wrapw, pieces)
+   for p = 1 to dcount(pieces, @fm)
+      body<-1> = '  ' : pieces<p>
+   next p
+   if lines # '' then
+      body<-1> = ''
+*     24 Oct 26: the box CUTS a line at its edge (the tail of a 150-character sentence never showed), so each line of the explanation is wrapped like the sentence
+      for li = 1 to dcount(lines, @fm)
+         if lines<li> = '' then
+            body<-1> = ''
+         end else
+            call $tk_wrap(lines<li>, wrapw, pieces)
+            for p = 1 to dcount(pieces, @fm)
+               body<-1> = pieces<p>
+            next p
+         end
+      next li
+   end
+
+   screen msgbox body title sysmsg(12817) buttons '&Run,&Cancel' default 2 returning b else b = 0
+   if b # 1 then return
+
+   if typed # '' then
+      fw = len(typed) + 4
+      pr = sysmsg(12818, typed)
+      tt = sysmsg(12817)
+      screen ask pr width fw title tt returning ans then got = 1 else got = 0
+      if not(got) then return
+      if trim(ans) # typed then
+         res = 'wrong'
+         msg = sysmsg(12815, typed)
+         return
+      end
+   end
+
+   res = 'run'
+   msg = ''
+   return
+end
+
+* END-CODE

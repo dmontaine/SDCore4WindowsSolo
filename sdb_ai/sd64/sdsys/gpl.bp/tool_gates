@@ -1,0 +1,361 @@
+* TOOL_GATES
+* The gates of this account on one page (S.75, plan .claude/plan-fullscreen-toolkit.md sections 5 and 12, A2; Solo carry 20).  For every session: what this account may do and why.  For the administrator: the same page changes a gate.
+* Copyright (c) 2026, SD Core for Linux Solo.  This program is free software; you can redistribute
+* it and/or modify it under the terms of the GNU General Public License, version 3 or later.
+*
+* START-HISTORY:
+* 25 Oct 26 Windows port - from Linux Solo 9dfccc2 - the AI row, the AI helper's status read (K$AI.STATUS) and set.ai are taken out (this tree has no AI gate yet, RELEASE_1.1 173): three gates, NG and VIS 3;
+*           "Windows user" for "Linux user".  The description below still names the AI row.
+* 24 Oct 26 dm  Solo carry 20: Solo's own.  SD Core has two pages under this name (the administrator's matrix of every registered account against every gate, and the account holder's read-only
+*               "what my account may do and why") and changes a gate with modify.account.  Solo has ONE account, whose administrator is the person at the keyboard (ADMIN typed after sign-on),
+*               and no modify.account: its gates are set by set.os.access (sh, os), set.net.access (net) and set.ai gate (ai).  So this is one page with four rows and two modes, and it has no
+*               accounts, no filter, no queue and no route gates (Solo has no ssh, api or files routes of its own).  A DEVIATION FROM THE LINUX CORE TEMPLATE FOR AN OPERATING-SYSTEM-INDEPENDENT
+*               REASON (one account, no modify.account), listed for the parity audit; the wording of the rows, the confirm box and the rule "typed name when a gate reaching beyond SD is turned ON" are Core's.
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*   TOOL.GATES      (every session; the administrator's keys are offered only after ADMIN)
+*
+*   A full-screen page, in the toolkit's frame (140 columns by 43 lines at least), with three boxes:
+*
+*     Gates of this account   one row for each gate - sh, os, net, ai - with whether it is ON or off FOR THIS SESSION (what LOGIN loaded; the AI's gate is the helper's own setting), what the
+*                             register says (the administrator only: what the next sign-on will load), how it is delivered (off), whether it reaches beyond SD and when a change reaches you
+*     The row under the cursor  what the gate is, in plain sentences: what ON lets the account do, what it can still do with it off, and the command that changes it
+*     Where this comes from   where each state is read
+*
+*   Keys: Up, Down, PgUp, PgDn, Home, End move; Enter or the space bar (the administrator only) turns the gate on the cursor's row ON or off through the real verb; F5 reads again; F1 or ? or a click on
+*   the [?] explains the page; Ctrl-Q leaves.  There is NO key that turns everything ON, and no gate is on as delivered.
+*
+*   THE PAGE CHANGES NOTHING ITSELF AND PROBES NOTHING.  What it shows it asks the kernel (kernel(K$SH, -1), K$OS.EXEC, K$NET), the register (accounts/sduser, the administrator only) and the AI helper's
+*   status (K$AI.STATUS); it never tries an operation to learn whether it works.  Enter builds ONE sentence from a table that is in this program (set.os.access sh on, set.os.access os off, set.net.access on,
+*   set.ai gate on ...), shows it with its effect in a box answered Run or Cancel (Cancel is what Enter chooses) and runs it through $tk_run, which allows only these three commands.  Turning ON a gate asks
+*   for the gate's name to be typed, because every gate here reaches beyond SD.  Each verb asks for the administrator itself and writes its own audit line.  After the command it reads again and shows the
+*   verb's own words; a cell is never changed on the page's say-so.  A change does not reach a session that is already running (the gates are loaded at sign-on); the AI's gate is looked at by the helper at each request.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+program $tool_gates
+$catalog $tool_gates
+
+$include keys.h
+$include int$keys.h
+$include err.h
+$include sl.h
+$include tk.h
+
+   prompt ''
+
+   allow = 'set.os.access set.net.access'                       ;* the commands this page may run
+   acc.name = 'sduser'                                          ;* Solo's one account (ruling 29); the register record the three verbs write
+
+   call $tk_open('tool.gates', '', ctx, err)
+   if err # '' then
+      display err
+      stop
+   end
+   adm = (if kernel(K$ADMINISTRATOR, -1) then 1 else 0)
+   if adm then void kernel(K$AUDIT, 'tool start app=tool.gates')
+
+   keys = ''
+   call $tk_keys('add', keys, 'f1', 'help', 'help', '', 1)
+   if adm then call $tk_keys('add', keys, 'enter', 'change', 'change', '', 1)
+   call $tk_keys('add', keys, 'f5', 'refresh', 'refresh', '', 1)
+   call $tk_keys('add', keys, 'ctrl-q', 'quit', 'quit', '', 1)
+
+*  The table: one row to a gate, in the order the page shows them.  The words are the verbs' own (set.os.access, set.net.access).  The AI row of Linux Solo's page is not here: this tree has no AI gate.
+   gids = 'sh' : @fm : 'os' : @fm : 'net'
+   gti = 'Shell' : @fm : 'OS.EXECUTE' : @fm : 'Remote files'
+   gcmd.on = 'set.os.access sh on' : @fm : 'set.os.access os on' : @fm : 'set.net.access on'
+   gcmd.off = 'set.os.access sh off' : @fm : 'set.os.access os off' : @fm : 'set.net.access off'
+   gwhen = 'next sign-on' : @fm : 'next sign-on' : @fm : 'next sign-on'
+   gall = "use the SH verb and ! to run operating-system commands as your Windows user"
+   gall<2> = "run OS.EXECUTE, the embedded Python, a print unit's SPOOLER string and the editors that run outside SD, and reach files and directories outside the account by pathname"
+   gall<3> = 'open a file on another SD server through a server definition, and have its own files opened over the API by request 29'
+   gstill = "do everything inside SD, with the account's own files"
+   gstill<2> = 'open and write files inside its own account directory'
+   gstill<3> = 'open every file on this computer that its other gates allow'
+   NG = 3
+
+   VIS = 3                                                     ;* gate rows on the screen
+   ci = 1                                                       ;* the gate under the cursor
+   gen = 0
+   msg = (if adm then "Up and Down move; Enter turns the gate on the cursor's row ON or off" else 'Up and Down move; this page only shows what you may do, it cannot alter it')
+   done = 0
+
+   gosub read.all
+   gosub draw.all
+
+   loop
+      call $tk_frame(ctx, keys, 'Gates', msg)
+      call $sl_curat(0, ctx<TK.C.YSTAT>)
+      nm = ''
+      screen key returning nm
+      begin case
+         case nm = ''
+            if status() = ER$EOF then exit
+         case nm = 'guardquit'
+            exit
+         case nm = 'resize'
+            gen += 1
+            ctx<TK.C.GEN> = gen
+            gosub draw.all
+         case nm = 'mouse'
+            gosub on.mouse
+         case 1
+            gosub on.key
+      end case
+      if done then exit
+   repeat
+
+   call $tk_close(ctx)
+   stop
+
+* ------------------------------------------------------------------------------------------------- what the machine says
+
+* The state of every gate: gnow = what THIS SESSION holds (1 on, 0 off, null when it cannot be read), gset = what the register says (the administrator only; the AI's gate is the helper's own setting
+* for everyone).  The administrator may have changed since this session signed on, so the two may differ until the next sign-on.
+read.all:
+   adm = (if kernel(K$ADMINISTRATOR, -1) then 1 else 0)
+   gnow = '' ; gset = ''
+   gnow<1> = (if kernel(K$SH, -1) then 1 else 0)
+   gnow<2> = (if kernel(K$OS.EXEC, -1) then 1 else 0)
+   gnow<3> = (if kernel(K$NET, -1) then 1 else 0)
+   reg.ok = 0
+   if adm then
+      openpath @sdsys:@ds:'accounts' to acc.f then
+         read acc.rec from acc.f, acc.name then
+            reg.ok = 1
+            gset<1> = (if upcase(trim(acc.rec<ACC$SH>)) = 'YES' then 1 else 0)
+            gset<2> = (if upcase(trim(acc.rec<ACC$OS.EXEC>)) = 'YES' then 1 else 0)
+            gset<3> = (if upcase(trim(acc.rec<ACC$NET>)) = 'YES' then 1 else 0)
+         end
+         close acc.f
+      end
+   end
+   return
+
+* ------------------------------------------------------------------------------------------------- drawing
+
+draw.all:
+   cw2 = ctx<TK.C.W>
+   chh = ctx<TK.C.H> - 5
+   screen clear at 0,1 size cw2,chh
+   screen box at 1,1 size 138,11 title 'Gates of this account'
+   screen box at 1,12 size 138,14 title 'The row under the cursor'
+   screen box at 1,26 size 138,9 title 'Where this comes from'
+   gosub draw.list
+   gosub draw.row
+   gosub draw.source
+   return
+
+* The text of a state: ON, off, or - when it cannot be read
+state.text:
+   begin case
+      case st.v = ''
+         st.t = '-'
+      case st.v = 1
+         st.t = 'ON'
+      case 1
+         st.t = 'off'
+   end case
+   return
+
+draw.list:
+   screen text fmt('Gate', '16L') : fmt('This session', '14L') : fmt('Register', '10L') : fmt('As delivered', '14L') : fmt('Beyond SD', '11L') : 'A change reaches you' at 3,2 attr 'header' width 134
+   for r = 1 to VIS
+      k = r
+      st.v = gnow<k>
+      gosub state.text
+      now.t = st.t
+      st.v = gset<k>
+      gosub state.text
+      set.t = st.t
+      screen text fmt(gti<k>, '16L') : fmt(now.t, '14L') : fmt(set.t, '10L') : fmt('off', '14L') : fmt('yes', '11L') : gwhen<k> at 3,2 + r attr (if k = ci then 'highlight' else 'normal') width 134
+   next r
+   n.on = 0
+   for k = 1 to NG
+      if gnow<k> = 1 then n.on += 1
+   next k
+   s = 'Signed on as ' : @logname : ' in the account ' : @who : '.  ' : n.on : ' of ' : NG : ' gates are on for this session.'
+   screen text fmt(s, '134L') at 3,8 attr 'bold' width 134
+   if adm then
+      s = "You are the administrator: Enter turns the gate on the cursor's row ON or off through its verb, after a box you answer Run or Cancel."
+   end else
+      s = 'Only the administrator can change a gate (type admin).  Nothing on this page can.'
+   end
+   screen text fmt(s, '134L') at 3,9 width 134
+   screen text fmt((if adm then 'The Register column is what the next sign-on will load.' else 'The Register column is shown to the administrator only.'), '134L') at 3,10 width 134
+   call $tk_help('mark', 134, 2, 0, 0)
+   return
+
+* In plain sentences, for the gate under the cursor
+draw.row:
+   lines = ''
+   k = ci
+   if k >= 1 and k <= NG then
+      begin case
+         case 1
+            if gnow<k> = 1 then
+               lines<-1> = gti<k> : ' [' : gids<k> : ']  -  ON for this session.  You can ' : gall<k> : '.'
+               lines<-1> = 'With it off you could still ' : gstill<k> : '.'
+            end else
+               lines<-1> = gti<k> : ' [' : gids<k> : ']  -  off for this session.  You cannot ' : gall<k> : '.'
+               lines<-1> = 'With it off you can still ' : gstill<k> : '.'
+            end
+            if adm then
+               if gset<k> # '' and gset<k> # gnow<k> then
+                  lines<-1> = 'The register says ' : (if gset<k> = 1 then 'ON' else 'off') : ' and this session holds ' : (if gnow<k> = 1 then 'ON' else 'off') : ': ' : gti<k> : ' reaches you ' : gwhen<k> : '.'
+               end
+               lines<-1> = 'Enter runs: ' : (if gset<k> = 1 then gcmd.off<k> else gcmd.on<k>)
+            end else
+               lines<-1> = 'The administrator changes it with: ' : (if gnow<k> = 1 then gcmd.off<k> else gcmd.on<k>)
+            end
+            lines<-1> = 'As delivered it is off.  A change reaches you: ' : gwhen<k> : '.  It does not touch a session that is already running.  This gate reaches BEYOND SD.'
+      end case
+   end
+   gosub wrap.lines
+   for r = 1 to 12
+      screen text fmt(lines<r>, '134L') at 3,12 + r width 134
+   next r
+   return
+
+draw.source:
+   lines = ''
+   lines<-1> = "Every gate is off as delivered and only the administrator turns one on.  What this page says is what this session holds right now, asked of the system - nothing is tried to find out."
+   lines<-1> = "sh, os and net were loaded when you signed on (the administrator passes the first two on its own), so a change by the administrator shows in the This session column after the next sign-on."
+   lines<-1> = "The Register column is the record of this account in the system's register (fields sh, os.exec and net), read for the administrator only."
+   gosub wrap.lines
+   for r = 1 to 7
+      screen text fmt(lines<r>, '134L') at 3,26 + r width 134
+   next r
+   return
+
+* A SCREEN TEXT longer than its width is cut, not wrapped
+wrap.lines:
+   wrapped = ''
+   for wi = 1 to dcount(lines, @fm)
+      if lines<wi> = '' then
+         wrapped<-1> = ''
+      end else
+         call $tk_wrap(lines<wi>, 134, pieces)
+         wrapped<-1> = pieces
+      end
+   next wi
+   lines = wrapped
+   return
+
+* ------------------------------------------------------------------------------------------------- keys and mouse
+
+on.key:
+   msg = ''
+   begin case
+      case nm = 'up'
+         if ci > 1 then
+            ci -= 1
+            gosub redraw
+         end
+      case nm = 'down'
+         if ci < NG then
+            ci += 1
+            gosub redraw
+         end
+      case nm = 'pgup' or nm = 'home'
+         ci = 1
+         gosub redraw
+      case nm = 'pgdn' or nm = 'end'
+         ci = NG
+         gosub redraw
+      case nm = 'enter' or nm = ' '
+         gosub change
+      case nm = 'f1' or nm = '?'
+         call $tk_help('box', 'tool.gates.page', hm, 0, 0)
+         if hm # '' then msg = hm
+      case nm = 'f5'
+         gosub read.all
+         gosub draw.all
+         msg = 'asked the system again'
+      case nm = 'ctrl-q'
+         done = 1
+   end case
+   return
+
+redraw:
+   gosub draw.list
+   gosub draw.row
+   return
+
+on.mouse:
+   screen mouse returning mev else mev = ''
+   if mev = '' then return
+   call $tk_help('hit', mev, 134, 2, hit.m)
+   if hit.m then
+      call $tk_help('box', 'tool.gates.page', hm, 0, 0)
+      if hm # '' then msg = hm
+      return
+   end
+   if mev<1> = 'press' and mev<2> = 1 then
+      mx = mev<3>
+      my = mev<4>
+      if my >= 3 and my <= 2 + VIS and mx >= 3 and mx <= 136 then
+         ci = my - 2
+         gosub redraw
+      end
+   end
+   return
+
+* ------------------------------------------------------------------------------------------------- changing a gate: the command, its effect, Run or Cancel, then the machine's answer
+
+* Enter on a gate: the opposite of the register's state, through the verb that owns it
+change:
+   if not(kernel(K$ADMINISTRATOR, -1)) then
+      msg = 'Only the administrator can change a gate: type admin, then open this page again'
+      return
+   end
+   k = ci
+   if not(reg.ok) then
+      msg = 'the register could not be read, so nothing is changed'
+      return
+   end
+   on.now = (gset<k> = 1)
+   sent = (if on.now then gcmd.off<k> else gcmd.on<k>)
+   el = ''
+   typed = ''
+   if on.now then
+      el<-1> = 'OFF - ' : gti<k> : ': this account will no longer be able to ' : gall<k> : '.'
+      el<-1> = 'It will still be able to ' : gstill<k> : '.'
+   end else
+      el<-1> = 'ON  - ' : gti<k> : ': this account will be able to ' : gall<k> : '.'
+      el<-1> = 'A gate that is off as delivered is being turned ON.  Leaving it off is the tighter choice; you decide.'
+      el<-1> = 'This gate reaches beyond SD, so its name has to be typed.'
+      typed = gids<k>
+   end
+   el<-1> = 'A running session is not changed.  A change reaches you: ' : gwhen<k> : '.'
+   call $tk_confirm(sent, el, typed, res, cmsg)
+   if res = 'run' then
+      call $tk_run(allow, sent, out, st, err)
+      if err # '' then
+         msg = err
+      end else
+         said = ''                                               ;* the verb's last line: the state afterwards
+         for oi = dcount(out, @fm) to 1 step -1
+            if trim(out<oi>) # '' then
+               said = trim(out<oi>)
+               exit
+            end
+         next oi
+         msg = (if said # '' then said[1, 130] else 'ran, status ' : st)
+      end
+      gosub read.all
+      gosub draw.all
+   end else
+      msg = cmsg
+   end
+   return
+
+end
+
+* END-CODE

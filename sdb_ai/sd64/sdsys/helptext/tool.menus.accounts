@@ -1,0 +1,4 @@
+The account
+06-administrator-commands
+The account of this installation, sduser. Starts in is where a session begins: menu is the home screen, terminal is the command prompt. Own says whether the account may add programs of its own to its home screen. Tiles off lists the tiles you have turned off for it; a plus sign at the end means the list is longer than the column.
+Press Tab to change its settings. F1 or ? on any row of the Menu box explains that setting.

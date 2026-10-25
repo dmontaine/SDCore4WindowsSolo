@@ -1,0 +1,89 @@
+* SETPINS
+* SET.PINS verb: whether the account may add its OWN programs to its home screen (S.75, Solo carry 14; SD Core does this with MODIFY.ACCOUNT name PINS-ON | PINS-OFF).
+* Copyright (c) 2026, SD Core for Linux.  This program is free software; you can redistribute
+* it and/or modify it under the terms of the GNU General Public License, version 3 or later.
+*
+* START-HISTORY:
+* 23 Oct 26 dm  New (Solo carry 14; the owner, 22 Oct: "users need to be able to add their own items to the full screen menu if allowed by the admin - not manage universal tiles,
+*               but just for their own programs").  Solo has no MODIFY.ACCOUNT and one account, so the permission has a verb of its own, as the OS switches have SET.OS.ACCESS.
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*   SET.PINS             says whether the account may add its own programs to its home screen
+*   SET.PINS ON          lets it: the home screen then has a group My programs, and MY.MENU edits the list
+*   SET.PINS OFF         takes that back (the list stays in the account's file)
+*
+*   An administrator verb (ADMIN first).  OFF as delivered.  The permission is field 18 of the register record accounts/sduser (ACC$PINS): ONLY 'yes' is on, so a blank field, or a
+*   record with fewer fields, is off.  The administrator needs no permission: the home screen shows the group to an administrator and MY.MENU works for one.  A program of the
+*   account's own runs the command the person could type at their prompt, so it adds no access: what this decides is whether the screen shows such tiles and MY.MENU edits them.
+*   Takes effect when the home screen is next built (sign-on, F5).  Written to the audit trail in lower case.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+program set.pins
+$catalog $setpins
+
+$include int$keys.h
+$include keys.h
+$include err.h
+
+   @system.return.code = -ER$ARGS
+
+   if not(kernel(K$ADMINISTRATOR, -1)) then
+      stop sysmsg(2001) ;* Command requires administrator privileges
+   end
+
+*  Solo's one account is always sduser (ruling 29); an internal session (the installer's) has another @logname, so the name is not read.
+   acc.name = 'sduser'
+
+   words = trim(@sentence)
+   n.words = dcount(words, ' ')
+   want = downcase(field(words, ' ', 2))
+   if n.words > 2 or (n.words = 2 and want # 'on' and want # 'off') then stop sysmsg(12935)         ;* set.pins {on | off}
+
+   openpath @sdsys : @ds : 'accounts' to acc.f else stop sysmsg(6003)
+   readu acc.rec from acc.f, acc.name else
+      release acc.f, acc.name
+      close acc.f
+      stop sysmsg(6003)                                 ;* Account name is invalid
+   end
+   is.on = (upcase(trim(acc.rec<ACC$PINS>)) = 'YES')
+
+   if n.words = 1 then
+      release acc.f, acc.name
+      close acc.f
+      @system.return.code = 0
+      display sysmsg(12890, acc.name, (if is.on then 'yes' else 'no'))        ;* Account %1 may add its own programs to the home screen: %2
+      stop
+   end
+
+   if is.on = (want = 'on') then
+      release acc.f, acc.name
+      close acc.f
+      @system.return.code = 0
+      display sysmsg(12936, acc.name, want)             ;* Own programs for %1 were already %2; nothing changed
+      stop
+   end
+
+   acc.rec<ACC$PINS> = (if want = 'on' then 'yes' else 'no')
+   ok = @true
+   write acc.rec to acc.f, acc.name on error ok = @false
+   if not(ok) then release acc.f, acc.name
+   close acc.f
+   if not(ok) then
+      @system.return.code = -ER$FAILED
+      stop sysmsg(12937)                                ;* The permission could not be written
+   end
+
+   @system.return.code = 0
+   void kernel(K$AUDIT, 'set.pins ' : want : ' account=' : acc.name)
+   display sysmsg(12890, acc.name, (if want = 'on' then 'yes' else 'no'))
+   stop
+
+end
+
+* END-CODE

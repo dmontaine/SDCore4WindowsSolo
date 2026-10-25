@@ -1,0 +1,5 @@
+Where a session starts
+06-administrator-commands
+Chooses what you see when you sign on: the home screen (menu), or the ordinary command prompt (terminal). It is menu as delivered. Type menu or home at the prompt to open the home screen from there.
+It confines nobody on its own. The Terminal tile on the home screen still gives the command prompt unless you turn that tile off.
+The change reaches you at the next sign-on. The command it runs is set.start.default with menu or terminal.

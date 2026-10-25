@@ -408,6 +408,14 @@
       *   on and anything else, blank and an absent field included, is OFF.  Fields 9 to 14 are SD Core's and are not
       *   used here; a record written with field 15 has them empty.  The administrator changes it with SET.NET.ACCESS.
       $define ACC$NET         15     ;* may have its files opened over the API by request 29 (yes/no)
+      * 23 Oct 26 dm - Solo carry 14: FIELDS 16, 17 AND 18 with SD Core's numbers (S.75, the home screen).  Solo has ONE account, so none of the three is set per account name:
+      *   FIELD 16 (ACC$START) is never written here - where a session starts is the one word in the file start.default in the SD system directory (SET.START.DEFAULT),
+      *   which !HOME_ENTRY reads when the field is blank ("menu" when the file is absent; Core's delivered default).  FIELD 17 (ACC$TILES.OFF) lists the tile ids the administrator
+      *   has turned off for the account, separated by spaces (blank = every tile on; SET.TILE account tile on | off).  FIELD 18 (ACC$PINS) is yes when the person may add their OWN
+      *   programs to the home screen (blank = no, delivered off; SET.PINS ON | OFF); the administrator always may.
+      $define ACC$START        16    ;* menu, terminal, or blank = the system default
+      $define ACC$TILES.OFF    17    ;* tile ids that are off for this account, separated by spaces
+      $define ACC$PINS         18    ;* may add its own programs to the home screen (yes/no; blank = no)
       deffun parse.pathname.tokens(path) calling "!PATHTKN"
       
       * encrytption decryption  *
