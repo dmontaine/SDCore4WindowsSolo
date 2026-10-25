@@ -26,6 +26,8 @@
  *           listener and the per-connection spawn are ours to provide.
  * 21 Aug 26 Windows port - NETDIRS added, for the containment gate
  * 06 Oct 26 SD Core Solo - api_login removed (APILOGIN retired, PAW-5)
+ * 14 Sep 26 Windows port - from Linux 1f5f703 - S.18: api_login removed (APILOGIN retired).
+ * 19 Oct 26 Windows port - from Linux 1f5f703 - netwait and netreply are 32 bit (verifier finding of the SDNet finish): a value in sd.conf is read into an int and a 16 bit field wrapped 65541 to 5 before rangecheck saw it.
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -120,6 +122,8 @@ struct PCFG  {
   bool must_lock;                       /* MUSTLOCK: Enforce locking rules */
   int16_t objects;                      /* OBJECTS:  Max loaded objects */
   int32_t objmem;                       /* OBJMEM:   Object size limit, zero = none */
+  int32_t netwait;                      /* NETWAIT:  Seconds to wait for a connection to a remote SDNet server, 1 to 3600 (19 Oct 26, K8d).  32 bit, not 16: sd.conf is read into an int and a 16 bit field wrapped 65541 to 5 BEFORE the range test */
+  int32_t netreply;                     /* NETREPLY: Seconds to wait for each reply of a remote SDNet server, 1 to 3600 (19 Oct 26, K8d; eight characters: CONFIG() reads no longer name).  32 bit for the same reason */
   int16_t pwdelay;                      /* PWDELAY:  Seconds paused after a failed network login */
   int16_t sdclient_mode;                /* SDCLIENT: 0 = any, 1 = no open/exec, 2 = restricted call */
   int16_t reccache;                     /* RECCACHE: Record cache size */

@@ -23,6 +23,16 @@
 *           (ACC$SH, ACC$OS.EXEC) and loaded with K$SH and K$OS.EXEC once the account is entered, off unless the record says yes.
 * 19 Oct 26 Windows port - RELEASE_1.1 158 (Linux d6a86a7, 15 Oct 26, sheet 170): the MASTER.LOGIN paragraph of the SDSYS VOC is run for an API session,
 *           once, when it first enters an account, before the account's own LOGIN.
+* 20 Oct 26 SD Core for Linux Solo (SDNet carry 9, SD Core's S.65 slice 1) - the NET gate (K$NET, register field 15) is loaded at every entry to an account,
+*           beside K$SH and K$OS.EXEC; a session that may not enter the account keeps the previous one's.
+* 20 Oct 26 SD Core for Linux Solo (the OS switch; owner: two words like SD Core, SET.OS.ACCESS) - the account's SH and OS.EXECUTE switches are
+*           read from its register record (ACC$SH, ACC$OS.EXEC) and loaded with K$SH and K$OS.EXEC once the account is entered, off unless
+*           the record says yes (SD Core's S.63 second sitting).
+* 20 Oct 26 SD Core for Linux Solo (Solo carry 3, from SD Core 0bdc4bd / d93ea0d, their K1 and K8a; the rest of those commits is SDNet and is not carried) - (1) the
+*           message of an ON ERROR reply is emptied at the top of every request, so an ON ERROR clause that had nothing to say no longer sends the text of the last
+*           refusal (a WRITE with an over-long id answered 'Invalid call name'); (2) vb.filelock and vb.fileunlock used files(i), the scratch variable of the last
+*           open, instead of files(fno): a lock or an unlock went to whichever file had been opened last.  Run, through a real TLS and SCRAM session, by
+*           gplbld/sandbox-apifile.py (F and G), red on the tree before.
 * 18 Oct 26 SD Core for Linux Solo (Solo carry A, owner's ruling B) - WRITE, WRITEU, DELETE, DELETEU and CLEARFILE ask !voc_refusal for the
 *           file they were given (check.voc.edit): this program is $internal, so the C gate on the VOC and on the global files let an
 *           API client through.  Not run: a sandbox cannot host an API session (the API is gplbld/verify-solo-service.sh's), so this
@@ -711,6 +721,7 @@ acc.suspended = ''
 *   switch, so an account given SH or OS over SET.OS.ACCESS would have neither over the API.
 api.sh.grant = @false
 api.os.grant = @false
+api.net.grant = @false     ;* 25 Oct 26, Linux Solo 1f5f703 (SDNet carry 9; SD Core's S.65 slice 1): the NET gate (a file on another SD server), the same register field as request 29's
 * 17 Sep 26 Windows port - RELEASE_1.1 55.  ***EVERY REFUSAL HERE NAMES ITS
 *   BRANCH ON THE AUDIT TRAIL, AND THAT IS KEPT RATHER THAN REMOVED WITH THE
 *   DIAGNOSTICS IT ARRIVED WITH.***  All five refusals answer the caller with
@@ -728,6 +739,7 @@ openpath @sdsys:@ds:'accounts' to acc.f then
       acc.suspended = acc.rec<ACC$SUSPENDED>
       api.sh.grant = (upcase(trim(acc.rec<ACC$SH>)) = 'YES')
       api.os.grant = (upcase(trim(acc.rec<ACC$OS.EXEC>)) = 'YES')
+      api.net.grant = (upcase(trim(acc.rec<ACC$NET>)) = 'YES')
    end
    close acc.f
 end
@@ -791,6 +803,7 @@ i = kernel(K$PRIVATE.CATALOGUE, private.catalogue)
 *   so the owner over the API is held to the account's own switches like anybody else.
 void kernel(K$SH,      api.sh.grant)
 void kernel(K$OS.EXEC, api.os.grant)
+void kernel(K$NET,     api.net.grant)   ;* 20 Oct 26, SDNet carry 9: loaded at every entry to an account, as SD Core's apisrvr loads it (the set ends the account scope)
 
 * 19 Oct 26 Windows port - from Linux d6a86a7 (sheet 170): the MASTER.LOGIN paragraph of the SDSYS VOC is run for an API session as CPROC
 *   runs it for an interactive or phantom one: once, when the session first enters an account, before that account's own LOGIN.  There is

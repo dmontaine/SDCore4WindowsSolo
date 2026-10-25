@@ -25,6 +25,22 @@
  *           (SOLO 15 piece 4, ruling 21)
  * 15 Aug 26 Windows port - NullString() no longer returns a STATIC buffer
  *           when malloc fails; the release loop frees what it returns
+ * 20 Oct 26 Windows port - from Linux 1f5f703 - SDNet carry 9 (SD Core's S.65 slice 2b, 71eb0aa): SD_FILE_PRIVATE (111) carried, as Core has it (below).
+ * 20 Oct 26 Windows port - from Linux 1f5f703 - Solo carry 7 (SD Core's 00a5888): SD_KEYRING (120), set / clear / list on the key ring of the XE conversion (sd_keyring.c); and
+ *               the argument buffers are wiped before they are freed, for every key (they carry passphrases and SCRAM secrets).  Core's neighbour
+ *               SD_FILE_PRIVATE (111) was S.65 and was not in Solo then; it is now (carry 9).
+ * 20 Oct 26 Windows port - from Linux 1f5f703 - Solo OS switch (SD Core's S.63 Python gate carried): starting the embedded Python and running code are refused (ER_PERM) to a
+ *               session that does not hold the OS-access gate.
+ * 17 Oct 26 Windows port - from Linux 1f5f703 - S.65 slice 2b: SD_FILE_PRIVATE (111) - is a path a private file or
+ *               directory of the running user (lstat, owner, no group or world bits;
+ *               a file's parent directory too); fails closed.
+ * 15 Sep 26 Windows port - from Linux 1f5f703 - SD_TLS_CBIND (110): the SCRAM c= value for this session's TLS
+ *               channel binding, "" when it has no TLS (S.19).
+ * 14 Sep 26 Windows port - from Linux 1f5f703 - SD_SHA256 .. SD_CTEQUAL (104-109): the Windows port's SCRAM
+ *               primitives from sd_scram.c, with its dispatch (W.4 phase 1).
+ * 10 Sep 26 Windows port - from Linux 1f5f703 - Parity audit: NullString() returns NULL on a failed malloc,
+ *               not static storage the caller frees (the Windows port's fix;
+ *               UPSTREAM_FIXES 1).
  * 06 Aug 2024 MAB add SDEXT
  * 08 Aug 2024 mab add embedded python
  * rev 0.9.0 Jan 25 mab add sdext_eguid_set set / restore euid egid of process
@@ -54,6 +70,10 @@
 #include <sodium.h>
 
 #include <errno.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "sd.h"
 #include "header.h"   /* 26 Sep 26 SD Core Solo - HDR_INTERNAL, the DPAPI gate */
@@ -86,6 +106,9 @@ char* NullString(void);
 Private void sdme_err_rsp(int errnbr);
 Private void scram_reply(char* value);
 Private long scram_arg_long(const char* text);
+/* 25 Oct 26 Windows port - from Linux Solo 1f5f703 / Linux 71eb0aa (S.65 slice 2b): SD_FILE_PRIVATE.  The ACL walk is in win32tls.c (this file includes SD headers, that one
+   windows.h); the answer is 1 only when the path is closed to everyone but its owner, SYSTEM and Administrators (win32_private_to_user()). */
+extern int win32_private_to_user(const char* path, int want_dir, char* why, size_t whylen);
 
 /* 12 Sep 26 Windows port - the Python adapters, PROJECT_STATUS.md 5.27. */
 Private int  py_ext_call(const char* verb, const char* arg,
@@ -458,6 +481,30 @@ void op_sdext() {
     case SD_PyFinal:
       py_ext_int("FIN", NULL);
       break;
+
+    /* 17 Oct 26 dm - S.65 slice 2b (Windows port 25 Oct 26).  SD_FILE_PRIVATE: is this path the kind of object a credential may be trusted in?
+       Two arguments, path and the word FILE or DIR.  The answer is the text "1" or "0" and nothing else; every failure - a wrong argument count,
+       a word that is neither, a path that cannot be examined - answers "0", so a caller that tests for "1" refuses.  Only a wrong argument count
+       also sets process.status (SD_EXT_ARG_CNT), as the neighbours do. */
+    case SD_FILE_PRIVATE: {
+      char answer[2];
+      char why[512];
+
+      answer[0] = '0';
+      answer[1] = '\0';
+      if (argCnt != 2) {
+        process.status = SD_EXT_ARG_CNT;
+      } else if (strcmp(SDMEArgArray[1], "FILE") == 0) {
+        if (win32_private_to_user(SDMEArgArray[0], 0, why, sizeof(why)))
+          answer[0] = '1';
+      } else if (strcmp(SDMEArgArray[1], "DIR") == 0) {
+        if (win32_private_to_user(SDMEArgArray[0], 1, why, sizeof(why)))
+          answer[0] = '1';
+      }
+      k_put_c_string(answer, e_stack);
+      e_stack++;
+      break;
+    }
 
     /* 18 Oct 26 dm - encryption layer 3.  The key ring of the XE conversion (sd_keyring.c).  The first argument is the operation:
          set    name, base64 key -> the key id, 8 hex digits       (STATUS() and the null string on a bad name or key, or a full ring)

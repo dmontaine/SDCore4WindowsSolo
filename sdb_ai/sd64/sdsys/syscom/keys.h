@@ -315,6 +315,9 @@
       $define SKT$INFO.FAMILY.IPV6     2    ;* Socket address family IPV6
       * 18 Oct 26 Windows port - from Linux cc03bed (15 Oct 26): - QM4 gaps Q-5, SELECT.SOCKET().  SKT$INFO.EVENTS is SD's own number; the events are openQM's.
       $define SKT$INFO.EVENTS          9    ;* SET.SOCKET.MODE: events to watch.  SOCKET.INFO: the letters last found
+      * 25 Oct 26 Windows port - from Linux Solo 1f5f703 (S.65 slice 2): SOCKET.INFO only.  The SHA-256 of the server certificate's public key
+      *   (SubjectPublicKeyInfo) of a socket opened with SKT$TLS, 64 lower case hex digits; "" otherwise.  What set.server pins.  (Linux's SKT$INFO.TRACE 10 is not carried.)
+      $define SKT$INFO.TLS.SPKI        11   ;* hash of the server's public key
       $define SKT$READ.EVENT           1    ;* Data to read, a connection waiting on a server socket, or the peer closed
       $define SKT$WRITE.EVENT          2    ;* Data can be sent
       $define SKT$EXCEPTION.EVENT      4    ;* An exception condition
@@ -442,6 +445,9 @@
       * 20 Oct 26 SD Core Solo - from Linux 00a5888, mirrored from gplsrc/keys.h: encryption layer 3, the key ring of the XE conversion.
       *   Args: 'set', name, base64 key (answers the key id, 8 hex digits) / 'clear', name or * (answers how many) / 'list'.
       $define SD_KEYRING      120  ;* sd_keyring key ring: set, clear, list
+      * 25 Oct 26 Windows port - from Linux Solo 1f5f703 (S.65 slice 2b), mirrored from gplsrc/keys.h: is a path a file or directory only the running user can touch
+      *   (Windows: owned by the running user, nobody else but SYSTEM and Administrators in its ACL).  Args: path, FILE or DIR.
+      $define SD_FILE_PRIVATE 111  ;* op_sdext private-file test, 2 args: path, FILE|DIR
 
       * 13 Aug 26 Windows port - embedded python keys removed with the
       *   interpreter.  See PROJECT_STATUS.md 5.15.

@@ -19,6 +19,9 @@
  *           is linked into sd.exe only.  The NATIVE client library's copy is
  *           gplsrc/sdclilib/sd_tls.c - Winsock, no signals.  RELEASE_1.1 41.
  * 15 Sep 26 dm S.19: created.  See sd_tls.h.
+ * 17 Oct 26 dm S.65: sd_tls_client_peer_spki_sha256() (the key, not the certificate); sd_tls_client_end() holds SIGPIPE off around the
+ *               close_notify (it ended the process when the peer had already closed the connection).
+ * 20 Oct 26 dm S.73 item 2: sd_tls_client_read_now(), the TLS read that never waits (READ.SOCKET waits on the descriptor itself, for the time that is left).
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -281,6 +284,61 @@ int sd_tls_client_read(SD_TLS_CLIENT* c, void* buf, int len) {
   }
 }
 
+/* 20 Oct 26 dm - S.73 item 2, THE SILENT SERVER.  sd_tls_client_read() above blocks in SSL_read for as long as the descriptor is blocking, and
+   READ.SOCKET (op_skt.c) calls it after its own wait on the descriptor has said "readable".  That wait was spent by what had arrived, and what had
+   arrived need not be application data: a TLS 1.3 server sends its session tickets right after the handshake, and a server (or a link) that stops in the
+   middle of a record leaves half of one.  SSL_read took the tickets, or the half record, and then waited for the rest with no limit of its own - 5.0 s
+   against the test server that closes a silent connection after 5, with NETREPLY=3.  This read never waits: the descriptor is made non-blocking for the
+   one call (as sd_tls_handshake() does) and put back, and SSL_ERROR_WANT_READ comes back as SD_TLS_NOT_YET so that the caller can wait on the
+   descriptor again for the time that is LEFT.  WANT_WRITE (OpenSSL answering a KeyUpdate request with a full send buffer) is waited for up to a second and
+   then also given back as SD_TLS_NOT_YET: the caller's own deadline ends it.  > 0 bytes, 0 closed, < 0 an error. */
+int sd_tls_client_read_now(SD_TLS_CLIENT* c, void* buf, int len) {
+  int flags = fcntl(c->fd, F_GETFL);
+  int result = -1;
+  int waited_for_write = 0;
+
+  if (flags < 0 || fcntl(c->fd, F_SETFL, flags | O_NONBLOCK) < 0)
+    return -1;
+  for (;;) {
+    int n = SSL_read(c->ssl, buf, len);
+    int e;
+
+    if (n > 0) {
+      result = n;
+      break;
+    }
+    e = SSL_get_error(c->ssl, n);
+    if (e == SSL_ERROR_ZERO_RETURN) {
+      result = 0;
+      break;
+    }
+    if (e == SSL_ERROR_WANT_READ) {
+      result = SD_TLS_NOT_YET;
+      break;
+    }
+    if (e == SSL_ERROR_WANT_WRITE) {
+      struct pollfd p;
+
+      if (waited_for_write++ >= 10) {
+        result = SD_TLS_NOT_YET;
+        break;
+      }
+      p.fd = c->fd;
+      p.events = POLLOUT;
+      p.revents = 0;
+      (void)poll(&p, 1, 100);
+      continue;
+    }
+    if (e == SSL_ERROR_SYSCALL && errno == EINTR)
+      continue;
+    ERR_clear_error();
+    result = -1;
+    break;
+  }
+  (void)fcntl(c->fd, F_SETFL, flags);
+  return result;
+}
+
 /* Bytes already decrypted and held by OpenSSL, which select() and poll() on
    the descriptor cannot see.  A caller that waits for readability must check
    this first, or it waits for data it already has. */
@@ -352,15 +410,55 @@ int sd_tls_client_peer_sha256(SD_TLS_CLIENT* c, unsigned char* out) {
   return ok;
 }
 
+/* 17 Oct 26 dm - S.65 slice 2: the SHA-256 of the server certificate's SubjectPublicKeyInfo - the key, not the certificate - so a
+   renewed certificate over the same key has the same hash.  This is what a server definition pins (set.server); the certificate digest
+   above would change at every renewal.  32 bytes into OUT; false when there is no certificate or the key cannot be encoded. */
+int sd_tls_client_peer_spki_sha256(SD_TLS_CLIENT* c, unsigned char* out) {
+  X509* cert = SSL_get1_peer_certificate(c->ssl);
+  unsigned char* der = NULL;
+  unsigned int n = 0;
+  int der_len;
+  bool ok = false;
+
+  if (cert == NULL)
+    return false;
+  der_len = i2d_X509_PUBKEY(X509_get_X509_PUBKEY(cert), &der);
+  if ((der_len > 0) && (der != NULL))
+    ok = (EVP_Digest(der, (size_t)der_len, out, &n, EVP_sha256(), NULL) == 1) && (n == 32);
+  OPENSSL_free(der);
+  X509_free(cert);
+  return ok;
+}
+
 const char* sd_tls_client_version(SD_TLS_CLIENT* c) {
   return SSL_get_version(c->ssl);
 }
 
-/* Sends close_notify and frees; the caller closes the descriptor. */
+/* Sends close_notify and frees; the caller closes the descriptor.
+
+   17 Oct 26 S.65: SIGPIPE IS HELD OFF FOR THE CLOSE_NOTIFY, AS FOR sd_tls_client_write().  SSL_shutdown() writes to the descriptor; when the
+   peer has already closed it (a server that dropped the connection, then the program closes its socket), that write raised SIGPIPE and
+   ended the whole process, silently.  Found by the SDNet handler suite: CLOSEALL after a connection the fake server had closed.  A SIGPIPE
+   this shutdown raised is consumed; one that was already pending is left alone. */
 void sd_tls_client_end(SD_TLS_CLIENT* c) {
+  sigset_t pipe_only;
+  sigset_t old_mask;
+  sigset_t pending;
+  bool was_pending;
+
   if (c == NULL)
     return;
+  sigemptyset(&pipe_only);
+  sigaddset(&pipe_only, SIGPIPE);
+  sigpending(&pending);
+  was_pending = sigismember(&pending, SIGPIPE) == 1;
+  pthread_sigmask(SIG_BLOCK, &pipe_only, &old_mask);
   (void)SSL_shutdown(c->ssl);
+  if (!was_pending) {
+    struct timespec no_wait = {0, 0};
+    (void)sigtimedwait(&pipe_only, NULL, &no_wait);
+  }
+  pthread_sigmask(SIG_SETMASK, &old_mask, NULL);
   SSL_free(c->ssl);
   SSL_CTX_free(c->ctx);
   ERR_clear_error();

@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 20 Oct 26 dm  SDNet carry 9 (SD Core's S.65 slice 2b): SD_FILE_PRIVATE (111) carried.
  * 31 Dec 23 SD launch - prior history suppressed 
  * 28 Jul 24 mab SD_ENCRYPT_SODIUM encode types
  * 08 Aug 24 mab SDEXT keys for salt and key from password
@@ -31,6 +32,14 @@
  *           and up; 130 to 139 are Windows-only SDEXT keys that Linux will not allocate (Linux mail 2026-10-20T2330)
  * 26 Sep 26 SD Core Solo - K_ASSUME_USER 61, K_IMPERSONATING 62, K_HANDOFF 66,
  *           K_API_PREAUTH 67 retired (SOLO 3 step 5)
+ * 29 Sep 26 Windows port - from Linux 1f5f703 - K_SET_LANGUAGE (38) retired: SD is English only
+ * 18 Oct 26 Windows port - from Linux 1f5f703 - Solo carry from SD Core (v1.1-3 to 5315c65), LSOLO 52: Core's numbers 92, 97 to 117, 119 and 120 and FL_WHO 1021 (FL_HOLDERS
+ *               moves to 1100 as in Core), the OS$ and SKT$ and JSON constants of the 1.2-0 work.  NOT carried, and not to be reused for another
+ *               meaning: 91 (K_LOGIN_UID), 93 to 96 (the S.63 OS-access gates), 118 (SD.ACCOUNTS), 121 to 127 (the S.64 edit gates and the S.65 NET
+ *               gate), 128 to 131 (the S.66 shared account), SKT$INFO.TLS.SPKI, SD_FILE_PRIVATE, FL_TYPE_NET.  Solo's K_GLOBAL_SESSION (69) stays.
+ * 20 Oct 26 SD Core for Linux Solo (SDNet carry 9, owner's order of 20 Oct): K_NET (127) and SKT_INFO_TLS_SPKI (11) are carried, at SD Core's numbers.
+ *               The rest of the 18 Oct list (91, 118, 121 to 126, 128 to 131) still is not, and is not to be reused for another meaning.
+ *
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -433,6 +442,11 @@
    (kernel.c, class_main_ok).  CPROC sets it just before it calls a catalogued command; op_run() and op_chain() set it themselves.
    Used by that one call whatever becomes of it. */
 #define K_CLASS_MAIN         120
+/* 20 Oct 26 SD Core for Linux Solo (SDNet carry 9; SD Core's S.65 slice 1, 17 Oct 26).  K_NET: 1 / 0 sets (only from a $internal program), -1 asks;
+   may the session open a file on another SD server.  Loaded at sign-on (LOGIN) and by the API server from register field 15 (ACC$NET), as
+   K_SH and K_OS_EXEC are; the administrator is never refused.  SD Core keeps it in a gates word; Solo has none, so it is the user flag USR_NET
+   (sysseg.h).  GPL.BP/INT$KEYS.H carries the same number. */
+#define K_NET                127
 #define K_PROFILER           116
 #define K_PROFILER_USER      117
 /* 13 Oct 26 dm (Linux 7ff476f) - THE TERMINAL'S OWN SIZE.  kernel(K$WINSIZE, '') answers the terminal's width, a field mark and
@@ -630,7 +644,11 @@
 /* 15 Oct 26 dm - QM4 gaps Q-5, SELECT.SOCKET().  The key (SD's own number: openQM's list does not give one) and the events
    a program can watch for.  Mirrored in sdsys/syscom/keys.h. */
 #define SKT_INFO_EVENTS          9    /* Events to watch (SET.SOCKET.MODE) / events last found (SOCKET.INFO) */
-#define SKT_READ_EVENT           1    /* Data can be read, or a connection is waiting on a server socket, or it was closed */
+/* 25 Oct 26 Windows port - from Linux Solo 1f5f703 / Linux 6815cdc (S.65 slice 2).  SOCKET.INFO only: the SHA-256 of the SubjectPublicKeyInfo of the certificate the server of
+   a socket opened with SKT$TLS presented, as 64 lower case hex digits; "" for any other socket.  What a server definition pins.  Mirrored in sdsys/syscom/keys.h.  (Linux's
+   SKT_INFO_TRACE 10 is not carried here.) */
+#define SKT_INFO_TLS_SPKI       11
+#define SKT_READ_EVENT           1   /* Data can be read, or a connection is waiting on a server socket, or it was closed */
 #define SKT_WRITE_EVENT          2    /* Data can be sent */
 #define SKT_EXCEPTION_EVENT      4    /* An exception condition */
 
@@ -721,6 +739,11 @@
    (answers how many keys went); "list": none (answers one field per key: name, key id and 1 if it is the one new values are
    encrypted with, value-mark separated).  Mirrored in sdsys/syscom/keys.h. */
 #define SD_KEYRING      120  /* sd_keyring key ring: set, clear, list */
+/* 17 Oct 26 dm - S.65 slice 2b.  Is a path a file or directory only the running
+   user can touch (lstat, owner, no 077 bits, a file's parent directory too)?
+   Args: path, FILE or DIR.  Answers "1" or "0"; every failure is "0".  Mirrored
+   in sdsys/syscom/keys.h. */
+#define SD_FILE_PRIVATE 111  /* op_sdext private-file test, 2 args: path, FILE|DIR */
 
 /* embedded python  */
 /* py  object types */

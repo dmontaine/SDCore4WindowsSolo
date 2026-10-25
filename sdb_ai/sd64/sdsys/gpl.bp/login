@@ -156,6 +156,83 @@
 *           'vt100'.  PROJECT_STATUS.md 5.18.
 * 19 Aug 26 Windows port - the SDSYS paths are lower case on disk: accounts,
 *           newvoc, $ipc, and the account's own voc.  PROJECT_STATUS.md 5.12 (a).
+* 20 Oct 26 SD Core for Linux Solo (SDNet carry 9, SD Core's S.65 slice 1) - the NET gate (K$NET, register field 15) is loaded beside K$SH and K$OS.EXEC.
+* 20 Oct 26 SD Core for Linux Solo (the OS switch; owner: two words like SD Core, SET.OS.ACCESS) - the load of K$SH and K$OS.EXEC from
+*           ACC$SH / ACC$OS.EXEC (SD Core's S.63) is back, OFF unless the register record says yes.
+* 18 Oct 26 SD Core for Linux Solo (LSOLO 52) - carried from SD Core for Linux 5315c65
+*           (merge base c0802d7): the terminal's own size wins (K$WINSIZE; the TERM 120,36
+*           line is out of the login paragraph), the user table is told the account
+*           (K$SET.ACCOUNT), the internal FCI$NON.TXN fcontrol, and the SDTERM size escape
+*           is gone.  NOT carried: INHIBIT.LOGIN and the newvoc.mods loop.  Solo's own
+*           message 11040 (the internal session announcement) is 11900 now.
+* 07 Oct 26 SD Core for Linux Solo (LSOLO 43, the full product's PAL-12) - a release
+*           mismatch at login no longer asks (5025/5026/5027); it proceeds, as on
+*           Windows and Windows Solo.  UPDATE.ACCOUNTS ALL refreshes the account.
+* 07 Oct 26 SD Core for Linux Solo (LSOLO 43, the full product's PAL-16) - the LOGIN
+*           audit line of a single-command sign-on carries command=<the command>.
+* 03 Oct 26 SD Core for Linux Solo (LSOLO 30) - the unused is_grp_member declaration
+*           is gone (the program itself is deleted).
+* 02 Oct 26 SD Core for Linux Solo (LSOLO 20) - the login hold (13002) while a
+*           backup or restore runs; !acc_hold decides.
+* 30 Sep 26 SD Core for Linux Solo (LSOLO 14) - Windows Solo SOLO 18: a managed
+*           account with no password yet sets its first one at the console
+*           (set.first.password; messages 11025-11027, 11036, 11037).
+* 20 Sep 26 Windows port - from Linux 1f5f703 - THE BATCH GATE (S.40), PARITY WITH THE WINDOWS PORT.  Owner's
+*           ruling, 20 Sep 2026: a behavior prevented on one port must be
+*           prevented on both, the mechanism free to differ with the OS.  A
+*           single-command invocation ("sd '<command>'", system(1026)) is now
+*           admitted by an ELEVATED session as before, or by the account's own
+*           list in SDSYS batch.jobs (one command, no arguments, VOC type PA
+*           or S), refused otherwise (11000-11002).  See batch.permitted.
+*           Before this, CPROC ran any command line unconditionally once the
+*           account was entered - Linux never had either half of what Windows
+*           built 22 Aug 2026 (its batch.jobs, PROJECT_STATUS.md 7 step 9).
+* 18 Sep 26 Windows port - from Linux 1f5f703 - TEARDOWN (owner's 18 Sep 2026 decision).  The tier machinery is
+*           out: update.voc copies all of NEWVOC with no STANDARD omit filter
+*           and no administrator add layer (one VOC layer, S.25); get.acc.tier
+*           and the tier resolution in the UPDATE.ACCOUNTS ALL walk are gone.
+*           The suspended test reads ACC$SUSPENDED (W.7) and the OS-access
+*           grant load is gone - SH and OS.EXECUTE run at the account's own
+*           Linux permissions (S.27).
+* 14 Sep 26 Windows port - from Linux 1f5f703 - The $release prompt (5026) takes N on Enter and at end of
+*               input, and says so (PROJECT_STATUS S.9).
+* 13 Sep 26 Windows port - from Linux 1f5f703 - Tier omit/add lists read from sdsys/tier.policy, not NEWVOC
+*               (plan M / port a47526f): opened fail-safe, skip tests gone.
+* 13 Sep 26 Windows port - from Linux 1f5f703 - No longer turns case inversion on at sign-on (plan M).
+* 13 Sep 26 Windows port - from Linux 1f5f703 - Account names are lower case, SDSYS included (plan M, owner's
+*               rulings of 12 and 13 Sep): the register key is the lower-cased
+*               name, so every name taken from input, @LOGNAME or a path is
+*               downcased before the lookup, and @WHO reads 'sdsys', 'don'.
+* 13 Sep 26 Windows port - from Linux 1f5f703 - Reads the $release and $command.stack VOC records by their
+*               lower-case ids (plan M3, the $ records).  Exact reads, and
+*               there are no accounts from before the rename (owner).
+* 13 Sep 26 Windows port - from Linux 1f5f703 - An account's VOC file is voc on disk (plan M3 D3).
+* 13 Sep 26 Windows port - from Linux 1f5f703 - Opens sdsys accounts, $ipc, newvoc and voc_template by their
+*               lower-case names on disk (plan M3 D1).
+* 12 Sep 26 Windows port - from Linux 1f5f703 - The case migration added to update.voc earlier today is
+*               removed: there are no existing installs to migrate (owner).
+* 11 Sep 26 Windows port - from Linux 1f5f703 - update.voc now also adds the ADMINISTRATOR tier layer from
+*               VOC_TEMPLATE, which it never read before, so an upgrade brings
+*               an existing administrator the verbs added since its account was
+*               made (PORT_ADOPTION 16; measured gap: DON was missing 8 of 18).
+*               Adds only what is absent, never overwrites, never removes, and
+*               only for an explicit ADMINISTRATOR tier.  Message 10912.
+* 11 Sep 26 Windows port - from Linux 1f5f703 - Every sign-on and every refused sign-on, with its reason, is
+*               written to the audit trail (PORT_ADOPTION 13, the port's).
+* 11 Sep 26 Windows port - from Linux 1f5f703 - A suspended account is refused at sign-on, console and ssh
+*               alike (10107; PORT_ADOPTION 12, the port's LOGIN).
+* 11 Sep 26 Windows port - from Linux 1f5f703 - A TERM with no shipped terminfo entry falls back to linux
+*               instead of leaving the login with no capabilities (UPSTREAM
+*               12, as the port).  update.voc leaves a record marked
+*               [locked] alone, except a verb, and names both kinds (10165,
+*               10166; port PRE_RELEASE_FIXES 70).
+* 10 Sep 26 Windows port - from Linux 1f5f703 - Parity audit: mode 4 is UPDATE.ACCOUNTS ALL (port PRE_RELEASE_FIXES
+*               70), and update.voc writes records whole (port 136).
+* 10 Sep 26 Windows port - from Linux 1f5f703 - SL1 - update.voc applies the account's tier, so a VOC update
+*               (the $RELEASE prompt, UPDATE.ACCOUNTS, or the all-accounts walk)
+*               no longer hands a STANDARD account back the verbs CREATEA left
+*               out.  The port's 17 Aug 2026 fix.  old.rec is also cleared
+*               before each READU (the port's fix of the same day).
 * rev 0.9.1 Mar 25 mab return to single rev tracking
 * rev 0.9.0 Jan 25 mab change permission required for account login, must now either be;
 *                      1) users ACCOUNT
@@ -933,6 +1010,9 @@ deffun pw_complex(pw) calling '!pw_complex'
 *   record here: the select-and-read below overwrites it only when the account name was not known.
    void kernel(K$SH,      upcase(trim(acc.rec<ACC$SH>)) = 'YES')
    void kernel(K$OS.EXEC, upcase(trim(acc.rec<ACC$OS.EXEC>)) = 'YES')
+* 20 Oct 26 dm - SDNET CARRY 9 (SD Core's S.65 slice 1): the NET gate, a file on another SD server, is loaded here too, from field 15 (ACC$NET): off unless
+*   the record says 'yes', blank or a record with fewer fields is off.  The same field guards API request 29.  The administrator is not asked for it.
+   void kernel(K$NET, upcase(trim(acc.rec<ACC$NET>)) = 'YES')
 
 
    * Set @PATH

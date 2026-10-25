@@ -22,6 +22,19 @@
  *               its K_NET set; this port has no K_NET (S.65), and K_SET_ACCOUNT is called at the same four places.
  * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, the OS switch (Linux Solo 7c6bbfc): K_SH, K_OS_EXEC and K_PATH_OK (93 to 95), SD Core's S.63 cases, Solo only.
  * 18 Oct 26 Windows port - from Linux 7f7a4fd (16 Oct 26): K_PHANTOM_USER: PHANTOM USER n takes the user number n from those PHANTOMS keeps (QM4 gaps).
+ * 20 Oct 26 SD Core for Linux Solo (SDNet carry 9, SD Core's S.65 slice 1, 9d6f407): K_NET (127), the NET gate as the user flag USR_NET (SD Core keeps it in
+ *               a gates word); set from a $internal program, -1 asks; a set also empties the key ring of the XE conversion, as SD Core's does.  Carry 7's wipe
+ *               in K_SET_USERNAME is therefore now a second, harmless one: it can go once APISRVR's K$NET load has been seen to run (a follow-up).
+ * 20 Oct 26 SD Core for Linux Solo (Solo carry 7, SD Core's encryption layer 3, 00a5888; a DEVIATION from the Core template, flagged for the parity
+ *               audit): Core empties the key ring of the XE conversion (kr_wipe, sd_keyring.c) in the K_NET set that ends an account scope; Solo has no
+ *               K_NET and one account, so the ring is emptied where the session takes its name, K_SET_USERNAME's success branch.
+ * 20 Oct 26 SD Core for Linux Solo (the OS switch, owner: two words like SD Core): K_SH, K_OS_EXEC and K_PATH_OK (93 to 95), SD Core's S.63 cases.
+ * 20 Oct 26 SD Core for Linux Solo (Solo carry 4, owner's permission "solo lock flag ok"; a DEVIATION from the Core template): K_SET_USERNAME sets
+ *               api_logged_in (kernel.h) in an API server, so that S.71's limit before the login can be asked of something that is true in Solo.
+ * 18 Oct 26 Windows port - from Linux 1f5f703 - Solo carry from SD Core (v1.1-3 to 5315c65), LSOLO 52: Core's keys 92, 97 to 117, 119 and 120.  Not carried: K_SH, K_OS_EXEC,
+ *               K_PATH_OK, K_PATH_IN, K_SD_ACCOUNTS, K_VOC_EDIT, K_BP_EDIT, K_DICT_EDIT, K_EDIT_OK, K_EDIT_KIND, K_EDIT_OS_OK, K_NET, K_LOGIN_UID.
+ *               K_GLOBAL_SESSION (69) and Solo's K_ASSUME_USER stay.
+ * 16 Oct 26 Windows port - from Linux 1f5f703 - K_PHANTOM_USER: PHANTOM USER n takes the user number n from those PHANTOMS keeps (QM4 gaps).
  * 31 Dec 23 SD launch - prior history suppressed
  * 28 Jul 24 mab remove op_cnctport() / CONNECT.PORT not supported
  * 17 Aug 26 Windows port - K_SET_USERNAME added, gated on HDR_INTERNAL;
@@ -577,6 +590,25 @@ void op_kernel() {
         }
       }
       result.data.value = (my_uptr->flags & USR_OS_EXEC) != 0;
+      break;
+
+    /* 25 Oct 26 Windows port - from Linux Solo 1f5f703 (SDNet carry 9; SD Core's S.65 slice 1, 17 Oct 26): the NET gate, set as K_SH is (only from a $internal
+       program; -1 asks).  Loaded at sign-on (LOGIN) and by the API server, so it ends an account scope: the keys of the XE conversion belong to
+       the scope that ended (SD Core's encryption layer 3 does the same here).  The administrator needs no grant: USR_ADMIN passes the check
+       that reads this on its own. */
+    case K_NET:
+      GetInt(descr);
+      n = descr->data.value;
+      if (n >= 0) {
+        if (process.program.flags & HDR_INTERNAL) {
+          if (n > 0)
+            my_uptr->flags |= USR_NET;
+          else
+            my_uptr->flags &= ~USR_NET;
+          kr_wipe();
+        }
+      }
+      result.data.value = (my_uptr->flags & USR_NET) != 0;
       break;
 
     /* May THIS ACCOUNT open this pathname?  An $internal program is exempt from the gate itself (it has to be, to do its work), so

@@ -19,6 +19,12 @@
   	  * 
 	  * START-HISTORY:
 	  * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
+	  * 29 Sep 26 Windows port - from Linux 1f5f703 - K$SET.LANGUAGE (38) retired: SD is English only.
+	  * 18 Oct 26 Windows port - from Linux 1f5f703 - Solo carry from SD Core (v1.1-3 to 5315c65), LSOLO 52: Core's numbers 92, 97 to 117, 119 and 120, USR$GROUPED, the
+	  *               FCI$ names, the OPT. numbers to 60, the V$ and FL$ additions, as gplsrc/keys.h carries them.  NOT carried: K$LOGIN.UID (91),
+	  *               K$SH to K$PATH.IN (93-96), K$SD.ACCOUNTS (118), K$VOC.EDIT to K$EDIT.OS.OK (121-126), K$NET (127).  Solo's K$GLOBAL.SESSION (69)
+	  *               and USR$GLOBAL stay.
+	  * 20 Oct 26 Windows port - from Linux 1f5f703 - SDNet carry 9: K$NET (127) carried, as gplsrc/keys.h has it.
 	  * END-HISTORY
       *
       *  START-DESCRIPTION:
@@ -188,6 +194,9 @@
 *   cannot say ($ADMIN and $GLOBAL both set it).  Get -1; set 1 / clear 0
 *   from $internal code only.  gplsrc/keys.h carries the same note.
       $define K$GLOBAL.SESSION   69      ;* Signed in with $GLOBAL ($internal to set)
+* 25 Oct 26 Windows port - from Linux Solo 1f5f703 (SDNET CARRY 9) - SD Core's S.65 K$NET, at SD Core's number: the NET gate, settable only from $internal (LOGIN and APISRVR load it from
+*   register field 15 at account entry; the same field guards API request 29), -1 asks.  Must match gplsrc/keys.h.
+      $define K$NET             127      ;* may open a file on another SD server (SDNet); account-scoped like K$SH; set from $internal, -1 asks
 * 18 Oct 26 Windows port - from Linux 0b6a207 (14 Oct 26): sheet items 24, 29 and 38 (LISTU).  K$SET.ACCOUNT: the account the session is in, for the user
 *   table; settable only from $internal (LOGIN, CPROC's logto, APISRVR), the name as it stands is returned.
 *   K$USER.PEAK: the most user table cells in use at once since SD started.  Linux's numbers, kept exactly
