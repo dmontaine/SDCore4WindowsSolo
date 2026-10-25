@@ -156,6 +156,8 @@
 *           'vt100'.  PROJECT_STATUS.md 5.18.
 * 19 Aug 26 Windows port - the SDSYS paths are lower case on disk: accounts,
 *           newvoc, $ipc, and the account's own voc.  PROJECT_STATUS.md 5.12 (a).
+* 22 Oct 26 SD Core for Linux Solo (Solo carry 13, Core's 18 Oct 26 change) - the size a session with no tty takes is DEFAULT.WIDTH by DEFAULT.DEPTH, now
+*           140 by 42 (int$keys.h), and the terminfo entries say the same; a real terminal still decides its own size.
 * 20 Oct 26 SD Core for Linux Solo (SDNet carry 9, SD Core's S.65 slice 1) - the NET gate (K$NET, register field 15) is loaded beside K$SH and K$OS.EXEC.
 * 20 Oct 26 SD Core for Linux Solo (the OS switch; owner: two words like SD Core, SET.OS.ACCESS) - the load of K$SH and K$OS.EXEC from
 *           ACC$SH / ACC$OS.EXEC (SD Core's S.63) is back, OFF unless the register record says yes.

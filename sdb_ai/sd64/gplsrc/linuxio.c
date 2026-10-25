@@ -22,6 +22,12 @@
  * 26 Sep 26 SD Core Solo - api_preauth (sd -H) branches removed with the
  *           handover (SOLO 3 step 5).
  * 15 Sep 26 Windows port - every API connection goes through a TLS 1.3 relay
+ * 18 Oct 26 Windows port - from Linux 87ece91 - init_console() starts the display at DEFAULT_WIDTH by DEFAULT_DEPTH (140 by 42, was
+ *           120 by 36) instead of two literals; a tty still overrides it (read_window_size()).
+ * 15 Oct 26 Windows port - from Linux 87ece91 - do_input(): end of file was tested against a stale errno, so after
+ *           any earlier EAGAIN a session whose client had gone looped for ever.
+ * 07 Oct 26 Windows port - from Linux 87ece91 - PAL-1 stage 3a: the API command processor is $apisrvr, lower case.
+ * 15 Sep 26 Windows port - from Linux 87ece91 - S.19: every API connection goes through a TLS 1.3 relay
  *           (sd_tlssrv.c), started after the peer is recorded; the Ack moved
  *           after it, inside TLS.  Identity in <sd.conf's dir>\sd-tls.
  *           RELEASE_1.1 41, adopted from Linux S.19.
@@ -91,7 +97,7 @@ Private bool piped_input = FALSE;
 Private bool connection_lost = FALSE;
 
 /* 13 Oct 26 dm - THE TERMINAL'S OWN SIZE.  Until now SD never asked the tty how big it was: the display was terminfo's 120 by
-   36 unless the user typed TERM w,h or the environment happened to carry COLUMNS and LINES, so a program on an 80 by 24 terminal
+   36 (since 18 Oct 26, 140 by 42) unless the user typed TERM w,h or the environment happened to carry COLUMNS and LINES, so a program on an 80 by 24 terminal
    drew for 120 by 36 (LIST paged at 36 lines, @(x, y) past the real edge went off the screen).  The tty is asked at start-up
    and again at every SIGWINCH, and the answer becomes the display's width and lines per page.  TERM w,h still sets them by
    hand, and holds until the next resize.  Nothing is read when there is no tty (a pipe, a phantom, the API).
@@ -366,8 +372,11 @@ bool init_console() {
 
   /* ----------------------- Display ------------------------ */
 
-  tio.dsp.width = 120;
-  tio.dsp.lines_per_page = 36;
+  /* 18 Oct 26 dm - what a session with no tty to ask has until LOGIN sets it (from LINES and COLUMNS, terminfo or
+     DEFAULT.WIDTH/DEPTH): 140 by 42, tio.h.  A tty replaces it at once, below (read_window_size()).             */
+
+  tio.dsp.width = DEFAULT_WIDTH;
+  tio.dsp.lines_per_page = DEFAULT_DEPTH;
 
   if (connection_type == CN_CONSOLE) {
     /* 26 Aug 26 Windows port - THE CONSOLE HAS TO BE ASKED TO READ THE ESCAPES

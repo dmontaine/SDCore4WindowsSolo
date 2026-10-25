@@ -5,6 +5,10 @@
 *
 * START-HISTORY:
 * 18 Oct 26 Windows port - from Linux 367841d (12 Oct 26): New.
+* 12 Oct 26 Windows port - from Linux 87ece91 - New.
+* 18 Oct 26 Windows port - from Linux 87ece91 - The list of choices is drawn outside the narrow clip of a container (SL.S.BCLIP).
+* 18 Oct 26 Windows port - from Linux 87ece91 - The key guardquit (the user left from the cursor lock, $sl_guardmode) closes the list as Esc does; the cursor is
+*               placed through $sl_curat.
 * END-HISTORY
 *
 * START-DESCRIPTION:
@@ -79,10 +83,12 @@ $include sl.h
 
 arrow:
    call $sl_attr('window', code)
+   if w{'ccode'} # '' then code = w{'ccode'}
    if w{'focused'} then call $sl_attr('highlight', code)
+   if w{'focused'} and w{'cfocus'} # '' then code = w{'cfocus'}      ;* a coloured combo box keeps its colours while it has the focus, like an entry
    call $sl_put(scr, w{'ax'} + fw, w{'ay'} + 0, '[v]', code)
    if w{'focused'} then
-      display @(w{'ax'} + w{'pos'} - w{'pan'}, w{'ay'} + 0) :
+      call $sl_curat(w{'ax'} + w{'pos'} - w{'pan'}, w{'ay'} + 0)
    end
    return
 
@@ -92,6 +98,11 @@ pick.item:
    n = dcount(items, @vm)
    if items = '' then n = 0
    if n = 0 then return
+
+   * 18 Oct 26: a combo box in a container is run with the clip narrowed to the container ($sl_form); its list is not
+   * part of the container, so it is drawn under the program's own clip (SL.S.BCLIP) and the narrow clip comes back after
+   pclip = scr<SL.S.CLIP>
+   if scr<SL.S.NARROW> then scr<SL.S.CLIP> = scr<SL.S.BCLIP>
 
    lh = n
    if lh > 6 then lh = 6
@@ -131,7 +142,7 @@ pick.item:
    call $sl_list('focus', lst, scr, 1, r)
    loop
       call $sl_key('', k)
-      if k = '' then k = 'esc'
+      if k = '' or k = 'guardquit' then k = 'esc'      ;* guardquit: the user left from the cursor lock ($sl_guardmode)
       if k = 'mouse' then
          gosub list.mouse
       end else
@@ -148,6 +159,7 @@ pick.item:
    repeat
 
    call $sl_region('restore', scr, bx, by, bw, bh, under)
+   scr<SL.S.CLIP> = pclip
    if st = 'done' then
       text = items<1, r<2>, 1>
       w{'value'} = text

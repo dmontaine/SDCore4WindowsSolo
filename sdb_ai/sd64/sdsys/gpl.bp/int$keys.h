@@ -21,6 +21,7 @@
 	  * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
 	  * 29 Sep 26 Windows port - from Linux 1f5f703 - K$SET.LANGUAGE (38) retired: SD is English only.
 	  * 18 Oct 26 Windows port - from Linux 1f5f703 - Solo carry from SD Core (v1.1-3 to 5315c65), LSOLO 52: Core's numbers 92, 97 to 117, 119 and 120, USR$GROUPED, the
+	  * 22 Oct 26 Windows port - from Linux 87ece91 - Solo carry 13: DEFAULT.WIDTH 140 and DEFAULT.DEPTH 42 (were 120 and 36), as Core's 18 Oct 26 change; gplsrc/tio.h has the same two.
 	  *               FCI$ names, the OPT. numbers to 60, the V$ and FL$ additions, as gplsrc/keys.h carries them.  NOT carried: K$LOGIN.UID (91),
 	  *               K$SH to K$PATH.IN (93-96), K$SD.ACCOUNTS (118), K$VOC.EDIT to K$EDIT.OS.OK (121-126), K$NET (127).  Solo's K$GLOBAL.SESSION (69)
 	  *               and USR$GLOBAL stay.
@@ -41,10 +42,10 @@
 
       * Screen parameters, also defined in csrc tio.h
       $define MIN.WIDTH           20
-      $define DEFAULT.WIDTH      120
+      $define DEFAULT.WIDTH      140
       $define MAX.WIDTH        32767
       $define MIN.DEPTH           10
-      $define DEFAULT.DEPTH       36
+      $define DEFAULT.DEPTH       42
       $define MAX.DEPTH        32767
 
 

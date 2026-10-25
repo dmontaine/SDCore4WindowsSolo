@@ -20,6 +20,13 @@
  * 20 Oct 26 SD Core Solo - from Linux 1c2d0af (S.71), RELEASE_1.1 163: op_readpkt() and process_client_input() refuse a declared packet
  *           length they cannot accept (apipkt.h) and stop when read_socket() says the connection has gone
  * 18 Oct 26 Windows port - from Linux 7aba47d (16 Oct 26): end_attribute(): @(-6), @(-12), @(-14) and @(-59) use eblink, edim, erev and ebold when the terminfo entry has them
+ * 22 Oct 26 SD Core for Linux Solo (Solo carry 13): tio_init() starts the display at DEFAULT_WIDTH by DEFAULT_DEPTH + 1 (140 by 43), Core's 18 Oct 26 change.
+ * 20 Oct 26 SD Core for Linux Solo (Solo carry 4, owner's permission "solo lock flag ok"; a DEVIATION from the Core template): the "before login" argument of
+ *               api_packet_length_ok() is `is_sdApiSrvr && !api_logged_in` (kernel.h, set by K_SET_USERNAME), not `is_sdApiSrvr && geteuid() == 0`: a Solo server is
+ *               never root, so Core's test is never true here and no limit applied before the login.
+ * 20 Oct 26 Windows port - from Linux 87ece91 - S.71: op_readpkt() and process_client_input() refuse a declared packet length they cannot accept (apipkt.h) and stop
+ *               when read_socket() says the connection has gone, instead of reading 1.6 GB of nothing
+ * 16 Oct 26 Windows port - from Linux 87ece91 - end_attribute(): @(-6), @(-12), @(-14) and @(-59) use eblink, edim, erev and ebold when the terminfo entry has them
  * 15 Jun 24 mab remove or disable op_ttyset and op_ttyget
  * 31 Dec 23 SD launch - prior history suppressed
  * 28 Jul 24 mab remove  op_ttyset and op_ttyget TTYGET/TTYSET not supported
@@ -3335,7 +3342,11 @@ bool tio_init() {
   tio.lptr_0.next = NULL;
   tio.lptr_0.unit = 0;
 
-  tio_set_printer(DISPLAY, PRINT_TO_DISPLAY, 37, 120, 0, 0, 0);
+  /* 18 Oct 26 dm - the display before anything is known: DEFAULT_WIDTH wide and one line deeper than DEFAULT_DEPTH (the
+     original text had 37 for 36, and nothing records why).  A console session has it overwritten with DEFAULT_DEPTH in
+     init_console() at once; a phantom or API session keeps it.  The relation is kept.                                  */
+
+  tio_set_printer(DISPLAY, PRINT_TO_DISPLAY, DEFAULT_DEPTH + 1, DEFAULT_WIDTH, 0, 0, 0);
 
   tio_set_printer(0, PRINT_TO_PRINTER, pcfg.lptrhigh, pcfg.lptrwide, 0, 0, 0);
 
