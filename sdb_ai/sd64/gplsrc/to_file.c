@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 25 Oct 26 SD Core Solo - from Linux 27db277: os_access_refused() names the ACCOUNT (account(), the @WHO the BASIC callers pass), not process.username, which is the OS user.
  * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, the OS switch (Linux Solo 7c6bbfc): the pathname of a print file asks os_path_ok_for_account() in start_file() (message 12185).
  * 18 Oct 26 Windows port - from Linux 8c2dfc4 (12 Oct 26): A mode 3 print unit takes an update lock on its record in $HOLD
  *               before the file is made and keeps it until the file is closed
@@ -197,7 +198,7 @@ Private void os_access_refused(void) {
   if (p == NULL) {
     snprintf(text, sizeof(text), "%s", t);
   } else {
-    snprintf(text, sizeof(text), "%.*s%s%s", (int)(p - t), t, process.username, p + 2);
+    snprintf(text, sizeof(text), "%.*s%s%s", (int)(p - t), t, account(), p + 2);
   }
   k_error("%s", text);
 }
