@@ -1950,6 +1950,30 @@ bool os_path_open_ok(const char* name) {
   return os_path_ok_for_account(name);
 }
 
+/* os_path_inside()  -  is name at or below rootdir?  Geometry only (Linux Solo's K_PATH_IN, S.73 item 1; 25 Oct 26 Windows port): both are resolved as an
+   open would resolve them, folded into one namespace, and a surviving ".." refuses.  It does not ask the OS gate.                                    */
+
+bool os_path_inside(const char* rootdir, const char* name) {
+  char rr[MAX_PATHNAME_LEN + 1];
+  char cc[MAX_PATHNAME_LEN + 1];
+  char root[MAX_PATHNAME_LEN + 1];
+  char cand[MAX_PATHNAME_LEN + 1];
+
+  if ((rootdir == NULL) || (name == NULL) || (rootdir[0] == '\0') || (name[0] == '\0'))
+    return FALSE;
+  if ((strlen(rootdir) > MAX_PATHNAME_LEN) || (strlen(name) > MAX_PATHNAME_LEN))
+    return FALSE;
+  strcpy(rr, rootdir);
+  strcpy(cc, name);
+  if (!fullpath(rr, rr) || !fullpath(cc, cc))
+    return FALSE;
+  if (!net_normalise(rr, root) || !net_normalise(cc, cand))
+    return FALSE;
+  if (has_parent_ref(cand))
+    return FALSE;
+  return path_within(cand, root);
+}
+
 /* ======================================================================
    make_path()  -  Recursive mkdir to make directory path                 */
 

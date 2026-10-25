@@ -22,6 +22,9 @@
  * 17 Oct 26 dm S.65: sd_tls_client_peer_spki_sha256() (the key, not the certificate); sd_tls_client_end() holds SIGPIPE off around the
  *               close_notify (it ended the process when the peer had already closed the connection).
  * 20 Oct 26 dm S.73 item 2: sd_tls_client_read_now(), the TLS read that never waits (READ.SOCKET waits on the descriptor itself, for the time that is left).
+ * 21 Oct 26 Windows port - from Linux ff1a253 - Solo carry 10 (SD Core b052346, S.73 item 2): sd_tls_client_read_now(), the TLS read that never waits (READ.SOCKET waits on the descriptor itself, for the time that is left).
+ * 18 Oct 26 Windows port - from Linux ff1a253 - Solo carry from SD Core 96d8be8, LSOLO 52: sd_tls_client_end() holds SIGPIPE off around the close_notify (it ended the whole
+ *               process, silently, when the peer had already closed the connection).
  * END-HISTORY
  *
  * START-DESCRIPTION:

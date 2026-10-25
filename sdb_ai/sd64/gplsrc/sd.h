@@ -19,6 +19,7 @@
  * START-HISTORY:
  * 25 Sep 26 SD Core Solo - GetHomePath(), GetDefaultSysdir()
  * 20 Oct 26 Windows port - from Linux 7c53377 - SDNet carry 9: SD Core's S.65 (slices 3c to 3e) and S.72 prototypes of netfiles.c, the NET_FILE kernel entry points; the S.64 edit-gate and S.66 / S.67
+ * 21 Oct 26 Windows port - from Linux ff1a253 - Solo carry 10 (SD Core eb9ef4a, S.72b): NETG_PEEK (net_gate's read-mode test alone, for RECORDLOCKED()).
  *               prototypes that SD Core's history lines below mention are not here.
  * 20 Oct 26 Windows port - from Linux 7c53377 - S.72: prototypes of net_filelock_step, net_fileunlock and net_recordlocked (netfiles.c).
  * 18 Oct 26 Windows port - from Linux 7c53377 - S.65 slice 3e: prototypes and constants of the write and lock entry points of netfiles.c (net_gate, net_write, net_delete, net_clear,
@@ -356,6 +357,7 @@ const char * net_message(void);
 #define NETG_DELETE 2  /* DELETE */
 #define NETG_CLEAR 3   /* CLEARFILE */
 #define NETG_LOCK 4    /* READU READL MATREADU MATREADL READVU READVL RECORDLOCKU RECORDLOCKL */
+#define NETG_PEEK 5    /* RECORDLOCKED(): only the read-mode test of net_gate (S.72b) - it changes nothing, so a transaction does not matter */
 #define NET_LOCK_HELD 0
 #define NET_LOCK_WAIT 1
 #define NET_LOCK_LOCKED 2
@@ -453,6 +455,7 @@ void flush_dh_cache(void);
    OP_SH.C; the two path functions are in OP_DIO2.C beside the containment helpers they use. */
 bool os_gate_open(void);
 bool os_path_ok_for_account(const char * name);
+bool os_path_inside(const char * rootdir, const char * name);   /* 21 Oct 26, Solo carry 10: geometry only, for K_PATH_IN */
 bool os_path_open_ok(const char * name);
 
 /* OP_DIO3.C - line terminator modes of directory and sequential files (16 Oct 26, QM4 Fixes item 452) */

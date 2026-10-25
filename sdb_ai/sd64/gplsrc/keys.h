@@ -343,8 +343,8 @@
    compiled into BASIC programs shared byte for byte).  This port keeps 58-89 for its own keys; 90-96
    are LEFT EMPTY here on purpose (Linux's K_REAL_USER, K_LOGIN_UID and the S.63 gate keys
    K_SH, K_OS_EXEC, K_PATH_OK, K_PATH_IN are not carried: PAM and the held OS-access gates), except
-   92, K_WINSIZE (below), which came with the screen library (area 6a), and, in SOLO ONLY since 20 Oct 26, 93 to 95 (the OS switch,
-   below).  K_PATH_IN (96) stays empty.  GPL.BP/INT$KEYS.H carries the same numbers.
+   92, K_WINSIZE (below), which came with the screen library (area 6a), and, in SOLO ONLY since 20 Oct 26, 93 to 96 (the OS switch,
+   below).  GPL.BP/INT$KEYS.H carries the same numbers.
      K_SET_ACCOUNT  the account the session is in, for the user table.  The argument is the account name, set only from
                     a $internal program (LOGIN, CPROC's logto, APISRVR, which own entry to an account), and the name
                     as it stands is returned.  K_USERS answers it as the ninth value of each user.
@@ -357,11 +357,15 @@
      K_PATH_OK  the argument is a pathname; the answer is 1 if THIS ACCOUNT may open it - whoever asks.  An $internal program is
                 exempt from the gate itself, so one that acts for the user must ask here; it cannot be the way round the gate.
    LOGIN loads the first two from fields 7 and 8 of the account's register record (blank is OFF); APISRVR loads them when it enters
-   the account itself.  GPL.BP/INT$KEYS.H carries the same numbers.  K_PATH_IN (96) is not carried: it serves SD Core's SD.ACCOUNTS
-   gate, and Solo has one account.                                                                                              */
+   the account itself.  GPL.BP/INT$KEYS.H carries the same numbers.
+     K_PATH_IN  (25 Oct 26, Windows port, from Linux Solo ff1a253 / SD Core's S.73 item 1) the argument is a directory, a field mark and a
+                pathname; the answer is 1 if the pathname is inside that directory (the real path, so .. and links out do not count).
+                The geometry only: it does not ask the gate.  API request 29 uses it, with the named account's directory, for a VOC
+                pointer that leads out of the account.                                                                              */
 #define K_SH                 93
 #define K_OS_EXEC            94
 #define K_PATH_OK            95
+#define K_PATH_IN            96
 #define K_SET_ACCOUNT        97
 #define K_USER_PEAK          98
 /* 14 Oct 26 dm - 1.2-0 sheet item 389 (INPUT var, length, fill).  The compiler cannot add an element to the stack of OP_INPUT /

@@ -40,6 +40,29 @@
  * 19 Aug 26 Windows port - OS.EXECUTE is gated.  It was open to every user
  *           from a program while SH was refused at the prompt.
  *           PROJECT_STATUS.md section 4 / section 7 step 7.
+ * 21 Oct 26 Windows port - from Linux ff1a253 - Solo carry 10 (SD Core's S.73 item 1): path_inside_account() became path_inside_dir(rootdir, name) (rootdir NULL is the working directory, so the
+ *           account's own test is unchanged) and os_path_inside() is the geometry alone, for K_PATH_IN.
+ * 20 Oct 26 SOLO OS SWITCH (the owner: two words like SD Core, SET.OS.ACCESS, the installer asks): SD Core's S.63 (13 Oct 26) carried
+ *           to Solo, by hunk from Core 215ce2c and abcda0c.  os_permitted() is back and the gate reaches OS paths.  OS.EXECUTE and the SH
+ *           verb are refused (10053, 10054) to an account that has not been given them; OPENSEQ, OPENPATH, DIR() and the other routes
+ *           are refused (ER_PERM) outside the account's own directory unless it holds OS.EXECUTE; K_PATH_OK lets an $internal program
+ *           ask the same question on the user's behalf.  SH and OS.EXECUTE are OFF unless the administrator turns them on (SET.OS.ACCESS),
+ *           which is Solo's own: SD Core's per-account verbs, the SD.ACCOUNTS gate and the S.64 edit gates are not here.
+ * 18 Sep 26 Windows port - from Linux ff1a253 - Teardown (S.27): os_permitted() and its refusal are gone.
+ *           OS.EXECUTE and the SH verb now run at the account's own Linux
+ *           permissions - the euid drop already made a session the account's
+ *           OS user, and SD keeps no second wall (owner's teardown of the
+ *           tier model, 18 Sep 2026).
+ * 10 Sep 26 Windows port - from Linux ff1a253 - Parity audit: the SH1 clparse bound is 8, so a long configured
+ *               SH1 cannot write past argv (the Windows port's PRE_RELEASE 174).
+ * 09 Sep 26 Windows port - from Linux ff1a253 - PRE_RELEASE 23 commit 2: os_permitted() also honours USR_OS_EXEC,
+ *           the per-account ACC$OS.EXEC grant loaded at account entry, so an
+ *           administrator can give a named non-admin account OS.EXECUTE.
+ * 09 Sep 26 Windows port - from Linux ff1a253 - PRE_RELEASE 23 commit 1: os_permitted() gates OS.EXECUTE to a
+ *           $internal program or an administrator (owner's model, 9 Sep 26:
+ *           "os.execute and shell are off for anyone but administrators").
+ *           op_sh() was previously ungated.  The per-account ACC$OS.EXEC grant
+ *           that widens this to named non-admins is commit 2.
  * 31 Dec 23 SD launch - prior history suppressed
  * END-HISTORY
  *

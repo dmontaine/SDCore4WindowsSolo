@@ -233,6 +233,9 @@
       $define K$SH                93      ;* may use SH and "!"
       $define K$OS.EXEC           94      ;* may use OS.EXECUTE and reach OS paths outside its account
       $define K$PATH.OK           95      ;* 1 if this account may open the pathname
+      * 25 Oct 26 Windows port - from Linux Solo ff1a253 (SD Core's S.73 item 1).  K$PATH.IN: "directory : @fm : pathname", 1 if the pathname is inside the directory (the
+      *   real path, so ".." and links out do not count).  The geometry only: the OS gate is not asked.  API request 29 uses it with the named account's directory.
+      $define K$PATH.IN           96      ;* 1 if the pathname is inside the directory
 
       * PTERM() action keys
       $define PT$BREAK           1       ;* Trap break character as break?

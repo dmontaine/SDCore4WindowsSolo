@@ -24,6 +24,9 @@
 *           same change.  docs/SCRAM_AUTH.md phase 5.  The class is $internal
 *           now, because the derivation needs SDEXT.
 * 20 Oct 26 Windows port - from Linux 7c53377 - SD Core for Linux Solo, SDNet carry 9: SD Core's S.65 and S.72 changes to this class (the lines below down to the 17 Oct one), carried as one merge of Core Dev
+* 21 Oct 26 Windows port - from Linux ff1a253 - Solo carry 10 (SD Core eb9ef4a and b052346): S.72b - recordlocked() honours quiet (message.pair, not text.request): an ON ERROR reply aborts the caller only when quiet is not set, so a
+*               SD Core server's refusal of request 34 (message 12526) reaches the $netfile handler as LastError / LastText.  S.73 item 2 - read.packet takes server.error and ServerStatus from the header
+*               only when the BODY has been read as well (a reply cut in the middle of its body is a lost connection, message 12502 or 12514, not "answer -1", 12509).
 *               680747d against the Core text before 96d8be8.  Solo's own default port (4249, 02 Oct 26) is kept.
 * 20 Oct 26 Windows port - from Linux 7c53377 - S.72 (QMNet parity): filelock(fno, wait) (request 32) and fileunlock(fno) (request 33).  The two requests were in the table of codes and in apisrvr and had no method here.
 *               Like clearfile() and recordlock() they abort the caller on a server ON ERROR reply unless quiet is set.  The $netfile handler is the one user of them.
@@ -80,6 +83,7 @@
 * str = obj->readnext(listno, err)
 * str = obj->readu(fno, id, wait, err)
 * obj->recordlock(fno, id, update, wait)
+* n = obj->recordlocked(fno, id)
 * obj->release(fno, id)
 * str = obj->respond(response, err)
 * obj->select(fno, listno)
@@ -814,6 +818,30 @@ release.error:
 end
 
 * ======================================================================
+* RECORDLOCKED   (SD Core 15 Oct 26 dm, sheet 262; carried to Solo 20 Oct 26 with the SDNet client, whose $netfile handler is its one user)
+* -3 -2 -1 another user holds a file, update or read lock; 0 not locked; 1 2 3 this session holds a read, update or file lock.
+* The answer is a four byte integer on the wire; it is made signed here.  SD Core's text.request() (an abort on a server ON ERROR reply, the null
+* string for any other answer) is written out here: Solo's class has no such helper.
+
+public function recordlocked(fno, id)
+   reply = ''
+   if not(context.error(CX.CONNECTED)) then
+      if message.pair(SrvrRecordlocked, iconv(fno, 'ISL') : id) then
+         begin case
+            case server.error = SV$OK
+               reply = in.pkt
+            case server.error = SV$ON.ERROR
+               if not(quiet) then abort 'RECORDLOCKED generated an abort event'
+         end case
+      end
+   end
+   if len(reply) < 4 then return 0
+   n = oconv(reply[1,4], 'ILL')
+   if n > 2147483647 then n -= 4294967296
+   return n
+end
+
+* ======================================================================
 * RESPOND
 
 public function respond(response, err)
@@ -1291,14 +1319,16 @@ local function read.packet()
    if pkt.bytes < 10 then return @false
    if maxpacket > 0 and pkt.bytes > maxpacket then return @false
 
-   server.error = oconv(pkt.header[5,2], 'ISL')
-   ServerStatus = oconv(pkt.header[7,4], 'ILL')
+*  20 Oct 26 dm (S.73 item 2).  The header's error and status are KEPT APART until the body is in.  They were put into server.error and ServerStatus here, before the body was read, so a
+*   reply that stopped in the middle of its body left them set and the call false: the handler read that as an answer ('answer -1') and kept a connection whose stream was out of step.
+   hdr.error = oconv(pkt.header[5,2], 'ISL')
+   hdr.status = oconv(pkt.header[7,4], 'ILL')
 
    * Read packet data
 
    n = pkt.bytes - 10
    if debugging then
-      display 'Incoming packet: ' : n : ' data bytes. Error ' : server.error :', Status ' : ServerStatus
+      display 'Incoming packet: ' : n : ' data bytes. Error ' : hdr.error :', Status ' : hdr.status
    end
 
    in.pkt = ''
@@ -1313,6 +1343,8 @@ local function read.packet()
       n -= len(s)
    repeat
 
+   server.error = hdr.error
+   ServerStatus = hdr.status
    return @true
 end
 

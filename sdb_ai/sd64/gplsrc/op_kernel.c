@@ -22,6 +22,7 @@
  *               its K_NET set; this port has no K_NET (S.65), and K_SET_ACCOUNT is called at the same four places.
  * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, the OS switch (Linux Solo 7c6bbfc): K_SH, K_OS_EXEC and K_PATH_OK (93 to 95), SD Core's S.63 cases, Solo only.
  * 18 Oct 26 Windows port - from Linux 7f7a4fd (16 Oct 26): K_PHANTOM_USER: PHANTOM USER n takes the user number n from those PHANTOMS keeps (QM4 gaps).
+ * 21 Oct 26 SD Core for Linux Solo (Solo carry 10, SD Core's S.73 item 1): K_PATH_IN (96), SD Core's second-sitting case of 13 Oct, for API request 29's OS question.
  * 20 Oct 26 SD Core for Linux Solo (SDNet carry 9, SD Core's S.65 slice 1, 9d6f407): K_NET (127), the NET gate as the user flag USR_NET (SD Core keeps it in
  *               a gates word); set from a $internal program, -1 asks; a set also empties the key ring of the XE conversion, as SD Core's does.  Carry 7's wipe
  *               in K_SET_USERNAME is therefore now a second, harmless one: it can go once APISRVR's K$NET load has been seen to run (a follow-up).
@@ -641,6 +642,22 @@ void op_kernel() {
       result.data.value = 0;
       if (k_get_c_string(descr, path_ok_name, MAX_PATHNAME_LEN) > 0)
         result.data.value = os_path_ok_for_account(path_ok_name) ? 1 : 0;
+    } break;
+
+    /* K_PATH_IN: "<directory><field mark><pathname>" - is the pathname inside the directory?  Geometry only (SD Core's second sitting of
+       13 Oct, carried 21 Oct 26): the caller has decided the directory is one the account may use.                                  */
+    case K_PATH_IN: {
+      char path_in_buf[(2 * MAX_PATHNAME_LEN) + 2];
+      char *path_in_sep;
+
+      result.data.value = 0;
+      if (k_get_c_string(descr, path_in_buf, (2 * MAX_PATHNAME_LEN) + 1) > 0) {
+        path_in_sep = strchr(path_in_buf, FIELD_MARK);
+        if (path_in_sep != NULL) {
+          *path_in_sep = '\0';
+          result.data.value = os_path_inside(path_in_buf, path_in_sep + 1) ? 1 : 0;
+        }
+      }
     } break;
 
     /* 14 Oct 26 dm - sheet items 24, 29 and 38.  K_SET_ACCOUNT: the account the session is in, for the user table
