@@ -35,6 +35,42 @@ function Get-PemCertificates([string]$pem) {
     return ,$out
 }
 
+# 25 Oct 26 - SDNet (Linux Solo 1f5f703, SD Core's S.65 slice 2a; same function as SD Core for Windows).  The SHA-256 of a certificate's
+# SubjectPublicKeyInfo, as 64 lower case hex digits, or '' when the DER cannot be read.  This is the hash "set.server ... connect" shows
+# and a pin holds: the key, not the certificate, so a renewed certificate over the same key keeps it.
+function Get-SpkiSha256([byte[]]$der) {
+    function Read-Tlv([byte[]]$b, [int]$pos) {
+        if ($pos + 2 -gt $b.Length) { return $null }
+        $tag = $b[$pos]; $n = [int]$b[$pos + 1]; $hdr = 2
+        if ($n -ge 128) {
+            $k = $n - 128
+            if ($k -lt 1 -or $k -gt 3 -or $pos + 2 + $k -gt $b.Length) { return $null }
+            $n = 0
+            for ($i = 0; $i -lt $k; $i++) { $n = ($n * 256) + [int]$b[$pos + 2 + $i] }
+            $hdr = 2 + $k
+        }
+        if ($pos + $hdr + $n -gt $b.Length) { return $null }
+        return @{ Tag = $tag; Start = $pos; Val = $pos + $hdr; End = $pos + $hdr + $n }
+    }
+    $cert = Read-Tlv $der 0
+    if ($null -eq $cert -or $cert.Tag -ne 0x30) { return '' }
+    $tbs = Read-Tlv $der $cert.Val
+    if ($null -eq $tbs -or $tbs.Tag -ne 0x30) { return '' }
+    $pos = $tbs.Val
+    $first = Read-Tlv $der $pos
+    if ($null -ne $first -and $first.Tag -eq 0xA0) { $pos = $first.End }
+    for ($i = 0; $i -lt 5; $i++) {          # serial, signature, issuer, validity, subject
+        $t = Read-Tlv $der $pos
+        if ($null -eq $t) { return '' }
+        $pos = $t.End
+    }
+    $spki = Read-Tlv $der $pos
+    if ($null -eq $spki -or $spki.Tag -ne 0x30) { return '' }
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $h = $sha.ComputeHash($der, $spki.Start, $spki.End - $spki.Start)
+    return (($h | ForEach-Object { $_.ToString('x2') }) -join '')
+}
+
 # The sshd_config lines a reader of the report needs: active (uncommented)
 # Port, ListenAddress, AllowGroups/AllowUsers/DenyGroups/DenyUsers, Match and
 # ForceCommand lines.
@@ -137,6 +173,8 @@ try {
                     Line "certificate subject: $($c.Subject)"
                     Line ("certificate expires: {0:yyyy-MM-dd HH:mm}" -f $c.NotAfter)
                     Line "certificate thumbprint: $($c.Thumbprint)"
+                    $spkiHash = Get-SpkiSha256 $c.RawData
+                    if ($spkiHash -ne '') { Line "public key sha256: $spkiHash" }
                 }
             } catch { Failed "certificate in $pem - $($_.Exception.Message)" }
         } else {
