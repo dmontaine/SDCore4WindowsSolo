@@ -18,6 +18,13 @@
  *
  * START-HISTORY:
  * 18 Oct 26 Windows port - from Linux bafe928 (17 Oct 26): k_run_program() keeps a resume point so that an error k_error() turns into a SYS.* exception
+ * 18 Oct 26 Windows port - from Linux 7c53377 - Solo carry from SD Core (v1.1-3 to 5315c65), LSOLO 52: kill_process() releases the class objects held in named common before
+ *               the e-stack is freed (Core e7ea5f8): their destroy code ran on freed memory and the process died with a double free.
+ *               Core's S.64 'gates' word of the user table is not carried; SOLO_ACCOUNT_NAME stays.
+ * 17 Oct 26 Windows port - from Linux 7c53377 - kill_process() releases the class objects held in named common before the e-stack is freed: their destroy code (S.65
+ *               $netfile's sdclient objects) ran on freed memory and the process died with a double free.
+ * 17 Oct 26 Windows port - from Linux 7c53377 - S.64: a process taking its user entry starts with the edit gates off (the user table's gates word).
+ * 17 Oct 26 Windows port - from Linux 7c53377 - k_run_program() keeps a resume point so that an error k_error() turns into a SYS.* exception
  *               can go on at the handler (k_can_resume(), k_resume_exception(); QM4 Fixes 354).
  * 18 Oct 26 Windows port - from Linux b51c637 (16 Oct 26): k_return() gives back the caller's @STDFIL after an EXECUTE (QM4 gap 225, $MODE STDFIL.SHARED)
  * 31 Dec 23 SD launch - prior history suppressed

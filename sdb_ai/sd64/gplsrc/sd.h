@@ -18,6 +18,14 @@
  * 
  * START-HISTORY:
  * 25 Sep 26 SD Core Solo - GetHomePath(), GetDefaultSysdir()
+ * 20 Oct 26 Windows port - from Linux 7c53377 - SDNet carry 9: SD Core's S.65 (slices 3c to 3e) and S.72 prototypes of netfiles.c, the NET_FILE kernel entry points; the S.64 edit-gate and S.66 / S.67
+ *               prototypes that SD Core's history lines below mention are not here.
+ * 20 Oct 26 Windows port - from Linux 7c53377 - S.72: prototypes of net_filelock_step, net_fileunlock and net_recordlocked (netfiles.c).
+ * 18 Oct 26 Windows port - from Linux 7c53377 - S.65 slice 3e: prototypes and constants of the write and lock entry points of netfiles.c (net_gate, net_write, net_delete, net_clear,
+ *               net_lock, net_lock_step, net_check_lock, net_release, net_release_all, net_flush_closes) and edit_kind_of_net_name().
+ * 17 Oct 26 Windows port - from Linux 7c53377 - S.65 slice 3c: prototypes of netfiles.c (net_open, net_close, net_read, net_readv, net_fileinfo, net_refuse, net_close_all, net_message).
+ * 17 Oct 26 Windows port - from Linux 7c53377 - S.64 part 2: edit_os_path_refusal() takes include_leaf (does the final component of the path count?); edit_leaf_counts().
+ * 17 Oct 26 Windows port - from Linux 7c53377 - S.64: prototypes of the edit gates (op_sh.c): edit_kind_of_path, edit_permitted, edit_ok_for_path, edit_os_path_refusal.
  * 31 Dec 23 SD launch - prior history suppressed
  * END-HISTORY
  * 
@@ -311,10 +319,63 @@ bool init_messages(void);
 char * sysmsg(int msg_no);
 int sysmsg_number_of(const char * p);
 
-/* NETFILES.C - REMOVED 18 Aug 2026.  SDNet (remote files over port 4245) is
-   gone; see PROJECT_STATUS.md section 8.  sdnet.h is NOT part of it and stays -
-   despite the name it is the socket/termios portability header that the client
-   library and terminal i/o both include.                                    */
+/* NETFILES.C - files on another SD server (SDNet, S.65 slice 3c).  Gone in plan G4, back in a new form: the kernel holds no socket code, it
+   calls the BASIC handler $netfile (sdsys/gpl.bp/netfile) as call_trigger() calls a trigger.  sdnet.h is a different file (the
+   socket/termios portability header) and stays.
+   net_open() returns 0 (fvar is now a NET_FILE), a positive status for the ELSE branch, or a negative one with net_message() set; it
+   never raises the error itself (open_file() does).  net_read(), net_readv(), net_fileinfo() and net_refuse() RAISE the error with the
+   handler's message, unless process.op_flags holds P_ON_ERROR at the call (they read nothing else of it and give it back as it was);
+   without ON ERROR they do not return on an error.  net_close() is for dio_close(): it talks to the server only for a CLOSE statement.
+   Every one of them that asks the handler runs BASIC, which can move the e-stack: find operands again by e_stack afterwards.
+   net_close_all() is for LOGTO (via a kernel key) and sends NF$CLOSEALL when this process ever opened a remote file.            */
+bool net_path_is_net(const char * path);
+int net_open(FILE_VAR * fvar, const char * encoded_path);
+void net_close(FILE_VAR * fvar);
+int net_read(FILE_VAR * fvar, char * id, int16_t id_len, STRING_CHUNK ** rec);
+int net_readv(FILE_VAR * fvar, char * id, int16_t id_len, int32_t field, STRING_CHUNK ** out);
+STRING_CHUNK * net_fileinfo(FILE_VAR * fvar, int key);
+int net_select(FILE_VAR * fvar, STRING_CHUNK ** ids, int32_t * count);
+int net_refuse(FILE_VAR * fvar, const char * what);
+void net_close_all(void);
+const char * net_message(void);
+
+/* NETFILES.C, slice 3e (18 Oct 26): writes and locks on a file of a server whose definition says mode=write (.claude/s65-stage2-design.md, 5.1).
+   The same convention as net_read(): 0 is done, a negative status is an error that has ALREADY been raised unless the caller put P_ON_ERROR in
+   process.op_flags (net_gate() takes it from its op_flags argument).  Each sets process.status itself afterwards, gives process.op_flags back
+   as found, and runs BASIC (the handler) except net_gate(), net_check_lock() and net_refuse(): find operands again by e_stack afterwards.
+   net_gate() decides whether the statement may go on at all (a read-mode handle: message 12506, as before; CREATING.SEQKEY; a transaction;
+   the S.64 edit gate for the remote file's name) and sends nothing.  net_write() is given the record as a string chain and does not flatten
+   it.  net_lock() is the no-wait form only: 0 held, ER_LCK busy with process.status the holder's user number (-1 table full, -2 deadlock);
+   net_lock_step() is the READU / RECORDLOCKU idiom around it: NET_LOCK_WAIT means the caller has been set up to run the opcode again after
+   250 ms (process.op_flags = op_flags, pc = retry_pc) and must RETURN AT ONCE; NET_LOCK_LOCKED that the lock is busy and the statement has a
+   LOCKED clause (process.status = the holder).  retry_pc is op_pc as captured at the entry of the opcode, BEFORE the first net_ call: the
+   handler's own opcodes overwrite op_pc.  net_check_lock() answers 1 when this session holds the update lock on the record.  net_release() and
+   net_release_all() never raise and ignore the answer; net_release_all() does nothing unless this process opened a write-mode file.
+   net_flush_closes() sends the queued closes (the lock of a file variable that went out of scope ends with its handle).               */
+#define NETG_WRITE 1   /* WRITE WRITEU MATWRITE WRITEV WRITEVU */
+#define NETG_DELETE 2  /* DELETE */
+#define NETG_CLEAR 3   /* CLEARFILE */
+#define NETG_LOCK 4    /* READU READL MATREADU MATREADL READVU READVL RECORDLOCKU RECORDLOCKL */
+#define NET_LOCK_HELD 0
+#define NET_LOCK_WAIT 1
+#define NET_LOCK_LOCKED 2
+#define NET_ID_MAX 63  /* the server's limit for a record id (the class MAX.ID.LEN): a longer one is -ER_IID before anything is sent */
+int net_gate(FILE_VAR * fvar, int kind, u_int16_t op_flags, const char * what);
+int net_write(FILE_VAR * fvar, char * id, int16_t id_len, STRING_CHUNK * rec, bool keep_lock);
+int net_delete(FILE_VAR * fvar, char * id, int16_t id_len, bool keep_lock);
+int net_clear(FILE_VAR * fvar);
+int net_lock(FILE_VAR * fvar, char * id, int16_t id_len, bool update);
+int net_lock_step(FILE_VAR * fvar, char * id, int16_t id_len, bool update, u_int16_t op_flags, u_char * retry_pc);
+/* S.72 (20 Oct 26, QMNet parity).  net_filelock_step() is FILELOCK as net_lock_step() is READU: net_gate() first (a refusal is returned at once), then the no-wait request 32 and
+   the same three answers.  net_fileunlock() gives 0, ER_LCK or ER_NLK (what a local FILEUNLOCK leaves in STATUS(), and process.status is it) or a negative status.  net_recordlocked()
+   gives the server's code -3 to 3 and leaves the lock owner's user number in process.status; it has no ON ERROR clause, so an error is raised, always, and it asks no gate (a read). */
+int net_filelock_step(FILE_VAR * fvar, u_int16_t op_flags, u_char * retry_pc);
+int net_fileunlock(FILE_VAR * fvar, u_int16_t op_flags);
+int net_recordlocked(FILE_VAR * fvar, char * id, int16_t id_len);
+int net_check_lock(FILE_VAR * fvar, char * id, int16_t id_len);
+void net_release(FILE_VAR * fvar, char * id, int16_t id_len);
+void net_release_all(void);
+void net_flush_closes(void);
 
 /* OBJECT.C */
 void * load_object(char * name, bool abort_on_error);

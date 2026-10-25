@@ -28,6 +28,11 @@
  *           number on one of its three failure paths, which would have left
  *           the new guards with a hole; it now returns 0 on all three.
  *           PRE_RELEASE_FIXES 100, UPSTREAM_FIXES 30.
+ * 18 Oct 26 Windows port - from Linux 7c53377 - Solo carry from SD Core (v1.1-3 to 5315c65), LSOLO 52: Core's text without the S.65 remote-file refusals.
+ * 17 Oct 26 Windows port - from Linux 7c53377 - S.65 slice 3d: INDICES (both forms) of a NET_FILE is the null string, no longer a refusal: the query processor asks it of every file.
+ * 17 Oct 26 Windows port - from Linux 7c53377 - S.65 slice 3c: AKDELETE, AKREAD, AKWRITE, CLEAR.AK, AKENABLE, AKMAP, INDICES (both), SELECTINDEX (both), SELECTRIGHT/LEFT and SETRIGHT/LEFT refuse a NET_FILE (net_refuse) before touching access.dh
+ * 15 Oct 26 Windows port - from Linux 7c53377 - create_ak() and delete_ak() write DH_HEADER_SHARED_SIZE bytes of the primary header, not the whole of it, so that
+ *               they cannot put an old sequential id counter (CREATING.SEQKEY) over a newer one.
  * 31 Dec 23 SD launch - prior history suppressed
  * rev 0.9.0 Jan 25 mab change dyn file prefix to %
  * END-HISTORY
@@ -187,6 +192,8 @@ void op_akdelete() {
   if (descr->type != UNASSIGNED) {
     if (descr->type != FILE_REF)
       k_error("AK_READ not for file\n");
+    if (descr->data.fvar->type == NET_FILE) /* 17 Oct 26 S.65: access.dh is not valid for a remote file */
+      net_refuse(descr->data.fvar, "AKDELETE");
     ak_dh_file = descr->data.fvar->access.dh.dh_file;
   }
 
@@ -287,6 +294,8 @@ void op_akread() {
   if (descr->type != UNASSIGNED) {
     if (descr->type != FILE_REF)
       k_error("AK_READ not for file\n");
+    if (descr->data.fvar->type == NET_FILE) /* 17 Oct 26 S.65 */
+      net_refuse(descr->data.fvar, "AKREAD");
     ak_dh_file = descr->data.fvar->access.dh.dh_file;
   }
 
@@ -383,6 +392,8 @@ void op_akwrite() {
   if (descr->type != UNASSIGNED) {
     if (descr->type != FILE_REF)
       k_error("AK_WRITE not for file\n");
+    if (descr->data.fvar->type == NET_FILE) /* 17 Oct 26 S.65 */
+      net_refuse(descr->data.fvar, "AKWRITE");
     ak_dh_file = descr->data.fvar->access.dh.dh_file;
   }
 
@@ -456,6 +467,8 @@ void op_akclear() {
   descr = e_stack - 2;
   k_get_file(descr);
   fvar = descr->data.fvar;
+  if (fvar->type == NET_FILE) /* 17 Oct 26 S.65 */
+    net_refuse(fvar, "CLEAR.AK");
   if (fvar->type != DYNAMIC_FILE)
     goto exit_op_akclear; /* Not DH file */
   dh_file = fvar->access.dh.dh_file;
@@ -511,6 +524,9 @@ void op_akenable() {
   descr = e_stack - 2;
   k_get_file(descr);
   fvar = descr->data.fvar;
+
+  if (fvar->type == NET_FILE) /* 17 Oct 26 S.65 */
+    net_refuse(fvar, "AKENABLE");
 
   if (fvar->type == DYNAMIC_FILE && akno < MAX_INDICES) {
     dh_file = fvar->access.dh.dh_file;
@@ -577,6 +593,9 @@ void op_akmap() {
   descr = e_stack - 2;
   k_get_file(descr);
   fvar = descr->data.fvar;
+
+  if (fvar->type == NET_FILE) /* 17 Oct 26 S.65 */
+    net_refuse(fvar, "AKMAP");
 
   if (fvar->type == DYNAMIC_FILE) {
     dh_file = fvar->access.dh.dh_file;
@@ -787,6 +806,8 @@ void op_indices1() {
   descr = e_stack - 1;
   k_get_file(descr);
   fvar = descr->data.fvar;
+  /* 17 Oct 26 S.65 slice 3d: a NET_FILE has no index here (what the server holds is its own business), so INDICES(f) is the null string
+     through the default arm below, as for a directory file; slice 3c refused it, which stopped every query on a remote file. */
   k_dismiss();
 
   /* Extract AK data */
@@ -847,6 +868,8 @@ void op_indices2() {
   descr = e_stack - 2;
   k_get_file(descr);
   fvar = descr->data.fvar;
+
+  /* 17 Oct 26 S.65 slice 3d: a NET_FILE has no index here: the null string through the arm below (see op_indices1) */
 
   if (fvar->type == DYNAMIC_FILE) {
     dh_file = fvar->access.dh.dh_file;
@@ -929,6 +952,13 @@ void op_selindx() {
   list_no = (int16_t)(descr->data.value);
   if (InvalidSelectListNo(list_no))
     k_select_range_error();
+
+  /* 17 Oct 26 S.65: a remote file is refused before the list is emptied */
+
+  descr = e_stack - 2;
+  k_get_file(descr);
+  if (descr->data.fvar->type == NET_FILE)
+    net_refuse(descr->data.fvar, "SELECTINDEX");
 
   if (select_ftype[list_no] != SEL_NONE)
     end_select(list_no);
@@ -1079,6 +1109,9 @@ void op_selindxv() {
   k_get_file(descr);
   fvar = descr->data.fvar;
 
+  if (fvar->type == NET_FILE) /* 17 Oct 26 S.65: before the list is emptied */
+    net_refuse(fvar, "SELECTINDEX");
+
   if (select_ftype[list_no] != SEL_NONE)
     end_select(list_no);
 
@@ -1213,6 +1246,13 @@ Private void akscan(bool right) {
   list_no = (int16_t)(descr->data.value);
   if (InvalidSelectListNo(list_no))
     k_select_range_error();
+
+  /* 17 Oct 26 S.65: a remote file is refused before the list and the key variable are touched */
+
+  descr = e_stack - 3;
+  k_get_file(descr);
+  if (descr->data.fvar->type == NET_FILE)
+    net_refuse(descr->data.fvar, "SELECTRIGHT/SELECTLEFT");
 
   if (select_ftype[list_no] != SEL_NONE)
     end_select(list_no);
@@ -1541,6 +1581,8 @@ Private void setakpos(bool right) {
   k_get_file(descr);
   fvar = descr->data.fvar;
 
+  if (fvar->type == NET_FILE) /* 17 Oct 26 S.65 */
+    net_refuse(fvar, right ? "SETRIGHT" : "SETLEFT");
 
   if (fvar->type != DYNAMIC_FILE)
     goto exit_setakpos; /* Not DH file */

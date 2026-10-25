@@ -18,6 +18,27 @@
  * 
  * START-HISTORY:
  * 18 Oct 26 Windows port - from Linux 9f067b8 (11 Oct 26): Data collection files: text written to one is made into its collection before
+ * 18 Oct 26 Windows port - from Linux 7c53377 - Solo carry from SD Core (v1.1-3 to 5315c65), LSOLO 52: Core's text for CREATING.SEQKEY, $MODE AUTOLOCK, data collection files,
+ *               directory file line terminator modes, record ids with bytes 128 to 247 (the owner's exception of 12 Oct 26, which covers Solo),
+ *               triggers on directory files and the profiler.  Not carried: the S.64 edit gates and the S.65 remote file writes and locks.
+ *               voc_write_refused() and global_write_refused() stay where Solo put them.
+ * 29 Sep 26 SD Core for Linux Solo (LSOLO 6) - voc_write_refused(): a user
+ *           program's own write, delete or clear of a VOC needs ADMIN (owner's
+ *           rulings 12 and 14), as in SD Core Solo for Windows (SOLO 5).
+ * 18 Oct 26 Windows port - from Linux 7c53377 - S.65 slice 3e: WRITE, WRITEU, MATWRITE, WRITEV, DELETE and CLEARFILE of a NET_FILE of a write-mode server go to netfiles.c
+ *               (net_write, net_delete, net_clear), and READU, READL, MATREADU, MATREADL, READVU and READVL take the record lock there first
+ *               (net_lock_step), once refuse_net_file() has asked net_gate(); a read-mode file variable is refused as in slice 3c.  MUSTLOCK
+ *               and $MODE AUTOLOCK are honoured for a remote WRITE and DELETE (net_pre_change_lock).  Refactored: refuse_net_file() takes the
+ *               kind of statement; net_reload_read_operands() is the operand lookup that read_record() needed twice.
+ * 17 Oct 26 Windows port - from Linux 7c53377 - S.65 slice 3c: a NET_FILE (a file on another SD server) is read by READ, MATREAD and READV through net_read() and
+ *               net_readv(); every other statement that can be given a file variable in this file (the locking forms of the reads,
+ *               WRITE, WRITEV, DELETE, CLEARFILE) refuses it with net_refuse() before it touches anything.
+ * 17 Oct 26 Windows port - from Linux 7c53377 - S.64, the edit gates: edit_write_refused() before a WRITE, WRITEV, DELETE or CLEARFILE of a VOC, a dictionary or a
+ *               program file by a program that is not $internal and a session that has not the gate (voc.edit, dict.edit, bp.edit).
+ * 15 Oct 26 Windows port - from Linux 7c53377 - WRITE ... CREATING.SEQKEY skips an id that already names a record (owner's choice, a difference from openQM).
+ * 15 Oct 26 Windows port - from Linux 7c53377 - WRITE ... CREATING.SEQKEY: a read-only file variable is refused, and a suspended system waited for, BEFORE an id is
+ *               taken from the file's counter (the audit of the counter: a refused write had moved it on).
+ * 11 Oct 26 Windows port - from Linux 7c53377 - Data collection files: text written to one is made into its collection before
  *               the pre-write trigger, so a trigger is always given a collection, and the
  *               post-write trigger is given the collection (call_trigger passed it as a string
  *               and the trigger stopped the process: Fault type 11).
@@ -106,6 +127,15 @@ void k_error(char msg[], ...) __attribute__((noreturn));
 
 #define MAX_T1_BUFFER_SIZE 31744
 
+/* 17 Oct 26 dm S.65 slice 3c: the NET_FILE entry points, as slice 3c declares them in sd.h (a second declaration is harmless).
+   net_read() and net_readv() return 0 with the record (or the field) in *rec / *out, a positive local status (ER_RNF) for the ELSE
+   branch, or a negative status for an error, and leave *rec / *out alone unless they return 0.  net_refuse() reports the refusal
+   of an operation (message 12506) and returns the negative status for ON ERROR.  All three raise the error themselves, with the
+   handler's message, unless process.op_flags holds P_ON_ERROR; the callers below set it for the call and clear it after.      */
+int net_read(FILE_VAR *fvar, char *id, int16_t id_len, STRING_CHUNK **rec);
+int net_readv(FILE_VAR *fvar, char *id, int16_t id_len, int32_t field, STRING_CHUNK **out);
+int net_refuse(FILE_VAR *fvar, const char *what);
+
 /* The modes of a directory file's trigger function (QM4 Fixes item 177): 0 if it has none */
 #define DirTrgModes(fvar) ((fvar)->access.dir.trg != NULL ? (fvar)->access.dir.trg->modes : 0)
 
@@ -116,6 +146,104 @@ Private char *t1_ptr;
 Private OSFILE t1_fu;
 
 void t1in(char *src, char *dst, int16_t inct, int16_t *outct);
+
+/* ======================================================================
+   refuse_net_file()  -  Is this a NET_FILE?  If so, refuse the operation.
+
+   17 Oct 26 dm, S.65 slice 3c.  A file on another SD server is read only in stage 1, and it has no file table entry, no lock, no
+   transaction cache and no trigger: file_id is -1, so any code that goes on to FPtr(fvar->file_id), lock_record() or
+   log_permissions_error() would read or WRITE memory in front of the file table.  Every statement of this file that is given a
+   file variable and is not a plain READ or READV of a NET_FILE calls this FIRST, before it takes a lock, a transaction cache entry
+   or an edit-gate decision.
+
+   Returns FALSE (and does nothing) for any other kind of file.
+
+   18 Oct 26 dm, slice 3e: for a NET_FILE it now asks net_gate() (netfiles.c) whether this KIND of statement (NETG_WRITE, NETG_DELETE,
+   NETG_CLEAR, NETG_LOCK) may go on.  A file variable of a read-mode server is refused exactly as before (message 12506, status -7000);
+   a write-mode one is refused for a transaction (12515, -1010), CREATING.SEQKEY (12516) or the S.64 edit gate of the remote file's name
+   (12410 to 12412, -3035).  A refusal is raised by net_gate() itself unless the statement has ON ERROR, and then TRUE is returned with
+   process.status the negative status for the caller to put on the stack.  FALSE for a NET_FILE means the gate passed: the caller then
+   takes its NET arm (it must test fvar->type == NET_FILE itself).  The test below the call is only the safety net for a net_gate() that
+   came back with no ON ERROR: the statement still fails.  The gate runs no BASIC, so the caller's program flags are the ones it tests. */
+
+Private bool refuse_net_file(FILE_VAR *fvar, u_int16_t op_flags, const char *what, int kind) {
+  int st;
+
+  if ((fvar == NULL) || (fvar->type != NET_FILE))
+    return FALSE;
+
+  process.op_flags = op_flags & P_ON_ERROR; /* net_gate() raises the error unless this holds ON ERROR */
+  st = net_gate(fvar, kind, op_flags, what);
+  process.op_flags = 0;
+  if (st == 0)
+    return FALSE;
+
+  process.status = (st < 0) ? st : -ER_PERM;
+
+  if (!(op_flags & P_ON_ERROR))
+    k_error("%s", net_message());
+
+  return TRUE;
+}
+
+/* ======================================================================
+   net_pre_change_lock()  -  The lock rules of a WRITE or DELETE of a NET_FILE (slice 3e), which the local code applies with check_lock() and
+   lock_record() and a remote file has neither of.  $MODE AUTOLOCK: take the update lock now (waiting, by running the opcode again).  MUSTLOCK:
+   the session must hold it already, as for a local file; without this a program under MUSTLOCK would write a record it had not locked,
+   which the same program cannot do locally.  A plain WRITE or DELETE lets the server release the lock when it is done.
+   NETL_GO: carry on.  NETL_WAIT: the opcode is set up to run again; the caller RETURNS AT ONCE.  NETL_FAIL: process.status is the
+   negative status (already raised unless ON ERROR); the caller goes to its exit.                                                     */
+
+#define NETL_GO 0
+#define NETL_WAIT 1
+#define NETL_FAIL 2
+
+Private int net_pre_change_lock(FILE_VAR *fvar, char *id, int16_t id_len, u_int16_t op_flags, u_char *retry_pc) {
+  int st;
+
+  if (op_flags & P_AUTOLOCK) {
+    st = net_lock_step(fvar, id, id_len, TRUE, op_flags & ~P_LOCKED, retry_pc);
+    switch (st) {
+      case NET_LOCK_HELD:
+        return NETL_GO;
+      case NET_LOCK_WAIT:
+        return NETL_WAIT;
+      case NET_LOCK_LOCKED: /* (not reached: P_LOCKED is taken off) */
+        process.status = -ER_NOLOCK;
+        return NETL_FAIL;
+      default:
+        return NETL_FAIL; /* an error: process.status is set */
+    }
+  }
+
+  if (pcfg.must_lock) {
+    process.op_flags = op_flags & P_ON_ERROR;
+    st = net_check_lock(fvar, id, id_len);
+    process.op_flags = 0;
+    if (st == 0) {
+      process.status = -ER_NOLOCK;
+      return NETL_FAIL;
+    }
+    if (st < 0) {
+      process.status = st;
+      return NETL_FAIL;
+    }
+  }
+  return NETL_GO;
+}
+
+/* ======================================================================
+   net_reload_read_operands()  -  The operands of READ, MATREAD, READU... found again on the e-stack (record id, file variable, and the
+   target through its ADDRs).  After a call into netfiles.c the e-stack may have been moved by the handler.                            */
+
+Private void net_reload_read_operands(DESCRIPTOR **rid_descr, DESCRIPTOR **fvar_descr, DESCRIPTOR **tgt_descr) {
+  *rid_descr = e_stack - 1;
+  *fvar_descr = e_stack - 2;
+  *tgt_descr = e_stack - 3;
+  do {
+    *tgt_descr = (*tgt_descr)->data.d_addr;
+  } while ((*tgt_descr)->type == ADDR);
+}
 
 void op_write(void); /* Necessary for internal call */
 void op_dspnl(void);
@@ -295,6 +423,29 @@ void op_clrfile() {
   fvar_descr = e_stack - 1;
   k_get_file(fvar_descr);
   fvar = fvar_descr->data.fvar;
+
+  /* 17 Oct 26 S.65 slice 3c: a file on another server is not cleared by a read-mode file variable.  Before the file lock below, which
+     writes the file table at FPtr(file_id) and a NET_FILE has none.
+     18 Oct 26 slice 3e: a write-mode one is cleared by the server (net_clear()).  No local transaction, read-only, edit-gate or file lock
+     test follows for it: net_gate() made them, and a remote file has no file lock here. */
+  if (refuse_net_file(fvar, op_flags, "CLEARFILE", NETG_CLEAR)) {
+    k_dismiss();
+    InitDescr(e_stack, INTEGER);
+    (e_stack++)->data.value = process.status;
+    return;
+  }
+  if (fvar->type == NET_FILE) {
+    int net_st;
+
+    process.op_flags = op_flags & P_ON_ERROR;
+    net_st = net_clear(fvar); /* the handler runs BASIC: the stack is found by e_stack from here on */
+    process.op_flags = 0;
+    process.status = net_st;
+    k_dismiss(); /* the file variable */
+    InitDescr(e_stack, INTEGER);
+    (e_stack++)->data.value = process.status;
+    return;
+  }
 
   if ((process.txn_id != 0) && !(fvar->flags & FV_NON_TXN))
     k_txn_error();
@@ -477,6 +628,7 @@ void op_delete() {
   bool keep_lock;
   u_int32_t txn_id;
   struct stat statbuf;
+  u_char *retry_pc = op_pc; /* 18 Oct 26 slice 3e: where a remote lock that is busy runs this opcode again from, taken before any handler call */
 
   op_flags = process.op_flags;
   process.op_flags = 0;
@@ -500,7 +652,36 @@ void op_delete() {
   fvar = fvar_descr->data.fvar;
   ProfFile(PROF_DELETE, fvar); /* the application event profiler (16 Oct 26) */
 
+  /* 17 Oct 26 S.65 slice 3c: a record of a file on another server is not deleted.  Before suspend_updates(), the RDONLY test (it
+     logs through FPtr(file_id)), the lock checks and the type switch, which has no arm for it and would report success. */
+  if (refuse_net_file(fvar, op_flags, "DELETE", NETG_DELETE))
+    goto exit_op_delete;
+
   txn_id = (fvar->flags & FV_NON_TXN) ? 0 : process.txn_id;
+
+  /* 18 Oct 26 S.65 slice 3e: a write-mode remote file (net_gate() passed it: not read only, not in a transaction, edit gate asked).  Goes
+     to the server; no local lock, suspend, read-only or edit test follows.  The empty id was refused above.  The server's plain DELETE
+     releases the session's lock on the record, so the tail's unlock_record() has nothing to do for a NET_FILE; DELETE of a record that is
+     not there is not an error. */
+  if (fvar->type == NET_FILE) {
+    int net_st;
+
+    if (id_len > NET_ID_MAX) {
+      process.status = -ER_IID;
+      goto exit_op_delete;
+    }
+    switch (net_pre_change_lock(fvar, id, id_len, op_flags, retry_pc)) {
+      case NETL_WAIT:
+        return;
+      case NETL_FAIL:
+        goto exit_op_delete;
+    }
+    process.op_flags = op_flags & P_ON_ERROR;
+    net_st = net_delete(fvar, id, id_len, keep_lock); /* the handler runs BASIC: the stack is found by e_stack from here on */
+    process.op_flags = 0;
+    process.status = net_st;
+    goto exit_op_delete;
+  }
 
   if ((sysseg->flags & SSF_SUSPEND) && (txn_id == 0))
     suspend_updates();
@@ -705,6 +886,7 @@ void op_readv() {
   STRING_CHUNK *str;
   int32_t status = 0;
   u_int32_t txn_id;
+  u_char *retry_pc = op_pc; /* 18 Oct 26 slice 3e: where a remote lock that is busy runs this opcode again from, taken before any handler call */
 
   process.status = 0;
 
@@ -725,7 +907,89 @@ void op_readv() {
   ProfFile(PROF_READ, fvar); /* READV: the application event profiler (16 Oct 26) */
   txn_id = (fvar->flags & FV_NON_TXN) ? 0 : process.txn_id;
 
-  if (field_no != 0) {
+  if (fvar->type == NET_FILE) {
+    /* 17 Oct 26 S.65 slice 3c: a file on another SD server.  Not the recursive _readv, which would READ (and so call the handler)
+       and then cut the field in BASIC: net_readv() asks for the field, and for field 0 only whether the record exists.  READVU and
+       READVL are refused, nothing is locked on another server in stage 1.  The target is left alone by a refusal and cleared by a
+       read that fails, as a local READV does. */
+    DESCRIPTOR *net_tgt;
+    STRING_CHUNK *net_str = NULL;
+    int net_st;
+
+    rid_descr = e_stack - 2;
+    id_len = k_get_c_string(rid_descr, id, sysseg->maxidlen);
+
+    /* 18 Oct 26 slice 3e: READVU and READVL are refused here only by net_gate(): a read-mode file variable (as in slice 3c) and a
+       transaction.  A plain READV is allowed in every mode, in a transaction too. */
+    if ((op_flags & P_REC_LOCKS) && refuse_net_file(fvar, op_flags, (op_flags & P_ULOCK) ? "READVU" : "READVL", NETG_LOCK)) {
+      status = process.status;
+    } else {
+      net_tgt = e_stack - 4;
+      do {
+        net_tgt = net_tgt->data.d_addr;
+      } while (net_tgt->type == ADDR);
+
+      if (!(op_flags & P_PICKREAD)) {
+        k_release(net_tgt);
+        InitDescr(net_tgt, STRING);
+        net_tgt->data.str.saddr = NULL;
+      }
+
+      if (id_len <= 0) {
+        status = process.status = ER_IID;
+      } else {
+        /* READVU and READVL of a write-mode file: the lock first, as READU does.  Busy with a LOCKED clause: status ER_LCK, STATUS() the
+           holder; busy without: the opcode is set up to run again in 250 ms and we leave before anything is popped. */
+        net_st = 0;
+        if (op_flags & P_REC_LOCKS) {
+          net_st = net_lock_step(fvar, id, id_len, (op_flags & P_ULOCK) != 0, op_flags, retry_pc);
+          switch (net_st) {
+            case NET_LOCK_HELD:
+              net_st = 0;
+              break;
+            case NET_LOCK_WAIT:
+              return;
+            case NET_LOCK_LOCKED:
+              net_st = ER_LCK;
+              break;
+            default:
+              net_st = (int)process.status; /* an error, already raised unless ON ERROR */
+              break;
+          }
+        }
+
+        if (net_st == 0) {
+          process.op_flags = op_flags & P_ON_ERROR;
+          net_st = net_readv(fvar, id, id_len, field_no, &net_str);
+          process.op_flags = 0;
+        }
+
+        /* The handler ran BASIC: take the operands from the stack again, it may have moved */
+        net_tgt = e_stack - 4;
+        do {
+          net_tgt = net_tgt->data.d_addr;
+        } while (net_tgt->type == ADDR);
+
+        status = net_st;
+        if (net_st != 0) {
+          if (net_st != ER_LCK)
+            process.status = net_st; /* (for a lock that is busy, STATUS() is the holder net_lock_step() left) */
+        } else if (field_no == 0) {
+          k_release(net_tgt);
+          k_put_string(id, id_len, net_tgt);
+        } else {
+          k_release(net_tgt);
+          InitDescr(net_tgt, STRING);
+          net_tgt->data.str.saddr = net_str;
+        }
+      }
+    }
+
+    k_pop(1);    /* Dismiss field number */
+    k_dismiss(); /* Record id */
+    k_dismiss(); /* File var */
+    k_dismiss(); /* Target */
+  } else if (field_no != 0) {
     /* Reading a field of a local file */
 
     /* Push lock flag onto e-stack. This corresponds to the lock bits of
@@ -955,6 +1219,7 @@ void op_write() {
   u_int32_t txn_id;
   bool coll_file;                 /* A data collection file */
   COLL_HEADER *coll_keep = NULL;  /* The collection being written, while src_descr holds its text */
+  u_char *retry_pc = op_pc;       /* 18 Oct 26 slice 3e: where a remote lock that is busy runs this opcode again from, taken before any handler call */
 
   op_flags = process.op_flags;
   process.op_flags = 0;
@@ -975,6 +1240,46 @@ void op_write() {
   ProfFile(PROF_WRITE, fvar); /* the application event profiler (16 Oct 26) */
 
   txn_id = (fvar->flags & FV_NON_TXN) ? 0 : process.txn_id;
+
+  /* 17 Oct 26 S.65 slice 3c: a record is not written to a file on another server.  First, before the edit gates, a CREATING.SEQKEY
+     id, the lock and transaction code, the read-only branches (they log through FPtr(file_id)) and the type switch, which has no
+     arm for it and would report success. */
+  if (refuse_net_file(fvar, op_flags, keep_lock ? "WRITEU" : "WRITE", NETG_WRITE))
+    goto exit_op_write;
+
+  /* 18 Oct 26 S.65 slice 3e: a record is written to a write-mode remote file (net_gate() passed it: not read only, not in a transaction,
+     not CREATING.SEQKEY, edit gate asked).  The record goes down as the chain it is.  No local suspend, read-only, trigger or lock test
+     follows for it.  The server's plain WRITE lets go of the session's lock on the record, WRITEU keeps it, so the tail's unlock_record()
+     (which does nothing for a NET_FILE) is not needed.  A COLL value is made a string by k_get_string() as for any file that is not a
+     data collection file. */
+  if (fvar->type == NET_FILE) {
+    int net_st;
+
+    id_len = k_get_c_string(rid_descr, id, sysseg->maxidlen);
+    src_descr = e_stack - 3;
+    if (src_descr->type == ADDR)
+      k_get_value(src_descr);
+    k_get_string(src_descr);
+
+    if (!valid_id(id, id_len) || (id_len > NET_ID_MAX)) {
+      process.status = -ER_IID;
+      goto exit_op_write;
+    }
+    memcpy(lock_id, id, id_len);
+
+    switch (net_pre_change_lock(fvar, id, id_len, op_flags, retry_pc)) {
+      case NETL_WAIT:
+        return;
+      case NETL_FAIL:
+        goto exit_op_write;
+    }
+
+    process.op_flags = op_flags & P_ON_ERROR;
+    net_st = net_write(fvar, id, id_len, src_descr->data.str.saddr, keep_lock); /* the handler runs BASIC: the stack is found by e_stack from here on */
+    process.op_flags = 0;
+    process.status = net_st;
+    goto exit_op_write;
+  }
 
   if ((sysseg->flags & SSF_SUSPEND) && (txn_id == 0))
     suspend_updates();
@@ -1220,6 +1525,19 @@ void op_writev() {
   {
     DESCRIPTOR *wv_fvar = e_stack - 3;
     k_get_file(wv_fvar);
+
+    /* 17 Oct 26 S.65 slice 3c: a field is not written to a record of a file on another server.  Here, before the recursive _writev,
+       which would READ the record from the server and then WRITE.
+       18 Oct 26 slice 3e: a write-mode remote file passes net_gate() here (the caller's program flags are tested, not the $internal
+       pcode's) and the recursive _writev goes on: its READ and its WRITE or WRITEU are ordinary statements of a NET_FILE. */
+    if (refuse_net_file(wv_fvar->data.fvar, op_flags, (op_flags & P_ULOCK) ? "WRITEVU" : "WRITEV", NETG_WRITE)) {
+      k_dismiss();
+      k_dismiss();
+      k_dismiss();
+      k_dismiss();
+      goto exit_op_writev;
+    }
+
     if (voc_write_refused(wv_fvar->data.fvar) ||
         global_write_refused(wv_fvar->data.fvar)) { /* 28 Sep 26 ruling 33 */
       process.status = -ER_PERM;
@@ -1313,6 +1631,7 @@ Private void read_record(bool matread) {
      CRLF change replaced; the compactor declares its own src/dst. */
   struct stat statbuf;
   T1_UNMAP t1u; /* line terminator mode of a directory file, and what is carried from chunk to chunk */
+  u_char *retry_pc = op_pc; /* 18 Oct 26 slice 3e: where a remote lock that is busy runs this opcode again from, taken before any handler call */
 
   op_flags = process.op_flags;
   process.op_flags = 0;
@@ -1332,7 +1651,8 @@ Private void read_record(bool matread) {
   k_get_file(fvar_descr);
   fvar = fvar_descr->data.fvar;
   ProfFile(PROF_READ, fvar); /* READ, READU, READL and MATREAD: the application event profiler (16 Oct 26) */
-  txn_id = (fvar->flags & FV_NON_TXN) ? 0 : process.txn_id;
+  /* A NET_FILE (S.65 slice 3c) has no transaction cache and no file table entry: txn_read() would read FPtr(-1) */
+  txn_id = ((fvar->flags & FV_NON_TXN) || (fvar->type == NET_FILE)) ? 0 : process.txn_id;
 
   /* Get target descr */
 
@@ -1354,6 +1674,18 @@ Private void read_record(bool matread) {
     str_descr = tgt_descr;
   }
 
+  /* 17 Oct 26 S.65 slice 3c: READU, READL, MATREADU and MATREADL of a file on another server are refused, before the lock code
+     below, which writes the lock table with file_id -1.  The target is left as it was.  A plain READ and MATREAD are served by
+     the NET_FILE case of the switch further down.
+     18 Oct 26 slice 3e: refused here still for a read-mode file variable and in a transaction (net_gate()); for a write-mode one the
+     flow goes on, and the lock block below asks the server for the lock (net_lock_step()) in place of lock_record(). */
+  if ((fvar->type == NET_FILE) && (op_flags & P_REC_LOCKS)) {
+    if (refuse_net_file(fvar, op_flags, matread ? ((op_flags & P_ULOCK) ? "MATREADU" : "MATREADL") : ((op_flags & P_ULOCK) ? "READU" : "READL"), NETG_LOCK)) {
+      status = (int16_t)process.status;
+      goto exit_op_read;
+    }
+  }
+
   /* 1.4-3  Moved to before all possible exit paths */
 
   if (!(op_flags & P_PICKREAD)) {
@@ -1371,7 +1703,28 @@ Private void read_record(bool matread) {
   {
     /* Aquire lock if necessary */
 
-    if (op_flags & P_REC_LOCKS) /* READL or READU */
+    if ((op_flags & P_REC_LOCKS) && (fvar->type == NET_FILE)) {
+      /* 18 Oct 26 slice 3e: the lock of a write-mode remote file is the server's.  Busy with a LOCKED clause: that branch, STATUS() the
+         holder.  Busy without one: net_lock_step() has set this opcode up to run again in 250 ms and we leave at once, the operands
+         still on the stack.  The handler ran BASIC, so the operands are found again before anything below uses them. */
+      int net_lock_st = net_lock_step(fvar, id, id_len, (op_flags & P_ULOCK) != 0, op_flags, retry_pc);
+
+      net_reload_read_operands(&rid_descr, &fvar_descr, &tgt_descr);
+      if (!matread)
+        str_descr = tgt_descr;
+      switch (net_lock_st) {
+        case NET_LOCK_HELD:
+          break;
+        case NET_LOCK_WAIT:
+          return;
+        case NET_LOCK_LOCKED:
+          status = ER_LCK;
+          goto exit_op_read;
+        default:
+          status = (int16_t)process.status;
+          goto exit_op_read;
+      }
+    } else if (op_flags & P_REC_LOCKS) /* READL or READU */
     {
       process.status = lock_record(fvar, id, id_len, (op_flags & P_ULOCK) != 0, txn_id, (op_flags & P_LOCKED) != 0);
       switch (process.status) {
@@ -1588,6 +1941,33 @@ Private void read_record(bool matread) {
       }
       break;
 
+    case NET_FILE: {
+      /* 17 Oct 26 S.65 slice 3c: a file on another SD server (the locking forms were refused above).  net_read() runs the handler:
+         0 is the record in net_rec, a positive status takes the ELSE branch, a negative one is an error, which net_read() has
+         raised itself unless the statement has ON ERROR.  Like a local failure, a failed read leaves the target a null string.
+         The handler ran BASIC, so the descriptors on the e-stack are found again. */
+      STRING_CHUNK *net_rec = NULL;
+      int net_st;
+
+      process.op_flags = op_flags & P_ON_ERROR;
+      net_st = net_read(fvar, id, id_len, &net_rec);
+      process.op_flags = 0;
+
+      net_reload_read_operands(&rid_descr, &fvar_descr, &tgt_descr);
+      if (!matread)
+        str_descr = tgt_descr;
+
+      if (net_st == 0) {
+        if ((op_flags & P_PICKREAD)) {
+          k_release(str_descr);
+          InitDescr(str_descr, STRING);
+        }
+        str_descr->data.str.saddr = net_rec;
+      } else {
+        status = (int16_t)(process.status = net_st);
+      }
+      break;
+    }
   }
 
 exit_op_read:

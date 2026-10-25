@@ -20,6 +20,12 @@
  * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, the OS switch (Linux Solo 7c6bbfc): DIR() asks os_path_open_ok() for the pathname it lists.
  * 18 Oct 26 Windows port - from Linux fa146d9 (16 Oct 26): dir_select() closes the oldest cached file and tries again when opendir() fails at the open-file limit (QM4 Fixes 279).
  * 18 Oct 26 Windows port - from Linux ff49d57 (15 Oct 26): $MODE SELECTV default select list variable (openQM item 85): readnext() takes P_DEF_SELLIST, an unassigned
+ * 20 Oct 26 Windows port - from Linux 7c53377 - Solo OS switch (S.63 carried): the OS-access test on DIR() is back (op_dir()).
+ * 18 Oct 26 Windows port - from Linux 7c53377 - Solo carry from SD Core (v1.1-3 to 5315c65), LSOLO 52: Core's text without the S.65 remote SELECT and the S.63 OS-access test on DIR();
+ *               DIR() still gives STATUS() a value of its own (0, ER_FNF or ER_PERM) as Core's S.63 commit made it do.
+ * 17 Oct 26 Windows port - from Linux 7c53377 - S.65 slice 3c: op_select() and op_selectv() refuse a NET_FILE (net_refuse) before the target list is touched
+ * 16 Oct 26 Windows port - from Linux 7c53377 - dir_select() closes the oldest cached file and tries again when opendir() fails at the open-file limit (QM4 Fixes 279).
+ * 15 Oct 26 Windows port - from Linux 7c53377 - $MODE SELECTV default select list variable (openQM item 85): readnext() takes P_DEF_SELLIST, an unassigned
  *               default variable being an empty list
  * 18 Oct 26 Windows port - from Linux c608b9f (15 Oct 26): $MODE PICK.SELECT (QM4 gaps Q-16): op_selectv() moves an active list 0 to its target;
  *               transfer_list0() is the body of op_selecte(), which both now call
@@ -69,6 +75,8 @@ void op_dcount(void);
 Private void readnext(int16_t mode);
 Private bool dir_select(FILE_VAR* fvar, int16_t list_no);
 Private void transfer_list0(DESCRIPTOR* tgt_descr);
+Private void store_select_list(int16_t list_no, STRING_CHUNK* head, int32_t record_count);
+Private int net_select_with_flags(FILE_VAR* fvar, u_int16_t op_flags, STRING_CHUNK** ids, int32_t* count);
 
 /* ====================================================================== */
 
@@ -688,6 +696,9 @@ void op_select() {
   int16_t list_no;
   FILE_VAR* fvar;
   int32_t record_count;
+  STRING_CHUNK* net_ids = NULL; /* S.65 slice 3d: the ids of a remote file, and how many, and how asking went */
+  int32_t net_count = 0;
+  int net_st;
 
   op_flags = process.op_flags;
   process.op_flags = 0;
@@ -712,12 +723,29 @@ void op_select() {
   } else {
     fvar = descr->data.fvar;
 
+    if (fvar->type == NET_FILE) /* 17 Oct 26 S.65 slice 3d: the ids come from the server first; the target list is touched only if they do */
+    {
+      net_ids = NULL;
+      net_count = 0;
+      net_st = net_select_with_flags(fvar, op_flags, &net_ids, &net_count);
+      if (net_st != 0) { /* the ELSE branch, or an error that net_select() raised unless the statement has ON ERROR */
+        process.status = net_st;
+        k_pop(1);
+        k_dismiss();
+        goto select_status;
+      }
+    }
+
     end_select(list_no);
     clear_select(list_no); /* 0441 */
 
     /* Do the select */
 
     switch (fvar->type) {
+      case NET_FILE:
+        store_select_list(list_no, net_ids, net_count);
+        break;
+
       case DYNAMIC_FILE:
         if (!dh_select(fvar->access.dh.dh_file, list_no)) {
           process.status = ER_RNF;
@@ -750,6 +778,7 @@ void op_select() {
     descr->data.value = record_count;
   }
 
+select_status:
   /* Set status code on stack */
 
   InitDescr(e_stack, INTEGER);
@@ -880,6 +909,9 @@ void op_selectv() {
   int32_t record_count;
   char* p;
   int16_t bytes;
+  STRING_CHUNK* net_ids = NULL; /* S.65 slice 3d: the ids of a remote file, and how many, and how asking went */
+  int32_t net_count = 0;
+  int net_st;
 
   op_flags = process.op_flags;
   process.op_flags = 0;
@@ -928,6 +960,32 @@ void op_selectv() {
     }
   } else {
     fvar = descr->data.fvar;
+
+    if (fvar->type == NET_FILE) /* 17 Oct 26 S.65 slice 3d: the ids of a remote file are the target list; list 11 is not used */
+    {
+      net_ids = NULL;
+      net_count = 0;
+      net_st = net_select_with_flags(fvar, op_flags, &net_ids, &net_count);
+
+      /* The handler ran BASIC: the target is found again from the stack, as op_read does */
+      tgt_descr = e_stack - 1;
+      while (tgt_descr->type == ADDR)
+        tgt_descr = tgt_descr->data.d_addr;
+
+      InitDescr(tgt_descr, SELLIST);
+      tgt_descr->data.str.saddr = NULL; /* an empty list unless the ids came */
+      if (net_st != 0) {
+        process.status = net_st;
+      } else {
+        if (net_ids != NULL) {
+          tgt_descr->data.str.saddr = net_ids;
+          net_ids->offset = net_count;
+        }
+        descr = Element(process.syscom, SYSCOM_SELECTED);
+        descr->data.value = net_count;
+      }
+      goto selectv_status;
+    }
 
     /* Do the select */
 
@@ -1208,7 +1266,6 @@ Private bool dir_select(FILE_VAR* fvar, int16_t list_no) {
   int path_len;
   char name[MAX_PATHNAME_LEN + 1];
   STRING_CHUNK* head = NULL;
-  DESCRIPTOR* descr;
   int record_count = 0; /* 0481 */
   char* p;
   char* q;
@@ -1350,27 +1407,52 @@ Private bool dir_select(FILE_VAR* fvar, int16_t list_no) {
 
   if (head != NULL) {
     ts_terminate();
-
-    /* Find SELECT.COUNT(LIST.NO) in SYSCOM */
-
-    descr = Element(process.syscom, SYSCOM_SELECT_COUNT);
-    descr = Element(descr->data.ahdr_addr, list_no);
-    k_release(descr);
-    InitDescr(descr, INTEGER);
-    descr->data.value = record_count;
-
-    /* Find SELECT.LIST(LIST.NO) in SYSCOM */
-
-    descr = Element(process.syscom, SYSCOM_SELECT_LIST);
-    descr = Element(descr->data.ahdr_addr, list_no);
-    k_release(descr);
-    InitDescr(descr, STRING);
-    descr->data.str.saddr = head;
+    store_select_list(list_no, head, record_count);
   }
 
   status = TRUE;
 
   return status;
+}
+
+/* ======================================================================
+   store_select_list()  -  Make a string of ids (field marks between) select list LIST_NO, with RECORD_COUNT in SELECT.COUNT.  Taken out of
+   dir_select() when a remote file's SELECT (S.65 slice 3d) needed the same two steps; the list is the string and keeps it.               */
+
+Private void store_select_list(int16_t list_no, STRING_CHUNK* head, int32_t record_count) {
+  DESCRIPTOR* descr;
+
+  /* Find SELECT.COUNT(LIST.NO) in SYSCOM */
+
+  descr = Element(process.syscom, SYSCOM_SELECT_COUNT);
+  descr = Element(descr->data.ahdr_addr, list_no);
+  k_release(descr);
+  InitDescr(descr, INTEGER);
+  descr->data.value = record_count;
+
+  /* Find SELECT.LIST(LIST.NO) in SYSCOM.  No ids (a remote file with no records) leaves the list as clear_select() made it, with the count 0. */
+
+  if (head == NULL)
+    return;
+
+  descr = Element(process.syscom, SYSCOM_SELECT_LIST);
+  descr = Element(descr->data.ahdr_addr, list_no);
+  k_release(descr);
+  InitDescr(descr, STRING);
+  descr->data.str.saddr = head;
+}
+
+/* ======================================================================
+   net_select_with_flags()  -  net_select() with only the statement's ON ERROR given to it (the caller cleared process.op_flags), and
+   cleared again afterwards.  The handler runs BASIC: the caller finds its operands again by e_stack.                                    */
+
+Private int net_select_with_flags(FILE_VAR* fvar, u_int16_t op_flags, STRING_CHUNK** ids, int32_t* count) {
+  int st;
+
+  process.op_flags = op_flags & P_ON_ERROR;
+  st = net_select(fvar, ids, count);
+  process.op_flags = 0;
+  return st;
 }
 
 /* ======================================================================

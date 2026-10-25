@@ -21,6 +21,14 @@
  *           account open this OS pathname - built on net_path_permitted()'s containment helpers (net_normalise, has_parent_ref, path_within)
  *           rather than Linux's POSIX realpath() version.
  * 18 Oct 26 Windows port - from Linux a0a1ad6 (17 Oct 26): FILEINFO key 1021 is FL_WHO, the openQM form (a list of user numbers); the text form FL_HOLDERS that SD's
+ * 18 Oct 26 Windows port - from Linux 7c53377 - Solo carry from SD Core (v1.1-3 to 5315c65), LSOLO 52: Core's text without the S.65 remote-file routes of FILEINFO and the OPEN-time status.
+ * 18 Oct 26 Windows port - from Linux 7c53377 - S.65 slice 3e: FILEINFO FL$READONLY of a NET_FILE answers the file variable's own read-only flag (1 for a file of a read-mode
+ *               server, 0 for a write-mode one), and FL$SETRDONLY from a $internal program sets it, as for a local file.
+ * 17 Oct 26 Windows port - from Linux 7c53377 - S.65 slice 3c: FILEINFO of a NET_FILE (a file on another SD server) is answered before anything reads the file table
+ *               at FPtr(file_id), which it has not: the keys that are about the file variable are answered here, the 10000 range
+ *               (it writes the file table) is refused, and every other key is asked of the server through net_fileinfo().
+ *               get_file_status() returns a null string for it.
+ * 17 Oct 26 Windows port - from Linux 7c53377 - FILEINFO key 1021 is FL_WHO, the openQM form (a list of user numbers); the text form FL_HOLDERS that SD's
  *               messages use is key 1100 now (QM4 Fixes 62).
  * 18 Oct 26 Windows port - from Linux fa146d9 (16 Oct 26): OSPATH key 15 (OS_OWNER) gives the owner's user name, for DIR_DICT's OWNER item (QM4 Fixes 181).
  * 18 Oct 26 Windows port - from Linux 084ff8a (12 Oct 26): FILEINFO keys 1022 to 1040 as the openQM 4 manual numbers them
@@ -74,6 +82,13 @@ Private STRING_CHUNK* format_status(struct stat* sb, int64 file_pos, int at_eof,
 
 bool make_path(char* tgt);
 bool FDS_open(DH_FILE* dh_file, int16_t subfile);
+
+/* 17 Oct 26 dm S.65 slice 3c: the NET_FILE entry points, as slice 3c declares them in sd.h (a second declaration is harmless).
+   net_fileinfo() returns the value of the key as a string (a null string is NULL), asking the handler; it raises the error itself
+   (FILEINFO has no ON ERROR).  net_refuse() reports the refusal (message 12506); with process.op_flags clear, as it is here, it
+   raises the error and does not return. */
+STRING_CHUNK* net_fileinfo(FILE_VAR* fvar, int key);
+int net_refuse(FILE_VAR* fvar, const char* what);
 
 /* ======================================================================
    op_fileinfo()  -  Return information about an open file                */
@@ -184,6 +199,80 @@ void op_fileinfo() {
 
     fvar = descr->data.fvar;
     ftype = fvar->type;
+
+    if (ftype == NET_FILE) {
+      /* 17 Oct 26 S.65 slice 3c: a file on another SD server has no file table entry (file_id is -1), so nothing below, which reads
+         or writes FPtr(file_id), the lock tables or the open-user map, may run for it.  The keys that are about the file variable
+         are answered from the variable; the three that change the file table are refused; any other key is asked of the server. */
+      u_int16_t saved_flags = process.op_flags;
+
+      switch (key) {
+        case FL_VOCNAME: /* 1  VOC name of file */
+          p = (fvar->voc_name != NULL) ? fvar->voc_name : "";
+          goto set_string;
+
+        case FL_READONLY: /* 1001  Read only: yes for a file variable of a read-mode server (or one made read only), no for a write-mode one (slice 3e) */
+          n = ((fvar->flags & FV_RDONLY) != 0);
+          goto set_integer;
+
+        case FL_NON_TXN:  /* 1032  Opened NON.TRANSACTIONAL: it is never in a transaction */
+        case FL_NETFILE:  /* 1022  A file on another server */
+          n = 1;
+          goto set_integer;
+
+        case FL_FILENO: /* 1009  Internal file number: there is none */
+          n = fvar->file_id;
+          goto set_integer;
+
+        case FL_TYPE: /* 3  A file on another server: its own type, so that a query asking "is it a directory file?" gets a plain no */
+          n = FL_TYPE_NET;
+          goto set_integer;
+
+        case FL_COLLECTION: /* 1035  The query processor asks: a remote file is not read as a data collection (slice 3d) */
+          n = 0;
+          goto set_integer;
+
+        case FL_FLAGS: /* 10001  The query processor asks for the NOCASE bit: every hashed file is NOCASE since PAL-1 (slice 3d).  Restricted
+                          to $internal programs, as for a local file */
+          n = (process.program.flags & HDR_INTERNAL) ? DHF_NOCASE : 0;
+          goto set_integer;
+
+        case FL_SETRDONLY: /* 10005  Set read only, from a $internal program only (as for a local file): net_gate() then refuses every change (slice 3e) */
+          if (process.program.flags & HDR_INTERNAL)
+            fvar->flags |= FV_RDONLY;
+          n = 0;
+          goto set_integer;
+
+        case FL_TXN_UPDATE:  /* 1038 */
+        case FL_INDEX_SCAN:  /* 1030 */
+          n = 0;
+          goto set_integer;
+
+        case FL_ID: /* 1012  Id of last record read */
+          k_dismiss();
+          k_put_string(fvar->id, fvar->id_len, e_stack);
+          e_stack++;
+          return;
+
+        case FL_EXCLUSIVE: /* 10000  These three change the file table entry */
+        case FL_STATS_ON:  /* 10002 */
+        case FL_STATS_OFF: /* 10003 */
+          process.op_flags = 0; /* so that net_refuse() raises the error: FILEINFO has no ON ERROR */
+          (void)net_refuse(fvar, "FILEINFO");
+          process.op_flags = saved_flags;
+          n = 0;
+          goto set_integer;
+
+        default:
+          process.op_flags = 0;
+          str = net_fileinfo(fvar, key); /* the handler runs BASIC: the stack is found by e_stack, not by descr, from here on */
+          process.op_flags = saved_flags;
+          k_dismiss();
+          InitDescr(e_stack, STRING);
+          (e_stack++)->data.str.saddr = str;
+          return;
+      }
+    }
 
     fptr = FPtr(fvar->file_id);
 
@@ -1957,6 +2046,12 @@ Private STRING_CHUNK* get_file_status(FILE_VAR* fvar) {
   memset(&statbuf, 0, sizeof(statbuf));
 
   ftype = fvar->type;
+
+  /* 17 Oct 26 S.65 slice 3c: a NET_FILE has no file table entry and no status of its own; op_fileinfo() does not come here for it,
+     and this keeps it from printing the memory in front of the file table if it ever did.  A null string. */
+  if (ftype == NET_FILE)
+    return NULL;
+
   path = (char*)(FPtr(fvar->file_id)->pathname);
 
   /* !!FVAR_TYPES!! */

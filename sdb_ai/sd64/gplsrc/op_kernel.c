@@ -599,13 +599,35 @@ void op_kernel() {
     case K_NET:
       GetInt(descr);
       n = descr->data.value;
+
+      /* 18 Oct 26 S.65 slice 3e (SD Core): -2 from a $internal program sends the closes that were queued for file variables that went out of scope
+         (CPROC does it at the prompt), so that a record lock taken through a remote file does not outlive its file variable.  The answer
+         is the gate, as for -1; the caller's STATUS() is given back (the handler is BASIC and leaves its own).  From a program that is not
+         $internal it is -1. */
+      if ((n == -2) && (process.program.flags & HDR_INTERNAL)) {
+        n = process.status;
+        net_flush_closes();
+        process.status = n;
+        result.data.value = (my_uptr->flags & USR_NET) != 0;
+        break;
+      }
       if (n >= 0) {
         if (process.program.flags & HDR_INTERNAL) {
           if (n > 0)
             my_uptr->flags |= USR_NET;
           else
             my_uptr->flags &= ~USR_NET;
+
           kr_wipe();
+
+          /* 18 Oct 26 S.65 (SD Core): the gate is set when the account scope changes (sign-on, the API server's sign-on), and the remote files
+             and connections belong to the account that opened them: drop them all.  Nothing happens unless this process ever opened one.  The
+             handler is BASIC and moves the e-stack: nothing above is used after it. */
+          result.data.value = (my_uptr->flags & USR_NET) != 0;
+          n = process.status; /* the handler is BASIC and leaves its own STATUS() behind; the caller's is given back */
+          net_close_all();
+          process.status = n;
+          break;
         }
       }
       result.data.value = (my_uptr->flags & USR_NET) != 0;

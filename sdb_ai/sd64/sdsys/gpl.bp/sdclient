@@ -23,6 +23,33 @@
 *           instead of the cleartext SrvrLogin, which APISRVR retired in the
 *           same change.  docs/SCRAM_AUTH.md phase 5.  The class is $internal
 *           now, because the derivation needs SDEXT.
+* 20 Oct 26 Windows port - from Linux 7c53377 - SD Core for Linux Solo, SDNet carry 9: SD Core's S.65 and S.72 changes to this class (the lines below down to the 17 Oct one), carried as one merge of Core Dev
+*               680747d against the Core text before 96d8be8.  Solo's own default port (4249, 02 Oct 26) is kept.
+* 20 Oct 26 Windows port - from Linux 7c53377 - S.72 (QMNet parity): filelock(fno, wait) (request 32) and fileunlock(fno) (request 33).  The two requests were in the table of codes and in apisrvr and had no method here.
+*               Like clearfile() and recordlock() they abort the caller on a server ON ERROR reply unless quiet is set.  The $netfile handler is the one user of them.
+* 19 Oct 26 Windows port - from Linux 7c53377 - K8d: connect.keys waits NETWAIT seconds (5) for the connection and NETREPLY seconds (30) for each read, from the configuration (sd.conf) and no longer from two $defines.
+* 19 Oct 26 Windows port - from Linux 7c53377 - K8c: the length a reply announces is checked before its body is read.  read.packet fails the call, as a lost connection does and without touching server.error or
+*               ServerStatus, for a reply that announces less than its own header (a negative count is that too: the count is signed) and, when the new public property maxpacket
+*               is above 0, for one longer than that.  The default is 0, so other users of the class are unchanged except for the nonsense lengths below 10.  $netfile sets it.
+* 19 Oct 26 Windows port - from Linux 7c53377 - SDNet finish 2 (verifier): select() and readlist() honour quiet.  They aborted on a server ON ERROR reply even when the object was quiet, so the $netfile handler's own
+*               branch for that reply (act.select, which a remote SELECT passes through) could never run: a server that answered the READLIST with an ON ERROR stopped the client's
+*               program with "READLIST generated an abort event", which an ON ERROR clause cannot trap.  A quiet object now returns (err = 1 from readlist; LastError and LastText for both),
+*               as read(), write() and delete() do.  A non-quiet object, the default and everything but $netfile, aborts exactly as before.
+* 18 Oct 26 Windows port - from Linux 7c53377 - S.65 slice 3e: the public properties quiet, LastError and LastText (a quiet object does not abort on a server ON ERROR reply;
+*               LastError is the kind of the last reply, LastText the text of an ON ERROR one); clearfile(fno) (request 31); recordlock's
+*               wait flag was the wrong way round (flag 2 is NO wait, apisrvr and the C client) and is fixed.  The remote file handler
+*               $netfile is the one user of all of these.  NOT YET COMPILED OR RUN.
+* 17 Oct 26 Windows port - from Linux 7c53377 - S.65 slice 3a: connect.keys(), the login from the stored derived keys of set.netlogin (no password; the server's public
+*               key is compared with a pin before a byte is sent; the salt and iteration count must be the stored ones).  scram.login is
+*               now a wrapper over scram.exchange, which both logins share; settimeout() and a bounded wait for the Ack and for each read
+*               (connect.keys sets NETREPLY seconds, 30 by default since K8d; connect() still waits for ever).  connect() is otherwise unchanged.
+* 02 Oct 26 Windows port - from Linux 7c53377 - The default port is 4249 (owner: SD Core Solo 4249, the full products 4247).
+* 14 Sep 26 Windows port - from Linux 7c53377 - connect() speaks SCRAM-SHA-256 (requests 47 and 48) instead of
+*               the cleartext SrvrLogin, which APISRVR retired in the same
+*               change - the Windows port's SDCLIENT of 20 Aug 2026, adopted
+*               unchanged (W.4 SCRAM phase 5).  The class is $internal now,
+*               because the derivation needs SDEXT.
+* 20 Aug 26 Windows port - the same change there.  docs/SCRAM_AUTH.md phase 5.
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
 * END-HISTORY
 *
@@ -30,7 +57,10 @@
 * START-DESCRIPTION:
 *
 * bool = obj->connect(host, port, username, password, account)
+* bool = obj->connect.keys(host, port, username, salt, iterations, client.key, server.key, account, pin)
+* obj->settimeout(ms)
 * obj->call(subr{, args})
+* obj->clearfile(fno)
 * obj->clearselect(listno)
 * obj->close(fno)
 * bool = obj->connected
@@ -39,6 +69,8 @@
 * obj->disconnect
 * obj->endcommand
 * str = obj->execute(cmd)
+* obj->filelock(fno, wait)
+* obj->fileunlock(fno)
 * bool = obj->logto(acc)
 * obj->markmapping(fno, state)
 * fno = obj->open(name)
@@ -63,6 +95,12 @@
 * obj->ServerStatus
 * obj->debug = state
 * str = obj->error
+* obj->quiet = state          (true: a server ON ERROR reply does not abort the program; default false)
+* n = obj->LastError          (the kind of the last reply: 0 OK, 1 ON ERROR, 2 ELSE, 3 ERROR, 4 LOCKED, 5 PROMPT; -1 no reply was read)
+* str = obj->LastText         (the payload of the last reply when that reply was an ON ERROR one, null for any other reply: message.pair empties it before every request, so it is never an earlier
+*                              reply's; empty too when the server's ON ERROR clause had nothing to say)
+* obj->maxpacket = n          (the longest reply in bytes, header included, that is read; a longer one, or one that announces less than its own header, fails the call
+*                              as a lost connection would; 0, the default, sets no ceiling)
 *
 * END-DESCRIPTION
 *
@@ -155,6 +193,10 @@ $define SV$ERROR          3    ;* Action failed. Error text available
 $define SV$LOCKED         4    ;* Took locked clause
 $define SV$PROMPT         5    ;* Server requesting input
 
+*  19 Oct 26 (K8d): the connect timeout (5 seconds) and the wait for each reply (30 seconds) of connect.keys are the configuration parameters NETWAIT and NETREPLY, which the
+*  administrator sets in sd.conf (1 to 3600 seconds, these defaults); they were $defines of the same values.
+$define NET.ACK.TRIES    16    ;* connect.keys: bytes to read looking for the Ack
+
 
 deffun read.record(mode, fno, id, err) local
 deffun message.pair(pkt.type, pkt) local
@@ -163,14 +205,20 @@ deffun write.packet(pkt.type, pkt) local
 deffun read.packet() local
 deffun context.error(expected) local
 deffun scram.login(username, password) local
+deffun scram.exchange(username, password, stored.salt, stored.iter, stored.ck, stored.sk) local
 
 private context,        ;* State
         skt,            ;* Socket for connection
-        server.error    ;* Returned error code from server
+        server.error,   ;* Returned error code from server
+        io.ms           ;* Milliseconds to wait for each read; 0 waits for ever (17 Oct 26, S.65)
 
 public debugging,       ;* Debug mode
        ServerStatus,    ;* Returned status from server
-       error            ;* Error text
+       error,           ;* Error text
+       quiet,           ;* True: a server ON ERROR reply does not abort the caller (18 Oct 26, S.65 slice 3e)
+       LastError,       ;* The kind of the last reply (SV$ code), -1 when no reply was read
+       LastText,        ;* The payload of the last ON ERROR reply
+       maxpacket        ;* The longest reply, header included, this object will read: a longer one fails the call.  0 = no ceiling (the default).  19 Oct 26, K8c
 
 * ======================================================================
 
@@ -178,6 +226,11 @@ public subroutine create.object
    error = ''
    context = CX.DISCONNECTED
    debugging = @false
+   io.ms = 0
+   quiet = @false
+   LastError = -1
+   LastText = ''
+   maxpacket = 0
 end
 
 * ======================================================================
@@ -232,6 +285,20 @@ public subroutine call(subr, ...)
          if rem(n, 2) then n += 1
          in.pkt = in.pkt[7+n,999999]
       repeat
+   end
+end
+
+* ======================================================================
+* CLEARFILE(fno)   (18 Oct 26 dm, S.65 slice 3e) - request 31, the file number and nothing else
+
+public subroutine clearfile(fno)
+   if not(context.error(CX.CONNECTED)) then
+      pkt = iconv(fno, 'ISL')
+      if message.pair(SrvrClearfile, pkt) then
+         if server.error = SV$ON.ERROR and not(quiet) then
+            abort 'CLEARFILE generated an abort event'
+         end
+      end
    end
 end
 
@@ -323,6 +390,147 @@ public function connect(host, (port), username, password, account)
 end
 
 * ======================================================================
+* CONNECT.KEYS(host, port, username, salt, iterations, client.key, server.key, account, pin)   (17 Oct 26 dm, S.65 slice 3a)
+*
+* The login of a person who has run SET.NETLOGIN: NO PASSWORD.  salt, iterations, client.key and server.key are the four values
+* that command stored (base64 except the count), username the remote user name and pin the 64 hexadecimal digits of the server's
+* definition.  In this order, and nothing is sent before the third step:
+*   1. every argument is checked for shape, without touching the network;
+*   2. one TLS connection (NETWAIT seconds to connect, 5 unless sd.conf says otherwise), and the hash of the public key the server presents is compared with pin;
+*   3. the Ack byte, then the SCRAM exchange of scram.login with the stored keys in place of the password - the salt and iteration
+*      count the server sends must EQUAL the stored ones, or the stored login is out of date or this is not the server it was made
+*      with, and the exchange stops with only the client-first message sent;
+*   4. the account is entered as connect() does, and a refusal fails the call.
+* Every wait for the server is bounded (NETREPLY seconds a read, 30 unless sd.conf says otherwise; settimeout() changes it).  THE LOGIN EXCHANGE HAS NO CEILING ON THE LENGTH A REPLY
+* ANNOUNCES (maxpacket is set by the caller after connect.keys returns; only the below-ten test applies here): a pinned server that is hostile can still announce a large length in a
+* login reply and send slowly, for NETREPLY seconds a read.  The arguments are passed by
+* value: the copies here are cleared as soon as they are spent, the caller's variables are the caller's to clear.
+* On false, error says why and the socket is closed; ServerStatus is meaningful only after a failed connection (the status of the
+* open) or a refusal the server itself reported.
+
+public function connect.keys(host, (port), username, (salt), (iterations), (client.key), (server.key), account, (pin))
+   error = ''
+
+   if context # CX.DISCONNECTED then
+      error = 'A connection has already been established'
+      return @false
+   end
+
+   if len(host) = 0 then
+      error = 'Invalid host name'
+      return @false
+   end
+
+   * valid_os_name is declared once for the module, in connect() above (a second deffun here is "Duplicate function name")
+   if not(valid_os_name(username)) then
+      error = 'Invalid user name'
+      return @false
+   end
+
+   pin = downcase(trim(pin))
+   if len(pin) # 64 or len(convert('0123456789abcdef', '', pin)) # 0 then
+      error = 'Invalid public key pin'
+      return @false
+   end
+
+   if salt = '' or client.key = '' or server.key = '' then
+      error = 'The stored login is incomplete'
+      return @false
+   end
+
+   if len(iterations) < 1 or len(iterations) > 8 or not(iterations matches '1N0N') then
+      error = 'The stored iteration count is not a whole number'
+      return @false
+   end
+   iterations += 0
+   if iterations < SCRAM$MIN.ITER or iterations > SCRAM$MAX.ITER then
+      error = 'The stored iteration count is unacceptable'
+      return @false
+   end
+
+   if port = '' or port < 0 then port = 4249   ;* as connect(): SD Core Solo's fixed API port (the full products: 4247)
+
+   skt = open.socket(host, port, SKT$BLOCKING + SKT$TLS, config('NETWAIT'))
+   st = status()
+   oserr = os.error()
+   if st # 0 then
+      ServerStatus = st
+      if st = ER$CONNECT and oserr = 0 then
+         error = 'The TLS handshake with ' : host : ':' : port : ' did not complete (status ' : st : ')'
+      end else
+         error = 'Cannot connect to ' : host : ':' : port : ' (status ' : st : ')'
+      end
+      return @false
+   end
+
+*  THE PIN, BEFORE A BYTE IS SENT.  'p' : forces a text comparison - two all-digit strings compare as numbers.
+   spki = downcase(trim(socket.info(skt, SKT$INFO.TLS.SPKI)))
+   if spki = '' then
+      error = 'The server gave no public key hash, so it cannot be checked against the pin; nothing was sent'
+      goto keys.fail
+   end
+   if ('p' : spki) # ('p' : pin) then
+      error = 'PIN MISMATCH: the public key of ' : host : ':' : port : ' is not the key pinned in its definition; nothing was sent'
+      goto keys.fail
+   end
+
+   if io.ms = 0 then io.ms = config('NETREPLY') * 1000
+   acked = @false
+   tries = 0
+   loop
+      tries += 1
+      b = read.socket(skt, 1, SKT$BLOCKING, io.ms)
+      if status() # 0 or b = '' then
+         error = 'No acknowledgement from ' : host : ':' : port : ' at the start of the session'
+         goto keys.fail
+      end
+      if b = char(6) then acked = @true
+   until acked or tries >= NET.ACK.TRIES
+   repeat
+   if not(acked) then
+      error = 'No acknowledgement from ' : host : ':' : port : ' at the start of the session'
+      goto keys.fail
+   end
+
+   ok = scram.exchange(username, '', salt, iterations, client.key, server.key)
+   client.key = ''
+   server.key = ''
+   if not(ok) then
+      if error = '' then error = 'No reply from ' : host : ':' : port : ' during the login (the connection failed or timed out)'
+      goto keys.fail
+   end
+
+   if not(message.pair(SrvrAccount, account)) then
+      if error = '' then error = 'No reply from ' : host : ':' : port : ' when entering the account'
+      goto keys.fail
+   end
+   if server.error # SV$OK then
+      error = 'The server did not enter the account'
+      goto keys.fail
+   end
+
+   context = CX.CONNECTED
+   return @true
+
+keys.fail:
+   client.key = ''
+   server.key = ''
+   close.socket skt
+   return @false
+end
+
+* ======================================================================
+* SETTIMEOUT(ms)   (17 Oct 26 dm, S.65 slice 3a)
+* Milliseconds to wait for each read of the server's reply; 0 waits for ever.  A read that times out fails the request as a lost
+* connection does (the call returns its failure value and error is not set by it).  connect() leaves this at 0; connect.keys sets
+* 30000 unless this was called first with another value.
+
+public subroutine settimeout(ms)
+   if not(num(ms)) or ms < 0 then abort 'Illegal timeout'
+   io.ms = ms + 0
+end
+
+* ======================================================================
 * CONNECTED
 
 public function connected()
@@ -338,12 +546,13 @@ public subroutine delete(fno, id)
       if len(id) < 1 or len(id) > MAX.ID.LEN then
          server.error = SV$ON.ERROR
          ServerStatus = ER$IID
+         LastError = SV$ON.ERROR   ;* a quiet caller reads this instead of the abort
       end else
          pkt := id
          if not(message.pair(SrvrDelete, pkt)) then return
       end
 
-      if server.error = SV$ON.ERROR then
+      if server.error = SV$ON.ERROR and not(quiet) then
          abort 'DELETE generated an abort event'
       end
    end
@@ -358,12 +567,13 @@ public subroutine deleteu(fno, id)
       if len(id) < 1 or len(id) > MAX.ID.LEN then
          server.error = SV$ON.ERROR
          ServerStatus = ER$IID
+         LastError = SV$ON.ERROR   ;* a quiet caller reads this instead of the abort
       end else
          pkt := id
          if not(message.pair(SrvrDeleteu, pkt)) then return
       end
 
-      if server.error = SV$ON.ERROR then
+      if server.error = SV$ON.ERROR and not(quiet) then
          abort 'DELETE generated an abort event'
       end
    end
@@ -408,6 +618,39 @@ public function execute(cmd, err)
 
    err = server.error
    return reply
+end
+
+* ======================================================================
+* FILELOCK(fno, wait)   (20 Oct 26 dm, S.72) - request 32, the file number and the wait flag, two 16 bit numbers
+* wait true asks the server to hold the request until the lock is free (the server blocks); false asks for it at once and a busy file takes the LOCKED reply (LastError 4, ServerStatus
+* the holder's user number on the server).  The $netfile handler of a remote file only ever sends false.  A login that is not in the server's sdfileswrite group is refused with an ON
+* ERROR reply (message 12526).  Like recordlock(), it aborts the caller on an ON ERROR reply unless quiet is set.
+
+public subroutine filelock(fno, wait)
+   if not(context.error(CX.CONNECTED)) then
+      pkt = iconv(fno, 'ISL')
+      pkt := iconv(if wait then 1 else 0, 'ISL')
+      if message.pair(SrvrFilelock, pkt) then
+         if server.error = SV$ON.ERROR and not(quiet) then
+            abort 'FILELOCK generated an abort event'
+         end
+      end
+   end
+end
+
+* ======================================================================
+* FILEUNLOCK(fno)   (20 Oct 26 dm, S.72) - request 33, the file number only
+* The reply is OK and its status says what happened: ServerStatus 0 the lock was this session's and is free, 3011 (ER$LCK) another user holds it, 3012 (ER$NLK) nobody does.
+
+public subroutine fileunlock(fno)
+   if not(context.error(CX.CONNECTED)) then
+      pkt = iconv(fno, 'ISL')
+      if message.pair(SrvrFileunlock, pkt) then
+         if server.error = SV$ON.ERROR and not(quiet) then
+            abort 'FILEUNLOCK generated an abort event'
+         end
+      end
+   end
 end
 
 * ======================================================================
@@ -482,8 +725,8 @@ public function readlist(listno, err)
          begin case
             case server.error = SV$OK
                list = in.pkt
-            case server.error = SV$ON.ERROR
-               abort 'READLIST generated an abort event'
+            case server.error = SV$ON.ERROR and not(quiet)
+               abort 'READLIST generated an abort event'   ;* 19 Oct 26: a quiet object returns err = 1 and LastError / LastText instead, as read() does
          end case
          err = server.error
       end
@@ -527,9 +770,12 @@ public subroutine recordlock(fno, id, update, wait)
       if len(id) > MAX.ID.LEN then
          server.error = SV$ON.ERROR
          ServerStatus = ER$IID
+         LastError = SV$ON.ERROR   ;* a quiet caller reads this instead of the abort
       end else
          flags = if update then 1 else 0
-         if wait then flags += 2
+*        18 Oct 26 dm - S.65 slice 3e: flag 2 is NO wait (apisrvr; the C client sends if (!wait) flags |= 2).  This used to read
+*        the test was the other way round, which made every waiting lock a no-wait one and the reverse.
+         if not(wait) then flags += 2
          pkt = iconv(fno, 'ISL')
          pkt := iconv(flags, 'ISL')
          pkt := id
@@ -538,7 +784,7 @@ public subroutine recordlock(fno, id, update, wait)
          end
       end
 
-      if server.error = SV$ON.ERROR then
+      if server.error = SV$ON.ERROR and not(quiet) then
          abort 'RECORDLOCK generated an abort event'
       end
    end
@@ -554,13 +800,14 @@ public subroutine release(fno, id)
       else if len(id) > MAX.ID.LEN then
          server.error = SV$ON.ERROR
          ServerStatus = ER$IID
+         LastError = SV$ON.ERROR   ;* a quiet caller reads this instead of the abort
          goto release.error
       end
 
       if not(message.pair(SrvrRelease, pkt)) then return
 
 release.error:
-      if server.error = SV$ON.ERROR then
+      if server.error = SV$ON.ERROR and not(quiet) then
          abort 'RELEASE generated an abort event'
       end
    end
@@ -599,8 +846,8 @@ public subroutine select(fno, listno)
       pkt = iconv(fno, 'ISL')
       pkt := iconv(listno, 'ISL')
       if message.pair(SrvrSelect, pkt) then
-         if server.error = SV$ON.ERROR then
-            abort 'SELECT generated an abort event'
+         if server.error = SV$ON.ERROR and not(quiet) then
+            abort 'SELECT generated an abort event'   ;* 19 Oct 26: a quiet object returns, and LastError says the reply was an ON ERROR one (as delete() does)
          end
       end
    end
@@ -708,6 +955,11 @@ public subroutine write(fno, id, data)
       if len(id) < 1 or len(id) > MAX.ID.LEN then
          server.error = SV$ON.ERROR
          ServerStatus = ER$IID
+         LastText = ''
+         if quiet then
+            LastError = SV$ON.ERROR
+            return
+         end
          abort 'Illegal record id'
       end
 
@@ -716,7 +968,7 @@ public subroutine write(fno, id, data)
       pkt := id : data
 
       if message.pair(SrvrWrite, pkt) then
-         if server.error = SV$ON.ERROR then
+         if server.error = SV$ON.ERROR and not(quiet) then
             abort 'WRITE generated an abort event'
          end
       end
@@ -731,6 +983,11 @@ public subroutine writeu(fno, id, data)
       if len(id) < 1 or len(id) > MAX.ID.LEN then
          server.error = SV$ON.ERROR
          ServerStatus = ER$IID
+         LastText = ''
+         if quiet then
+            LastError = SV$ON.ERROR
+            return
+         end
          abort 'Illegal record id'
       end
 
@@ -739,7 +996,7 @@ public subroutine writeu(fno, id, data)
       pkt := id : data
 
       if message.pair(SrvrWriteu, pkt) then
-         if server.error = SV$ON.ERROR then
+         if server.error = SV$ON.ERROR and not(quiet) then
             abort 'WRITEU generated an abort event'
          end
       end
@@ -763,7 +1020,7 @@ local function read.record(mode, fno, id, err)
          begin case
             case server.error = SV$OK
                rec = in.pkt
-            case server.error = SV$ON.ERROR
+            case server.error = SV$ON.ERROR and not(quiet)
                abort 'READ generated an abort event'
          end case
          err = server.error
@@ -794,8 +1051,18 @@ end
 * without sharing code - one is C in a DLL, the other BASIC in the server's
 * own catalogue.  Both are checked against the same server, which is what
 * keeps them honest; RFC 7677's vectors prove the primitives underneath.
+*
+* 17 Oct 26 dm - S.65 slice 3a: the exchange is scram.exchange, shared by two logins.  scram.login (connect) derives the keys from
+* the password.  connect.keys passes the stored salt, iteration count, ClientKey and ServerKey instead, with a null password: the
+* PBKDF2 is skipped, and the salt and count the server sends must equal the stored ones (checked before the client-final message,
+* so a server that is not the one the login was made with is sent nothing further).  Everything else is the same code.
 
 local function scram.login(username, password)
+   return scram.exchange(username, password, '', '', '', '')
+end
+
+local function scram.exchange(username, password, stored.salt, stored.iter, stored.ck, stored.sk)
+   keys.mode = (stored.ck # '')   ;* the login from stored derived keys, no password
    cnonce = SDEXT('18', @TRUE, SD_RANDBYTES)
    if cnonce = '' then
       error = 'Unable to generate a client nonce'
@@ -873,13 +1140,33 @@ local function scram.login(username, password)
       return @false
    end
 
-   salted = SDEXT(password : @FM : salt : @FM : iter : @FM : SCRAM$KEY.LEN, @TRUE, SD_PBKDF2)
-   if salted = '' then
-      error = 'Unable to derive the salted password'
-      return @false
-   end
+   if keys.mode then
+*     ONLY THE CLIENT-FIRST MESSAGE HAS BEEN SENT: a server whose salt or count is not the stored one is not the server the login was
+*     made with (or the password has been changed there), and its proof would be worth nothing.  Text comparison, as for the pin.
+      if ('s' : salt) # ('s' : stored.salt) then
+         error = "The server's salt is not the stored one: the stored login is out of date or this is not the server it was made with"
+         stored.ck = '' ; stored.sk = ''
+         return @false
+      end
+      if iter + 0 # stored.iter + 0 then
+         error = "The server's iteration count is not the stored one: the stored login is out of date or this is not the server it was made with"
+         stored.ck = '' ; stored.sk = ''
+         return @false
+      end
+      client.key = stored.ck
+      srvr.key = stored.sk
+      stored.ck = '' ; stored.sk = ''
+   end else
+      salted = SDEXT(password : @FM : salt : @FM : iter : @FM : SCRAM$KEY.LEN, @TRUE, SD_PBKDF2)
+      if salted = '' then
+         error = 'Unable to derive the salted password'
+         return @false
+      end
 
-   client.key = SDEXT(salted : @FM : 'Client Key', @TRUE, SD_HMACSHA256)
+      client.key = SDEXT(salted : @FM : 'Client Key', @TRUE, SD_HMACSHA256)
+      srvr.key = SDEXT(salted : @FM : 'Server Key', @TRUE, SD_HMACSHA256)
+      salted = ''
+   end
    stored.key = SDEXT(client.key, @TRUE, SD_SHA256)
 
    cfinal.bare = 'c=' : cbind : ',r=' : nonce
@@ -888,16 +1175,14 @@ local function scram.login(username, password)
    client.sig = SDEXT(stored.key : @FM : auth.msg, @TRUE, SD_HMACSHA256)
    proof = SDEXT(client.key : @FM : client.sig, @TRUE, SD_XORBYTES)
 
-*  Computed BEFORE the salted password is dropped, and kept to check the
-*  reply against.
-   srvr.key = SDEXT(salted : @FM : 'Server Key', @TRUE, SD_HMACSHA256)
+*  ServerKey was derived (or taken from the stored login) above, before the salted password was dropped; kept to check the reply.
    expect.v = SDEXT(srvr.key : @FM : auth.msg, @TRUE, SD_HMACSHA256)
 
-*  Dropped as soon as they are spent.  ClientKey is the one value whose holder
-*  could authenticate as this account.
-   salted = ''
+*  Dropped as soon as they are spent.
    client.key = ''
    srvr.key = ''
+   stored.key = ''
+   client.sig = ''
 
    if proof = '' or expect.v = '' then
       error = 'Unable to derive the authentication proof'
@@ -932,6 +1217,10 @@ end
 * ======================================================================
 
 local function message.pair(pkt.type, pkt)
+*  18 Oct 26 dm - S.65 slice 3e: the kind of the last reply, reset BEFORE anything is written so that a request that fails to send or
+*  to be answered leaves -1 (no reply read), never the previous request's answer.
+   LastError = -1
+   LastText = ''
    if (write.packet(pkt.type, pkt)) then
       return get.response()
    end
@@ -942,6 +1231,10 @@ end
 
 local function get.response()
  if not(read.packet()) then return @false
+
+*  18 Oct 26 dm - S.65 slice 3e: the kind of this reply, kept for a caller whose object is quiet (an ERROR reply is 3 here too)
+ LastError = server.error
+ if server.error = SV$ON.ERROR then LastText = in.pkt
 
  if server.error = SV$ERROR then
     error = 'Unable to retrieve error text'
@@ -977,7 +1270,7 @@ local function read.packet()
    loop
       n = 10 - len(pkt.header)
    while n
-      s = read.socket(skt, n, SKT$BLOCKING, 0)
+      s = read.socket(skt, n, SKT$BLOCKING, io.ms)
       if status() then return @false
       pkt.header := s
    repeat
@@ -989,6 +1282,15 @@ local function read.packet()
    * Extract header data
 
    pkt.bytes = oconv(pkt.header[1,4], 'ILL')
+
+*  19 Oct 26 dm (K8c).  THE LENGTH THE SERVER ANNOUNCES IS CHECKED BEFORE ANYTHING ELSE IS TRUSTED OR READ.  A reply is at least its own ten byte header; the count is read as a
+*   SIGNED 32 bit value, so a length of 2 GB or more arrives negative; and the owner of this object may have set a ceiling (maxpacket, 0 = none).  A server that announces less than
+*   a header, or more than the ceiling, is answered as if the connection had failed: the call returns false, server.error and ServerStatus are NOT touched (a caller that marks
+*   ServerStatus before a request, as $netfile does, sees the mark still there: no reply), and no byte of the body is read.  Before this the body was read for as long as the
+*   server sent, and a negative count made the loop below ask for a negative number of bytes.
+   if pkt.bytes < 10 then return @false
+   if maxpacket > 0 and pkt.bytes > maxpacket then return @false
+
    server.error = oconv(pkt.header[5,2], 'ISL')
    ServerStatus = oconv(pkt.header[7,4], 'ILL')
 
@@ -1002,7 +1304,7 @@ local function read.packet()
    in.pkt = ''
    loop
    while n
-      s = read.socket(skt, n, SKT$BLOCKING, 0)
+      s = read.socket(skt, n, SKT$BLOCKING, io.ms)
       if status() then return @false
       if debugging then
          display len(s) : ': ' : oconv(s, 'MX0C')

@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 18 Oct 26 Windows port - from Linux 7c53377 - Solo carry from SD Core (v1.1-3 to 5315c65), LSOLO 52: Core's text without the S.65 remote-file refusals.
+ * 25 Oct 26 Windows port - from Linux 7c53377 - S.65 slice 3c: op_fcontrol() refuses a NET_FILE (net_refuse); pub_fcontrol() is not in this tree yet (Linux 400500c).
  * 14 Sep 26 Windows port - op_settrig stores the trigger name lower case
  *           (RELEASE_1.1 5 stage 3a)
  * 31 Dec 23 SD launch - prior history suppressed
@@ -94,6 +96,8 @@ void op_fcontrol() {
   descr = e_stack - 3;
   k_get_file(descr);
   fvar = descr->data.fvar;
+  if (fvar->type == NET_FILE) /* 17 Oct 26 S.65: a remote file has no entry in the file table and no access.dh */
+    net_refuse(fvar, "FCONTROL");
   fptr = FPtr(fvar->file_id);
   /* ftype = fvar->type; variable assigned but not used */
   /* dynamic = (ftype == DYNAMIC_FILE); variable assigned but never used */

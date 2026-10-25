@@ -859,7 +859,8 @@ reset.environment:
 
 para.reset.environment:
    i = ospath("", os$flush.cache)
-   printer close on -3     ;* Close all printers at this or higher level
+   void kernel(K$NET, -2)   ;* 18 Oct 26, S.65 slice 3e: send the queued closes of remote files, so that a lock does not outlive its file variable at the prompt
+   printer close on -3    ;* Close all printers at this or higher level
    printer off
    heading ""              ;* Ensure no heading or...
    footing ""              ;* ...footing on default print unit
