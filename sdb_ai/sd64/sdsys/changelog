@@ -2,6 +2,13 @@ WS1.2-0 - SD Core Solo for Windows, in progress
 -------------
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
 
+25 Oct 26  RESTORE.ACCOUNT NO LONGER OVERWRITES A DIFFERENT PROGRAM ALREADY IN THE GLOBAL CATALOGUE (FROM SD CORE FOR LINUX).
+
+             What        restore.account compared a program of the archive's global-catalogue lines with the catalogue under an upper-case name,
+                        which never matches, because the catalogue holds lower-case names.  So "a different program is already there" (13017)
+                        never fired and the archive's program replaced it.  The name is now read in lower case, an archive written with upper-case
+                        names is still read, and the message names the program in lower case.
+
 20 Oct 26  THE SHELL AND OPERATING SYSTEM ACCESS ARE OFF UNTIL THE ADMINISTRATOR TURNS THEM ON (FROM SD CORE FOR LINUX SOLO).
 
              What        Until now every session of the one account could use the shell (SH and !), OS.EXECUTE, the Python helper, the editors
