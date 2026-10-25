@@ -1,0 +1,126 @@
+* SETNETACC
+* SET.NET.ACCESS verb
+* Copyright (c) String Database
+*
+* START-HISTORY:
+* 20 Oct 26 SD Core for Linux Solo - written (Solo carry 8).  THE OWNER'S WORDS, 20 Oct 2026: "q3 c" - carry SD Core's fix for API request 29 with a NET
+*           gate (a Solo gate, off by default); his ruling of 18 Oct is that what is off is turned on by the administrator and by nobody else.  This is
+*           Solo's own, like SET.OS.ACCESS: SD Core has MODIFY.ACCOUNT NET-ON / NET-OFF for many accounts, and Solo has one account and no such verb.  A
+*           DEVIATION FROM THE LINUX CORE TEMPLATE WITH THE OWNER'S SPECIFIC PERMISSION (the verb's name and shape), listed for the parity audit.
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*    SET.NET.ACCESS           shows the state of the NET gate and changes nothing
+*    SET.NET.ACCESS ON        lets API request 29 (the SDNet open, "account;file") open a file of the account, once sd.conf's NETFILES has bit 2 set
+*    SET.NET.ACCESS OFF       takes that back
+*
+*    An administrator verb (ADMIN first), and ONE word per command.  The gate is OFF as delivered.  It is field 15 of the register record
+*    accounts/sduser (ACC$NET), 'yes' or 'no'; ONLY 'yes' is on, so a blank field, or a record with fewer fields, is off.  Unlike the OS switches,
+*    which LOGIN and APISRVR load at account entry, request 29 reads the record when it is asked, so a change is seen by the next request of a session
+*    that is already running.  Fields 9 to 14 are SD Core's and are empty in a record written with field 15.
+*
+*    The answer is the state afterwards (12933).  The change is written to the audit trail in lower case.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+program $set.net.access
+$catalog $SETNETACC
+
+$include keys.h
+$include int$keys.h
+$include parser.h
+$include err.h
+$include header.h
+
+   prompt ''
+   @system.return.code = -ER$ARGS
+
+   if not(kernel(K$ADMINISTRATOR, -1)) then
+      stop sysmsg(2001)  ;* Command requires administrator privileges
+   end
+
+*  Solo's one account is always sduser (ruling 29); an internal session (the installer's) has another @logname, so the name is not read.
+   acc.name = 'sduser'
+
+   parser = "!PARSER"
+   call @parser(PARSER$RESET, 0, @sentence, 0)
+   call @parser(PARSER$GET.TOKEN, token.type, token, keyword)   ;* the verb
+   word.1 = '' ; word.2 = ''
+   call @parser(PARSER$GET.TOKEN, token.type, token, keyword)
+   if token.type # PARSER$END then
+      word.1 = token
+      call @parser(PARSER$GET.TOKEN, token.type, token, keyword)
+      if token.type # PARSER$END then word.2 = token      ;* a second word is always the syntax message
+   end
+
+   openpath @sdsys:@ds:'accounts' to acc.f else
+      @system.return.code = -ER$FAILED
+      stop sysmsg(10114, acc.name)  ;* Unable to change the state of %1; its state in the register is unchanged
+   end
+
+   if word.1 = '' then
+*     No argument: say where the gate stands, change nothing.
+      read acc.rec from acc.f, acc.name else acc.rec = ''
+      close acc.f
+      net.now = 'no'
+      if upcase(trim(acc.rec<ACC$NET>)) = 'YES' then net.now = 'yes'
+      @system.return.code = 0
+      crt sysmsg(12933, acc.name, net.now)  ;* Account %1 has NET %2
+      stop
+   end
+
+*  One action: ON or OFF, and nothing after.
+   net.ok = @true ; net.want = @false
+   begin case
+      case upcase(word.1) = 'ON'  ; net.want = @true
+      case upcase(word.1) = 'OFF' ; net.want = @false
+      case 1 ; net.ok = @false
+   end case
+   if not(net.ok) or word.2 # '' then
+      close acc.f
+      crt sysmsg(12932)  ;* Syntax: set.net.access   or   set.net.access on|off
+      stop
+   end
+
+   readu acc.rec from acc.f, acc.name else
+      release acc.f, acc.name
+      close acc.f
+      @system.return.code = -ER$FAILED
+      stop sysmsg(10114, acc.name)
+   end
+   net.was = (upcase(trim(acc.rec<ACC$NET>)) = 'YES')
+   if net.was = net.want then
+      release acc.f, acc.name
+      close acc.f
+      @system.return.code = 0
+      crt sysmsg(10080, acc.name)  ;* %1 already had that access; nothing changed
+      stop
+   end
+
+   acc.new = acc.rec
+   if net.want then acc.new<ACC$NET> = 'yes' else acc.new<ACC$NET> = 'no'
+   acc.written = @true
+   write acc.new to acc.f, acc.name on error acc.written = @false
+   if not(acc.written) then
+      release acc.f, acc.name
+      close acc.f
+      @system.return.code = -ER$FAILED
+      stop sysmsg(10114, acc.name)
+   end
+   release acc.f, acc.name
+   close acc.f
+
+   @system.return.code = 0
+   net.now = 'no'
+   if upcase(trim(acc.new<ACC$NET>)) = 'YES' then net.now = 'yes'
+   void kernel(K$AUDIT, 'set.net.access ' : downcase(word.1) : ' account=' : acc.name)
+   crt sysmsg(12933, acc.name, net.now)  ;* Account %1 has NET %2
+   stop
+
+end
+
+* END-CODE

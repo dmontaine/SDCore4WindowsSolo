@@ -398,6 +398,11 @@
       *   bits (os_gate_open, op_sh.c), and these fields are only where the bits come from.  FIELD 6 STAYS DELETED.
       $define ACC$SH           7     ;* may use the SH verb and "!" (yes/no)
       $define ACC$OS.EXEC      8     ;* may use OS.EXECUTE, and reach OS paths outside its account (yes/no)
+      *   FIELD 15 (ACC$NET, 20 Oct 26, Solo carry 8; SD Core's number for SD Core's S.65 NET gate): the account's
+      *   permission to have its files opened by API request 29 (the SDNet open, apisrvr's vb.open.sdnet).  yes means
+      *   on and anything else, blank and an absent field included, is OFF.  Fields 9 to 14 are SD Core's and are not
+      *   used here; a record written with field 15 has them empty.  The administrator changes it with SET.NET.ACCESS.
+      $define ACC$NET         15     ;* may have its files opened over the API by request 29 (yes/no)
       deffun parse.pathname.tokens(path) calling "!PATHTKN"
       
       * encrytption decryption  *

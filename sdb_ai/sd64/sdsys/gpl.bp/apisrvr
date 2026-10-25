@@ -571,6 +571,107 @@ response = error.msg
 return
 
 * ======================================================================
+* account.entry.check  -  may this session enter this account?  ONE PLACE FOR THE RULE.
+* In:  ent.name       the account name, lower case unless it is a path, as asked for
+*      ent.suspended  true if its register record says SUSPENDED
+* Out: ent.refused    true if the session may not enter it: the refusal is on the audit trail and server.error, error.msg and abort.message are set
+*                     (the text is 10003 for every reason, so the caller cannot tell "no such account" from "not its account" from "suspended")
+*
+* 20 Oct 26 dm - REFACTOR, BEHAVIOUR PRESERVED (Solo carry 8; SD Core did the same on 18 Oct 26, fccf976).  These two tests were written out in vb.account
+*   (request 3) and nowhere else, so request 29 (open an 'account;file' file) did not ask them at all.  Both requests call this now.  The text of the audit
+*   lines and of the refusal is as it was.
+
+account.entry.check:
+ent.refused = @false
+
+* 11 Sep 26 dm - A SUSPENDED ACCOUNT IS NOT ENTERED (PORT_ADOPTION 12; the
+*   port's APISRVR of 27 Aug 2026).  The third door, after LOGIN and CPROC's
+*   LOGTO; an API caller reaches an account through neither.
+*
+*   IT REUSES 10003, AND THAT IS THE RULE HERE.  Every refusal in this routine
+*   gives the same text, so a caller cannot tell "no such account" from "not a
+*   member" from "suspended", and the API does not enumerate the register for
+*   anyone probing it.  No administrator exemption: an API session carries none.
+if ent.suspended then
+* 07 Oct 26 SD Core for Linux Solo (LSOLO 43, the full product's PAL-17) - the refusal is
+*   on the audit trail, in Windows Solo's words (its ACCOUNT REFUSED branch=2), with
+*   the account asked for appended.  The CALLER still sees only 10003.
+   void kernel(K$AUDIT, 'account refused branch=2 suspended account=' : ent.name)  ;* 07 Oct 26 PAL-24: the audit trail is lower case
+   server.error = SV$ERROR
+   error.msg = sysmsg(10003) ;* User not allowed in requested account
+   abort.message = error.msg
+   ent.refused = @true
+   return
+end
+
+* 29 Sep 26 SD Core for Linux Solo (LSOLO 6) - THE GROUP TEST IS GONE, AND
+*   SOLO'S RULE REPLACES IT (SD Core Solo for Windows' "branch 4").  There are
+*   no SD groups and no SDSYS exemption: the one enterable account is the one
+*   the session holds - the name the SCRAM login proved, sduser - and SDSYS is
+*   never a target (owner's ruling 11), whatever the transport.  The name is
+*   read from the session (K$USERNAME), not from a client-supplied value.
+acc.who = downcase(kernel(K$USERNAME, 0))
+acc.member = (downcase(ent.name) # 'sdsys') and (downcase(ent.name) = acc.who)
+if not(acc.member) then
+* 07 Oct 26 SD Core for Linux Solo (LSOLO 43, PAL-17) - the line carries Windows Solo's
+*   "branch=4" word, which it lacked.
+   void kernel(K$AUDIT, 'account refused branch=4 not.own.account user=' : acc.who : ' account=' : ent.name)
+   server.error = SV$ERROR
+   error.msg = sysmsg(10003) ;* User not allowed in requested account
+   abort.message = error.msg
+   ent.refused = @true
+end
+return
+
+* ======================================================================
+* sdnet.account.check  -  request 29 (open an 'account;file' file): may THIS caller use THIS account's file?
+* In:  net.acct       the account named in the request, as typed
+* Out: net.refused    true if not allowed: server.error / status say so (set here)
+*      net.acc.path   the account's directory, from its register record, when allowed
+*
+* 20 Oct 26 dm - Solo carry 8, SD Core's fccf976 (18 Oct 26).  The request used to ask only bit 2 of NETFILES.  With the bit set, ANY API login could open
+*   the VOC-named file of ANY directory (sandbox-req29.py reads it back from the disk: another account's file, SDSYS's, one named by a path, a suspended
+*   account's, one whose NET gate is off, and under SDCLIENT=1).  The account must now have a register record (a path names none, so nothing says who may
+*   enter it), the session must be allowed to enter it by the rule request 3 applies (account.entry.check), and its NET gate - register field 15,
+*   ACC$NET, ON only for the word yes - must be on.  SOLO'S DIFFERENCE FROM CORE: no SDSYS exemption from the gate, because SDSYS is never a target.
+
+sdnet.account.check:
+net.refused = @true
+net.acc.path = ''
+net.acct = downcase(net.acct)
+net.rec = ''
+net.found = @false
+net.who = downcase(kernel(K$USERNAME, 0))
+if net.acct # '' and index(net.acct, @ds, 1) = 0 then
+   openpath @sdsys:@ds:'accounts' to net.f then
+      read net.rec from net.f, net.acct then net.found = @true
+      close net.f
+   end
+end
+if not(net.found) then
+   void kernel(K$AUDIT, 'api refused request=29 reason=no register record user=' : net.who : ' account=' : net.acct)
+   set.status ER$XREMOTE
+   server.error = SV$ELSE
+   return
+end
+
+ent.name = net.acct
+ent.suspended = (upcase(trim(net.rec<ACC$SUSPENDED>)) = 'SUSPENDED')
+gosub account.entry.check
+if ent.refused then return
+
+if not(upcase(trim(net.rec<ACC$NET>)) = 'YES') then
+   void kernel(K$AUDIT, 'api refused request=29 reason=net gate off user=' : net.who : ' account=' : net.acct)
+   set.status ER$XREMOTE
+   server.error = SV$ELSE
+   return
+end
+
+net.acc.path = parse.pathname.tokens(net.rec<ACC$PATH>)
+net.refused = @false
+return
+
+* ======================================================================
 * SrvrAccount  -  Logto named account
 * In:  account name
 
@@ -631,197 +732,12 @@ openpath @sdsys:@ds:'accounts' to acc.f then
    close acc.f
 end
 
-if account.path = '' then
-   void kernel(K$AUDIT, 'account refused branch=1 no.path.in.register')
-   server.error = SV$ERROR
-   error.msg = sysmsg(10003) ;* User not allowed in requested account
-   goto revert.to.old.account
-end
-
-* 27 Aug 26 Windows port - A SUSPENDED ACCOUNT IS NOT ENTERED.  Owner, 27 Aug
-*   2026: "an account can be temporarily denied access".  The third door,
-*   after LOGIN and CPROC's logto.authorised; an API caller reaches an account
-*   through neither.
-*
-*   IT REUSES sysmsg(10003), WHICH IS THE RULE HERE AND NOT LAZINESS.  Every
-*   refusal in this routine gives the same text, so a caller cannot tell "no
-*   such account" from "not granted" from "suspended" and the API does not
-*   enumerate the register's state for an attacker.  See the note below on the
-*   ACC$GROUP test, which says the same thing.
-*
-*   NO ELEVATION EXEMPTION, unlike CPROC's - there is nothing to exempt.  An
-*   API session runs as LocalSystem and never carries a person's elevation, so
-*   the bypass that reasoning rests on does not exist on this route.
-*
-* 18 Sep 26 Windows port - RELEASE_1.1 64.  SUSPENDED IS A STATE, NOT A FOURTH
-*   TIER: it lives in ACC$SUSPENDED (field 5) and the tier fields are gone.
-if upcase(trim(acc.suspended, ' ', 'B')) = 'SUSPENDED' then
-   void kernel(K$AUDIT, 'account refused branch=2 suspended')
-   server.error = SV$ERROR
-   error.msg = sysmsg(10003) ;* User not allowed in requested account
-   goto revert.to.old.account
-end
-
-* rev 0.9.0 * is user member of account?
-* 13 Aug 26 Windows port - removed.  ACC$GROUP named a linux group.  Nothing
-*   has replaced it here: the API server has no credential model yet, so any
-*   session it accepts can still reach any account by name.  The LOGTO grant
-*   check in CPROC does not apply to this path.  See PROJECT_STATUS.md 5.6.
-* 17 Aug 26 Windows port - AND NOW IT IS BACK, section 7 step 6c.  The comment
-*   above is left standing because its reason was right: the check waited on a
-*   credential model, and step 6a built one.  Entry to an account is membership
-*   of the Windows group named in its ACC$GROUP, which CREATE.ACCOUNT writes as
-*   sdu_<name> - the same rule CPROC's logto.authorised applies at LOGTO, and
-*   the operating system rather than SD records the grant.
-*
-*   ONLY THE GROUP TEST TRANSFERS from logto.authorised, and its other three
-*   gates do not apply here: K$INTERNAL is set only by "sd -internal" or
-*   "sd -I", which an API session never has, and elev.obtained is a CPROC
-*   local with no meaning in this program.
-*
-* 20 Aug 26 Windows port - THIS USED TO SAY K$ADMINISTRATOR DESCRIBES "SESSION
-*   STATE AN API SESSION CANNOT HAVE", AND THAT IS FALSE ON WINDOWS.  sdwind
-*   is a service running as LocalSystem and accept_api_session() fork()s the
-*   session, so it inherits the SERVICE's token, not the connecting client's.
-*   kernel.c seeds USR_ADMIN from IsElevated() with no test of connection
-*   type, and LocalSystem's token carries BUILTIN\Administrators.
-*
-*   MEASURED, not deduced - gplbld/verify-apiadmin.ps1, 20 Aug 2026: a
-*   PROGRAMMER-tier account over a remote API connection OPENED AND WROTE
-*   $cred, which is granted to SYSTEM and Administrators and to nothing else.
-*
-*   DO NOT REASON FROM THAT SENTENCE.  It was written when this port assumed
-*   an API session ran as the connecting user, which it does on Linux and does
-*   not here.  PROJECT_STATUS.md's opening section carries the finding and the
-*   fix options; nothing is fixed yet.
-*
-*   BEWARE THE TWO "INTERNAL"S WHILE READING THAT ROUTINE, because they are
-*   different things with almost the same name and both are in play in this
-*   file.  K$INTERNAL reads internal_mode (op_kernel.c:140), a SESSION flag
-*   set only by "sd -internal" or "sd -I" (sd.c:338, sd.c:349) - both behind
-*   check_admin(), so it already implies elevation, and an API session, which
-*   is spawned with -C/-N/-Q, never has it.  The $internal on line 64 of this
-*   program is a different flag entirely: HDR_INTERNAL in the program header,
-*   which is what BCOMP checks to allow KERNEL at all and what gates
-*   K$SET.USERNAME above (op_kernel.c).  A program can be $internal in a
-*   session that is not internal_mode, which is exactly this one.
-*
-*   THE IDENTITY IS kernel(K$USERNAME,0), NOT the local logname, which holds
-*   the same value today by both routes above.  K$USERNAME reads
-*   process.username - what K$SET.USERNAME wrote after the SCRAM proof
-*   check in vb.scram.final (it was !CRED_VERIFY until phase 5), and what
-*   audit_message() stamps every record with in C (section 7 step 4).  A grant
-*   check able to disagree with the audit trail about who acted would make the
-*   trail worthless, so the two read one source deliberately.
-*
-*   AN ACCOUNT WITH NO ACC$GROUP IS REFUSED rather than having sdu_<name>
-*   guessed for it.  That is the rule section 7 step 5a sets for GRANT: an
-*   empty field means a record older than CREATE.ACCOUNT's group work, and
-*   inventing the name would test a group nothing else uses.
-*
-*   [NARROWED 22 Sep 26, RELEASE_1.1 101: it still refuses SDSYS on THIS path -
-*   the SCRAM one, which is every socket connection - and the separate test
-*   above admits it over SDConnectLocal only.  The reasoning below is why the
-*   ACC$GROUP test could never have admitted SDSYS, and it is still correct.]
-*   AND IT REFUSES SDSYS THROUGH THE API, which is intended and not a side
-*   effect to be fixed later.  ACCOUNTS/SDSYS carries ACC$GROUP = sdsys, which
-*   is not a Windows group and never has been (section 6), so is_grp_member
-*   answers false with status 1.
-*
-* 20 Aug 26 Windows port - THE SECOND HALF OF THIS IS DELETED, and it said
-*   "Administration needs elevation and an API session cannot have it, so
-*   there is nothing to admit."  An API session runs as LocalSystem - see the
-*   note above.  THE REFUSAL STILL HOLDS, and for the reason above it rather
-*   than for that one: ACC$GROUP names no Windows group, so the group test
-*   fails.  What is gone is the belief that it would not matter if it passed.
-*
-*   THE REFUSAL REUSES sysmsg(10003), the message the missing-account branch
-*   above already gives.  A caller therefore cannot tell "no such account" from
-*   "not granted", so the API does not enumerate accounts for an attacker.
-*
-* 21 Aug 26 Windows port - the declaration that stood here moved to the top of
-*   the program; vb.scram.final needs it too now.  See the note beside it.
-
-* 25 Sep 26 SD Core Solo - BRANCH 3 IS GONE: Solo's register names no Windows
-*   group (solo_account writes none, and there are no groups).  Branch 4 below
-*   is Solo's own test.
-
-* 17 Sep 26 Windows port - RELEASE_1.1 55.  ***"COULD NOT TELL" IS NOT "NO",
-*   AND READING IT AS ONE COST SEVEN RUNS.***  is_grp_member answers @false
-*   both when the user is genuinely not in the group and when the lookup could
-*   not be made at all, and this line used to take the first reading silently.
-*   It refused a pre-authenticated session's own account with sysmsg(10003) -
-*   "not granted" - when what had actually happened was that the session could
-*   not start a child process (0xC0000142; win32group.c has the measurement).
-*   Nothing in the trail said which, because all five refusals here share one
-*   message by design.
-*
-*   THE GRANT CHECK STILL FAILS CLOSED - an access test must - but the two
-*   cases are now DISTINGUISHED and recorded: is_grp_member sets STATUS 1 when
-*   it could not tell, and K$GROUP.MEMBER has already put the reason on the
-*   audit trail.  A refusal nobody can account for is the thing this pair of
-*   changes exists to stop.
-* 22 Sep 26 Windows port - RELEASE_1.1 101.  SDSYS IS ENTERED FROM THIS COMPUTER
-*   AND FROM NOWHERE ELSE, AND THE TRANSPORT IS THE GATE.  Owner, 22 Sep 2026:
-*   SDSYS has "no remote access ... local access" and "no need for a sd sdsys
-*   password".  Both fall out of SDConnectLocal rather than being enforced on
-*   top of it:
-*
-*   THE ACC$GROUP TEST BELOW CANNOT BE ASKED OF SDSYS AT ALL.  Its ACC$GROUP is
-*   'sdsys', which is not a Windows group and never has been, so is_grp_member
-*   answers @false with status 1 - "could not tell", not "no".  The old refusal
-*   was therefore an accident of the register rather than a rule, which is why
-*   this is a separate test and not an extra term on that one.
-*
-*   THREE TERMS, AND EACH ONE IS DOING WORK:
-*     local.session   request 25 brought this session in.  NO SOCKET EXISTS on
-*                     that path - two anonymous pipes and a child sd.exe - so
-*                     there is no address to spoof, nothing to reach from
-*                     another machine, and nothing an "ssh -L" tunnel can carry.
-*                     That is why this is the transport test and not the peer
-*                     test PEER_LOCAL used to make: a tunnelled socket arrives
-*                     FROM 127.0.0.1 and a peer test answers "local" to it.
-*     acc.who         the process owner is the Windows account SDSYS.
-*                     vb.local.login sends NO CREDENTIALS - identity is taken
-*                     from the process that started sd.exe - so being signed in
-*                     as SDSYS IS the proof, exactly as it is at the console.
-*                     This is why no SD password is needed or consulted.
-*     K$ADMINISTRATOR the session is ELEVATED.  LOGIN's landing case is
-*                     "upcase(@logname) = 'SDSYS' and kernel(K$ADMINISTRATOR,
-*                     -1)" and this is the same pair; without it an UNELEVATED
-*                     SDSYS process would reach the system tree through a door
-*                     the console keeps shut.
-*
-*   ***THE ELEVATION TERM IS ALSO THE RISK, AND IT IS NOT YET MEASURED.***
-*   K$ADMINISTRATOR reads USR_ADMIN, which kernel.c seeds from IsElevated() AND
-*   connection_type # CN_SOCKET AND IsInteractive().  A ConnectLocal child is
-*   CN_PIPE and inherits its parent's token, so the first two hold; whether
-*   IsInteractive() answers true for it is REASONED FROM THE PHANTOM CASE
-*   (kernel.c: a forked child "tests interactive when the parent did") and has
-*   not been run.  If it answers false, SDSYS is refused here and the route
-*   simply does not work - it does not open anything.  verify-localconnect is
-*   the instrument.
-*
-*   THE sdapi GROUP IS NOT CONSULTED AND MUST NOT BE.  It is tested in
-*   vb.scram.final, on the SCRAM path only, so a grant has no meaning here -
-*   which is what makes MODIFY.ACCOUNT's refusal of SDSYS (12001) consistent
-*   rather than contradictory: there is nothing for it to grant.
-* 25 Sep 26 SD Core Solo - BRANCH 4 IS SOLO'S RULE, REPLACING THE SDSYS CASE
-*   AND THE WINDOWS-GROUP TEST ABOVE.  The one enterable account is the user's
-*   own, named after the Windows user (ruling 10, solo_account downcases it);
-*   SDSYS is never a target (ruling 11), whatever the transport.  The name is
-*   the one the session holds - the SCRAM-proven login for the API, the
-*   process owner for SDConnectLocal - with any DOMAIN\ prefix dropped.
-acc.who = upcase(kernel(K$USERNAME, 0))
-if index(acc.who, '\', 1) > 0 then acc.who = field(acc.who, '\', dcount(acc.who, '\'))
-acc.member = (new.account # 'SDSYS') and (new.account = acc.who)
-
-if not(acc.member) then
-   void kernel(K$AUDIT, 'account refused branch=4 not.own.account user=' : acc.who : ' account=' : new.account)
-   server.error = SV$ERROR
-   error.msg = sysmsg(10003) ;* User not allowed in requested account
-   goto revert.to.old.account
-end
+* 20 Oct 26 dm - THE RULE FOR ENTERING AN ACCOUNT (a suspended account is not entered; the account must be the session's own, SDSYS never; every refusal
+*   is 10003 and audited) lives in account.entry.check, above, which request 29 asks as well.  Its comments are the old ones of this place.
+ent.name = new.account
+ent.suspended = acc.suspended
+gosub account.entry.check
+if ent.refused then goto revert.to.old.account
 
 *   IT REUSES sysmsg(10003) LIKE EVERY OTHER REFUSAL IN THIS ROUTINE, which is
 *   the rule here and not laziness - a caller cannot tell "no such account"
@@ -2141,6 +2057,19 @@ vb.open.sdnet:
                            return
                         end
 
+                        * 20 Oct 26 dm - THE ACCOUNT RULES, asked BEFORE anything is marked or opened (Solo carry 8, SD Core's fccf976).  Bit 2 of NETFILES was the
+                        *   whole gate: with it set, any API login opened the VOC-named file of any directory.  Now SDCLIENT refuses as it does request 4 (the 5262
+                        *   text), and sdnet.account.check asks what request 3 asks (the account is the session's own, not suspended), that the account has a register
+                        *   record (a path names none), and that its NET gate is on.  The default stays as secure as it was: bit 2 is 0 and the gate is off.
+                        if config('SDCLIENT') # 0 then
+                           abort.message = sysmsg(5262) ;* File access is disabled
+                           server.error = SV$ON.ERROR
+                           return
+                        end
+                        net.acct = field(cmnd, ';', 1)
+                        gosub sdnet.account.check
+                        if net.refused then return
+
                         * Use of this operation identifies the process as a SDNet user.
                         * Set the appropriate process flag so that LISTU etc show this.
 
@@ -2163,15 +2092,8 @@ vb.open.sdnet.continue:
 
                         * Open file to file table entry i
 
-                        acc = field(cmnd, ';', 1)   ;* Account name or path
+                        acc = net.acc.path          ;* The account's directory, from its register record (sdnet.account.check, above)
                         file = field(cmnd, ';', 1)  ;* File name
-
-                        openpath @sdsys:@ds:'accounts' to acc.f then
-                           read acc.rec from acc.f, acc then
-                              acc = parse.pathname.tokens(acc.rec<ACC$PATH>)
-                           end
-                           close acc.f
-                        end
 
                         qvoc.path = acc:@ds:'voc'
                         openpath qvoc.path to qvoc.f else
