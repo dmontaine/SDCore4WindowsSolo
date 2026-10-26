@@ -1363,7 +1363,12 @@ begin
     Exit;
   end;
   if RemoveFolderContents(Root, '|', '|') then
-    MsgBox('Your SD Core Solo data and configuration were deleted from ' + Root + '.', mbInformation, MB_OK)
+  begin
+    { 26 Oct 26, SOLO 37: the contents are gone and the folder was left behind empty.  RemoveDir removes a
+      directory only when it is empty, so this can never delete anything that is still there. }
+    RemoveDir(Root);
+    MsgBox('Your SD Core Solo data and configuration were deleted from ' + Root + '.', mbInformation, MB_OK);
+  end
   else
     MsgBox('Some of ' + Root + ' could not be deleted. Delete the folder yourself.', mbError, MB_OK);
 end;
