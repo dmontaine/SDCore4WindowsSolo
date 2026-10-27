@@ -415,7 +415,11 @@ if (Test-Path -LiteralPath $unins) {
 # without this the next install is an UPGRADE of whatever tree came first.
 Step 6 "Deleting $SoloRoot"
 for ($try = 1; $try -le 6 -and (Test-Path -LiteralPath $SoloRoot); $try++) {
-    Remove-Item -LiteralPath $SoloRoot -Recurse -Force -ErrorAction SilentlyContinue
+    # 26 Oct 26: Remove-Item can THROW a Win32Exception ("The system cannot find the file specified") out of -ErrorAction SilentlyContinue when
+    # the uninstaller's copy deletes a file under it mid-walk; under $ErrorActionPreference Stop that ended the cycle.  Caught, and cmd's rmdir
+    # (which does not walk twice) finishes the job.
+    try { Remove-Item -LiteralPath $SoloRoot -Recurse -Force -ErrorAction SilentlyContinue } catch { Write-Host ("   Remove-Item: " + $_.Exception.Message) }
+    if (Test-Path -LiteralPath $SoloRoot) { & $env:ComSpec /d /c ('rmdir /s /q "' + $SoloRoot + '"') 2>$null | Out-Null }
     if (Test-Path -LiteralPath $SoloRoot) { Write-Host "   attempt $try left it in place; trying again"; Start-Sleep -Seconds 1 }
 }
 if (Test-Path -LiteralPath $SoloRoot) {
