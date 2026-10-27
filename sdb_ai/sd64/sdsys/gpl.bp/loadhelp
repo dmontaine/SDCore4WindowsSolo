@@ -54,7 +54,7 @@ $include err.h
 *     26 Oct 26: the installer's internal session does not stand in the system directory (its @path is the folder it was started in), so the old test
 *     "is this session's directory the system directory" never held and the file was never made.  The file is made INTO the system directory by name,
 *     and the VOC pointer CREATE.FILE writes in the session's account is removed again (an account reaches the file only through the OS switches).
-      execute 'create.file context.help dynamic pathname ' : @sdsys capturing mk
+      execute 'create.file context.help dynamic pathname ' : @sdsys : ' no.query' capturing mk
       openpath hpath to hf else stop sysmsg(12843)               ;* Could not make the file context.help
       open 'VOC' to vf then
          read vrec from vf, 'context.help' then
