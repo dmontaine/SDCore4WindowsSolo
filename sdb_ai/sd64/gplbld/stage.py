@@ -322,7 +322,10 @@ SDSYS_SHIP = [
     # tiers, RELEASE_1.1 64).  See SDSYS_BUILD_SEED.
     ('messages',      'sysmsg() text'),
     ('sd.voclib',     'library routines'),
-    ('accounts',      'holds the SDSYS record; the bootstrap adds to it'),
+    # 26 Oct 26 - the context help text for the [?] buttons; LOAD.HELP (run by solo-setup.ps1) reads it.  Carried to Solo without its list entry on
+    # 25 Oct, so assert-current found eleven source files missing from the install.
+    ('helptext',      'context help text for the [?] buttons; LOAD.HELP reads it'),
+    ('accounts',     'holds the SDSYS record; the bootstrap adds to it'),
     # 25 Aug 26 - bp IS NO LONGER ON THIS LIST.  SD ships NOTHING into SDSYS's
     # own BP now; see SDSYS_EMPTY and SDSYS_PRESERVE below.  The 24 Aug note
     # that stood here is kept there, with what became of the five programs.

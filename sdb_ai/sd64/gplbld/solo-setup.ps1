@@ -477,6 +477,11 @@ try {
     # verb's own last line with 0 refused; a refused object fails the step.
     $t = Invoke-Sd '-internal SYNC.GLOBAL.CATALOG' ''
     Judge 'global catalogue matches GLOBAL.BP.OUT' $t '(?m)^SYNC GLOBAL CATALOG DONE \d+ catalogued \d+ removed 0 refused\s*$'
+
+    # 26 Oct 26 - the context help (Core RELEASE_1.1 184).  The text under sdsys\helptext becomes the records of the file context.help in the
+    # system directory; every install and upgrade, because an upgrade replaces the text.  The anchor is the verb's own result line (message 12844).
+    $t = Invoke-Sd '-internal LOAD.HELP' ''
+    Judge 'context help loaded into context.help' $t '(?m)^Context help: \d+ new, \d+ changed, \d+ already current, \d+ added by the administrator and kept\s*$'
 }
 catch {
     Note ('ERROR        : ' + $_.Exception.Message)
