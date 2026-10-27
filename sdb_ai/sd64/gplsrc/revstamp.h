@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * rev WS1.2-0 26 Oct 26 SD Core Solo for Windows - release string WS1.2-0 (owner's
+ *            instruction; the changelog's WS1.2-0 section).  Segment numerics unchanged.
  * rev WS1.1-3 01 Oct 26 SD Core Solo for Windows - release string WS1.1-3 (owner's
  *            instruction; the changelog's WS1.1-3 section).  Segment numerics unchanged.
  * rev WS1.1-2 30 Sep 26 SD Core Solo for Windows - release string WS1.1-2.
@@ -53,7 +55,7 @@
 #define MAJOR_REV      1
 #define MINOR_REV      0
 #define BUILD          2
-#define SD_REV_STAMP   "WS1.1-3"
+#define SD_REV_STAMP   "WS1.2-0"
 
 #define SD_COPYRIGHT_YEAR "2007"
 
