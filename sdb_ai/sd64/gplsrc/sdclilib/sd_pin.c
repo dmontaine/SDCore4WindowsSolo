@@ -64,7 +64,7 @@ static int store_path(char* path, size_t n, char* dir, size_t dn, int* own_dir,
     return 0;
   }
   sprintf(dir, "%s\\.sdcore", prof);
-  sprintf(path, "%s\\known_servers", dir);
+  snprintf(path, n, "%s\\known_servers", dir);
   *own_dir = 1;
   return 1;
 }

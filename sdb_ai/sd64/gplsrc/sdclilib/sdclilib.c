@@ -1378,7 +1378,7 @@ Private char* sysdir(void) {
   if ((p != NULL) && (*p != '\0')) {
     snprintf(inipath, sizeof(inipath), "%s", p);
   } else {
-    snprintf(inipath, sizeof(inipath), "%s\\sd.conf", home);
+    snprintf(inipath, sizeof(inipath), "%.240s\\sd.conf", home);
   }
 
   fu = fopen(inipath, "rt");
@@ -1428,7 +1428,7 @@ Private char* sysdir(void) {
   fclose(fu);
 
   if (sysdirpath[0] == '\0')
-    snprintf(sysdirpath, sizeof(sysdirpath), "%s\\sdsys", home);
+    snprintf(sysdirpath, sizeof(sysdirpath), "%.240s\\sdsys", home);
 
   return sysdirpath;
 }
@@ -4130,7 +4130,7 @@ Private bool OpenSocket(char* host, int16_t port) {
         if (session[session_idx].tls == NULL) {
             snprintf(session[session_idx].sderror,
                      sizeof(session[session_idx].sderror),
-                     "Secure connection to server failed: %s", tls_err);
+                     "Secure connection to server failed: %.400s", tls_err);
             goto exit_opensocket;
         }
         /* 30 Sep 26 - SOLO 24: FIRST-USE PINNING, after the handshake and
