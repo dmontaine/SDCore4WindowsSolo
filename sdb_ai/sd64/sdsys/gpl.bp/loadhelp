@@ -4,6 +4,7 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 26 Oct 26 Windows port - the file is made with CREATE.FILE ... DIRECTORY <system directory> from whatever directory the session is in (see the comment at OPENPATH).
 * 23 Oct 26 dm  New (S.75; the owner: "Context help should be stored in the shared account as the file context.help, keyed using whatever id system you wish").
 * 23 Oct 26 dm  SOLO CARRY 14 (Core 72e708e): Solo has no shared account, so the file is in the system directory (next to pdf and helptext); the installer's internal session has no LOGTO.
 * END-HISTORY
@@ -50,12 +51,17 @@ $include err.h
 *  OS switches).  It is made only from a session whose directory IS the system directory; a session in sduser (ADMIN, then LOAD.HELP) uses the file that is there
    hpath = @sdsys : @ds : 'context.help'
    openpath hpath to hf else
-      here = @path
-      if here[1] = @ds then here = here[1, len(here) - 1]
-      there = @sdsys
-      if there[1] = @ds then there = there[1, len(there) - 1]
-      if here = there then execute 'create.file context.help dynamic' capturing mk
+*     26 Oct 26: the installer's internal session does not stand in the system directory (its @path is the folder it was started in), so the old test
+*     "is this session's directory the system directory" never held and the file was never made.  The file is made INTO the system directory by name,
+*     and the VOC pointer CREATE.FILE writes in the session's account is removed again (an account reaches the file only through the OS switches).
+      execute 'create.file context.help dynamic directory ' : @sdsys capturing mk
       openpath hpath to hf else stop sysmsg(12843)               ;* Could not make the file context.help
+      open 'VOC' to vf then
+         read vrec from vf, 'context.help' then
+            if vrec<1>[1, 1] = 'F' then delete vf, 'context.help'
+         end
+         close vf
+      end
    end
 
    shipped = ''
