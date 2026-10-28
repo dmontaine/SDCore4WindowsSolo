@@ -8,6 +8,7 @@
 * 22 Oct 26 dm  New.
 * 23 Oct 26 dm  A [?] button on every setting (the rows of the Menu box and the Accounts list), F1 and ? on the selected row: the help is the record
 *               of the file context.help ($tk_help).  The line wrapping is $tk_wrap.
+* 28 Oct 26 Windows port - from Linux ec8459b - S.75, home: the Menu box lists the Recent group after the six tiles it had, so it is 9 rows (Linux also lists seven development tiles; this tree has none).
 * 23 Oct 26 dm  SOLO CARRY 14 (Core 72e708e): Solo-shaped, because Solo has ONE account (sduser) and no MODIFY.ACCOUNT: two boxes instead of three (no "System default" pane:
 *               where the account starts IS the system default, so the Starts-in row runs SET.START.DEFAULT), the pins row runs SET.PINS, no Switch account tile.
 * END-HISTORY
@@ -63,14 +64,14 @@ $include tk.h
    call $tk_keys('add', keys, 'f5', 'refresh', 'refresh', '', 1)
    call $tk_keys('add', keys, 'ctrl-q', 'quit', 'quit', '', 1)
 
-   tids = 'editor' : @fm : 'ide' : @fm : 'ced' : @fm : 'terminal' : @fm : 'keys' : @fm : 'signout'
-   tlabs = 'Editor' : @fm : 'IDE' : @fm : 'Record editor' : @fm : 'Terminal' : @fm : 'Keys' : @fm : 'Sign out'
+   tids = 'editor' : @fm : 'ide' : @fm : 'ced' : @fm : 'terminal' : @fm : 'keys' : @fm : 'signout' : @fm : 'recent'
+   tlabs = 'Editor' : @fm : 'IDE' : @fm : 'Record editor' : @fm : 'Terminal' : @fm : 'Keys' : @fm : 'Sign out' : @fm : 'Recent group'
    pnames = 'Accounts' : @fm : 'Menu'
 
    VIS = 26                                                      ;* account rows shown at a time (rows 3 to 28 of the Accounts box)
    pane = 1
    ai = 1                                                        ;* the account selected, a row of ids
-   si = 1                                                        ;* the row selected in the Menu pane: 1 is where the account starts, 2 the permission for own programs, 3 to 8 the standard tiles
+   si = 1                                                        ;* the row selected in the Menu pane: 1 is where the account starts, 2 the permission for own programs, 3 to 9 the standard tiles
    top = 0
    gen = 0
    msg = 'Tab changes pane, Enter changes the setting'
@@ -214,7 +215,7 @@ draw.menu:
    end
    i = ai
    gosub start.text
-   for r = 1 to 8
+   for r = 1 to 9
       begin case
          case r = 1
             s = fmt('Starts in', '28L') : stext
@@ -299,7 +300,7 @@ on.key:
             ai += 1
             gosub redraw.account
          end
-         if pane = 2 and si < 8 then
+         if pane = 2 and si < 9 then
             si += 1
             gosub draw.menu
          end
@@ -362,7 +363,7 @@ on.mouse:
                gosub redraw.account
                gosub redraw.panes
             end
-         case mx >= 73 and mx <= 138 and my >= 2 and my <= 9
+         case mx >= 73 and mx <= 138 and my >= 2 and my <= 10
             si = my - 1
             pane = 2
             gosub redraw.panes
@@ -398,7 +399,7 @@ help.click:
    clicked = 0
    hit.row = 0
    if na > 0 then
-      for hr = 1 to 8
+      for hr = 1 to 9
          call $tk_help('hit', mev, 134, 1 + hr, hit.now)
          if hit.now then hit.row = hr
       next hr
@@ -485,11 +486,16 @@ change.tile:
    want = (if is.off then 'on' else 'off')
    sent = 'set.tile ' : acct : ' ' : tid : ' ' : want
    el = ''
-   if want = 'off' then
-      el<-1> = 'The ' : tlabs<t> : ' tile will be left off ' : acct : "'s home screen, and its menu entry cannot be chosen."
-   end else
-      el<-1> = 'The ' : tlabs<t> : ' tile will be on ' : acct : "'s home screen again."
-   end
+   begin case
+      case tid = 'recent' and want = 'off'
+         el<-1> = 'The Recent group will not be on ' : acct : "'s home screen, nothing will be read or written for it, and the person cannot turn it on."
+      case tid = 'recent'
+         el<-1> = 'The person may turn the Recent group on again in the View menu of ' : acct : "'s home screen (it is off until they do)."
+      case want = 'off'
+         el<-1> = 'The ' : tlabs<t> : ' tile will be left off ' : acct : "'s home screen, and its menu entry cannot be chosen."
+      case 1
+         el<-1> = 'The ' : tlabs<t> : ' tile will be on ' : acct : "'s home screen again."
+   end case
    typed = ''
    if tid = 'terminal' and want = 'off' then
       el<-1> = 'WITH THIS TILE OFF an account that starts in the home screen is never given the command prompt:'
