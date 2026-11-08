@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 8 Nov 26 Windows port - from Linux 2930d92f (S.87): CLOSESEQ and EQU are gone as statements: this program says CLOSE and EQUATE.
 * 18 Oct 26 Windows port - from Linux 81ad297 (13 Oct 26): On the screen library (owner: "use the TUI on ced and debugger"): the full-screen display is drawn
 *               with its styles and $sl_put, help is its message box, and the whole screen is the terminal's
 *               ALTERNATE screen, on any terminal that has one.  The AccuTerm code (screen images through the 'sreg'
@@ -1469,7 +1470,7 @@ display.data.common:
          end else
             message = sysmsg(1435, status(), os.error())   ;* Write error %1 (os.error %2)
          end
-         closeseq dump.f
+         close dump.f
       end
 
       if message # '' then gosub emit.err.msg

@@ -127,7 +127,6 @@ report.params:
    print 'DUMPDIR   '        : config('DUMPDIR')
    print 'ERRLOG    '        : config('ERRLOG') : ' kb'
    n = config('FDS') ; if n < 32767 then print 'FDS  '        : n
-   print 'FILERULE  '        : config('FILERULE')
    print 'FLTDIFF   '        : config('FLTDIFF')
    print 'FSYNC     '        : config('FSYNC')
 * 20240219 mab create-account based on type (user / group / other)      

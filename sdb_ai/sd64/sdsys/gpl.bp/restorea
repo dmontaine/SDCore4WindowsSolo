@@ -642,7 +642,7 @@ write.marker:
    d = date()
    writeseq oconv(d, 'D4Y'):'-':fmt(oconv(d, 'DM'), '2"0"R'):'-':fmt(oconv(d, 'DD'), '2"0"R'):' ':oconv(time(), 'MTS') to mk.f else null
    writeseq zip.path to mk.f else null
-   closeseq mk.f
+   close mk.f
    display sysmsg(13035, acc.name, restart) ;* restart SD to put it in place: %2
    one.ok = @true
    return

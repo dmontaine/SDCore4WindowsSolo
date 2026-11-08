@@ -111,7 +111,7 @@ load.one:
          nf += 1
          rec<nf> = trimb(ln)
       repeat
-      closeseq sf
+      close sf
    end
    if not(got) then
       display sysmsg(12845, name, 'cannot be read')

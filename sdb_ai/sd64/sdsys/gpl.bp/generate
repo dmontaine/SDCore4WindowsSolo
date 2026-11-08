@@ -272,7 +272,7 @@ deffun voc_guard(f) calling '!voc_guard'   ;* 18 Oct 26, Solo carry A
                end
             next i
 
-            closeseq include.file
+            close include.file
          end
 
          if matrix.mode then
@@ -336,7 +336,7 @@ deffun voc_guard(f) calling '!voc_guard'   ;* 18 Oct 26, Solo carry A
                end
             next i
 
-            closeseq include.file
+            close include.file
          end
 
       end

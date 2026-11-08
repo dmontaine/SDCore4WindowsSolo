@@ -245,7 +245,7 @@ compile.all:
       read itype.rec from dict.f,itype.name then
          type = upcase(itype.rec[1,1])
          begin case
-            case type = 'C' or type = 'I'
+            case type = 'I'
                if display.file.name # '' then
                   display
                   display display.file.name
@@ -298,9 +298,6 @@ compile:
          if itype.rec<DICT.A.CORRELATIVE> = '' then goto no.source
          
       case type = 'I'
-         if trimf(trimb(itype.rec<DICT.ITYPE.SOURCE>)) = '' then goto no.source
-
-      case type = 'C'
          if trimf(trimb(itype.rec<DICT.ITYPE.SOURCE>)) = '' then goto no.source
 
       case 1

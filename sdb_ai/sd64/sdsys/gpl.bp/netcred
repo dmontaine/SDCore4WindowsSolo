@@ -189,7 +189,7 @@ $define NETCRED.UMASK 63                   ;* 077: the file is private from its 
             return
          end
          readseq line from f else line = ''
-         closeseq f
+         close f
 
 *        A mark byte would make a second attribute out of one value: a line that holds one is damaged.
          if len(convert(marks, '', line)) # len(line) then
@@ -264,7 +264,7 @@ $define NETCRED.UMASK 63                   ;* 077: the file is private from its 
          writeseq line to tmp.f else
             err = 12462:@vm:server:@vm:tmp:@vm:status()
          end
-         closeseq tmp.f
+         close tmp.f
          line = ''
          one = ''
 

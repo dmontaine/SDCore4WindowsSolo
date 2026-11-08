@@ -224,7 +224,7 @@ deffun voc_guard(f) calling '!voc_guard'   ;* 18 Oct 26, Solo carry A
                   readblk blk from obj.f, 32768 else exit
                   object := blk
                repeat
-               closeseq obj.f
+               close obj.f
             end else null
             found.obj = (object # '')
          end else
