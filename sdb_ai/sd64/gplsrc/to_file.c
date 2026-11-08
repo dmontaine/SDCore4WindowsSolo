@@ -229,12 +229,6 @@ Private void start_file(PRINT_UNIT* pu) {
       goto open_file;
     }
 
-    if (pu->mode == PRINT_TO_AUX_PORT) {
-      sprintf(fn, "$hold%c__Aux%d.%d", DS, (int)process.user_no,
-              (int)(pu->unit));
-      goto open_file;
-    }
-
     /* If we get here, this is either PRINT_TO_FILE or PRINT_AND_HOLD */
 
     /* Modified by Composer AI - 2026/08/18.
@@ -343,10 +337,6 @@ Private void start_file(PRINT_UNIT* pu) {
    end_file()  -  End output to file                                      */
 
 void end_file(PRINT_UNIT* pu) {
-#define AUX_BUFF_SIZE 1024
-  char buffer[AUX_BUFF_SIZE];
-  int bytes;
-
   if (pu->buff != NULL) {
     print_footer(pu);
 
@@ -375,15 +365,6 @@ void end_file(PRINT_UNIT* pu) {
     pu->buff = NULL;
   }
 
-  if (pu->mode == PRINT_TO_AUX_PORT) {
-    tio_write(sdtgetstr("mc5"));
-    lseek(pu->file.fu, 0, SEEK_SET);
-    while ((bytes = read(pu->file.fu, buffer, AUX_BUFF_SIZE)) > 0) {
-      tio_display_string(buffer, bytes, TRUE, FALSE);
-    }
-    tio_write(sdtgetstr("mc4"));
-  }
-
   CloseFile(pu->file.fu);
   pu->file.fu = INVALID_FILE_HANDLE;
   pu->flags &= ~(PU_ACTIVE | PU_OUTPUT);
@@ -392,8 +373,6 @@ void end_file(PRINT_UNIT* pu) {
   if (pu->mode == PRINT_TO_PRINTER) /* 0527 Never happens on Windows */
   {
     spool_print_job(pu);
-    remove(pu->file.pathname);
-  } else if (pu->mode == PRINT_TO_AUX_PORT) {
     remove(pu->file.pathname);
   } else if (pu->mode == PRINT_AND_HOLD) {
     /* We have generated the file, now print it */

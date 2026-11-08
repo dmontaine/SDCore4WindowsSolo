@@ -160,7 +160,7 @@ void* load_object(char* name, bool abort_on_error) {
 
   (void)map_t1_id(name, strlen(name), mapped_name);
 
-  if (strchr("*$!_", name[0]) == NULL) {
+  if (strchr("$!_", name[0]) == NULL) {
     /* Try local catalogue */
 
     /* Push arguments onto e-stack */
@@ -501,7 +501,7 @@ void invalidate_object() {
     next_object = obj->next;
 
     if (!(obj->flags & OBJ_GLOBAL) ||
-        (strchr("*$!_", obj->code.ext_hdr.prog.program_name[0]) == NULL)) {
+        (strchr("$!_", obj->code.ext_hdr.prog.program_name[0]) == NULL)) {
       obj->flags |= OBJ_INVALID;
     }
   }

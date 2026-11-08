@@ -798,7 +798,6 @@ Private void heading(bool eject) {
 
         case PRINT_TO_PRINTER:
         case PRINT_TO_FILE:
-        case PRINT_TO_AUX_PORT:
         case PRINT_AND_HOLD:
           tio_print_string(pu, "\f", 1, FALSE);
           break;
@@ -1214,7 +1213,6 @@ void op_page() {
 
     case PRINT_TO_PRINTER:
     case PRINT_TO_FILE:
-    case PRINT_TO_AUX_PORT:
     case PRINT_AND_HOLD:
       tio_print_string(pu, "\f", 1, FALSE);
       break;
@@ -1440,7 +1438,6 @@ void op_setpu() {
         case PRINT_TO_PRINTER:
         case PRINT_TO_FILE:
         case PRINT_TO_STDERR:
-        case PRINT_TO_AUX_PORT:
         case PRINT_AND_HOLD:
           //0134          if (cproc_level > pu->level) pu->level = cproc_level;
           set_print_mode(pu, n);
@@ -1963,9 +1960,6 @@ void op_prclose() {
             end_file(pu);
             break;
 
-          case PRINT_TO_AUX_PORT:
-            end_file(pu);
-            break;
         }
 
         if ((pu->flags & PU_KEEP_OPEN)) {
@@ -2195,7 +2189,6 @@ void op_prnl() {
 
       case PRINT_TO_PRINTER:
       case PRINT_TO_FILE:
-      case PRINT_TO_AUX_PORT:
       case PRINT_AND_HOLD:
         tio_print_string(pu, pu->newline, strlen(pu->newline), FALSE);
         break;
@@ -2843,7 +2836,6 @@ Private void set_print_mode(PRINT_UNIT *pu, int16_t mode) {
           break;
 
         case PRINT_TO_FILE:
-        case PRINT_TO_AUX_PORT:
         case PRINT_AND_HOLD:
           end_file(pu);
       }
@@ -3418,7 +3410,6 @@ Private bool tio_print_string(PRINT_UNIT *pu, char *q, int16_t bytes, bool trans
       break;
 
     case PRINT_TO_FILE:
-    case PRINT_TO_AUX_PORT:
     case PRINT_AND_HOLD:
       to_file(pu, q, bytes);
       break;

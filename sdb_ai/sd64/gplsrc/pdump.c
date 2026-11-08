@@ -534,8 +534,7 @@ Private void dump_variable(DESCRIPTOR* descr, /* Descriptor to dump */
       for (chnk = 0, base = 0; chnk < ahdr->num_chunks;
            base += achnk->num_descr, chnk++) {
         achnk = ahdr->chunk[chnk];
-        for (el = (ahdr->flags & AH_PICK_STYLE) ? 1 : 0; el < achnk->num_descr;
-             el++) {
+        for (el = 0; el < achnk->num_descr; el++) {
           if (el == 0) {
             strcpy(element, (two_d) ? "(0,0)" : "(0)");
           } else if (two_d) {
@@ -621,9 +620,6 @@ Private void dump_variable(DESCRIPTOR* descr, /* Descriptor to dump */
     case SELLIST:
       fprintf(fu, "%s: SelList: \"", s);
       print_string(descr->data.str.saddr);
-      break;
-
-    case PMATRIX:
       break;
 
     case SOCK:

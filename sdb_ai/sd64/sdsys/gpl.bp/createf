@@ -48,7 +48,6 @@
 *    LARGE.RECORD n
 *    SPLIT.LOAD n
 *    MERGE.LOAD n
-*    VERSION n
 *    DIRECTORY path         path is existing directory to hold file
 *    NO.RESIZE              disable file resizing
 *    COLLECTION             a data collection file: its records are data
@@ -267,14 +266,6 @@ $define default.split.load 80
             dict.path = voc.rec<3>
             using.dict = @true
 
-         * ---------- VERSION n
-         case keyword = KW$VERSION and file.type # FL$TYPE.DIR
-            call @parser(PARSER$GET.TOKEN, token.type, value, keyword)
-            if not(value matches '1N0N') or value < 0 or value > DH.VERSION then
-               stop sysmsg(6117) ;* Invalid file version
-            end
-            version.value = value + 0
-
          * ---------- COLLECTION  (13 Oct 26 dm, data collections: records are collections, read and written as such)
          case keyword = KW$COLLECTION and file.type # FL$TYPE.DIR
             collection.file = @true
@@ -406,16 +397,6 @@ $define default.split.load 80
       stop sysmsg(6119) ;* Split load must be greater than merge load
    end
 
-
-   if version.value >= 0 and version.value < 2 then
-      * Validate file size
-
-      if min.modulus.value > 1 then
-         filesize = if version.value then (group.size.value * 1024) else 1024
-         filesize += min.modulus.value * group.size.value * 1024
-         if filesize > 2147483648 then stop sysmsg(6120) ;* File size is too large
-      end
-   end
 
    * Form operating system file name from VOC record name
 
