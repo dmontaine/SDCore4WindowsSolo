@@ -252,14 +252,6 @@ compile.all:
                   display.file.name = ''
                end
                gosub compile
-
-            case (type = 'A' or type = 'S') and itype.rec<8> # ''
-               if display.file.name # '' then
-                  display
-                  display display.file.name
-                  display.file.name = ''
-               end
-               gosub compile
          end case
       end
    repeat
@@ -295,14 +287,17 @@ compile:
    type = upcase(itype.rec[1,1])
    begin case
       case type = 'A' or type = 'S'
-         if itype.rec<DICT.A.CORRELATIVE> = '' then goto no.source
-         
+         release dict.f, itype.name
+         display sysmsg(12943, itype.name)
+         errors += 1
+         return
+
       case type = 'I'
          if trimf(trimb(itype.rec<DICT.ITYPE.SOURCE>)) = '' then goto no.source
 
       case 1
          release dict.f, itype.name
-         display sysmsg(2974, itype.name) ;* Record 'xx' is not an C or I-type
+         display sysmsg(2974, itype.name) ;* Record 'xx' is not an I-type
          errors += 1
          return
    end case

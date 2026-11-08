@@ -170,26 +170,6 @@ deffun voc_guard(f) calling '!voc_guard'   ;* 18 Oct 26, Solo carry A
  
                      ins dict.rec<DICT.TYPE>[2,9999] before comments<idx>
                   end
-
-               case (type = 'A' or type = 'S') and dict.rec<DICT.A.CORRELATIVE> = ''
-                  fno = dict.rec<DICT.A.LOC>
-                  if num(fno) and fno # 0 then
-                     if fno > hi.fno then hi.fno = fno
-                     locate fno in loc<1> by 'AR' setting idx then
-                        if not(duplicates.allowed) then continue
-                     end
-
-                     ins id before names<idx>
-                     if len(id) > longest then longest = len(id)
-
-                     ins fno before loc<idx>
-
-                     cnv = dict.rec<DICT.A.CONV>
-                     ins cnv before conv<idx>
-                     if cnv # '' then conversion.present = @true
- 
-                     ins dict.rec<DICT.TYPE>[2,9999] before comments<idx>
-                  end
             end case
          end
       repeat
