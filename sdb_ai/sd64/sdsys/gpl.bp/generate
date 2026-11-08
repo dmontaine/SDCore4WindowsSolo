@@ -153,7 +153,7 @@ deffun voc_guard(f) calling '!voc_guard'   ;* 18 Oct 26, Solo carry A
             begin case
                case type = 'D'
                   fno = dict.rec<DICT.LOC>
-                  if num(fno) and fno # 0 and fno # 9998 and fno # 9999 then
+                  if num(fno) and fno # 0 then
                      if fno > hi.fno then hi.fno = fno
                      locate fno in loc<1> by 'AR' setting idx then
                         if not(duplicates.allowed) then continue
@@ -173,7 +173,7 @@ deffun voc_guard(f) calling '!voc_guard'   ;* 18 Oct 26, Solo carry A
 
                case (type = 'A' or type = 'S') and dict.rec<DICT.A.CORRELATIVE> = ''
                   fno = dict.rec<DICT.A.LOC>
-                  if num(fno) and fno # 0 and fno # 9998 and fno # 9999 then
+                  if num(fno) and fno # 0 then
                      if fno > hi.fno then hi.fno = fno
                      locate fno in loc<1> by 'AR' setting idx then
                         if not(duplicates.allowed) then continue
