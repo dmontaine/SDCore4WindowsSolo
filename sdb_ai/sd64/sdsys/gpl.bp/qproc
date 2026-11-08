@@ -1917,15 +1917,6 @@ by.literal:
 
             next i
 
-            * If the QUERY.SORT.NO.CASE option is set, translate all sort keys
-            * to uppercase
-
-            if option(OPT.QUERY.SORT.NO.CASE) then
-               for i = 1 to no.of.sort.items
-                  by.item(i) = upcase(by.item(i))
-               next i
-            end
-
             * If there is a SAVING clause, extract the data to be saved
 
             if saved.item then   ;* SAVING clause

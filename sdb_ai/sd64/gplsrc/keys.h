@@ -395,10 +395,7 @@
 /* 15 Oct 26 dm - QM4 gaps Q-8.
      K_PID_ALIVE       1 if the process with this id exists (a process of another user counts), 0 if it does not. */
 #define K_PID_ALIVE          106
-/* 15 Oct 26 dm - QM4 gaps Q-16, KEEP.SELECT.
-     K_KEEP_SELECT     the KEEP.SELECT flag of the command now running: 1 sets it, 0 clears it, -1 only asks.  The previous value
-                       comes back.  CPROC clears it as each outermost command starts and tests it when the command has finished. */
-#define K_KEEP_SELECT        107
+/* 107 was K_KEEP_SELECT (the KEEP.SELECT statement, removed 27 Oct 26, S.87 batch 16): the number stays reserved. */
 /* 15 Oct 26 dm - QM4 gaps Q-8, COMMAND.LOGGING (the per-process form).
      K_CMDLOG          1 starts logging this process's commands, 0 stops, -1 only asks.  The pathname of the log comes back
                        when logging is on after the call, a null string when it is off or could not be started (the file
