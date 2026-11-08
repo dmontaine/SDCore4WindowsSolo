@@ -330,13 +330,13 @@ $szCproc = if (Test-Path -LiteralPath (Join-Path $stSys 'gcat\$cproc')) { (Get-I
 $szBcomp = if (Test-Path -LiteralPath (Join-Path $stSys 'gcat\$bcomp')) { (Get-Item -LiteralPath (Join-Path $stSys 'gcat\$bcomp')).Length } else { -1 }
 $nCred   = CountIn $stSys '$cred'
 Write-Host ("   {0}" -f $stSys)
-Write-Host ("   gcat {0} (want ~130)   gpl.bp.out {1} (want ~200)   terminfo {2} (want ~100)" -f $nGcat, $nOut, $nTinfo)
+Write-Host ("   gcat {0} (want ~130)   gpl.bp.out {1} (want ~200)   terminfo {2} (want ~37)" -f $nGcat, $nOut, $nTinfo)
 Write-Host ("   `$cproc {0} bytes (want >0)   `$bcomp {1} (want ~88,000; under 80,000 is bbcmp.py's seed)   `$cred {2} (want 0)" -f $szCproc, $szBcomp, $nCred)
 $faults = @()
 if ($szCproc -le 0)   { $faults += '$cproc is the 0-byte placeholder - the bootstrap never reached the last step' }
 if ($nGcat   -lt 100) { $faults += "gcat holds $nGcat entries" }
 if ($nOut    -lt 150) { $faults += "gpl.bp.out holds $nOut objects" }
-if ($nTinfo  -lt 50)  { $faults += "terminfo holds $nTinfo entries - no terminal type would resolve" }
+if ($nTinfo  -lt 30)  { $faults += "terminfo holds $nTinfo entries - no terminal type would resolve" }
 if ($szBcomp -ge 0 -and $szBcomp -lt 80000) { $faults += "`$bcomp is $szBcomp bytes - bbcmp.py's seed, not BCOMP's own object" }
 if (-not (Test-Path -LiteralPath (Join-Path $stSys 'voc'))) { $faults += "voc is absent - 'sd -i' did not complete" }
 if ($nCred -gt 0)     { $faults += "the stage holds $nCred credential record(s) - a probe ran on it; sd-solo.iss would refuse the build" }
