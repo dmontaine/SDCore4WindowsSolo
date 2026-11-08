@@ -51,7 +51,6 @@
  *  GRPSIZE=n     Default group size when creating a dynamic file
  *  MAXIDLEN=63   Maximum record id len
  *  MUSTLOCK=1    Must hold update or file lock to write or delete record
- *  INVCASE=1     Terminal input case inversion on at login (default = 0)
  *  NETDIRS=p;p   Directories a network session may reach outside its account
  *  NETFILES=0    Allow remote files?
  *                  0x0001   Allow outgoing NFS
@@ -152,7 +151,6 @@ struct CONFIG* read_config(char* errmsg) {
     pcfg.grpdir[0] = '\0';
   pcfg.grpsize = 1;               /* GRPSIZE:  Default group size */
   pcfg.intprec = 11;              /* INTPREC:  Precision for INT() etc. 13 until 1.2-0 (openQM 2.6-9, item 6) */
-  pcfg.invcase = FALSE;           /* INVCASE:  Initial state of terminal input case inversion (item 399) */
   pcfg.lptrhigh = 66;             /* LPTRHIGH: Default printer lines */
   pcfg.lptrwide = 80;             /* LPTRWIDE: Default printer width */
   pcfg.maxcall = 10000;           /* MAXCALL:  Maximum call depth */
@@ -313,8 +311,6 @@ struct CONFIG* read_config(char* errmsg) {
         strncpy(pcfg.grpdir, rec + 7,MAX_PATHNAME_LEN+1); 
       else if (sscanf(rec, "INTPREC=%d", &n) == 1)
         pcfg.intprec = n;
-      else if (sscanf(rec, "INVCASE=%d", &n) == 1)
-        pcfg.invcase = (n != 0);
       else if (strncmp(rec, "JNLDIR=", 7) == 0)
         strcpy(cfg->jnldir, rec + 7);
       else if (sscanf(rec, "JNLMODE=%d", &n) == 1)

@@ -52,7 +52,6 @@
  *    42   Client IP address
  *    91   Windows? (see also 1006)
  *  1000   CAPTURING in effect?
- *  1001   Case inversion on?
  *  1002   Call stack
  *  1003   Return list of open files
  *  1004   Peak number of open files
@@ -302,10 +301,6 @@ void op_system() {
 
     case 1000: /* CAPTURING in effect? */
       descr->data.value = capturing;
-      break;
-
-    case 1001: /* Case inversion on? */
-      descr->data.value = case_inversion;
       break;
 
     case 1002: /* Call stack */

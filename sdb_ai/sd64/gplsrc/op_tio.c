@@ -163,7 +163,7 @@ Private PRINT_UNIT *tio_find_printer(DESCRIPTOR *descr, bool pr_on);
 Private void tio_display_new_page(void);
 Private void tio_new_line(void);
 Private bool tio_print_string(PRINT_UNIT *pu, char *q, int16_t bytes, bool transparent_newline);
-Private void getkey(bool invert, int timeout);
+Private void getkey(int timeout);
 Private void printer_off(void);
 Private void printer_on(void);
 void csr(int16_t x, int16_t y);
@@ -1089,11 +1089,11 @@ Private void keyedit_trap_exit(int mode) {
    op_keyin()  -  opcode for the KEYIN() function                         */
 
 void op_keyin() {
-  getkey(FALSE, -1);
+  getkey(-1);
 }
 
 void op_keyinc() {
-  getkey(TRUE, -1);
+  getkey(-1); /* KEYINC differed from KEYIN only by case inversion, removed 27 Oct 26 (S.87) */
 }
 
 void op_keyint() {
@@ -1109,7 +1109,7 @@ void op_keyint() {
 
   if (timeout < 0)
     timeout = 0; /* 0145 */
-  getkey(FALSE, timeout);
+  getkey(timeout);
 }
 
 void op_keyinct() {
@@ -1125,10 +1125,10 @@ void op_keyinct() {
 
   if (timeout < 0)
     timeout = 0; /* 0145 */
-  getkey(TRUE, timeout);
+  getkey(timeout);
 }
 
-Private void getkey(bool invert, int timeout) /* -ve = none */
+Private void getkey(int timeout) /* -ve = none */
 {
   STRING_CHUNK *str;
   int16_t n;
@@ -1159,8 +1159,6 @@ Private void getkey(bool invert, int timeout) /* -ve = none */
     e_stack->data.str.saddr = NULL;
   } else {
     c = (char)k;
-    if (invert && case_inversion && IsAlpha(c))
-      c ^= 0x20;
 
     str = e_stack->data.str.saddr = s_alloc(1L, &n);
     str->ref_ct = 1;
@@ -2334,14 +2332,6 @@ void op_pterm() {
       if (new_value >= 0)
         set_term((new_value != 0));
       result.data.value = trap_break_char;
-      break;
-
-    case PT_INVERT: /* Case inversion */
-      GetInt(descr);
-      new_value = descr->data.value;
-      if (new_value >= 0)
-        case_inversion = (new_value != 0);
-      result.data.value = case_inversion;
       break;
 
     case PT_BRKCH: /* Set break character */
