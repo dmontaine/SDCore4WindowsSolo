@@ -200,7 +200,7 @@ deffun voc_guard(f) calling '!voc_guard'   ;* 18 Oct 26, Solo carry A
 
             case selectinfo(0, SL$ACTIVE)  ;* List 0 is active
                readnext itype.name then
-                  if not(no.query) and not(option(OPT.NO.SEL.LIST.QUERY)) then
+                  if not(no.query) then
                      loop
                         display sysmsg(2050, itype.name) :  ;* Use active select list (First item 'xx')?
                         prompt ""

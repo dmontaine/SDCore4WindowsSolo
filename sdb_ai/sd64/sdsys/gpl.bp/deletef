@@ -144,7 +144,7 @@ $define max.name.len 12
       end
 
       readnext file.name then
-         if not(no.query) and not(option(OPT.NO.SEL.LIST.QUERY)) then
+         if not(no.query) then
             loop
                display sysmsg(2050, file.name) :  ;* Use active select list (First item 'xx')?
                input yn

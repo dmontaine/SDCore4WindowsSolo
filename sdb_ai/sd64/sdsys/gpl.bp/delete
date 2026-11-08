@@ -126,7 +126,7 @@ deffun voc_guard(f) calling '!voc_guard'
 
       case selectinfo(0, sl$active)       ;* Delete using SELECT list
          readnext record.name then
-            if not(no.query) and not(option(OPT.NO.SEL.LIST.QUERY)) then
+            if not(no.query) then
                loop
                   display sysmsg(2050, record.name) :  ;* Use active select list (First item 'xx')?
                   prompt ""
