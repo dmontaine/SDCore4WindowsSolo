@@ -275,7 +275,7 @@ void pdump() {
       if (pgm->flags & HDR_RECURSIVE)
         fprintf(fu, "    Recursive\n");
       if (pgm->flags & HDR_ITYPE)
-        fprintf(fu, "    I or C-type\n");
+        fprintf(fu, "    I-type or correlative\n");
       if (pgm->flags & HDR_ALLOW_BREAK)
         fprintf(fu, "    Allow break in recursive\n");
       if (pgm->flags & HDR_IS_TRUSTED)
@@ -286,8 +286,6 @@ void pdump() {
         fprintf(fu, "    Case sensitive names\n");
       if (pgm->flags & HDR_SDCALL_ALLOWED)
         fprintf(fu, "    SDCall allowed\n");
-      if (pgm->flags & HDR_CTYPE)
-        fprintf(fu, "    C-type\n");
       if (pgm->flags & HDR_IS_CLASS)
         fprintf(fu, "    Class module\n");
       fprintf(fu, "\n");

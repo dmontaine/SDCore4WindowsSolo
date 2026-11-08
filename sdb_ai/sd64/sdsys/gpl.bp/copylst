@@ -87,7 +87,7 @@ deffun voc_guard(f) calling '!voc_guard'   ;* 18 Oct 26, Solo carry A
    * Get source file if present
 
    if keyword = KW$FROM then
-      call @parser(PARSER$MFILE, token.type, src.file.name, keyword)
+      call @parser(PARSER$GET.TOKEN, token.type, src.file.name, keyword)
       if token.type = PARSER$END then
          stop sysmsg(3242) ;* Source list file name not found where expected
       end
@@ -98,7 +98,7 @@ deffun voc_guard(f) calling '!voc_guard'   ;* 18 Oct 26, Solo carry A
    * Get target file if present
 
    if keyword = KW$TO then
-      call @parser(PARSER$MFILE, token.type, tgt.file.name, keyword)
+      call @parser(PARSER$GET.TOKEN, token.type, tgt.file.name, keyword)
       if token.type = PARSER$END then
          stop sysmsg(3243) ;* Target list file name not found where expected
       end

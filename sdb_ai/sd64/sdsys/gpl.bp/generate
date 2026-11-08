@@ -73,7 +73,7 @@ deffun voc_guard(f) calling '!voc_guard'   ;* 18 Oct 26, Solo carry A
 
    * Get file name
 
-   call @parser(PARSER$MFILE, token.type, dict.name, keyword)
+   call @parser(PARSER$GET.TOKEN, token.type, dict.name, keyword)
    if token.type = PARSER$END then stop sysmsg(2102) ;* File name required
 
    call @parser(PARSER$GET.TOKEN, token.type, token, keyword)

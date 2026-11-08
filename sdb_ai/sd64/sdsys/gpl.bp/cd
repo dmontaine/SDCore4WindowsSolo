@@ -32,18 +32,18 @@
 *
 *   Defaults to DICT portion of file.
 *
-*   If I-type name is omitted, all A, C, I and S-types are compiled unless the
+*   If I-type name is omitted, all A, I and S-types are compiled unless the
 *   default select list is active, in which case it is used.
 *
 * CD LOCAL
 *
-*   Compiles all dictionary A, C, I and S-types in the account.  All F-type
+*   Compiles all dictionary A, I and S-types in the account.  All F-type
 *   VOC items where the dictionary pathname does not include a directory
 *   separator are processed.
 *
 * CD ALL
 *
-*   Compiles all dictionary A,C,I and S-types visible from the account.
+*   Compiles all dictionary A, I and S-types visible from the account.
 *
 *
 * @SYSTEM.RETURN.CODE
@@ -84,7 +84,7 @@ deffun voc_guard(f) calling '!voc_guard'   ;* 18 Oct 26, Solo carry A
 
    * Get file name
 
-   call @parser(PARSER$MFILE, token.type, file.name, keyword)
+   call @parser(PARSER$GET.TOKEN, token.type, file.name, keyword)
    if token.type = PARSER$END then stop sysmsg(2102) ;* File name required
 
    begin case
@@ -137,7 +137,7 @@ deffun voc_guard(f) calling '!voc_guard'   ;* 18 Oct 26, Solo carry A
          file.to.open = file.name
          begin case
          case upcase(field(file.to.open, ' ', 1)) = 'DATA'
-            call @parser(PARSER$MFILE, token.type, file.name, keyword)
+            call @parser(PARSER$GET.TOKEN, token.type, file.name, keyword)
             if token.type = PARSER$END then stop sysmsg(2102) ;* File name required
             file.to.open = file.name
 

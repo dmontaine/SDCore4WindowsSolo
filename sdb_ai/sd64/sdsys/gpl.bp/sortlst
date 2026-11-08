@@ -62,7 +62,7 @@ deffun voc_guard(f) calling '!voc_guard'   ;* 18 Oct 26, Solo carry A
    file.name = '$savedlists'
    call @parser(PARSER$GET.TOKEN, token.type, token, keyword)
    if keyword = KW$FROM then
-      call @parser(PARSER$MFILE, token.type, file.name, keyword)
+      call @parser(PARSER$GET.TOKEN, token.type, file.name, keyword)
       if token.type = PARSER$END then
          stop sysmsg(3242) ;* Source list file name not found where expected
       end

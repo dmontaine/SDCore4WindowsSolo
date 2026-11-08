@@ -64,7 +64,7 @@ deffun voc_guard(f) calling '!voc_guard'   ;* 18 Oct 26, Solo carry A
    * name.  If it is not a VOC F or Q type entry, leave it for processing
    * as a record id or option keyword and use the default name (BP).
 
-   call @parser(PARSER$MFILE, token.type, token, keyword)
+   call @parser(PARSER$GET.TOKEN, token.type, token, keyword)
 
    if token.type # PARSER$END then
       fn = field(token, ',', 1)

@@ -74,7 +74,7 @@ deffun voc_refusal(f) calling '!voc_refusal'   ;* 18 Oct 26, Solo carry A
    sort.dsnd = @false
 
    loop
-      call @parser(PARSER$MFILE, token.type, token, keyword)
+      call @parser(PARSER$GET.TOKEN, token.type, token, keyword)
    until token.type = PARSER$END
       begin case
          case sort.state = 1 and keyword = KW$NO.CASE
@@ -97,7 +97,7 @@ deffun voc_refusal(f) calling '!voc_refusal'   ;* 18 Oct 26, Solo carry A
             sort.state = 1
 
          case keyword = KW$DICT
-            call @parser(PARSER$MFILE, token.type, token, keyword)
+            call @parser(PARSER$GET.TOKEN, token.type, token, keyword)
             if token.type = PARSER$END then stop 'File name required'
             file.name = 'DICT ' : token
 

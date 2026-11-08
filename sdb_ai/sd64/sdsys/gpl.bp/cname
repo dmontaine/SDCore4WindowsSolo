@@ -78,11 +78,11 @@ deffun voc_guard(f) calling '!voc_guard'
 
    * Get file name and possible DICT flag
 
-   call @parser(PARSER$MFILE, token.type, old.file.name, keyword)
+   call @parser(PARSER$GET.TOKEN, token.type, old.file.name, keyword)
    if keyword = KW$DICT then
       dict.token = old.file.name  ;* Allow for words other than DICT
       dict.flag = 'DICT'
-      call @parser(PARSER$MFILE, token.type, old.file.name, keyword)
+      call @parser(PARSER$GET.TOKEN, token.type, old.file.name, keyword)
       full.name = 'DICT ' : old.file.name
    end else
       dict.flag = ''
@@ -112,10 +112,6 @@ rename.file:
 
    if dict.flag # '' then
       stop sysmsg(6147, dict.token) ;* xx not valid when renaming a file
-   end
-
-   if index(old.file.name, ',', 1) then
-      stop sysmsg(6148) ;* Renaming of multifiles is not supported at this release
    end
 
    call @parser(parser$get.token, token.type, new.file.name, keyword)

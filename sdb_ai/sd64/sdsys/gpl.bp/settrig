@@ -68,10 +68,10 @@ deffun voc_guard(f) calling '!voc_guard'   ;* 18 Oct 26, Solo carry A
    * Get and process file name
 
    dict.flag = ''
-   call @parser(PARSER$MFILE, token.type, filename, keyword)
+   call @parser(PARSER$GET.TOKEN, token.type, filename, keyword)
    if keyword = KW$DICT then
       dict.flag = 'DICT'
-      call @parser(PARSER$MFILE, token.type, filename, keyword)
+      call @parser(PARSER$GET.TOKEN, token.type, filename, keyword)
    end
    if token.type = PARSER$END then stop sysmsg(2102)  ;* File name required
 
