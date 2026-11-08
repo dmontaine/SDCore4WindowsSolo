@@ -50,10 +50,6 @@
 *    MERGE.LOAD n
 *    VERSION n
 *    DIRECTORY path         path is existing directory to hold file
-*    NO.CASE                case insensitive ids (the default, and the only
-*                           kind of file since 14 Sep 26 - RELEASE_1.1 5 D2)
-*    CASE                   case sensitive ids - internal mode only, for the
-*                           upgrade witness; refused otherwise (10176)
 *    NO.RESIZE              disable file resizing
 *    COLLECTION             a data collection file: its records are data
 *                           collections (JSON text on disk)
@@ -89,9 +85,7 @@ $define default.split.load 80
    create.dict = @true
    create.data = @true
    file.type = FL$TYPE.DH
-   no.case = @false
    collection.file = @false
-   keep.case = @false
    dir.name = ""
    dir.name.with.delimiter = ""
    using.dict = @false
@@ -200,33 +194,6 @@ $define default.split.load 80
                stop sysmsg(6108) ;* Minimum modulus is invalid
             end
             min.modulus.value = value + 0
-
-         * ---------- NO.CASE
-         case keyword = KW$NO.CASE
-            no.case = @true
-
-         * ---------- CASE
-         * 14 Sep 26 Windows port - RELEASE_1.1 5 D2.  Owner's ruling: no two
-         *   record ids may differ only by case, in any file.  The kernel makes
-         *   every hashed file NOCASE whatever it is asked (op_dio1.c), so a
-         *   CASE keyword would be silently ineffective here - it is refused
-         *   instead, so nobody believes they have a case-sensitive file.  The
-         *   one exception is internal mode: the upgrade's twin refusal
-         *   (CONFIGURE.FILE) can only be witnessed on a case-sensitive file
-         *   holding twins, and sd -internal is the only way to build one.
-         case keyword = KW$CASE
-*           9 Oct 26 SD Core Solo - 10176 IS SEVERAL LINES: its newlines are field
-*           marks (messages.c), so stop sysmsg() printed it as ONE line with raw
-*           field-mark characters between the lines.  Shown a line at a time, as
-*           SD Core for Windows and SD Core for Linux do (parity audit).
-            if not(kernel(K$INTERNAL, -1)) then
-               case.msg = sysmsg(10176)
-               for case.i = 1 to dcount(case.msg, @FM)
-                  crt case.msg<case.i>
-               next case.i
-               stop
-            end
-            keep.case = @true
 
          * ---------- NO.QUERY
          case keyword = KW$NO.QUERY
@@ -486,11 +453,8 @@ $define default.split.load 80
 
    * 14 Sep 26 Windows port - RELEASE_1.1 5 D2.  The case request for both
    *   parts.  NOCASE is what the kernel does anyway; asking for it here keeps
-   *   the verb honest about what it makes.  KEEPCASE is a request the kernel
-   *   honours only in internal mode (CASE above is refused everywhere else).
-   if no.case and keep.case then stop sysmsg(6113) ;* Inconsistent command options
+   *   the verb honest about what it makes.
    case.flags = FL$FLAGS.NOCASE
-   if keep.case then case.flags = FL$FLAGS.KEEPCASE
 
    * Create dictionary part
 
