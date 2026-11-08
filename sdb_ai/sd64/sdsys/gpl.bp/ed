@@ -1180,11 +1180,9 @@ d:
             return
          end
 
-         if not(option(OPT.ED.NO.QUERY.FD)) then
-            display sysmsg(6555) : ;* Are you sure you want to delete the entire record?
-            gosub yes.no
-            if no then return
-         end
+         display sysmsg(6555) : ;* Are you sure you want to delete the entire record?
+         gosub yes.no
+         if no then return
 
          if not(voc_guard(file)) then return   ;* 25 Sep 26 SOLO 5, ruling 14
          delete file, record.name
@@ -1386,11 +1384,9 @@ f:
             return
          end
 
-         if not(option(OPT.ED.NO.QUERY.FD)) then
-            display sysmsg(6558) :  ;* Are you sure you want to delete the entire record?
-            gosub yes.no
-            if no then return
-         end
+         display sysmsg(6558) :  ;* Are you sure you want to delete the entire record?
+         gosub yes.no
+         if no then return
          if not(voc_guard(file)) then return   ;* 25 Sep 26 SOLO 5, ruling 14
          delete file, record.name
          done = @true
