@@ -1027,14 +1027,6 @@ exit_op_open:
   {
     if (fvar != NULL)
       dio_close(fvar);
-
-    /* 14 Oct 26 dm - $MODE OPEN.FAIL.ZERO.FVAR (openQM item 514): the file variable of a failed open is the
-       integer 0 rather than unassigned */
-    if (op_flags & P_OPEN_ZERO) {
-      k_release(fvar_descr);
-      InitDescr(fvar_descr, INTEGER);
-      fvar_descr->data.value = 0;
-    }
   }
 
   /* Set status code on stack */
