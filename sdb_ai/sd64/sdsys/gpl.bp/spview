@@ -39,7 +39,7 @@
 
 $internal
 program spview
-$catalogue $spview
+$catalog $spview
 
 $include parser.h
 $include err.h

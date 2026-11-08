@@ -372,8 +372,8 @@ compile:
       write object.code to out.f, record.name
 
       if catalogue.name # '' then
-         cat.cmd = 'CATALOGUE ' : source.file.name : ' ' : catalogue.name : ' ' : record.name : ' ' : catalogue.mode
-         * NO.QUERY on the BASIC command, or on the $CATALOGUE directive or
+         cat.cmd = 'CATALOG ' : source.file.name : ' ' : catalogue.name : ' ' : record.name : ' ' : catalogue.mode
+         * NO.QUERY on the BASIC command, or on the $CATALOG directive or
          * the CATALOGUE entry of $BASIC.OPTIONS (it is then in catalogue.mode)
          if no.query and not(index(upcase(catalogue.mode), 'NO.QUERY', 1)) then cat.cmd := ' NO.QUERY'
          execute cat.cmd
