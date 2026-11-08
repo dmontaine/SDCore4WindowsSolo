@@ -264,7 +264,7 @@
       $define OS$FLUSH.CACHE     8       ;* Flush DH file cache
       $define OS$CD              9       ;* Change working directory
       $define OS$MAPPED.NAME    10       ;* Map a directory file name
-      #define OS$OPEN           11       ;* Check if file is open by pathanme
+      $define OS$OPEN          11       ;* Check if file is open by pathanme
       $define OS$DIR            12       ;* Return content of directory
       $define OS$MKDIR          13       ;* Create a directory
       $define OS$MKPATH         14       ;* Create a directory path
