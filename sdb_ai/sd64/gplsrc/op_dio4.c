@@ -1508,9 +1508,6 @@ void op_dir() {
           continue;
 
         strcpy(name, dp->d_name);
-#ifdef CASE_INSENSITIVE_FILE_SYSTEM
-        UpperCaseString(name);
-#endif
         if (statbuf.st_mode & S_IFREG)
           mode = 'F';
         else if (statbuf.st_mode & S_IFDIR)

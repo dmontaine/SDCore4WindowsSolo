@@ -712,10 +712,6 @@ Private void open_file(bool map_name) /* Map file name via VOC entry */
       goto exit_op_open;
     }
 
-    /* SDNet removed (plan G4): a name containing ';' is no longer a network
-       file reference. It falls through to fullpath() and fails like any other
-       bad pathname. */
-
     /* 17 Oct 26 S.65 slice 3c: an N pointer in the VOC (_voc_ref) is a file on another SD server.  It comes back as the encoded path
        char(1) 'N' char(1) server char(1) file, which no real path holds.  Only an OPEN by name looks for it (map_name): OPENPATH and
        OPENTEMP name a path directly, and a char(1) typed into one is just a path that does not exist.  net_open() asks the NET gate

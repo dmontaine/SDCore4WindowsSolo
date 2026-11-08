@@ -146,9 +146,6 @@ void op_fcontrol() {
       }
 
       k_get_c_string(descr, header.akpath, MAX_PATHNAME_LEN);
-#ifdef CASE_INSENSITIVE_FILE_SYSTEM
-      UpperCaseString(header.akpath);
-#endif
 
       if (header.akpath[0] == '\0')
         dh_file->akpath = NULL;

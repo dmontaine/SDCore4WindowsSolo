@@ -942,10 +942,6 @@ void op_ospath() {
       goto set_status;
   }  
 
-#ifdef CASE_INSENSITIVE_FILE_SYSTEM
-  UpperCaseString(path);
-#endif
-
   /* 21 Aug 26 Windows port - THE CONTAINMENT GATE FOR OSPATH.  Fifteen keys
      share one opcode and they do not all touch the filesystem, so the gate is
      applied to the ones that do and the rest are left alone:
@@ -1127,9 +1123,6 @@ void op_ospath() {
 
     case OS_CWD:
       (void)getcwd(name, MAX_PATHNAME_LEN);
-#ifdef CASE_INSENSITIVE_FILE_SYSTEM
-      UpperCaseString(name);
-#endif
       k_put_c_string(name, e_stack);
       e_stack++;
       goto exit_op_pathinfo;
@@ -1207,9 +1200,6 @@ void op_ospath() {
             continue;
 
           strcpy(name + 1, dp->d_name);
-#ifdef CASE_INSENSITIVE_FILE_SYSTEM
-          UpperCaseString(name + 1);
-#endif
           if (stat_buff.st_mode & S_IFDIR) {
             name[0] = 'D';
             if (head != NULL)
@@ -1342,9 +1332,6 @@ void op_osrename() {
     process.status = ER_INVAPATH;
     goto exit_osrename;
   }
-#ifdef CASE_INSENSITIVE_FILE_SYSTEM
-  UpperCaseString(new_path);
-#endif
 
   /* Get old pathname */
 
@@ -1354,9 +1341,6 @@ void op_osrename() {
     process.status = ER_INVAPATH;
     goto exit_osrename;
   }
-#ifdef CASE_INSENSITIVE_FILE_SYSTEM
-  UpperCaseString(old_path);
-#endif
 
   /* 21 Aug 26 Windows port - containment gate, and OSRENAME IS A SIXTH ENTRY
      POINT THAT THE WRITTEN SPEC DID NOT LIST.  It named open_file(), ospath(),
