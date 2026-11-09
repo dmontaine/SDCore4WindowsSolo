@@ -341,6 +341,7 @@ delete.upcased.file:
             end else akpath = ''
 
             if ospath(data.path, OS$OPEN) then
+               @system.return.code = -ER$EXCLUSIVE
                stop sysmsg(6198, data.path) ;* Cannot delete file - Data part %1 is open
             end
 
@@ -431,6 +432,7 @@ delete.dict:
          end else akpath = ''
 
          if ospath(dict.path, OS$OPEN) then
+            @system.return.code = -ER$EXCLUSIVE
             stop sysmsg(6199, dict.path) ;* Cannot delete file - Dictionary part %1 is open
          end
 
