@@ -42,17 +42,17 @@
 #      before hashing) and a missing id (not found - the control that READ
 #      can fail).  Ported from verify-nocase.ps1 (git show 3776c66:...).
 #   9. "Suppress pagination" at a query's page prompt behaves like NO.PAGE
-#      (RELEASE_1.1 28): at TERM 80,12, LIST ONLY VOC NO.PAGE is the control
-#      (one heading, no prompt); LIST ONLY VOC answered S at its first prompt
+#      (RELEASE_1.1 28): at TERM 80,12, LIST VOC ID.ONLY NO.PAGE is the control
+#      (one heading, no prompt); LIST VOC ID.ONLY answered S at its first prompt
 #      must list the same count with no clear-screen and no heading after the
 #      prompt.  Ported from verify-pagesuppress.ps1 (git show 3776c66:...).
 #  10. ENTER at a prompt with a default takes the default (RELEASE_1.1 6, 27,
 #      33), each with a control proving the prompt was live: a lower-case name
 #      deletes an upper-case file with no prompt (D2) and the reverse (27);
 #      DELETE.FILE 6135/6140 through a second VOC pointer; CATALOG 3033/3034;
-#      CPROC's .D 5040; the select-list 2050 before CT; DELETE.FILE 6133 on a
-#      multifile (Enter and C cancel, N deletes the dictionary only).  It makes
-#      and removes ZZPROMPT* files, a catalogue entry and VOC records in the
+#      CPROC's .D 5040; the select-list 2050 before CT.  (9 Nov 26: legs a and g
+#      are retired; their fixtures, OPTION CREATE.FILE.UPCASE and multifiles,
+#      went with S.87.)  It makes and removes ZZPROMPT* files, a catalogue entry and VOC records in the
 #      account, and checks every one gone.  Ported from verify-promptenter.ps1
 #      (git show 3776c66:...); its sessions add ADMIN only for COPY into VOC,
 #      DELETE VOC and .S/.D name, the gated writes (rulings 14, 27) - and e
@@ -810,7 +810,7 @@ try {
     # spaces only, so the echoed command line cannot match.
     $esc = [char]27
     $clear = "$esc[H$esc[J"
-    $heading = 'LIST ONLY VOC(?: NO\.PAGE)? {2,}Page +\d+'
+    $heading = 'LIST VOC ID.ONLY(?: NO\.PAGE)? {2,}Page +\d+'
     $measure = {
         param([string]$t)
         $pi = $t.IndexOf('Action (')
@@ -823,7 +823,7 @@ try {
                   Prompts = [regex]::Matches($t, [regex]::Escape('Action (')).Count
                   Listed = $(if ($m.Success) { [int]$m.Groups[1].Value } else { -1 }) }
     }
-    $t = Invoke-Sd 'page-control' '' ($acctPw + "`nTERM 80,12`nLIST ONLY VOC NO.PAGE`nOFF`n") 'the account password, TERM 80,12, LIST ONLY VOC NO.PAGE, OFF'
+    $t = Invoke-Sd 'page-control' '' ($acctPw + "`nTERM 80,12`nLIST VOC ID.ONLY NO.PAGE`nOFF`n") 'the account password, TERM 80,12, LIST VOC ID.ONLY NO.PAGE, OFF'
     $a = & $measure $t
     Say ('    control: listed ' + $a.Listed + ', clear-screens ' + $a.Clears + ', headings ' + $a.Headings + ', prompts ' + $a.Prompts)
     $ctlOk = ($a.Listed -ge 40 -and $a.Prompts -eq 0)
@@ -831,7 +831,7 @@ try {
     if ($ctlOk) {
         # keycode() takes the S alone; the newline after it reaches TCL as an
         # empty command, which is harmless.
-        $t = Invoke-Sd 'page-suppress' '' ($acctPw + "`nTERM 80,12`nLIST ONLY VOC`nS`nOFF`n") 'the account password, TERM 80,12, LIST ONLY VOC, S, OFF'
+        $t = Invoke-Sd 'page-suppress' '' ($acctPw + "`nTERM 80,12`nLIST VOC ID.ONLY`nS`nOFF`n") 'the account password, TERM 80,12, LIST VOC ID.ONLY, S, OFF'
         $b = & $measure $t
         Say ('    S leg  : listed ' + $b.Listed + ', clear-screens ' + $b.Clears + ' (' + $b.ClearsAfter + ' after the prompt), headings ' + $b.Headings + ' (' + $b.HeadingsAfter + ' after), prompts ' + $b.Prompts)
         Check 'the page prompt was reached exactly once' ($b.Prompts -eq 1) ('' + $b.Prompts + ' prompt(s): 0 means S was never offered, more than 1 means S did not stop the prompts')
@@ -855,19 +855,7 @@ try {
         $null = Invoke-Pe 'pe-left-1' @("DELETE.FILE $pE", 'Y', 'Y', 'Y')
         $null = Invoke-Pe 'pe-left-2' @("DELETE.FILE $($pL.ToLower())", 'Y', 'Y', 'Y')
 
-        # --- a: a lower-case name deletes an upper-case file, no prompt (D2) --
-        $t = Invoke-Pe 'pe-a-make' @('OPTION CREATE.FILE.UPCASE', "CREATE.FILE $pE")
-        $upOk = ($t -match "Created DATA part as $pE") -and (@(Get-ChildItem -LiteralPath $acctDir -Directory | Where-Object { $_.Name -ceq $pE }).Count -eq 1)
-        Check "a: setup - $pE made with its directory upper case" $upOk 'OPTION CREATE.FILE.UPCASE did not keep the case, so the leg cannot start from an upper-case record'
-        if ($upOk) {
-            $lo = $pE.ToLower()
-            $t = Invoke-Pe 'pe-a-delete' @("DELETE.FILE $lo")
-            Check 'a: no 6130 - found as typed' ($t -notmatch 'No VOC record found') 'DELETEF printed 6130'
-            Check 'a: no 6131 prompt' ($t -notmatch 'Use file') 'DELETEF asked 6131 on a case-insensitive VOC'
-            Check "a: VOC entry '$lo' deleted (6144, any case)" ($t -match "VOC entry '$lo' deleted") 'no 6144 success line'
-            $t = Invoke-Pe 'pe-a-gone' @("CT VOC $lo")
-            Check "a: $pE is gone - VOC and directory" (($t -match "Record '$lo' not found") -and -not (Test-Path -LiteralPath (Join-Path $acctDir $pE))) 'the VOC record or the directory survived'
-        }
+        # --- a: RETIRED 9 Nov 26.  It needed an upper-case file, made with OPTION CREATE.FILE.UPCASE, which went with S.87.
 
         # --- b: RELEASE_1.1 27, a lower-case id deleted by its upper name -----
         $loL = $pL.ToLower()
@@ -957,23 +945,7 @@ try {
             Check "f: CONTROL - Y displays 'VOC $id'" ($t -match ('(?m)^VOC ' + [regex]::Escape($id) + '\s*$')) 'Y did not display it'
         }
 
-        # --- g: DELETE.FILE 6133 on a multifile --------------------------------
-        $mDir = Join-Path $acctDir $mM; $mDic = Join-Path $acctDir ($mM + '.DIC')
-        $null = Invoke-Pe 'pe-g-left' @("DELETE.FILE $mM", 'Y', 'Y', 'Y')
-        $t = Invoke-Pe 'pe-g-make' @("CREATE.FILE $($mM.ToUpper()),C1", "CREATE.FILE $($mM.ToUpper()),C2", "CT VOC $mM")
-        $multiOk = ($t -match "Created DATA part as $mM/c2") -and (Test-Path -LiteralPath (Join-Path $mDir 'c1')) -and (Test-Path -LiteralPath (Join-Path $mDir 'c2')) -and (Test-Path -LiteralPath $mDic)
-        Check "g: setup - $mM is a multifile (c1, c2) with a dictionary" $multiOk 'not built, so 6133 could not be reached'
-        if ($multiOk) {
-            foreach ($ans in @(@{ Label = 'ENTER'; Line = '' }, @{ Label = 'C'; Line = 'C' })) {
-                $t = Invoke-Pe ('pe-g-' + $ans.Label) @("DELETE.FILE $mM", $ans.Line, 'WHO')
-                Check ('g (' + $ans.Label + '): prompt 6133 reached, showing (y/n/<c>)') ($t -match 'Delete all data components of multifile.*\(y/n/<c>\)\?') 'no 6133 prompt'
-                Check ('g (' + $ans.Label + '): nothing was deleted') (($t -notmatch "portion '[^']*' deleted") -and ($t -notmatch "VOC entry '[^']*' deleted")) 'cancel did not cancel'
-                Check ('g (' + $ans.Label + '): c1, c2 and the dictionary survive') ((Test-Path -LiteralPath (Join-Path $mDir 'c1')) -and (Test-Path -LiteralPath (Join-Path $mDir 'c2')) -and (Test-Path -LiteralPath $mDic)) 'a part is gone'
-                Check ('g (' + $ans.Label + '): the session went on to WHO') ($t -match $who) 'WHO did not answer'
-            }
-            $t = Invoke-Pe 'pe-g-no' @("DELETE.FILE $mM", 'N')
-            Check "g: CONTROL - N deletes the dictionary only" (($t -match "DICT portion '$mM\.DIC' deleted") -and -not (Test-Path -LiteralPath $mDic) -and (Test-Path -LiteralPath (Join-Path $mDir 'c1'))) 'N did not delete exactly the dictionary'
-        }
+        # --- g: RETIRED 9 Nov 26.  Multifiles and prompt 6133 went with S.87.
     }
     finally {
         # VOC RECORDS FIRST, THEN ANY FOLDER - the other order leaves a dangling
@@ -1364,23 +1336,23 @@ public static class SdSuiteCli {
             $t = Invoke-Pe 'v-who-again' @('WHO')
             Check 'c: and sduser runs WHO again without ADMIN' (((CountOf (Get-Lines $t) $gate2001) -eq 0) -and ($t -match ('(?m)^\s*\d+\s+' + [regex]::Escape($Acct) + '\b'))) 'want a WHO answer and no 2001'
 
-            # d (SOLO 22): a verb is denied by what it runs.  SH and ! are both
-            # V/OS; denying SH must deny ! too, and DENY.VERBS must say so.  The
+            # d (SOLO 22): denying SH denies the shell.  9 Nov 26: the second name
+            # ! went with S.87, so there is no "also denies" line to look for.  The
             # echo text is the success wording of the shell itself.
             $bangOk = 'zzbang-ran-' + $PID
             $t = Invoke-Sd 'v-deny-sh' '' ($globalPw + "`nDENY.VERBS ADD SH`nOFF`n") 'the global password, DENY.VERBS ADD SH, OFF'
             $shAdded = ($t -match '(?m)^DENY\.VERBS \d+: .*\bSH\b')
             try {
-                Check 'd: DENY.VERBS ADD SH names ! as also denied' ($shAdded -and ($t -match '(?m)^DENY\.VERBS also denies, as the same command: .*!')) 'want SH on the list and an "also denies" line naming !'
-                $t = Invoke-Pe 'v-bang-denied' @('! echo ' + $bangOk)
-                Check 'd: with SH denied, sduser without ADMIN is refused ! (2001)' (((CountOf (Get-Lines $t) $gate2001) -eq 1) -and ((CountOf (Get-Lines $t) ('^' + [regex]::Escape($bangOk) + '$')) -eq 0)) 'want one 2001 and the echo text not printed'
+                Check 'd: DENY.VERBS ADD SH puts it on the list' $shAdded 'want SH on the list'
+                $t = Invoke-Pe 'v-bang-denied' @('SH echo ' + $bangOk)
+                Check 'd: with SH denied, sduser without ADMIN is refused SH (2001)' (((CountOf (Get-Lines $t) $gate2001) -eq 1) -and ((CountOf (Get-Lines $t) ('^' + [regex]::Escape($bangOk) + '$')) -eq 0)) 'want one 2001 and the echo text not printed'
             }
             finally {
                 if ($shAdded) { $t = Invoke-Sd 'v-deny-sh-remove' '' ($globalPw + "`nDENY.VERBS REMOVE SH`nOFF`n") 'the global password, DENY.VERBS REMOVE SH, OFF' }
             }
             Check 'd: SH is off the list again' (($t -match '(?m)^DENY\.VERBS \d+:') -and ($t -notmatch '(?m)^DENY\.VERBS \d+: .*\bSH\b')) 'want a DENY.VERBS answer without SH'
-            $t = Invoke-Pe 'v-bang-again' @('! echo ' + $bangOk)
-            Check 'd: CONTROL - and ! runs again without ADMIN' (((CountOf (Get-Lines $t) ('^' + [regex]::Escape($bangOk) + '$')) -eq 1) -and ((CountOf (Get-Lines $t) $gate2001) -eq 0)) 'want the echo text and no 2001'
+            $t = Invoke-Pe 'v-bang-again' @('SH echo ' + $bangOk)
+            Check 'd: CONTROL - and SH runs again without ADMIN' (((CountOf (Get-Lines $t) ('^' + [regex]::Escape($bangOk) + '$')) -eq 1) -and ((CountOf (Get-Lines $t) $gate2001) -eq 0)) 'want the echo text and no 2001'
         }
     }
 

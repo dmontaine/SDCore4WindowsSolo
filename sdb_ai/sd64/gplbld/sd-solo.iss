@@ -772,7 +772,7 @@ begin
     last password page, so an upgrade, which skips them, reaches it straight after the welcome. }
   OsAccessPage := CreateInputOptionPage(GlobalPage.ID, 'Shell and OS access',
     'Both are off unless you turn them on.', 'Turn on for your account:', False, False);
-  OsAccessPage.Add('Shell (SH and !)');
+  OsAccessPage.Add('Shell (SH)');
   OsAccessPage.Add('OS access (OS.EXECUTE, files outside the account, Python, editors)');
   OsAccessPage.Values[0] := False;
   OsAccessPage.Values[1] := False;
