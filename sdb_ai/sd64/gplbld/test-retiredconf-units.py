@@ -18,7 +18,8 @@
 import os, re, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ISS = os.path.join(HERE, "sd.iss")
+ISS = os.path.join(HERE, "sd-solo.iss")     # 9 Nov 26: Solo's installer script; R5 holds solo-setup.ps1's copy of the list for a reloaded sd.conf
+SETUP = os.path.join(HERE, "solo-setup.ps1")
 CONFIG_C = os.path.join(HERE, "..", "gplsrc", "config.c")
 
 # The parameters S.87 retired (Linux 843344ba, cf405b48 and 2930d92f).  A later retirement adds its name here and in sd.iss.
@@ -42,8 +43,10 @@ def parsed_by_config(cfg):
     return set(re.findall(r'(?:sscanf|strncmp)\(rec, "([A-Z0-9]+)=', code))
 
 
-def checks(iss, cfg):
+def checks(iss, cfg, setup=None):
     rows = []
+    if setup is None:
+        setup = read(SETUP)
     names = listed(iss)
     rows.append(("R0 sd.iss defines RetiredConfNames", names is not None and len(names) > 0, "%r" % names))
     names = names or []
@@ -53,7 +56,9 @@ def checks(iss, cfg):
     rows.append(("R1 no listed name is still parsed by config.c", not clash, "still parsed: %s" % clash))
     missing = sorted(RETIRED - set(names))
     rows.append(("R2 the list holds every retired parameter", not missing, "missing: %s" % missing))
-    proc = re.search(r"procedure CurStepChanged\(CurStep: TSetupStep\);.*?\bbegin\b(.*?)if CurStep = ssPostInstall then", iss, re.S)
+    m2 = re.search(r"\$retiredConf = '([^']*)'", setup)
+    rows.append(("R5 solo-setup.ps1's list for a reloaded sd.conf is the installer's list", m2 is not None and m2.group(1).split() == names, "setup: %r" % (m2.group(1) if m2 else None)))
+    proc = re.search(r"procedure CurStepChanged\(CurStep: TSetupStep\);.*?\bbegin\b(.*?)if CurStep <> ssPostInstall then", iss, re.S)
     rows.append(("R3 RemoveRetiredConf runs when CurStep = ssInstall, ahead of ssPostInstall",
                  proc is not None and re.search(r"if CurStep = ssInstall then\s*RemoveRetiredConf;", proc.group(1)) is not None, ""))
     fn = re.search(r"function IsRetiredConfLine\(L: String\): Boolean;(.*?)\nend;", iss, re.S)
@@ -81,6 +86,7 @@ def selftest(iss, cfg):
         ("GDI left out of the list", iss.replace(" GDI ", " "), cfg, "R2"),
         ("the ssInstall call removed", iss.replace("if CurStep = ssInstall then\n    RemoveRetiredConf;", ""), cfg, "R3"),
         ("the space refusal removed", iss.replace("if Pos(' ', K) > 0 then", "if False then"), cfg, "R4"),
+        ("a name added to the installer's list only", iss.replace("PORTMAP FILERULE'", "PORTMAP FILERULE ZZ'"), cfg, "R5"),
     ]
     fails = 0
     for label, mi, mc, want in mutants:

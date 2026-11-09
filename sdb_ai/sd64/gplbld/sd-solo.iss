@@ -191,6 +191,9 @@ Name: "{app}\sdsys\pstmp"; Flags: uninsneveruninstall
 ; (owner: the server fills it after installing).  [Dirs] only ever creates, and
 ; no stage.py list names it, so an upgrade keeps what the server put there.
 Name: "{app}\sdsys\global.bp.out"; Flags: uninsneveruninstall
+; 9 Nov 26 - RELEASE_1.1 197, from Core 5113c36a (Linux 29c4a48f, S.87): the copies a VOC update
+; saves before it removes a listed record; RESTORE.VOC puts one back.  Starts empty and is kept.
+Name: "{app}\sdsys\voc_removed.saved"; Flags: uninsneveruninstall
 ; 28 Sep 26 - rulings 34 and 36: the verbs denied to the local user (record
 ; denied.verbs), set from the control file and changed by DENY.VERBS.  Kept
 ; like global.bp.out.
@@ -1081,11 +1084,73 @@ begin
   Log('SD Core Solo: ' + S);
 end;
 
+{ 9 Nov 26 - RELEASE_1.1 197, from Core 25b7df77 (Linux 843344ba, S.87 batch 15).
+  PARAMETERS SD NO LONGER HAS ARE TAKEN OUT OF A KEPT sd.conf.  config.c refuses an
+  unrecognised parameter and SD then does not start, and sd.conf is onlyifdoesntexist,
+  so an upgrade keeps a file written while a parameter existed.  Only a line that
+  BEGINS with the exact name and an equals sign is removed.  test-retiredconf-units
+  holds the list to config.c, and to solo-setup.ps1's copy for a reloaded sd.conf.
+  Run at ssInstall, before anything can start SD. }
+function RetiredConfNames: String;
+begin
+  Result := 'INVCASE CODEPAGE EXCLREM RINGWAIT TXCHAR APILOGIN CREATUSR JNLDIR JNLMODE GDI FIXUSERS PORTMAP FILERULE';
+end;
+
+function IsRetiredConfLine(L: String): Boolean;
+var
+  Eq: Integer;
+  K: String;
+begin
+  Result := False;
+  Eq := Pos('=', L);
+  if Eq < 2 then
+    Exit;
+  K := Copy(L, 1, Eq - 1);
+  if Pos(' ', K) > 0 then
+    Exit;
+  Result := Pos(' ' + K + ' ', ' ' + RetiredConfNames + ' ') > 0;
+end;
+
+procedure RemoveRetiredConf;
+var
+  Lines, Kept: TArrayOfString;
+  I, N: Integer;
+  Conf, Removed: String;
+begin
+  Conf := ExpandConstant('{app}\sd.conf');
+  if not LoadStringsFromFile(Conf, Lines) then
+    Exit;
+  SetArrayLength(Kept, GetArrayLength(Lines));
+  N := 0;
+  Removed := '';
+  for I := 0 to GetArrayLength(Lines) - 1 do
+  begin
+    if IsRetiredConfLine(Lines[I]) then
+      Removed := Removed + ' ' + Copy(Lines[I], 1, Pos('=', Lines[I]) - 1)
+    else
+    begin
+      Kept[N] := Lines[I];
+      N := N + 1;
+    end;
+  end;
+  if Removed = '' then
+    Exit;
+  SetArrayLength(Kept, N);
+  if SaveStringsToFile(Conf, Kept, False) then
+    Log('RetiredConf: removed from sd.conf:' + Removed)
+  else
+    Log('RetiredConf: COULD NOT rewrite sd.conf, which still names:' + Removed);
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   Params, ReportPath, Extra, Failed: String;
   Code: Integer;
 begin
+  { 9 Nov 26 - RELEASE_1.1 197: see RemoveRetiredConf. }
+  if CurStep = ssInstall then
+    RemoveRetiredConf;
+
   if CurStep <> ssPostInstall then
     Exit;
   Failed := '';

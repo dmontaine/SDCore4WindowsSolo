@@ -349,6 +349,16 @@ try {
         else {
             Copy-Item -LiteralPath $conf -Destination $defaultConf -Force
             Copy-Item -LiteralPath $keptConf -Destination $conf -Force
+            # 9 Nov 26 - RELEASE_1.1 197: a kept sd.conf can name a parameter SD no longer has, and SD refuses to start on
+            # one.  Only the copy being tried is changed.  The same list as RetiredConfNames in sd-solo.iss.
+            $retiredConf = 'INVCASE CODEPAGE EXCLREM RINGWAIT TXCHAR APILOGIN CREATUSR JNLDIR JNLMODE GDI FIXUSERS PORTMAP FILERULE'
+            $retiredRx = '^(' + (($retiredConf -split ' ') -join '|') + ')='
+            $confLines = @(Get-Content -LiteralPath $conf)
+            $confKept = @($confLines | Where-Object { $_ -cnotmatch $retiredRx })
+            if ($confKept.Count -ne $confLines.Count) {
+                [System.IO.File]::WriteAllLines($conf, [string[]]$confKept)
+                Note ('  configuration: ' + ($confLines.Count - $confKept.Count) + ' retired parameter line(s) taken out of the copy being tried')
+            }
             # SOLO 33: THE KEPT sd.conf MAY CARRY AN ACTIVE APIPORT, and this unelevated step starts SD before the
             # firewall rule exists - the alert the installer was changed to avoid.  So the API line is switched OFF in
             # the copy being tried; the elevated step switches it ON afterwards only if the API box was ticked.

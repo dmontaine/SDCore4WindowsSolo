@@ -23,6 +23,7 @@ listing cannot write, the restore never overwrites; the saved copies survive a k
 installer instead of Linux's two shell scripts: S1 stage.py ships voc_removed (replaced on upgrade, a mirror) and creates voc_removed.saved empty and
 PRESERVED; S2 sd.iss gives voc_removed.saved a [Dirs] entry (made on every install, upgrade included); S3 sd.iss SecureSysdirs locks both to
 administrators, so an ordinary session can neither plant a "saved copy" nor edit the list.  sandbox-vocremoved.py is Linux's and is not carried.
+9 Nov 26 SD Core Solo - the installer is sd-solo.iss.  S3 is not here: Solo's tree is the one user's own, with no administrator's copy to protect it from.
 """
 import os
 import re
@@ -33,7 +34,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 SDSYS = os.path.join(REPO, "sdb_ai", "sd64", "sdsys")
 GPL = os.path.join(SDSYS, "gpl.bp")
-TAG = "v1.1-3"
+TAG = "WS1.1-3"   # 9 Nov 26: Solo's last release (Solo's clone also holds Core's v1.1-* tags, which name what Core shipped)
 
 
 def slurp(p):
@@ -54,7 +55,7 @@ def read_tree():
     t["msgs"] = {n: slurp(os.path.join(SDSYS, "messages", str(n))) for n in range(12905, 12924)
                  if os.path.exists(os.path.join(SDSYS, "messages", str(n)))}
     t["stage"] = slurp(os.path.join(HERE, "stage.py"))
-    t["iss"] = slurp(os.path.join(HERE, "sd.iss"))
+    t["iss"] = slurp(os.path.join(HERE, "sd-solo.iss"))
     return t
 
 
@@ -209,13 +210,8 @@ def checks(t, old_newvoc=None, old_template=None):
        "voc_removed" in ship and "voc_removed" in mirror and "voc_removed" not in keep and "voc_removed.saved" in empty and "voc_removed.saved" in keep
        and "voc_removed.saved" not in ship, "ship %s mirror %s empty %s preserve %s" % ("voc_removed" in ship, "voc_removed" in mirror,
                                                                                       "voc_removed.saved" in empty, "voc_removed.saved" in keep))
-    dirs = re.search(r'(?m)^Name: "\{#DataDir\}\\sdsys\\voc_removed\.saved"; Flags: uninsneveruninstall$', iss)
-    ck("S2 sd.iss [Dirs] makes voc_removed.saved on every install (no Check:), so an upgraded tree gets one", dirs is not None)
-    lock = [m.group(1) for m in re.finditer(r"LockOsUsersPath\(Ps, Script, (\w+), Code\)", iss)]
-    paths = dict(re.findall(r"(?m)^\s*(\w+)\s*:= ExpandConstant\('\{#DataDir\}\\sdsys\\([^']+)'\);", iss))
-    locked = {paths.get(v, "") for v in lock}
-    ck("S3 sd.iss SecureSysdirs locks voc_removed and voc_removed.saved to administrators (no ordinary session plants a copy or edits the list)",
-       {"voc_removed", "voc_removed.saved"} <= locked, "locked: %s" % sorted(x for x in locked if x))
+    dirs = re.search(r'(?m)^Name: "\{app\}\\sdsys\\voc_removed\.saved"; Flags: uninsneveruninstall$', iss)
+    ck("S2 sd-solo.iss [Dirs] makes voc_removed.saved on every install (no Check:), so an upgraded tree gets one", dirs is not None)
     return res
 
 
@@ -290,9 +286,7 @@ def selftest():
         ("message 12905 without its list", mut(lambda c: c["msgs"].__setitem__(12905, "removed\n")), "M1"),
         ("stage: the saved copies not preserved", mut(rep("stage", "    ('voc_removed.saved', 'saved copies of removed VOC records", "    ('zz_not_this', 'saved copies of removed VOC records")), "S1"),
         ("stage: the list not shipped", mut(rep("stage", "    ('voc_removed',   'VOC records SD no longer ships", "    ('zz_not_this',   'VOC records SD no longer ships")), "S1"),
-        ("iss: no [Dirs] entry", mut(rep("iss", 'Name: "{#DataDir}\\sdsys\\voc_removed.saved"; Flags: uninsneveruninstall', '; gone')), "S2"),
-        ("iss: the saved copies not locked", mut(rep("iss", "LockOsUsersPath(Ps, Script, VocRmSaved, Code)", "LockOsUsersPath(Ps, Script, Gplbp, Code)")), "S3"),
-        ("iss: the list not locked", mut(rep("iss", "LockOsUsersPath(Ps, Script, VocRm, Code)", "LockOsUsersPath(Ps, Script, Gplbp, Code)")), "S3"),
+        ("iss: no [Dirs] entry", mut(rep("iss", 'Name: "{app}\\sdsys\\voc_removed.saved"; Flags: uninsneveruninstall', '; gone')), "S2"),
     ]
     ok = True
     for name, c, want in mutants:
