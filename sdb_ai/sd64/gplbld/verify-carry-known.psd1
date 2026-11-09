@@ -63,9 +63,6 @@
     Rows = @{
         # A line ends with CR LF here unless a mode is chosen: the owner PERMITTED this default on 18 Oct 2026 (Linux mail T1930,
         # deviation 15 of the areas 2-5 list).  The suites count bytes, and Linux's default is LF only.
-        'mode-q16' = @{
-            "27 Oct 26 (S.87 batch 3): OPENTEMP 'path' ECS" = 'OPENTEMP was never carried to Windows (held: it rests on the S.63 OS-access gate; bcomp history), so the statement does not compile here at all'
-        }
         'audit-b9' = @{
             '259 THE ROW: SEEK -3 from the end'    = 'WRITESEQ ends a line with CR LF, so the last three bytes are d CR LF and READSEQ gives d, not ld (the SEEK itself worked: ok = 1)'
             '259 a positive offset from the end'   = 'WRITESEQ ends a line with CR LF, so the last three bytes are d CR LF and READSEQ gives d, not ld (the SEEK itself worked: ok = 1)'
@@ -143,6 +140,7 @@
             'Q-16 MATREAD as the WHILE condition'  = 'reads the VOC record LOGTO, which Solo has not'
             'Q-16 MATREADU as the condition'       = 'reads the VOC record LOGTO, which Solo has not'
             'Q-16 MATREADL as the condition'       = 'reads the VOC record LOGTO, which Solo has not'
+            "27 Oct 26 (S.87 batch 3): OPENTEMP 'path' ECS" = 'OPENTEMP was never carried to Windows (held: it rests on the S.63 OS-access gate; bcomp history), so the statement does not compile here at all'
         }
         'proc-a5' = @{
             'THE ROW: WHO USER shows the login name' = 'a Solo session is signed in as the account (the output reads "SDUSER sduser"), not as the Windows user the suite expects to see ("Don")'
