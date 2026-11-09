@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 09 Nov 26 SD Core Solo - ranges_overlap() removed: nothing has called it since S.87 batch 15 took the PHANTOMS setting out (the compiler said
+ *           "defined but not used"; Core and Linux Solo no longer have it).
  * 06 Oct 26 SD Core Solo - APILOGIN is retired: accepted and ignored, not
  *           stored (parity audit PAW-5; Linux's S.18)
  * 01 Oct 26 SD Core Solo - BACKUPDIR is accepted (and not stored), so the line
@@ -551,13 +553,6 @@ Private bool rangecheck(char* param,
   }
 
   return TRUE;
-}
-
-/* ======================================================================
-   ranges_overlap()  -  Do two runs of user numbers (first number, how many) share a number?  (16 Oct 26, PHANTOMS) */
-
-Private bool ranges_overlap(int lo1, int count1, int lo2, int count2) {
-  return (lo1 < lo2 + count2) && (lo2 < lo1 + count1);
 }
 
 /* END-CODE */

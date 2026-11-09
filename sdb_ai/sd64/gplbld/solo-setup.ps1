@@ -232,7 +232,7 @@ $disqualify = @('only the installer may run this', 'Connection terminated', 'has
                 'Cannot update every registered account from here', 'Command requires administrator privileges',
                 # SYNC.GLOBAL.CATALOG's refusals (12028, its own open failures, 3022)
                 'can only be changed by the SD Core server', 'cannot open global.bp.out',
-                'Cannot open global catalogue directory',
+                'Cannot open global catalog directory',
                 # DENY.VERBS's refusals (ruling 34)
                 'is not a verb name', 'deny.verbs: cannot open',
                 # SET.OS.ACCESS's refusals (RELEASE_1.1 165): 10114 (register unchanged) and 12931 (syntax)
@@ -486,7 +486,7 @@ try {
     # re-runs the sync.  With no global password it says so and succeeds.  The anchor is the
     # verb's own last line with 0 refused; a refused object fails the step.
     $t = Invoke-Sd '-internal SYNC.GLOBAL.CATALOG' ''
-    Judge 'global catalogue matches GLOBAL.BP.OUT' $t '(?m)^SYNC GLOBAL CATALOG DONE \d+ catalogued \d+ removed 0 refused\s*$'
+    Judge 'global catalog matches GLOBAL.BP.OUT' $t '(?m)^SYNC GLOBAL CATALOG DONE \d+ cataloged \d+ removed 0 refused\s*$'
 
     # 26 Oct 26 - the context help (Core RELEASE_1.1 184).  The text under sdsys\helptext becomes the records of the file context.help in the
     # system directory; every install and upgrade, because an upgrade replaces the text.  The anchor is the verb's own result line (message 12844).
