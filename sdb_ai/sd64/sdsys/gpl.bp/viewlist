@@ -1,0 +1,167 @@
+* VIEWLIST
+* The list of programs the administrator has allowed to be started WITHOUT the account's OS.EXECUTE switch, and the test a program must pass to be on it (S.75, SOLO 47).
+* Copyright (c) 2026, SD Core for Linux.  This program is free software; you can redistribute
+* it and/or modify it under the terms of the GNU General Public License, version 3 or later.
+*
+* START-HISTORY:
+* 9 Nov 26 Windows port - from Linux Solo 15767b9 (SOLO 47, the owner: "the windows solo should get pdf").  The test is Windows's: a program is a REGULAR .exe under Program Files, Program Files (x86) or the Windows folder, owned by SYSTEM, the
+*               Administrators or TrustedInstaller, that no ordinary user's group can write; it is made with PowerShell (os.execute, allowed here because this program is $internal).  There is no 'find' (a bare name is not searched
+*               for) and no chmod (the list's folder keeps its own permissions).
+* 28 Oct 26 dm  S.87: CLOSESEQ and EQU are gone as statements: this program says CLOSE and EQUATE.
+* 23 Oct 26 dm  New (S.75; the owner: "an admin screen to setup which programs are allowed to bypass the os.execute restriction globally").
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*   call !viewlist(op, a, b, c)
+*
+*     'get'    a = purpose (pdf)                    b = returned: the paths allowed for it, in the order they were added, one to a field
+*     'put'    a = purpose, b = the paths (one to a field)       c = returned 1 when the list was written, else 0.  Replaces that purpose's lines; the lines of other purposes are kept.
+*     'check'  a = a path                           b = returned: null when a program may be on the list, else the reason in words
+*     'native' a = a path in any spelling SD uses   b = returned: the path as Windows writes it (C:/Program Files/x/y.exe), or null when it is not an absolute path of plain characters
+*
+*   THE LIST is the file  viewers  in the SD system directory, one line to an entry:  purpose, a space, the native path.  Lines that are blank or begin with # are
+*   ignored.  It is EMPTY as delivered: nothing is allowed until the administrator names it (SET.VIEWER).
+*
+*   THE TEST 'check' makes is made when a program is added AND again each time one is started, so a program replaced afterwards is refused.  The path is of letters, digits, space and : / . _ + - ( ) only,
+*   with no .. and no quote; it is under C:/Program Files, C:/Program Files (x86) or the Windows folder (the system drive's, by the environment); it is a file and not a folder, a link or a reparse point; it ends in .exe; its
+*   owner is SYSTEM, the Administrators or TrustedInstaller; and no other principal has an Allow entry that writes, appends, deletes, changes permissions or takes ownership.  It does not say the program is
+*   safe: a graphical viewer can open other files its user may read and follow links, and naming one is the administrator's judgement.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+subroutine viewlist(op, a, b, c)
+$catalog !viewlist
+
+$include int$keys.h
+$include err.h
+
+   lfile = @sdsys : @ds : 'viewers'
+
+   begin case
+      case op = 'get'
+         gosub read.all
+         b = ''
+         for i = 1 to dcount(pur, @fm)
+            if pur<i> = a then b<-1> = pth<i>
+         next i
+      case op = 'put'
+         gosub read.all
+         keep.pur = ''
+         keep.pth = ''
+         nk = 0
+         for i = 1 to dcount(pur, @fm)
+            if pur<i> # a then
+               nk += 1
+               keep.pur<nk> = pur<i>
+               keep.pth<nk> = pth<i>
+            end
+         next i
+         for i = 1 to dcount(b, @fm)
+            nk += 1
+            keep.pur<nk> = a
+            keep.pth<nk> = b<i>
+         next i
+         gosub write.all
+      case op = 'check'
+         gosub check.program
+      case op = 'native'
+         gosub make.native
+   end case
+   return
+
+* The path as Windows writes it: C:/dir/file.  The spellings SD answers are C:/x, C:\x, /cygdrive/c/x and /c/x.  Null when it is none of them, or has a character a plain path does not
+make.native:
+   b = ''
+   p = trim(a)
+   n = ''
+   begin case
+      case len(p) >= 3 and p[2, 1] = ':' and (p[3, 1] = '/' or p[3, 1] = '\')
+         n = upcase(p[1, 1]) : ':' : change(p[3, 99999], '\', '/')
+      case p[1, 10] = '/cygdrive/' and len(p) >= 12 and p[12, 1] = '/'
+         n = upcase(p[11, 1]) : ':' : p[12, 99999]
+      case len(p) >= 3 and p[1, 1] = '/' and p[3, 1] = '/'
+         n = upcase(p[2, 1]) : ':' : p[3, 99999]
+   end case
+   if n = '' then return
+   if not(alpha(n[1, 1])) then return
+   okc = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789:/._+-() '
+   if len(n) > 200 or trim(convert(okc, space(len(okc)), n)) # '' then return
+   if index(n, '..', 1) > 0 or index(n, '//', 1) > 0 then return
+   b = n
+   return
+
+* The file, as two lists: the purpose and the path of each entry
+read.all:
+   pur = ''
+   pth = ''
+   n = 0
+   openseq lfile readonly to lf then                  ;* READONLY: an absent file is not made
+      loop
+         readseq line from lf else exit
+         line = trim(line)
+         if line = '' or line[1, 1] = '#' then continue
+         n += 1
+         sp = index(line, ' ', 1)
+         pur<n> = downcase(line[1, sp - 1])
+         pth<n> = trim(line[sp + 1, 999])
+      repeat
+      close lf
+   end else
+      if not(unassigned(lf)) then close lf
+   end
+   return
+
+write.all:
+   c = 0
+   openseq lfile overwrite to lf else null          ;* ELSE means the file did not exist and was created; only a status is a failure
+   if status() = 0 then
+      c = 1
+      for i = 1 to nk
+         writeseq keep.pur<i> : ' ' : keep.pth<i> to lf else c = 0
+      next i
+      close lf
+   end
+   return
+
+* Why a program may not be on the list, or null
+check.program:
+   gosub make.native
+   p = b
+   b = ''
+   if p = '' then
+      b = 'it is not an absolute path of plain characters (a drive letter, then folders; letters, digits, space and : / . _ + - ( ) only)'
+      return
+   end
+   if p # a then
+      b = 'write it as ' : p
+      return
+   end
+   if downcase(p[len(p) - 3, 4]) # '.exe' then
+      b = 'it is not an .exe file'
+      return
+   end
+*  The test itself is PowerShell's, on ONE line, with single quotes only (the command reaches the shell as one argument, and a double quote would be escaped on the way).  It answers OK or the reason.
+*  Trusted owners and writers: SYSTEM S-1-5-18, Administrators S-1-5-32-544, TrustedInstaller S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464, CREATOR OWNER S-1-3-0.  The rights tested are
+*  WriteData 2, AppendData 4, WriteExtendedAttributes 16, WriteAttributes 256, Delete 65536, ChangePermissions 262144 and TakeOwnership 524288 (852246 together).
+   ps = "$ErrorActionPreference='Stop'; $p='" : p : "'; $t=@('S-1-5-18','S-1-5-32-544','S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464','S-1-3-0'); "
+   ps := "try { $n=$p.Replace('/','\'); $roots=@($env:ProgramFiles,${env:ProgramFiles(x86)},$env:SystemRoot) | Where-Object { $_ }; $under=$false; "
+   ps := "foreach ($r in $roots) { if ($n.StartsWith($r.TrimEnd('\')+'\',[System.StringComparison]::OrdinalIgnoreCase)) { $under=$true } }; "
+   ps := "if (-not $under) { 'it is not under Program Files or the Windows folder' } else { $i=Get-Item -LiteralPath $n -Force; "
+   ps := "if ($i.PSIsContainer) { 'it is not a regular file' } elseif (($i.Attributes -band 1024) -ne 0) { 'it is a link' } else { $a=Get-Acl -LiteralPath $n; "
+   ps := "$o=$a.GetOwner([System.Security.Principal.SecurityIdentifier]).Value; if ($t -notcontains $o) { 'it is not owned by SYSTEM, the Administrators or TrustedInstaller' } else { $why=''; "
+   ps := "foreach ($e in $a.Access) { if ($e.AccessControlType -eq 'Allow' -and (([int]$e.FileSystemRights -band 852246) -ne 0)) { $s=$e.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value; "
+   ps := "if ($t -notcontains $s) { $why='it can be changed by '+$e.IdentityReference.Value } } }; if ($why) { $why } else { 'OK' } } } } } catch { 'it does not exist or cannot be read' }"
+   os.execute ps capturing so
+   r = trim(change(so, @fm, ' '))
+   if r # 'OK' then
+      if r = '' then r = 'the test could not be run'
+      b = r
+   end
+   return
+end
+
+* END-CODE

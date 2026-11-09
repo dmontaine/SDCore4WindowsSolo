@@ -1,0 +1,102 @@
+* DOCSINST
+* DOCS.INSTALL verb: copy documentation PDFs into the pdf directory (S.75, SOLO 47).
+* Copyright (c) 2026, SD Core for Linux.  This program is free software; you can redistribute
+* it and/or modify it under the terms of the GNU General Public License, version 3 or later.
+*
+* START-HISTORY:
+* 9 Nov 26 Windows port - from Linux Solo 15767b9 (SOLO 47, the owner: "the windows solo should get pdf").  Copy-Item through PowerShell replaces cp and chmod; the directory is a drive-letter path (any of the
+*               spellings !VIEWLIST 'native' knows).  The message ids are Linux's plus 1005.
+* 28 Oct 26 dm  S.87: CLOSESEQ and EQU are gone as statements: this program says CLOSE and EQUATE.
+* 23 Oct 26 dm  New (S.75; the owner: "in the shared account directory should be the documentation PDF's").
+* 23 Oct 26 dm  SOLO CARRY 14 (Core 72e708e): Solo has no shared account, so the pdf directory is the one in the SD system directory (the install directory).
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*   DOCS.INSTALL directory
+*
+*   The administrator's verb.  The PDFs are generated from the documentation repository and are not part of the source tree (no binary is tracked), so they arrive in the
+*   pdf directory of the SD system directory by this verb, from a directory the administrator names: the pdf directories of a documentation checkout, or a release's bundle unpacked.
+*   Each file of the directory (not its sub-directories) is copied if its name is lower case, a-z 0-9 dot dash underscore, ends in .pdf and does not begin with a dot, and the file
+*   starts with %PDF- ; anything else is skipped and named.  A file already there is replaced.  The directory must be a plain absolute path (a drive letter, then folders; letters, digits,
+*   space and : / . _ + - ( ) only).  The pdf directory is made by the installer, never by this verb.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+program docs.install
+$catalog $docsinst
+
+$include int$keys.h
+$include keys.h
+$include err.h
+
+   @system.return.code = -ER$ARGS
+
+   if not(kernel(K$ADMINISTRATOR, -1)) then
+      stop sysmsg(2001) ;* Command requires administrator privileges
+   end
+
+   words = trim(@sentence)
+   if dcount(words, ' ') < 2 then stop sysmsg(12725)             ;* docs.install directory
+   src = trim(field(words, ' ', 2, 99))
+   if src[1, 1] = '"' and src[len(src), 1] = '"' and len(src) >= 2 then src = src[2, len(src) - 2]
+   call !viewlist('native', src, srcn, 0)
+   if srcn = '' then stop sysmsg(12726, src[1, 60])               ;* The directory %1 cannot be read or is not a plain path
+   entries = dir(srcn)
+   if entries = '' then stop sysmsg(12726, src[1, 60])
+
+   call !viewlist('native', @sdsys, sysn, 0)
+   if sysn = '' then stop sysmsg(12729)
+   dest = @sdsys : @ds : 'pdf'
+   if dir(dest) = '' and status() # 0 then stop sysmsg(12729)    ;* the installer makes the directory; this verb does not
+
+   n.copied = 0
+   n.skipped = 0
+   for i = 1 to dcount(entries, @fm)
+      nm = entries<i, 1>
+      if entries<i, 2> # 'F' then continue
+      if nm[len(nm) - 3, 4] # '.pdf' then continue
+      gosub copy.one
+   next i
+
+   void kernel(K$AUDIT, 'docs.install copied=' : n.copied : ' skipped=' : n.skipped)
+   @system.return.code = (if n.skipped then -ER$FAILED else 0)
+   display sysmsg(12727, n.copied, n.skipped)                    ;* Copied %1 document(s) into the pdf directory; skipped %2
+   stop
+
+copy.one:
+   ok = (len(nm) >= 5 and len(nm) <= 84 and nm[1, 1] # '.' and nm = downcase(nm))
+   if ok then
+      if trim(convert('abcdefghijklmnopqrstuvwxyz0123456789._-', space(39), nm)) # '' then ok = 0
+   end
+   if not(ok) then
+      display sysmsg(12728, nm[1, 60], 'the name is not lower case letters, digits and . _ -')
+      n.skipped += 1
+      return
+   end
+   magic = ''
+   openseq srcn : @ds : nm readonly to pf then
+      readseq magic from pf else magic = ''
+      close pf
+   end
+   if magic[1, 5] # '%PDF-' then
+      display sysmsg(12728, nm, 'it does not start with %PDF-')
+      n.skipped += 1
+      return
+   end
+*  Copy-Item, one line, single quotes only; both names are plain (a checked file name after a checked directory)
+   ps = "$ErrorActionPreference='Stop'; try { Copy-Item -LiteralPath ('" : srcn : "/" : nm : "'.Replace('/','\')) -Destination ('" : sysn : "/pdf/" : nm : "'.Replace('/','\')) -Force; 'OK' } catch { 'it could not be copied' }"
+   os.execute ps capturing co
+   if trim(change(co, @fm, ' ')) # 'OK' or not(ospath(dest : @ds : nm, OS$EXISTS)) then
+      display sysmsg(12728, nm, 'it could not be copied')
+      n.skipped += 1
+   end else
+      n.copied += 1
+   end
+   return
+end
+
+* END-CODE

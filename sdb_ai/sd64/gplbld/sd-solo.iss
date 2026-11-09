@@ -198,6 +198,10 @@ Name: "{app}\sdsys\voc_removed.saved"; Flags: uninsneveruninstall
 ; denied.verbs), set from the control file and changed by DENY.VERBS.  Kept
 ; like global.bp.out.
 Name: "{app}\sdsys\solo.policy"; Flags: uninsneveruninstall
+; 9 Nov 26 - SOLO 47: the documentation PDFs PDF shows (DOCS.INSTALL copies them in, from a directory the
+; administrator names).  Starts empty and is kept; the list of allowed viewers is the file sdsys\viewers,
+; made by SET.VIEWER, so nothing is allowed as delivered.
+Name: "{app}\sdsys\pdf"; Flags: uninsneveruninstall
 
 [InstallDelete]
 ; 01 Oct 26 - the server is sd-solo.exe now.  An install made before the rename

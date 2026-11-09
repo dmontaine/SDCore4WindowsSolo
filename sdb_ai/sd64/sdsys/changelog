@@ -2,6 +2,22 @@ WS1.2-0 - SD Core Solo for Windows, in progress
 -------------
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
 
+9 Nov 26   PDF SHOWS A DOCUMENT IN A PDF READER THE ADMINISTRATOR HAS ALLOWED, EVEN FOR AN ACCOUNT THAT MAY NOT RUN PROGRAMS. NO READER IS ALLOWED AS DELIVERED.
+
+             What        - PDF lists the documents, and PDF name shows one in the PDF reader of the computer you are sitting at. The
+                           documents are the PDF files of the pdf folder of the SD system directory; DOCS.INSTALL directory (an
+                           administrator's verb) copies them in, and the installer makes the folder. SET.VIEWER ADD PDF full-path names
+                           the reader (SET.VIEWER REMOVE PDF full-path stops it; SET.VIEWER alone lists them). The Documentation button
+                           of the [?] help boxes works again.
+             Why         - The documentation can be read on screen by an account that is not allowed to run programs.
+             Does NOT    - Allow any reader as delivered: PDF says no viewer has been allowed until an administrator names one. A
+                           reader is accepted only if it is an .exe under Program Files or the Windows folder, owned by SYSTEM, the
+                           Administrators or TrustedInstaller, with no other user able to change it; the test is made again each time
+                           it is started. The document is a regular file of the pdf folder named without a path, one audit line is
+                           written, and a session that is not at the computer (ssh, or a background session) is told so and nothing is
+                           started. A graphical reader can still open other files its user may read, so naming one is the
+                           administrator's judgement. The Bypass programs page (TOOL.VIEWERS) is not built.
+
 9 Nov 26   ON A MANAGED COMPUTER, THE SERVER'S PROGRAMS ARE CALLED BY THEIR PLAIN NAMES.
 
              What        - SYNC.GLOBAL.CATALOG now catalogues each program in GLOBAL.BP.OUT under its own name, and a program

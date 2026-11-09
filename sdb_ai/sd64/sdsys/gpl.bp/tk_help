@@ -4,6 +4,7 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 9 Nov 26 Windows port - SOLO 47: the Documentation button is back (the pdf verb is carried to Solo); it runs  pdf <name>  through $tk_run, which says so itself when no viewer is allowed.
 * 25 Oct 26 Windows port - from Linux Solo ee5e80d - the Documentation button is off (doc is set to null): there is no pdf verb in this tree yet (RELEASE_1.1 179).
 * 23 Oct 26 dm  New (S.75, plan section 14.5).
 * 23 Oct 26 dm  SOLO CARRY 14 (Core 72e708e): the file is context.help in the SD system directory, not in a shared account.
@@ -107,7 +108,6 @@ show.box:
       call $tk_wrap(lines<p>, wrapw, pieces)
       body<-1> = pieces
    next p
-   doc = ''      ;* 25 Oct 26 Windows port: there is no pdf verb here yet, so no Documentation button (RELEASE_1.1 179)
    if doc # '' then
       btn = '&Documentation,&Close'
       dflt = 2

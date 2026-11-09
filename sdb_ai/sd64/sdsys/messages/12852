@@ -1,1 +1,1 @@
-This session has no graphical display (DISPLAY and WAYLAND_DISPLAY are empty), so a viewer cannot show the document
+This session is not at the computer's screen (it is an ssh or background session), so a viewer cannot show the document
