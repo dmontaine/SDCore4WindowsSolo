@@ -2,6 +2,14 @@ WS1.2-0 - SD Core Solo for Windows, in progress
 -------------
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
 
+9 Nov 26   ON A MANAGED COMPUTER, THE SERVER'S PROGRAMS ARE CALLED BY THEIR PLAIN NAMES.
+
+             What        - SYNC.GLOBAL.CATALOG now catalogues each program in GLOBAL.BP.OUT under its own name, and a program
+                           calls it with CALL name. An object whose name begins with $ ! _ * or - is refused.
+             Why         - The * prefix on catalogue names was removed from SD (see the 8 Nov entry).
+             Does NOT    - Keep CALL *name: a program that used it must be changed and compiled again. A program of the same
+                           name in the account's own catalogue is found first.
+
 9 Nov 26   SD-SOLO -STOP NO LONGER LEAVES SESSIONS BEHIND (FROM SD CORE FOR LINUX).
 
              What        - sd-solo -stop and sd-solo -restart still send every session the termination signal and wait ten

@@ -18,6 +18,8 @@
 *
 *
 * START-HISTORY:
+* 09 Nov 26 SD Core Solo - RELEASE_1.1 204: the * prefix went with S.87 (Linux fb98cfb5), so the server's programs are catalogued under their plain
+*           names, as a global program is on SD Core.  An object whose name begins with a prefix SD still uses, or a retired one, is refused.
 * 08 Oct 26 SD Core Solo - the machine line "sync global catalog done ..." is
 *           lower case (Linux T2330 batch, owner's "all lower case"); case only.
 * 06 Oct 26 SD Core Solo - SOLO 36: no "standalone" mode; the no-$GLOBAL line
@@ -40,18 +42,20 @@
 * global.bp.out. if necessary create a command usable only by the server".
 * This is that command.
 *
-* WHAT IT DOES.  Makes the global catalogue's * entries match GLOBAL.BP.OUT
+* WHAT IT DOES.  Makes the global catalogue's plain entries match GLOBAL.BP.OUT
 * (SDSYS's global.bp.out, which starts empty - the owner chose that the server
 * fills it after installing):
-*   - every object in GLOBAL.BP.OUT is catalogued as *<name>, lower case -
+*   - every object in GLOBAL.BP.OUT is catalogued under its name, lower case -
 *     written whole, so a changed object replaces the old one;
-*   - every * entry in the global catalogue with no object in GLOBAL.BP.OUT is
-*     deleted.
-* THE * PREFIX IS THE WHOLE BOOKKEEPING.  Nothing else can put a * entry in the
-* global catalogue now - CATALOG and DELETE.CATALOG refuse every global entry
-* for every session (12029) - so the * entries ARE this command's, and SD's own
-* $ ! _ programs are never touched.  An upgrade replaces gcat wholesale, which
-* drops the * entries; the installer runs this afterwards and they come back
+*   - every entry in the global catalogue with no $ ! _ prefix and no object in
+*     GLOBAL.BP.OUT is deleted (an old * entry from before S.87 among them).
+* HAVING NO PREFIX IS THE WHOLE BOOKKEEPING.  SD ships nothing without one, and
+* nothing else can put such an entry in the global catalogue now - CATALOG and
+* DELETE.CATALOG refuse every global entry for every session (12029) - so those
+* entries ARE this command's, and SD's own $ ! _ programs are never touched.
+* An object named with one of those prefixes is refused for the same reason: it
+* would replace a program of SD's.  An upgrade replaces gcat wholesale, which
+* drops these entries; the installer runs this afterwards and they come back
 * from GLOBAL.BP.OUT, which an upgrade keeps.
 *
 * WHO MAY RUN IT: a session signed in with the global password
@@ -122,11 +126,16 @@ $include err.h
 
    magic = if system(1009) then HDR.MAGIC.NO.B else HDR.MAGIC.NO.L
 
-*  1. Every object in GLOBAL.BP.OUT goes in as *<name>.
+*  1. Every object in GLOBAL.BP.OUT goes in under its own name.
    select src.f to 11
    loop
       readnext id from 11 else exit
-      call.name = '*' : downcase(id)
+      call.name = downcase(id)
+      if index('$!_*-', call.name[1, 1], 1) then
+         display 'sync.global.catalog: ' : id : ' begins with a character SD keeps for its own programs - refused'
+         n.bad += 1
+         continue
+      end
       read obj from src.f, id else
          display 'sync.global.catalog: ' : id : ' could not be read - refused'
          n.bad += 1
@@ -154,13 +163,13 @@ $include err.h
    repeat
    obj = ''
 
-*  2. Every * entry with no object behind it goes.  Collected first, deleted
+*  2. Every entry without a prefix and with no object behind it goes.  Collected first, deleted
 *  after, so the select is not walking a directory it is changing.
    gone = ''
    select gcat.f to 12
    loop
       readnext id from 12 else exit
-      if id[1, 1] = '*' then
+      if not(index('$!_', id[1, 1], 1)) then
          locate downcase(id) in want<1> setting pos else gone<-1> = id
       end
    repeat

@@ -1203,20 +1203,19 @@ public static class SdSuiteCli {
     #    COPY into GLOBAL.BP.OUT (12028) - and GLOBAL.BP.OUT stays empty.
     # b: managed mode only - a session signed in with the GLOBAL password
     #    copies a compiled subroutine into GLOBAL.BP.OUT and syncs; sduser
-    #    (account password, no ADMIN) then CALLs it as *name; the global
+    #    (account password, no ADMIN) then CALLs it by name; the global
     #    session deletes it and syncs again, and the catalogue entry is gone.
-    # The catalogue entry "*zzgsub" is stored on disk as "%Azzgsub" (a
-    # directory file maps * to %A - the mapping HISTORY.md's entry 3 recorded).
+    # 9 Nov 26: the * prefix went with S.87, so the entry is the plain name.
     Say ''
     Say '== 16. the global catalogue belongs to the SD Core server'
     $gcatDir = Join-Path $Sdsys 'gcat'
     $gbpDir  = Join-Path $Sdsys 'global.bp.out'
     $gSub    = 'ZZGSUB'
     $gCall   = 'ZZGCALL'
-    $gcatFile = Join-Path $gcatDir ('%A' + $gSub.ToLower())
+    $gcatFile = Join-Path $gcatDir $gSub.ToLower()
     $gbpN = $(if (Test-Path -LiteralPath $gbpDir) { @(Get-ChildItem -LiteralPath $gbpDir -File).Count } else { -1 })
     Say ('    ' + $gbpDir + ' objects: ' + $gbpN + '   ' + $gcatFile + ' exists: ' + (Test-Path -LiteralPath $gcatFile))
-    Check 'GLOBAL.BP.OUT is installed and empty, and no *zzgsub is catalogued' (($gbpN -eq 0) -and -not (Test-Path -LiteralPath $gcatFile)) ('objects ' + $gbpN + '; left by an earlier run?')
+    Check 'GLOBAL.BP.OUT is installed and empty, and no zzgsub is catalogued' (($gbpN -eq 0) -and -not (Test-Path -LiteralPath $gcatFile)) ('objects ' + $gbpN + '; left by an earlier run?')
 
     $t = Invoke-Pe 'g-admin' @("CATALOG BP $gSub GLOBAL", ('DELETE.CATALOG *' + $gSub.ToLower()), 'SYNC.GLOBAL.CATALOG', 'COPY FROM VOC TO GLOBAL.BP.OUT WHERE') -Admin
     $L = Get-Lines $t
@@ -1241,7 +1240,7 @@ public static class SdSuiteCli {
             [IO.File]::WriteAllText($gCallDest, (@(
                 '* ZZGCALL - written by gplbld/verify-solo.ps1, leg 16.  Safe to delete.'
                 "      X = ''"
-                '      CALL *ZZGSUB(X)'
+                '      CALL ZZGSUB(X)'
                 "      CRT 'GCALL=':X"
                 '   END') -join "`n") + "`n", [Text.Encoding]::ASCII)
             $t = Invoke-Sd 'g-compile' ('BASIC BP ' + $gSub + ' ' + $gCall) '' 'none'

@@ -135,6 +135,9 @@
         'edbug' = @{
             'with NO.EV.POSITION in $ED.OPTIONS' = 'the probe writes the VOC record $ED.OPTIONS, which an ordinary account may not (errlog: Error 3035 writing record at zzevo...)'
         }
+        'qproc-a3' = @{
+            'MEASURED: with the than record deleted' ='DELETE VOC than needs ADMIN on Solo, which this suite does not type, so the record is still there and the row measures nothing'
+        }
         # Solo's VOC has no LOGTO (read from the session output of lang-a15, 18 Oct 2026: W3 printed 0).
         'mode-q16' = @{
             'Q-16 MATREAD as the WHILE condition'  = 'reads the VOC record LOGTO, which Solo has not'
