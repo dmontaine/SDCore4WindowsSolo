@@ -110,7 +110,7 @@ $include err.h
    if not(managed) then
       display 'sync.global.catalog: this computer has no global password, so no SD Core server manages it and there is nothing to manage.'
       @system.return.code = 0
-      display 'sync global catalog done 0 catalogued 0 removed 0 refused'
+      display 'sync global catalog done 0 cataloged 0 removed 0 refused'
       stop
    end
 
@@ -159,7 +159,7 @@ $include err.h
       write obj to gcat.f, call.name
       want<-1> = call.name
       n.cat += 1
-      display 'catalogued ' : call.name
+      display 'cataloged ' : call.name
    repeat
    obj = ''
 
@@ -188,9 +188,9 @@ $include err.h
 
 *  7 Oct 26 - lower case (owner's ruling, "All lower case"; Linux T1830).  The three counts are numbers, which
 *  test-auditwords-units knows are not command words.
-   void kernel(K$AUDIT, 'sync.global.catalog ' : n.cat : ' catalogued ' : n.rem : ' removed ' : n.bad : ' refused')
+   void kernel(K$AUDIT, 'sync.global.catalog ' : n.cat : ' cataloged ' : n.rem : ' removed ' : n.bad : ' refused')
    if n.bad = 0 then @system.return.code = 0
-   display 'sync global catalog done ' : n.cat : ' catalogued ' : n.rem : ' removed ' : n.bad : ' refused'
+   display 'sync global catalog done ' : n.cat : ' cataloged ' : n.rem : ' removed ' : n.bad : ' refused'
    stop
 end
 

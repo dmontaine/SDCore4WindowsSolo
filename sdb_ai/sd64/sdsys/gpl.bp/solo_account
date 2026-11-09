@@ -211,7 +211,7 @@ make.account:
    s = pathname : @ds : 'cat'
    if not(ospath(s, OS$EXISTS)) then
       create.file s directory on error
-         display 'solo_account: cannot create the private catalogue'
+         display 'solo_account: cannot create the private catalog'
          stop
       end
    end

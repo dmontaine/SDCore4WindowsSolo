@@ -2,6 +2,17 @@ WS1.2-0 - SD Core Solo for Windows, in progress
 -------------
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
 
+9 Nov 26   EVERYTHING SD PRINTS IS IN US SPELLING (FROM SD CORE FOR LINUX).
+
+             What        - Messages, help text, the texts of SD's own programs, the error texts and the messages of the C programs
+                           say catalog, color, canceled, recognized, license, behavior and the like, not catalogue, colour,
+                           cancelled, recognised, licence, behaviour. "Item not in catalog", "Unrecognized option" and
+                           "added to private catalog" are examples.
+             Why         - One spelling throughout.
+             Does NOT    - Rename anything: verbs, keywords, option and mode names ($BASIC.OPTIONS CATALOGUE, ANALYSE.INDEX,
+                           TERM COLOUR), file names and record ids are as they were. A program or a test that matches on a
+                           message by its old wording has to be changed.
+
 9 Nov 26   PDF SHOWS A DOCUMENT IN A PDF READER THE ADMINISTRATOR HAS ALLOWED, EVEN FOR AN ACCOUNT THAT MAY NOT RUN PROGRAMS. NO READER IS ALLOWED AS DELIVERED.
 
              What        - PDF lists the documents, and PDF name shows one in the PDF reader of the computer you are sitting at. The

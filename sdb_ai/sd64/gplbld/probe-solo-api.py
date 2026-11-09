@@ -129,7 +129,7 @@ try:
 
     print('\n== 3. sd -N -H, the pre-authenticated session, is gone')
     out = sd_in(['-N', '-H'], 'WHO\n')
-    verdict('refused as unrecognised', "unrecognised argument '-h'" in out.lower(), "Unrecognised argument '-H'")
+    verdict('refused as unrecognized', "unrecognized argument '-h'" in out.lower(), "Unrecognized argument '-H'")
     verdict('and served nothing', not any(l.startswith('1 ') for l in lines(out)) and ACCDIR.lower() not in lines(out), 'no WHO/WHERE answer')
 
     print('\n== 4. the operating system from an API session (SOLO 3 step 5 E)')

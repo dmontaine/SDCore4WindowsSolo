@@ -52,7 +52,7 @@
 #      DELETE.FILE 6135/6140 through a second VOC pointer; CATALOG 3033/3034;
 #      CPROC's .D 5040; the select-list 2050 before CT.  (9 Nov 26: legs a and g
 #      are retired; their fixtures, OPTION CREATE.FILE.UPCASE and multifiles,
-#      went with S.87.)  It makes and removes ZZPROMPT* files, a catalogue entry and VOC records in the
+#      went with S.87.)  It makes and removes ZZPROMPT* files, a catalog entry and VOC records in the
 #      account, and checks every one gone.  Ported from verify-promptenter.ps1
 #      (git show 3776c66:...); its sessions add ADMIN only for COPY into VOC,
 #      DELETE VOC and .S/.D name, the gated writes (rulings 14, 27) - and e
@@ -74,7 +74,7 @@
 #      PAUSE, no timeout, few BELs                        (ruling 28, SOLO 16)
 #  15. no system BASIC source installed: no sdsys\gpl.bp, no VOC record for
 #      it; gpl.bp.out full as the control                          (ruling 26)
-#  16. the global catalogue is the SD Core server's: with ADMIN, sduser is
+#  16. the global catalog is the SD Core server's: with ADMIN, sduser is
 #      refused CATALOG GLOBAL, DELETE.CATALOG *x, SYNC.GLOBAL.CATALOG and a
 #      COPY into GLOBAL.BP.OUT; managed mode, a global-password session adds a
 #      program, sduser CALLs it, and the session removes it   (ruling 33)
@@ -92,7 +92,7 @@
 #      verifies afterwards                                          (ruling 39)
 # 18d. SET.TRIGGER takes a lower-case trigger name, and an index holds the
 #      record ids as the file stores them (RELEASE_1.1 137 and 138): a file, a
-#      catalogued subroutine and a D-type index in the account, no ADMIN.
+#      cataloged subroutine and a D-type index in the account, no ADMIN.
 #      Ported from SD Core for Windows' verify-trigak.ps1, which was measured
 #      red on the pre-fix install; this leg's first run is owed.
 #  19. the daemon runs on a standard token: Medium integrity, Administrators
@@ -895,20 +895,20 @@ try {
         $catRec = Join-Path (Join-Path $acctDir 'cat') $pP
         [IO.File]::WriteAllText((Join-Path $bpDir $pP), ("* $pP - written by verify-solo.ps1 leg 10.  Safe to delete.`n   crt '$pP-RAN'`nend`n"), [Text.Encoding]::ASCII)
         $t = Invoke-Pe 'pe-d-make' @("BASIC BP $pP", "CATALOG BP $pP LOCAL", "CT VOC $pP")
-        $localOk = ($t -match "$pP added to local catalogue") -and ($t -cmatch '(?m)^\s*2: CS\s*$')
-        Check "d: setup - $pP compiled and in the LOCAL catalogue (V / CS)" $localOk 'not locally catalogued, so 3033 could not be reached'
+        $localOk = ($t -match "$pP added to local catalog") -and ($t -cmatch '(?m)^\s*2: CS\s*$')
+        Check "d: setup - $pP compiled and in the LOCAL catalog (V / CS)" $localOk 'not locally cataloged, so 3033 could not be reached'
         if ($localOk) {
             $t = Invoke-Pe 'pe-d-3033-enter' @("CATALOG BP $pP", '', "CT VOC $pP")
-            Check 'd: prompt 3033 reached, showing (y/<n>)' ($t -match 'Program is also in local catalogue\. Remove \(y/<n>\)\?') 'no 3033 prompt'
+            Check 'd: prompt 3033 reached, showing (y/<n>)' ($t -match 'Program is also in local catalog\. Remove \(y/<n>\)\?') 'no 3033 prompt'
             Check 'd: ENTER at 3033 kept the LOCAL entry' ($t -cmatch '(?m)^\s*2: CS\s*$') 'the V/CS record is gone after Enter'
             Check 'd: and the private entry was written' (Test-Path -LiteralPath $catRec) ('no ' + $catRec + ', so 3034 could not be reached')
             $t = Invoke-Pe 'pe-d-3034-enter' @("CATALOG BP $pP LOCAL", '')
-            Check 'd: prompt 3034 reached, showing (y/<n>)' ($t -match 'Program is also in private catalogue\. Remove \(y/<n>\)\?') 'no 3034 prompt'
+            Check 'd: prompt 3034 reached, showing (y/<n>)' ($t -match 'Program is also in private catalog\. Remove \(y/<n>\)\?') 'no 3034 prompt'
             Check 'd: ENTER at 3034 kept the private entry' (Test-Path -LiteralPath $catRec) 'the private record is gone after Enter'
             $t = Invoke-Pe 'pe-d-3034-yes' @("CATALOG BP $pP LOCAL", 'Y')
-            Check 'd: CONTROL - Y at 3034 removes the private entry' (($t -match 'Program is also in private catalogue') -and -not (Test-Path -LiteralPath $catRec)) 'it survived an explicit Y, or no prompt'
+            Check 'd: CONTROL - Y at 3034 removes the private entry' (($t -match 'Program is also in private catalog') -and -not (Test-Path -LiteralPath $catRec)) 'it survived an explicit Y, or no prompt'
             $t = Invoke-Pe 'pe-d-3033-yes' @("CATALOG BP $pP", 'Y', "CT VOC $pP")
-            Check 'd: CONTROL - Y at 3033 removes the LOCAL entry' (($t -match 'Program is also in local catalogue') -and ($t -match "Record '$pP' not found")) 'it survived an explicit Y, or no prompt'
+            Check 'd: CONTROL - Y at 3033 removes the LOCAL entry' (($t -match 'Program is also in local catalog') -and ($t -match "Record '$pP' not found")) 'it survived an explicit Y, or no prompt'
         }
 
         # --- e: CPROC's .D prompt 5040 -----------------------------------------
@@ -969,7 +969,7 @@ try {
         $left = @(@((Join-Path $acctDir $fD), (Join-Path $acctDir ($fD + '.DIC')), (Join-Path $acctDir $mM), (Join-Path $acctDir ($mM + '.DIC')),
                     (Join-Path $acctDir $pE), (Join-Path $acctDir $pL.ToLower()), (Join-Path (Join-Path $acctDir 'cat') $pP),
                     (Join-Path $bpDir $pP), (Join-Path $outDir $pP)) | Where-Object { Test-Path -LiteralPath $_ })
-        Check 'cleanup: no ZZPROMPT file, folder, catalogue record or source left' ($left.Count -eq 0) ($left -join ', ')
+        Check 'cleanup: no ZZPROMPT file, folder, catalog record or source left' ($left.Count -eq 0) ($left -join ', ')
         Check 'no leg-10 session timed out' ($script:timeouts -eq $to0) ('' + ($script:timeouts - $to0) + ' timed out - a prompt re-asked for ever')
     }
 
@@ -1112,7 +1112,7 @@ public static class SdSuiteCli {
     # has not been started" with SD running); inipath.c SdShmOpen now opens the
     # segment by path under the home.  CONTROL: the parent's root must not be
     # the Solo tree and its /dev/shm must hold no SD segment, or this could pass
-    # on the old behaviour.  Named paths only - System32's bash.exe is WSL's.
+    # on the old behavior.  Named paths only - System32's bash.exe is WSL's.
     $bash = @('C:\Program Files\Git\usr\bin\bash.exe', 'C:\msys64\usr\bin\bash.exe') | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
     if (-not $bash) { Skip 'an sd started from Git Bash reaches the daemon' 'neither Git for Windows nor MSYS2 bash.exe is installed' }
     else {
@@ -1197,17 +1197,17 @@ public static class SdSuiteCli {
     Check 'and the VOC has no gpl.bp record' ((CountOf (Get-Lines $t) "^Record 'gpl\.bp' not found$") -eq 1) "want CT's \"Record 'gpl.bp' not found\""
 
     # -----------------------------------------------------------------------
-    # 28 Sep 26 - RULING 33: the global catalogue is the SD Core server's.
+    # 28 Sep 26 - RULING 33: the global catalog is the SD Core server's.
     # a: sduser WITH ADMIN is refused every change - CATALOG ... GLOBAL and
     #    DELETE.CATALOG of a global entry (12029), SYNC.GLOBAL.CATALOG and a
     #    COPY into GLOBAL.BP.OUT (12028) - and GLOBAL.BP.OUT stays empty.
     # b: managed mode only - a session signed in with the GLOBAL password
     #    copies a compiled subroutine into GLOBAL.BP.OUT and syncs; sduser
     #    (account password, no ADMIN) then CALLs it by name; the global
-    #    session deletes it and syncs again, and the catalogue entry is gone.
+    #    session deletes it and syncs again, and the catalog entry is gone.
     # 9 Nov 26: the * prefix went with S.87, so the entry is the plain name.
     Say ''
-    Say '== 16. the global catalogue belongs to the SD Core server'
+    Say '== 16. the global catalog belongs to the SD Core server'
     $gcatDir = Join-Path $Sdsys 'gcat'
     $gbpDir  = Join-Path $Sdsys 'global.bp.out'
     $gSub    = 'ZZGSUB'
@@ -1215,12 +1215,12 @@ public static class SdSuiteCli {
     $gcatFile = Join-Path $gcatDir $gSub.ToLower()
     $gbpN = $(if (Test-Path -LiteralPath $gbpDir) { @(Get-ChildItem -LiteralPath $gbpDir -File).Count } else { -1 })
     Say ('    ' + $gbpDir + ' objects: ' + $gbpN + '   ' + $gcatFile + ' exists: ' + (Test-Path -LiteralPath $gcatFile))
-    Check 'GLOBAL.BP.OUT is installed and empty, and no zzgsub is catalogued' (($gbpN -eq 0) -and -not (Test-Path -LiteralPath $gcatFile)) ('objects ' + $gbpN + '; left by an earlier run?')
+    Check 'GLOBAL.BP.OUT is installed and empty, and no zzgsub is cataloged' (($gbpN -eq 0) -and -not (Test-Path -LiteralPath $gcatFile)) ('objects ' + $gbpN + '; left by an earlier run?')
 
     $t = Invoke-Pe 'g-admin' @("CATALOG BP $gSub GLOBAL", ('DELETE.CATALOG *' + $gSub.ToLower()), 'SYNC.GLOBAL.CATALOG', 'COPY FROM VOC TO GLOBAL.BP.OUT WHERE') -Admin
     $L = Get-Lines $t
-    Check 'a: with ADMIN, CATALOG ... GLOBAL and DELETE.CATALOG *name are refused (12029)' ((CountOf $L '^The global catalogue holds the SD Core server') -eq 2) ('12029 lines: ' + (CountOf $L '^The global catalogue holds the SD Core server'))
-    Check 'a: with ADMIN, SYNC.GLOBAL.CATALOG and COPY into GLOBAL.BP.OUT are refused (12028)' (((CountOf $L '^The global catalogue can only be changed by the SD Core server') -eq 2) -and ($t -notmatch 'SYNC GLOBAL CATALOG DONE') -and ($t -notmatch 'record\(s\) copied')) ('12028 lines: ' + (CountOf $L '^The global catalogue can only be changed by the SD Core server'))
+    Check 'a: with ADMIN, CATALOG ... GLOBAL and DELETE.CATALOG *name are refused (12029)' ((CountOf $L '^The global catalog holds the SD Core server') -eq 2) ('12029 lines: ' + (CountOf $L '^The global catalog holds the SD Core server'))
+    Check 'a: with ADMIN, SYNC.GLOBAL.CATALOG and COPY into GLOBAL.BP.OUT are refused (12028)' (((CountOf $L '^The global catalog can only be changed by the SD Core server') -eq 2) -and ($t -notmatch 'SYNC GLOBAL CATALOG DONE') -and ($t -notmatch 'record\(s\) copied')) ('12028 lines: ' + (CountOf $L '^The global catalog can only be changed by the SD Core server'))
     $gbpN = @(Get-ChildItem -LiteralPath $gbpDir -File -ErrorAction SilentlyContinue).Count
     Check 'a: GLOBAL.BP.OUT is still empty' ($gbpN -eq 0) ('' + $gbpN + ' objects')
 
@@ -1249,13 +1249,13 @@ public static class SdSuiteCli {
 
             $t = Invoke-Sd 'g-add' '' ($globalPw + "`nCOPY FROM BP.OUT TO GLOBAL.BP.OUT $gSub`nSYNC.GLOBAL.CATALOG`nOFF`n") 'the global password, COPY FROM BP.OUT TO GLOBAL.BP.OUT, SYNC.GLOBAL.CATALOG, OFF'
             Check 'b: the global session copies the object into GLOBAL.BP.OUT' ($t -match '1 record\(s\) copied') 'want "1 record(s) copied"'
-            Check 'b: and SYNC.GLOBAL.CATALOG catalogues it' (($t -match '(?m)^SYNC GLOBAL CATALOG DONE 1 catalogued 0 removed 0 refused\s*$') -and (Test-Path -LiteralPath $gcatFile)) ('want the DONE 1/0/0 line and ' + $gcatFile)
+            Check 'b: and SYNC.GLOBAL.CATALOG catalogs it' (($t -match '(?m)^SYNC GLOBAL CATALOG DONE 1 cataloged 0 removed 0 refused\s*$') -and (Test-Path -LiteralPath $gcatFile)) ('want the DONE 1/0/0 line and ' + $gcatFile)
 
             $t = Invoke-Sd 'g-run' ('RUN BP ' + $gCall) '' 'none'
             Check 'b: sduser, without ADMIN, CALLs the global program' ((CountOf (Get-Lines $t) '^GCALL=GLOBAL\.OK$') -eq 1) 'want "GCALL=GLOBAL.OK"'
 
             $t = Invoke-Sd 'g-remove' '' ($globalPw + "`nDELETE GLOBAL.BP.OUT $gSub`nSYNC.GLOBAL.CATALOG`nOFF`n") 'the global password, DELETE GLOBAL.BP.OUT, SYNC.GLOBAL.CATALOG, OFF'
-            Check 'b: deleted from GLOBAL.BP.OUT and synced, the catalogue entry is gone' (($t -match '(?m)^SYNC GLOBAL CATALOG DONE 0 catalogued 1 removed 0 refused\s*$') -and -not (Test-Path -LiteralPath $gcatFile)) ('want the DONE 0/1/0 line and no ' + $gcatFile)
+            Check 'b: deleted from GLOBAL.BP.OUT and synced, the catalog entry is gone' (($t -match '(?m)^SYNC GLOBAL CATALOG DONE 0 cataloged 1 removed 0 refused\s*$') -and -not (Test-Path -LiteralPath $gcatFile)) ('want the DONE 0/1/0 line and no ' + $gcatFile)
         }
         finally {
             foreach ($n in @($gSub, $gCall)) {
@@ -1264,7 +1264,7 @@ public static class SdSuiteCli {
                     if (Test-Path -LiteralPath $f) { Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue }
                 }
             }
-            # A failed run must not leave the server's file or the catalogue changed.
+            # A failed run must not leave the server's file or the catalog changed.
             foreach ($f in @((Join-Path $gbpDir $gSub), $gcatFile)) {
                 if (Test-Path -LiteralPath $f) { Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue; Say ('    cleaned up ' + $f) }
             }
@@ -1300,7 +1300,7 @@ public static class SdSuiteCli {
     $okDocs = ((CountOf (Get-Lines $t) ($esc + 'SD, including the API, is licensed under the GPL v3\.0\.$')) -eq 1) -and
               ((CountOf (Get-Lines $t) ($esc + 'Contributors to SD and predecessor applications$')) -eq 1) -and
               ((CountOf (Get-Lines $t) $gate2001) -eq 0)
-    Check 'a: without ADMIN, CONFIG GPL and CONFIG CONTRIB run' $okDocs 'want the licence and contributors lines and no 2001'
+    Check 'a: without ADMIN, CONFIG GPL and CONFIG CONTRIB run' $okDocs 'want the license and contributors lines and no 2001'
     $t = Invoke-Pe 'v-admin' @('LISTU', 'LIST.LOCKS') -Admin
     Check 'a: with ADMIN, LISTU and LIST.LOCKS run' (((CountOf (Get-Lines $t) $gate2001) -eq 0) -and ($t -match '(?i)sduser')) 'want no 2001 and LISTU naming sduser'
 
@@ -1641,7 +1641,7 @@ public static class SdSuiteCli {
             $L = Get-Lines $t
             $okA = ((CountOf $L '^0 error\(s\)') -ge 1) -and ((CountOf $L '^[1-9][0-9]* error') -eq 0) -and
                    ((CountOf $L ('^' + $tgSub + ' added to')) -ge 1) -and (Test-Path -LiteralPath (Join-Path $tgAcct $tgFile))
-            Check 'a: the trigger fixture built (file made, subroutine compiled and catalogued)' $okA 'want 0 error(s), "zztrg137 added to ...", and the file on disk'
+            Check 'a: the trigger fixture built (file made, subroutine compiled and cataloged)' $okA 'want 0 error(s), "zztrg137 added to ...", and the file on disk'
             if ($okA) {
                 $t1 = Invoke-Pe 'tg-a-set' @("SET.TRIGGER $tgFile $tgSub PRE.WRITE")
                 $t2 = Invoke-Pe 'tg-a-read' @("SET.TRIGGER $tgFile")
@@ -1662,7 +1662,7 @@ public static class SdSuiteCli {
                 $t5 = Invoke-Pe 'tg-a-bad' @("SET.TRIGGER $tgFile zz^bad137 PRE.WRITE", "SET.TRIGGER $tgFile zznosuch137 PRE.WRITE")
                 $L5 = Get-Lines $t5
                 Check 'a: CONTROL - a name with an illegal character is refused with 3002' ((CountOf $L5 '^Illegal trigger function name$') -ge 1) 'no 3002 - the name check is gone, or the parser changed the token'
-                Check 'a: a legal name nobody catalogued is refused with 3003, past the name check' (((CountOf $L5 '^Trigger function is not catalogued$') -eq 1) -and ((CountOf $L5 '^Illegal trigger function name$') -eq 1)) 'want one 3003 (zznosuch137) beside the one 3002 (zz^bad137)'
+                Check 'a: a legal name nobody cataloged is refused with 3003, past the name check' (((CountOf $L5 '^Trigger function is not catalogued$') -eq 1) -and ((CountOf $L5 '^Illegal trigger function name$') -eq 1)) 'want one 3003 (zznosuch137) beside the one 3002 (zz^bad137)'
             }
 
             # --- B. the index holds the ids as the file stores them (138) --------------
