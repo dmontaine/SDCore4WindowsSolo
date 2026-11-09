@@ -354,13 +354,6 @@ void op_unload() {
 }
 
 /* ======================================================================
-   is_global() - Is object code from global catalogue?                    */
-
-bool is_global(void* obj_hdr) {
-  return (((OBJECT*)(((char*)obj_hdr) - OBJHDRSIZE))->flags & OBJ_GLOBAL) != 0;
-}
-
-/* ======================================================================
    unload_object  -  Unload object from cache                             */
 
 void unload_object(void* obj_hdr) {
