@@ -358,7 +358,12 @@ void op_getlocks() {
 
   descr = e_stack - 1;
   GetInt(descr);
-  user = (int16_t)(descr->data.value);
+  /* 3 Nov 26 S.72: a number outside 1 to hi_user_no (the size of the user map) is nobody: -1, which no lock owner
+     matches.  It was cast to int16_t as it came, so 65537 reported user 1's locks and 12345 indexed past the map. */
+  if ((descr->data.value < 0) || (descr->data.value > sysseg->hi_user_no))
+    user = -1;
+  else
+    user = (int16_t)(descr->data.value);
 
   /* Get file variable. Report all files if it is not a file var */
 
@@ -437,6 +442,12 @@ void op_getlocks() {
   } else if (user == 0) {
     lo = 1;
     hi = sysseg->max_users;
+  } else if ((user < 0) || (*(UMap(user)) == 0)) {
+    /* 3 Nov 26 S.72: the local path indexed UMap() as unchecked as the remote one did.  A number outside 1 to hi_user_no
+       is -1 by now (above); a number nobody holds has map entry 0, and the loop below then read UPtr(0), the bytes
+       before the user table.  Neither is anybody's lock wait: no WAIT line, as for a remote file. */
+    lo = 1;
+    hi = 0;
   } else {
     lo = hi = *(UMap(user));
   }

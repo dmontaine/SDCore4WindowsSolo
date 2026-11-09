@@ -96,11 +96,8 @@
  * START-CODE
  */
 
-/* Modified by Composer AI - 2026/06/10.
-   k_error() never returns, but the analyzer cannot see that across
-   translation units. */
-void k_error(char msg[], ...) __attribute__((noreturn));
-/* -------------------- */
+/* 07 Nov 26 (S.125): NO noreturn redeclaration of k_error() here.  This file calls it with '!' messages, which
+   return; see the history above and gplbld/test-noreturn-units.py. */
 
 #include "sd.h"
 #include "keys.h"
@@ -422,7 +419,7 @@ void op_openskt() {
   char server[80 + 1];
   char server_addr[80];
 
-  SOCKET skt;
+  SOCKET skt = -1; /* 07 Nov 26 (S.125): set before every use; -1 tells -O2's flow analysis so (closesocket below) */
   DESCRIPTOR result_descr;
   SOCKVAR* sock;
 

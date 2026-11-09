@@ -1122,7 +1122,8 @@ void op_ospath() {
       break;
 
     case OS_CWD:
-      (void)getcwd(name, MAX_PATHNAME_LEN);
+      if (getcwd(name, MAX_PATHNAME_LEN) == NULL)
+        name[0] = '\0'; /* 06 Nov 26 S.125 */
       k_put_c_string(name, e_stack);
       e_stack++;
       goto exit_op_pathinfo;
@@ -1475,16 +1476,8 @@ exit_delete_path:
    attach()  -  Change working directory and, perhaps, drive.             */
 
 Private bool attach(char* path) {
-  char cwd[MAX_PATHNAME_LEN + 1];
-
-  (void)getcwd(cwd, MAX_PATHNAME_LEN); /* Hang on to current dir */
-
-  if (!chdir(path))
-    return TRUE; /* Success */
-
-  (void)chdir(cwd);
-
-  return FALSE;
+  /* 06 Nov 26 S.125: a chdir() that fails leaves the working directory as it was, so there is nothing to go back to */
+  return (chdir(path) == 0);
 }
 
 /* ======================================================================
