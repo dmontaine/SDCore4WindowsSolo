@@ -195,8 +195,11 @@ def checks(t, old_newvoc=None, old_template=None):
     ck("A3 restore.voc puts back only a record the account does not hold now, writes `on error`, and audits", "if old # '' then" in rs and "write rec to vf, id on error" in rs and
        "kernel(K$AUDIT, 'voc restore account='" in rs)
     ck("A4 restore.voc takes the NEWEST saved copy of an id", "if at > newest.at<p> then" in rs)
-    ck("A5 the two verbs are VOC records of voc_template (SDSYS), V CA with their program, and NOT of newvoc",
-       t["verb_list"] == "V\nCA\n$lstvocrm\n" and t["verb_restore"] == "V\nCA\n$rstvoc\n" and "list.voc.removed" not in t["newvoc"] and "restore.voc" not in t["newvoc"]
+    # Solo (9 Nov 26, SOLO 50, from Linux Solo 15767b9): the administrator is `admin` inside the one account and never works in SDSYS, so the two verbs are in newvoc as well
+    # (a product-shape deviation from SD Core, where they are SDSYS's alone); the programs refuse anyone who has not typed admin.
+    ck("A5 the two verbs are VOC records of voc_template AND of newvoc (Solo: the administrator works in the account), V CA with their program",
+       t["verb_list"] == "V\nCA\n$lstvocrm\n" and t["verb_restore"] == "V\nCA\n$rstvoc\n" and "list.voc.removed" in t["newvoc"] and "restore.voc" in t["newvoc"]
+       and all(slurp(os.path.join(SDSYS, "newvoc", v)) == slurp(os.path.join(SDSYS, "voc_template", v)) for v in ("list.voc.removed", "restore.voc") if v in t["newvoc"])
        and "list.voc.removed" in t["template"] and "restore.voc" in t["template"])
     # ---- messages
     need = {12905: 2, 12906: 2, 12907: 2, 12908: 2, 12909: 1, 12910: 1, 12917: 1, 12918: 1, 12920: 2, 12921: 2, 12922: 2, 12923: 2}
@@ -282,7 +285,7 @@ def selftest():
         ("rstvoc: overwrites", mut(rep("rstvoc", "if old # '' then", "if @false then")), "A3"),
         ("rstvoc: not audited", mut(rep("rstvoc", "kernel(K$AUDIT, 'voc restore account='", "kernel(K$XXX, 'voc restore account='")), "A3"),
         ("rstvoc: the oldest copy wins", mut(rep("rstvoc", "if at > newest.at<p> then", "if at < newest.at<p> then")), "A4"),
-        ("verb: restore.voc in newvoc too", mut(lambda c: c["newvoc"].add("restore.voc")), "A5"),
+        ("verb: restore.voc missing from newvoc (Solo)", mut(lambda c: c["newvoc"].discard("restore.voc")), "A5"),
         ("message 12905 without its list", mut(lambda c: c["msgs"].__setitem__(12905, "removed\n")), "M1"),
         ("stage: the saved copies not preserved", mut(rep("stage", "    ('voc_removed.saved', 'saved copies of removed VOC records", "    ('zz_not_this', 'saved copies of removed VOC records")), "S1"),
         ("stage: the list not shipped", mut(rep("stage", "    ('voc_removed',   'VOC records SD no longer ships", "    ('zz_not_this',   'VOC records SD no longer ships")), "S1"),
