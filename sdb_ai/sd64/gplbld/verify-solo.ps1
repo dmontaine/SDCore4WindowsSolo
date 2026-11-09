@@ -1662,7 +1662,7 @@ public static class SdSuiteCli {
                 $t5 = Invoke-Pe 'tg-a-bad' @("SET.TRIGGER $tgFile zz^bad137 PRE.WRITE", "SET.TRIGGER $tgFile zznosuch137 PRE.WRITE")
                 $L5 = Get-Lines $t5
                 Check 'a: CONTROL - a name with an illegal character is refused with 3002' ((CountOf $L5 '^Illegal trigger function name$') -ge 1) 'no 3002 - the name check is gone, or the parser changed the token'
-                Check 'a: a legal name nobody cataloged is refused with 3003, past the name check' (((CountOf $L5 '^Trigger function is not catalogued$') -eq 1) -and ((CountOf $L5 '^Illegal trigger function name$') -eq 1)) 'want one 3003 (zznosuch137) beside the one 3002 (zz^bad137)'
+                Check 'a: a legal name nobody cataloged is refused with 3003, past the name check' (((CountOf $L5 '^Trigger function is not cataloged$') -eq 1) -and ((CountOf $L5 '^Illegal trigger function name$') -eq 1)) 'want one 3003 (zznosuch137) beside the one 3002 (zz^bad137)'
             }
 
             # --- B. the index holds the ids as the file stores them (138) --------------
