@@ -2,6 +2,17 @@ WS1.2-0 - SD Core Solo for Windows, in progress
 -------------
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
 
+9 Nov 26   SD-SOLO -STOP NO LONGER LEAVES SESSIONS BEHIND (FROM SD CORE FOR LINUX).
+
+             What        - sd-solo -stop and sd-solo -restart still send every session the termination signal and wait ten
+                           seconds. Any SD process still running after that is now ended with SIGKILL before SD's shared
+                           memory and semaphores are removed, and the stop prints how many it ended. A session that finds
+                           it can no longer use SD's semaphores ends at once and says so, instead of retrying for ever.
+             Why         - A session that outlived a stop kept SD's semaphores in existence, which got in the way of the
+                           next start.
+             Does NOT    - Touch a process whose program is not in SD's own folder. Change a stop that every session
+                           leaves within the ten seconds. Let a session ended with SIGKILL run its own logout.
+
 28 Oct 26  A PHANTOM RUNS THE COMMAND IN ITS START-UP RECORDS ONLY IF THE PROCESS THAT STARTED IT SEALED THEM (SECURITY-MODEL EVALUATION, FINDING F10).
 
              What        $ipc is the one SD file that every user's process has to write, so a Windows user with a shell can write it too. A new phantom used to read its start-up
