@@ -2,6 +2,14 @@ WS1.2-0 - SD Core Solo for Windows, in progress
 -------------
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
 
+9 Nov 26   THE SOURCE IS BESIDE THE INSTALLER.
+
+             What        - The complete source of SD Core Solo - the C, the system programs' BASIC (gpl.bp) and the build
+                           and installer scripts - is SDCore4WindowsSolo-source-<version>.zip beside
+                           sd-solo-setup-<version>.exe, with a .txt file naming the commit it was built from.
+             Why         - SD Core Solo is GPL 3 software: its source goes with every copy of the installer.
+             Does NOT    - Install any of it: the installed system has the compiled programs only, as before.
+
 9 Nov 26   A SESSION WHOSE CONSOLE CLOSES, OR THAT FAULTS, CAN NO LONGER STOP EVERY OTHER SESSION (FROM SD CORE FOR LINUX).
 
              What        - When a session's console went away, SD wrote "Received termination signal" to its error log

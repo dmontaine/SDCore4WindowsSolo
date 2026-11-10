@@ -360,6 +360,27 @@ if ($setup.LastWriteTime -lt $isccStart) {
           "written $($setup.LastWriteTime), ISCC started $isccStart.")
 }
 Write-Host ("   {0}, {1:N0} bytes, {2}" -f $setup.FullName, $setup.Length, $setup.LastWriteTime)
+# 9 Nov 26 - THE SOURCE GOES BESIDE THE INSTALLER, NEVER INTO IT (owner: "the
+# gpl.bp and c source should never be installed just distributed with the
+# installer"; GPL 3).  stage.py wrote the pair OUTSIDE the install root; they
+# are copied here with the installer's version in their names, and a release
+# carries them in its source folder.  A missing pair fails the cycle: an
+# installer with no source beside it is not one we may hand out.
+$srcVer = [regex]::Match($setup.Name, '^sd-solo-setup-(.+)\.exe$').Groups[1].Value
+$srcZip = Join-Path $Stage 'source\SDCore4WindowsSolo-source.zip'
+$srcTxt = Join-Path $Stage 'source\SOURCE.txt'
+if (-not $srcVer) { Fail "cannot read the version out of $($setup.Name)" }
+if (-not (Test-Path -LiteralPath $srcZip) -or -not (Test-Path -LiteralPath $srcTxt)) {
+    Fail "stage.py left no source beside the staged tree ($srcZip, $srcTxt)"
+}
+$outZip = Join-Path $Out ("SDCore4WindowsSolo-source-$srcVer.zip")
+$outTxt = Join-Path $Out ("SDCore4WindowsSolo-source-$srcVer.txt")
+Copy-Item -LiteralPath $srcZip -Destination $outZip -Force
+Copy-Item -LiteralPath $srcTxt -Destination $outTxt -Force
+if ((Get-FileHash -LiteralPath $outZip).Hash -ne (Get-FileHash -LiteralPath $srcZip).Hash) {
+    Fail "the source zip copied to $outZip does not match the staged one"
+}
+Write-Host ("   source beside it: {0}, {1:N0} bytes, and {2}" -f (Split-Path -Leaf $outZip), (Get-Item -LiteralPath $outZip).Length, (Split-Path -Leaf $outTxt))
 # SOLO 18: the control file's template goes beside every installer built.  As
 # .sample it is inert - only a file named sd-solo-setup.conf is read.  If one
 # of those is here, THIS cycle's install is driven by it: said out loud.
