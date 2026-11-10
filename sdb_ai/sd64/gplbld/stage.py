@@ -387,8 +387,8 @@ SDSYS_EMPTY = [
     # keeps 'cat' - the private catalogue - on the preserve list.
     ('bp',          "SDSYS's own BP - SD ships nothing into it; the site may"),
     ('bp.out',      'its compiled objects; nothing compiles into it at install'),
-    ('gcat',        'global catalogue; the bootstrap touches $CPROC here first'),
-    ('cat',         'private catalogue'),
+    ('gcat',        'global catalog; the bootstrap touches $CPROC here first'),
+    ('cat',         'private catalog'),
     ('pcode.out',   'pcode_bld.py output'),
     ('$hold',       'spooler hold file'),
     ('prt',         'print queue'),
@@ -627,7 +627,7 @@ PF_RETIRED = [
 SDSYS_PRESERVE = [
     ('$cred',          'the credential register - every account password'),
     ('accounts',       'the account register; ships with SDSYS and then grows'),
-    ('cat',            'the private catalogue - what the user catalogued'),
+    ('cat',            'the private catalog - what the user cataloged'),
     ('prt',            'the print queue'),
     ('$hold',          "the spooler hold file - the user's saved output"),
     # 02 Sep 26 - PRE_RELEASE_FIXES.md 28.  PRESERVED, and stage.py's own guard
