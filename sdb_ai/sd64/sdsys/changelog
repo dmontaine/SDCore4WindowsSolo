@@ -3,6 +3,13 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+10 Nov 26  F1 NAMES THE CHANGELOG WHERE IT IS.
+
+             What        - F1 at an empty command prompt names the changelog in the SD Core Solo folder
+                           (C:\Users\<you>\SDCoreSolo\changelog). It named the one in its sdsys folder, where the
+                           changelog has not been since August.
+             Why         - Found by the owner's test of F1.
+
 9 Nov 26   THE SOURCE IS BESIDE THE INSTALLER.
 
              What        - The complete source of SD Core Solo - the C, the system programs' BASIC (gpl.bp) and the build
