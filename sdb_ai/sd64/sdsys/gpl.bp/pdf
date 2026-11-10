@@ -111,7 +111,8 @@ $include err.h
    ps := "if ($i.PSIsContainer -or (($i.Attributes -band 1024) -ne 0)) { 'it is not a regular file' } else { $q=[char]34; "
    ps := "Start-Process -FilePath ('" : viewer : "'.Replace('/','\')) -ArgumentList ($q+$d+$q); 'OK' } } } catch { 'it could not be started' }"
    os.execute ps capturing out
-   res = trim(change(out, @fm, ' '))
+*  Captured PowerShell output keeps its carriage return and line feed (EDIT:702 strips them): the answer is compared after they and the field marks are spaces.
+   res = trim(convert(char(13) : char(10) : @fm, '   ', out))
    if res = 'NODISPLAY' then stop sysmsg(12852)
    if res # 'OK' then
       if res = '' then res = 'it could not be started'

@@ -88,9 +88,11 @@ copy.one:
       return
    end
 *  Copy-Item, one line, single quotes only; both names are plain (a checked file name after a checked directory)
-   ps = "$ErrorActionPreference='Stop'; try { Copy-Item -LiteralPath ('" : srcn : "/" : nm : "'.Replace('/','\')) -Destination ('" : sysn : "/pdf/" : nm : "'.Replace('/','\')) -Force; 'OK' } catch { 'it could not be copied' }"
+   ps = "$ErrorActionPreference='Stop'; try { $to=('" : sysn : "/pdf/" : nm : "'.Replace('/','\')); Copy-Item -LiteralPath ('" : srcn : "/" : nm : "'.Replace('/','\')) -Destination $to -Force; if (Test-Path -LiteralPath $to) { 'OK' } else { 'it could not be copied' } } catch { 'it could not be copied' }"
    os.execute ps capturing co
-   if trim(change(co, @fm, ' ')) # 'OK' or not(ospath(dest : @ds : nm, OS$EXISTS)) then
+*  The captured output keeps the carriage return and line feed PowerShell ends a line with (EDIT:702 strips them the same way), so it is compared after they and the
+*  field marks are turned into spaces.  9 Nov 26: without this the copy WORKED and the verb said it could not be copied (the first hand test, SOLO 47).
+   if trim(convert(char(13) : char(10) : @fm, '   ', co)) # 'OK' then
       display sysmsg(12728, nm, 'it could not be copied')
       n.skipped += 1
    end else

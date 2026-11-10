@@ -156,7 +156,8 @@ check.program:
    ps := "foreach ($e in $a.Access) { if ($e.AccessControlType -eq 'Allow' -and (([int]$e.FileSystemRights -band 852246) -ne 0)) { $s=$e.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value; "
    ps := "if ($t -notcontains $s) { $why='it can be changed by '+$e.IdentityReference.Value } } }; if ($why) { $why } else { 'OK' } } } } } catch { 'it does not exist or cannot be read' }"
    os.execute ps capturing so
-   r = trim(change(so, @fm, ' '))
+*  Captured PowerShell output keeps its carriage return and line feed (EDIT:702 strips them): 'OK' is compared after they and the field marks are spaces.
+   r = trim(convert(char(13) : char(10) : @fm, '   ', so))
    if r # 'OK' then
       if r = '' then r = 'the test could not be run'
       b = r
