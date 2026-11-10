@@ -2,6 +2,32 @@ WS1.2-0 - SD Core Solo for Windows, in progress
 -------------
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.
 
+9 Nov 26   A SESSION WHOSE CONSOLE CLOSES, OR THAT FAULTS, CAN NO LONGER STOP EVERY OTHER SESSION (FROM SD CORE FOR LINUX).
+
+             What        - When a session's console went away, SD wrote "Received termination signal" to its error log
+                           from inside the signal itself. If the signal arrived while the session was already writing the
+                           error log or the audit trail, the session waited for itself for ever, using the processor, and
+                           every other session that wrote an audit line waited behind it. The line is now written when the
+                           session acts on the signal, not inside it. A session that faults now gives back the locks it
+                           holds before it writes the fault to the error log, for the same reason.
+             Why         - Found on a Linux test server when an ssh connection was dropped at that moment.
+             Does NOT    - Change the error log's "Received termination signal" line or the fault report.
+
+9 Nov 26   THE PHANTOM DEBUGGER'S MESSAGES ARE KEPT IN YOUR PRIVATE FOLDER, NOT IN THE SHARED FILE $IPC (FROM SD CORE FOR LINUX).
+
+             What        - PDEBUG and the phantom it debugs now leave each other their messages as records of a directory file,
+                           sd\pdebug in the AppData\Local folder of your Windows profile (found from the profile, never from
+                           %LOCALAPPDATA%). The folders are made when missing, with access for you, SYSTEM and Administrators only,
+                           and are used only when no folder on the way is a link and nobody else can add, delete or rename
+                           anything from the profile down. PDEBUG says "The debugger's private directory could not be set up
+                           (reason)" and stops (message 12953) when the store cannot be made, and a phantom that cannot make it
+                           behaves as if no PDEBUG were waiting (SYS.PROGRAM.NO_PDEBUG when a handler is there). The store
+                           survives a restart of SD, which $IPC did not, so PDEBUG removes the records of its own user number when
+                           it starts and a phantom ignores a start record whose PDEBUG has gone.
+             Why         - $IPC was the part of the phantom machinery that still trusted a shared file.
+             Does NOT    - Change what the debugger shows or its commands, or touch the debugger of an ordinary (not phantom)
+                           session.
+
 9 Nov 26   THE ISO WEEK NUMBER OF A DATE CONVERSION IS RIGHT (FROM SD CORE FOR LINUX).
 
              What        - The I code of a D conversion (OCONV(date, 'D...I'), the ISO week number) now gives the week of

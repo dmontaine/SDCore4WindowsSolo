@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 9 Nov 26 SD Core Solo - from Linux ff779018 (S.196): log_termination_signal() (linuxio.c).
  * 25 Sep 26 SD Core Solo - GetHomePath(), GetDefaultSysdir()
  * 20 Oct 26 Windows port - from Linux 7c53377 - SDNet carry 9: SD Core's S.65 (slices 3c to 3e) and S.72 prototypes of netfiles.c, the NET_FILE kernel entry points; the S.64 edit-gate and S.66 / S.67
  * 21 Oct 26 Windows port - from Linux ff1a253 - Solo carry 10 (SD Core eb9ef4a, S.72b): NETG_PEEK (net_gate's read-mode test alone, for RECORDLOCKED()).
@@ -546,6 +547,7 @@ void freescrn(SCREEN_IMAGE * image);
 void break_key(void);
 int16_t keyin(int timeout);
 bool keyready(void);
+void log_termination_signal(void); /* S.196: the SIGHUP/SIGTERM line, written by process_events(), never by the handler */
 int32_t type_ahead_count(void);
 bool write_socket(char * str, int bytes, bool flush);
 bool to_outbuf(char * str, int bytes);

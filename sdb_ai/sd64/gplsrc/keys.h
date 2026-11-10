@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 9 Nov 26 SD Core Solo - from Linux debd0698 / S.88: SD_USER_HOME (112), the running user's home and a private directory below it.
  * 20 Oct 26 dm  SDNet carry 9 (SD Core's S.65 slice 2b): SD_FILE_PRIVATE (111) carried.
  * 31 Dec 23 SD launch - prior history suppressed 
  * 28 Jul 24 mab SD_ENCRYPT_SODIUM encode types
@@ -752,6 +753,10 @@
    Args: path, FILE or DIR.  Answers "1" or "0"; every failure is "0".  Mirrored
    in sdsys/syscom/keys.h. */
 #define SD_FILE_PRIVATE 111  /* op_sdext private-file test, 2 args: path, FILE|DIR */
+/* 9 Nov 26 Windows port - from Linux debd0698 / S.88: the running user's home (AppData\Local here) and a trusted directory below it,
+   made private when missing (win32tls.c win32_user_home()).  Arg: a relative path, '' for the home.  Answers the path or ''.  Mirrored
+   in sdsys/syscom/keys.h. */
+#define SD_USER_HOME    112  /* op_sdext the user's home (+ a trusted directory below it), 1 arg: relative path */
 
 /* embedded python  */
 /* py  object types */

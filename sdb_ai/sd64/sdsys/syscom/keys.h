@@ -3,6 +3,7 @@
       * Copyright (c) 2004, Ladybridge Systems, All Rights Reserved
       
       $list off
+      * 9 Nov 26 SD Core Solo - from Linux debd0698 / S.88: SD_USER_HOME (112), the running user's home and a private directory below it.
       * 26 Sep 26 SD Core Solo - SD_DPAPI_PROTECT 111, SD_DPAPI_UNPROTECT 112
       * 20 Oct 26 SD Core Solo - SD_DPAPI_PROTECT and SD_DPAPI_UNPROTECT moved to 130 and 131 (Linux mail 2026-10-20T2330)
       * 27 Aug 26 Windows port - corrected the ACC$PRIOR.TIER note: the equality
@@ -457,6 +458,9 @@
       * 25 Oct 26 Windows port - from Linux Solo 1f5f703 (S.65 slice 2b), mirrored from gplsrc/keys.h: is a path a file or directory only the running user can touch
       *   (Windows: owned by the running user, nobody else but SYSTEM and Administrators in its ACL).  Args: path, FILE or DIR.
       $define SD_FILE_PRIVATE 111  ;* op_sdext private-file test, 2 args: path, FILE|DIR
+      * 9 Nov 26 Windows port - from Linux debd0698 / S.88, mirrored from gplsrc/keys.h: the running user's home (AppData\Local) and a
+      *   trusted directory below it, made private when missing.  Arg: relative path, '' for the home.  Answers the path or ''.
+      $define SD_USER_HOME    112  ;* op_sdext the user's home (+ a trusted directory below it), 1 arg: relative path
 
       * 13 Aug 26 Windows port - embedded python keys removed with the
       *   interpreter.  See PROJECT_STATUS.md 5.15.
