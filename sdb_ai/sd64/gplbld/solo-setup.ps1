@@ -479,6 +479,13 @@ try {
     # own VOC name (cproc:2305-2313).  Last, after every RUN gpl.bp step.
     $t = Invoke-Sd '-internal DELETE VOC gpl.bp' ''
     Judge 'gpl.bp source pointer removed from the VOC' $t "(?m)^(1 record\(s\) deleted|Record 'gpl\.bp' not found)\s*$"
+    # 9 Nov 26 - FIRST.COMPILE and SECOND.COMPILE go too (Linux e3490a7f, S.198): both
+    # compile gpl.bp, so with no source they can only fail.  THIRD.COMPILE stays (it
+    # compiles dictionary I-types).  Every install and upgrade, both outcomes accepted.
+    $t = Invoke-Sd '-internal DELETE VOC first.compile' ''
+    Judge 'first.compile removed from the VOC' $t "(?mi)^(1 record\(s\) deleted|Record 'first\.compile' not found)\s*$"
+    $t = Invoke-Sd '-internal DELETE VOC second.compile' ''
+    Judge 'second.compile removed from the VOC' $t "(?mi)^(1 record\(s\) deleted|Record 'second\.compile' not found)\s*$"
 
     # 28 Sep 26 - RULING 33: the global catalogue's server programs come from
     # GLOBAL.BP.OUT.  An upgrade replaces gcat and drops them, and the owner
