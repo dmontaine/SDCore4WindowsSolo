@@ -238,6 +238,15 @@ Source: "{#Stage}\SDCoreSolo\sd-standalone.conf"; DestDir: "{app}"; DestName: "s
 
 #include AddBackslash(Stage) + "upgrade.iss"
 
+; 10 Nov 26 - RELEASE_1.1 215: the Start menu shortcut, which Solo never had (owner, 10 Nov:
+; "can solo get a start menu shortcut as well?").  In the person's own Start menu, as the
+; install is theirs (PrivilegesRequired=lowest); the uninstaller removes it.  It opens a
+; console window like any other, and sd-solo grows a window smaller than 140 by 43 itself
+; (win32vt.c grow_console_window()), so the shortcut carries no size of its own.  Working
+; folder: the data tree, as the full product's shortcut has.
+[Icons]
+Name: "{userprograms}\SD Core Solo"; Filename: "{app}\usr\bin\sd-solo.exe"; WorkingDir: "{#DataDir}"
+
 [Code]
 const
   SoloKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{5E0C3A92-7B14-4D2F-A8C6-2F9D1B7E4A63}_is1';

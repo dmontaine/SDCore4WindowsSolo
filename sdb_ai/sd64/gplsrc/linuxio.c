@@ -17,6 +17,10 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 10 Nov 26 SD Core Solo - RELEASE_1.1 215 (owner, 10 Nov: "SD grows its window"): init_console() asks win32vt.c to grow a classic
+ *           console window smaller than 140 by 43, the least the full-screen pages take, before anything reads its size.  For it, Core's
+ *           RELEASE_1.1 212 (9481a1f8, 567e2f14): console_resized() and console_window_size() ask the size now (poll_window_size()),
+ *           Windows first (console_window_cells()), the tty only with no console; the tty's answer is stale until it handles input.
  * 9 Nov 26 SD Core Solo - from Linux ff779018 (S.196): signal_handler() no longer logs (it took ERRLOG_SEM inside the handler and could
  *           deadlock a session hung up while it held it); it records the signal, and log_termination_signal() writes the line from
  *           process_events().
@@ -132,6 +136,8 @@ void set_old_tty_modes(void);
    netdb.h and sys/socket.h and the two do not mix. */
 int enable_console_vt(void);
 void restore_console_vt(void);
+int console_window_cells(int* cols, int* rows); /* 10 Nov 26: the console window's size from Windows, 0 with no console (RELEASE_1.1 212) */
+int grow_console_window(int want_cols, int want_rows); /* 10 Nov 26: a small classic console window made big enough (RELEASE_1.1 215) */
 void set_new_tty_modes(void);
 bool negotiate_telnet_parameter(void);
 
@@ -393,6 +399,13 @@ bool init_console() {
        Console API change that was reverted on 23 Aug 2026. */
     (void)enable_console_vt();
 
+    /* 10 Nov 26 Windows port - RELEASE_1.1 215 (owner, 10 Nov: "SD grows its window").  A console window opens at 120 by 30 and the
+       full-screen pages (HOME, the IDE, CED, the toolkit) take 140 by 43 at least, so an account that starts in HOME was refused, and on
+       Core signed out (S.164).  A classic console window smaller than that is made 140 by 43, or as big as the screen allows; Windows
+       Terminal's window is the terminal's own and is left alone, as is a session whose input is not a console (a script).  Before the
+       size is first read, below, so LOGIN sees the window it will have. */
+    (void)grow_console_window(140, 43);
+
     /* ----------------------- Keyboard ----------------------- */
 
     /* Fetch the current terminal settings and attempt to set new ones. */
@@ -498,7 +511,33 @@ Private void winch_handler(sig) int sig;
    console_resized()  -  Has the display changed since the data lines per
    page were last worked out?  Answers once per change.                    */
 
+/* 10 Nov 26 Windows port - THE SIZE IS ASKED, NOT ONLY WAITED FOR (RELEASE_1.1 212, Core 9481a1f8 and 567e2f14).  Under the MSYS2
+   console a resize's SIGWINCH reached SD only with the next input event, and the tty's TIOCGWINSZ answer is the runtime's, stale until
+   it handles input, so the two readers below ask Windows for the console window first (win32vt.c), the tty only with no console (ssh,
+   a pipe).  A changed size is taken as the SIGWINCH handler takes it; an unchanged one touches nothing, so a TERM w,h the person typed is
+   not overwritten on every call. */
+Private void poll_window_size() {
+  struct winsize ws;
+  int c;
+  int r;
+
+  if (!console_window_cells(&c, &r)) {
+    if ((ioctl(0, TIOCGWINSZ, &ws) != 0) || (ws.ws_col == 0) || (ws.ws_row == 0))
+      return;
+    c = ws.ws_col;
+    r = ws.ws_row;
+  }
+  if ((c != win_cols) || (r != win_rows)) {
+    win_cols = c;
+    win_rows = r;
+    tio.dsp.width = (win_cols < 20) ? 20 : win_cols;
+    tio.dsp.lines_per_page = (win_rows < 10) ? 10 : win_rows;
+    winch_seen = 1;
+  }
+}
+
 Public bool console_resized() {
+  poll_window_size();
   if (!winch_seen)
     return FALSE;
   winch_seen = 0;
@@ -512,6 +551,7 @@ Public bool console_resized() {
 Public bool console_window_size(cols, rows) int *cols;
 int *rows;
 {
+  poll_window_size(); /* 10 Nov 26 Windows port: the size now, not the last SIGWINCH's (RELEASE_1.1 212) */
   if ((win_cols == 0) || (win_rows == 0))
     return FALSE;
   *cols = win_cols;
