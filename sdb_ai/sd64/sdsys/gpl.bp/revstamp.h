@@ -17,6 +17,8 @@
 * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 * 
 * START-HISTORY:
+* rev WS2.0-0 10 Nov 26 SD Core Solo for Windows - release string WS2.0-0 (owner, 10 Nov, relayed by Linux mail T1000:
+*            both Windows products are 2.0-0 from now on, in their own stamp scheme).  Segment numerics unchanged.
 * rev WS1.1-0 28 Sep 26 SD Core Solo for Windows - release string WS1.1-0
 *            (owner's ruling 37).  Segment numerics unchanged.
 * rev S1.1-0 25 Sep 26 SD Core Solo - release string S1.1-0 (owner's ruling
@@ -49,7 +51,7 @@
 $define MAJOR.REV      1
 $define MINOR.REV      0
 $define BUILD          2
-$define SD.REV.STAMP   "WS1.2-0"
+$define SD.REV.STAMP   "WS2.0-0"
 
 $define SD.COPYRIGHT.YEAR "2007"
 
