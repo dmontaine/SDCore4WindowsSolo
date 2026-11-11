@@ -19,6 +19,10 @@
 *
 *
 * START-HISTORY:
+* 11 Nov 26 SD Core Solo - SOLO 55 (owner, 11 Nov 26, "Go with option 1", relayed by Linux mail 2026-11-11T0900, a parity decision approved for the Windows pair): API
+*           request 49 is QMRevision (vb.revision, Core's handler: the server's revision, SYSTEM(1012)) and the ssh key request SrvrSshKey (vb.sshkey) moves from 49 to 72.
+*           Same verbs, same six-field reply, same audit lines, global session only.  Requests 50 to 71 are Core's and are not in Solo (vb.illegal.action).  A script
+*           written for 1.1-3 that sends 49 to install a key must send 72; a client from the 15 Oct library asking SDRevision now gets the revision, not the key handler.
 * 20 Oct 26 SD Core Solo - RELEASE_1.1 165 (the OS switch, Linux Solo 7c6bbfc): the account's SH and OS.EXECUTE switches are read from its register record
 *           (ACC$SH, ACC$OS.EXEC) and loaded with K$SH and K$OS.EXEC once the account is entered, off unless the record says yes.
 * 19 Oct 26 Windows port - RELEASE_1.1 158 (Linux d6a86a7, 15 Oct 26, sheet 170): the MASTER.LOGIN paragraph of the SDSYS VOC is run for an API session,
@@ -506,7 +510,30 @@ loop
    vb.mark.mapping,   ;*  46   Enable/disable mark mapping
    vb.scram.first,    ;*  47   SCRAM client-first
    vb.scram.final,    ;*  48   SCRAM client-final
-   vb.sshkey,         ;*  49   Manage the SD Core server's ssh keys (global session only)
+   vb.revision,       ;*  49   Server revision (QMRevision), as Core.  Until 11 Nov 26 (SOLO 55) this was the ssh key request, now 72
+   vb.illegal.action, ;*  50   Requests 50 to 71 are Core's (QMGetVar to FCONTROL) and are not in Solo
+   vb.illegal.action, ;*  51
+   vb.illegal.action, ;*  52
+   vb.illegal.action, ;*  53
+   vb.illegal.action, ;*  54
+   vb.illegal.action, ;*  55
+   vb.illegal.action, ;*  56
+   vb.illegal.action, ;*  57
+   vb.illegal.action, ;*  58
+   vb.illegal.action, ;*  59
+   vb.illegal.action, ;*  60
+   vb.illegal.action, ;*  61
+   vb.illegal.action, ;*  62
+   vb.illegal.action, ;*  63
+   vb.illegal.action, ;*  64
+   vb.illegal.action, ;*  65
+   vb.illegal.action, ;*  66
+   vb.illegal.action, ;*  67
+   vb.illegal.action, ;*  68
+   vb.illegal.action, ;*  69
+   vb.illegal.action, ;*  70
+   vb.illegal.action, ;*  71
+   vb.sshkey,         ;*  72   Manage the SD Core server's ssh keys (global session only); Core reserves 72 for it
    vb.illegal.action
 
    st = status()
@@ -2515,7 +2542,16 @@ vb.mark.mapping:
                                                                      return
 
                                                                      * ======================================================================
-                                                                     * SrvrSshKey (49)  -  the managed-mode master installs, removes or
+                                                                     * Revision of the server (QMRevision), request 49 as in Core.  11 Nov 26, SOLO 55.
+                                                                     * In:  nothing
+                                                                     * Out: the revision, in the form SYSTEM(1012) gives it
+
+vb.revision:
+                                                                     response = system(1012)
+                                                                     return
+
+                                                                     * ======================================================================
+                                                                     * SrvrSshKey (72)  -  the managed-mode master installs, removes or
                                                                      * lists its ssh public key.  30 Sep 26 SD Core Solo, SOLO 24, agreed
                                                                      * with the Linux Solo agent: the request and the reply are the same on
                                                                      * both systems, only the method differs.

@@ -27,7 +27,7 @@
 # WHAT A SYSTEM PROCESS MAY NEVER DO: read or run anything a user can edit.  So the config, host key, pid file and
 # log live in an ADMIN-ONLY folder, %ProgramData%\SDCoreSolo\ssh, made by the elevated installer step, and the
 # startup task runs sshd.exe itself against that config - no script of the user's runs as SYSTEM, ever.  Users get
-# read of the folder (the .pub fingerprint is what request 49 reports, and the config is not a secret) and NO write;
+# read of the folder (the .pub fingerprint is what request 72 reports, and the config is not a secret) and NO write;
 # the private key is SYSTEM and Administrators only.  -Install READS THE PERMISSIONS BACK and refuses to report
 # success unless nobody else can write there, because a wrong ACL here is a privilege-escalation hole, not a
 # cosmetic fault.  The one thing in the config that points into the user's own tree is the ForceCommand, which
@@ -311,7 +311,7 @@ function Invoke-Install {
     Remove-ExtraAces $hostKey @($SidSystem, $SidAdmins)
     Invoke-Icacls @($hostKey, '/setowner', ('*' + $SidAdmins))
 
-    # The PUBLIC key may be read by anyone (request 49 reports its fingerprint) and written by SYSTEM and
+    # The PUBLIC key may be read by anyone (request 72 reports its fingerprint) and written by SYSTEM and
     # Administrators only: the same cut, keeping the readers ssh-keygen and the folder give.
     Invoke-Icacls @(($hostKey + '.pub'), '/inheritance:r', '/grant:r', ('*' + $SidSystem + ':F'), ('*' + $SidAdmins + ':F'), ('*' + $SidUsers + ':R'))
     Remove-ExtraAces ($hostKey + '.pub') @($SidSystem, $SidAdmins, $SidUsers, 'S-1-1-0')

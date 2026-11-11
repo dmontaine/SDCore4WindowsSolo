@@ -1591,7 +1591,7 @@ def main():
                    # so assert-current watches it like the rest of these - do
                    # NOT add it to that script's $neverShipped list.
                    'micro-home.ps1',
-                   # 30 Sep 26 - SOLO 24.  Run by gpl.bp/apisrvr request 49
+                   # 30 Sep 26 - SOLO 24.  Run by gpl.bp/apisrvr request 72 (49 until 11 Nov 26)
                    # (SrvrSshKey) in the signed-in user's own process: adds,
                    # removes and lists the SD Core server's ssh key in the
                    # user's authorized_keys.  It SHIPS, so assert-current

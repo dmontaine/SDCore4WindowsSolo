@@ -11,7 +11,9 @@ unchanged as they are used to log into all versions of sd".*** Both the Windows
 does too**: a network login is SCRAM-SHA-256, requests 47/48, and nothing else
 (`SDConnect` has had no other network path since request 24 was retired,
 `gplsrc/sdclilib/sdclilib.c:1257`). The first draft's request 49, key pinning
-and `SDConnectWindows` are withdrawn with it.
+and `SDConnectWindows` are withdrawn with it. (Not to be confused with the shipped
+ssh key request, `SrvrSshKey`, which was 49 from 30 Sep to 11 Nov 2026 and is 72
+now; 49 is the server's revision, as in SD Core.)
 
 ## 1. What happens today (multi-user), and which steps Solo cannot do
 

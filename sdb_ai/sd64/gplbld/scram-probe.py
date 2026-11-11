@@ -113,7 +113,8 @@ REQ_ACCOUNT = 3
 REQ_OPEN = 4
 REQ_WRITE = 16
 REQ_EXECUTE = 21
-REQ_SSHKEY = 49   # SOLO 24: SrvrSshKey, global session only
+REQ_REVISION = 49   # SOLO 55: SrvrRevision, as Core
+REQ_SSHKEY = 72   # SOLO 24: SrvrSshKey, global session only; 49 until 11 Nov 26 (SOLO 55), when 49 became Core's SrvrRevision
 REQ_LOGIN = 24
 REQ_SCRAM_FIRST = 47
 REQ_SCRAM_FINAL = 48
@@ -499,7 +500,7 @@ def login(sock, a, pw):
 
 
 def sshkey_request(sock, spec):
-    """Request 49.  Body: verb, then a field mark (0xFE) and the argument.  Prints
+    """Request 72 (REQ_SSHKEY).  Body: verb, then a field mark (0xFE) and the argument.  Prints
     ONE verdict line whose wording appears only on its own path:
       SSHKEY <verb>: OK <field>|<field>|...      server_error 0
       SSHKEY <verb>: REFUSED server_error <e>: <text from request 2>"""
@@ -516,6 +517,19 @@ def sshkey_request(sock, spec):
     say("SSHKEY %s: REFUSED server_error %d: %s" % (verb, err, text))
 
 
+def revision_request(sock):
+    """Request 49 (REQ_REVISION), SrvrRevision, as in Core (SOLO 55, 11 Nov 26).  Prints ONE verdict line:
+      REVISION: OK <text>                         server_error 0
+      REVISION: REFUSED server_error <e>: <text from request 2>"""
+    err, _, data = request_raw(sock, REQ_REVISION, b"")
+    if err == 0:
+        say("REVISION: OK %s" % data.decode("utf-8", errors="replace").strip())
+        return
+    _, _, detail = request(sock, REQ_GETERROR, "")
+    text = (detail or data.decode("utf-8", errors="replace")).strip()
+    say("REVISION: REFUSED server_error %d: %s" % (err, text))
+
+
 def after_login(sock, a):
     if a.account:
         err, _, text = request(sock, REQ_ACCOUNT, a.account)
@@ -527,6 +541,8 @@ def after_login(sock, a):
 
     for spec in a.sshkey:
         sshkey_request(sock, spec)
+    if a.revision:
+        revision_request(sock)
 
     files = {}
     for name in a.open:
@@ -642,8 +658,10 @@ def main(argv):
                     help="after login and account, write a record (request 16)")
     ap.add_argument("--sshkey", action="append", default=[], nargs="+",
                     metavar="VERB [ARG]",
-                    help="after login, send request 49 (SOLO 24): ADD <key text>, "
+                    help="after login, send request 72 (SOLO 24, SOLO 55): ADD <key text>, "
                          "REMOVE <SHA256:fingerprint> or LIST; needs no --account")
+    ap.add_argument("--revision", action="store_true",
+                    help="after login, send request 49 (SOLO 55): the server's revision; needs no --account")
     ap.add_argument("commands", nargs="*")
     a = ap.parse_args(argv)
 

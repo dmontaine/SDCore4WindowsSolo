@@ -1,5 +1,5 @@
 # solo-sshkey.ps1 - add, remove or list the SD Core server's ssh keys for THIS user.
-# Run by gpl.bp/apisrvr (API request 49, SrvrSshKey) in the signed-in user's own
+# Run by gpl.bp/apisrvr (API request 72, SrvrSshKey; 49 until 11 Nov 26) in the signed-in user's own
 # process.  UNELEVATED BY DESIGN: it writes only <app>\ssh\authorized_keys.
 #
 #   powershell -File solo-sshkey.ps1 -Verb ADD    -Key '<one-line public key>'

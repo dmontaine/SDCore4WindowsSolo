@@ -290,11 +290,11 @@ function Invoke-Scram([string]$Label, [string]$Pw, [string[]]$Cmds) {
     return $text
 }
 
-# SOLO 24: one scram-probe.py run that sends request 49 once per spec, e.g.
-# 'LIST' or 'ADD ssh-ed25519 AAAA...'.  No account is entered; request 49 needs none.
+# SOLO 24: one scram-probe.py run that sends request 72 once per spec (49 until 11 Nov 26, SOLO 55), e.g.
+# 'LIST' or 'ADD ssh-ed25519 AAAA...'.  No account is entered; request 72 needs none.
 function Invoke-ScramKey([string]$Label, [string]$Pw, [string[]]$Specs) {
     $a = '-3 "' + $Scram + '" --user ' + $Acct
-    foreach ($s in $Specs) { $a += ' --sshkey ' + $s }
+    foreach ($s in $Specs) { if ($s -eq '@REVISION') { $a += ' --revision' } else { $a += ' --sshkey ' + $s } }   # 11 Nov 26, SOLO 55: '@REVISION' sends request 49
     Say ''
     Say ('  $ ' + $script:Py + ' ' + $a + '   [SD_SCRAM_PASSWORD: ' + $Label + ', not shown]')
     $psi = New-Object Diagnostics.ProcessStartInfo
@@ -1466,7 +1466,7 @@ public static class SdSuiteCli {
     }
 
     # -----------------------------------------------------------------------
-    # 30 Sep 26 - SOLO 24: API request 49, the SD Core server installs its ssh key.
+    # 30 Sep 26 - SOLO 24: API request 72 (49 until 11 Nov 26, SOLO 55), the SD Core server installs its ssh key.
     # A managed computer only: one with no global password cannot receive the request.  A throwaway
     # key is made here, put through ADD/PRESENT/LIST/REMOVE/ABSENT with the global
     # password, refused with the account password (CONTROL), refused with a bad
@@ -1484,12 +1484,12 @@ public static class SdSuiteCli {
     # holds no Windows password and nobody else may type one.  THE PASSWORD PATH IS THE OWNER'S WITNESS, by hand:
     # ssh -p 4251 <user>@127.0.0.1, his Windows password, then SD's own prompt.
     Say ''
-    Say '== 18b. the ssh key request (SOLO 24, request 49; SOLO 28, own sshd on 4251)'
+    Say '== 18b. the ssh key request (SOLO 24, request 72; SOLO 28, own sshd on 4251)'
     $kgen = Join-Path $env:SystemRoot 'System32\OpenSSH\ssh-keygen.exe'
     $sshc = Join-Path $env:SystemRoot 'System32\OpenSSH\ssh.exe'
-    if (-not $managed) { Skip '18b: request 49' 'no global password on this computer, the request cannot be made' }
-    elseif (-not $apiPort -or -not $script:Py -or -not (Test-Path -LiteralPath $Scram)) { Skip '18b: request 49' 'no API or no scram-probe - see leg 5' }
-    elseif (-not (Test-Path -LiteralPath $kgen) -or -not (Test-Path -LiteralPath $sshc)) { Skip '18b: request 49' 'no OpenSSH client in System32' }
+    if (-not $managed) { Skip '18b: request 72' 'no global password on this computer, the request cannot be made' }
+    elseif (-not $apiPort -or -not $script:Py -or -not (Test-Path -LiteralPath $Scram)) { Skip '18b: request 72' 'no API or no scram-probe - see leg 5' }
+    elseif (-not (Test-Path -LiteralPath $kgen) -or -not (Test-Path -LiteralPath $sshc)) { Skip '18b: request 72' 'no OpenSSH client in System32' }
     else {
         $sshPort = 4251
         $akf = Join-Path $Root 'ssh\authorized_keys'
@@ -1536,7 +1536,8 @@ public static class SdSuiteCli {
 
             # CONTROL: an ordinary account-password session is refused, file untouched.
             $hashMid = (Get-FileHash -LiteralPath $akf -Algorithm SHA256).Hash
-            $t = Invoke-ScramKey 'the account password' $acctPw @('LIST', ('ADD ' + $pub), ('REMOVE ' + $fpr))
+            $t = Invoke-ScramKey 'the account password' $acctPw @('LIST', ('ADD ' + $pub), ('REMOVE ' + $fpr), '@REVISION')
+            Check 'request 49 is the server revision, as in Core (SOLO 55): REVISION: OK and some text, not the ssh key handler''s refusal' ($t -match '(?m)^REVISION: OK \S') 'want "REVISION: OK <revision>"; a refusal here means 49 still reaches the key handler'
             Check 'CONTROL: with the account password, ADD, LIST and REMOVE are all refused (12036)' ((CountOf (Get-Lines $t) 'SSHKEY (ADD|LIST|REMOVE): REFUSED server_error 3: Only the SD Core server may manage ssh keys') -eq 3) 'want three refusals'
             Check 'and the file is byte-identical afterwards' ((Get-FileHash -LiteralPath $akf -Algorithm SHA256).Hash -eq $hashMid) 'the file changed'
         }

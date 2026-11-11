@@ -3,6 +3,16 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+11 Nov 26  THE API'S SSH KEY REQUEST IS 72, AND REQUEST 49 IS THE SERVER'S REVISION (AS IN SD CORE).
+
+             What        - API request 49 is now the server's revision, as in SD Core, and the request a managed
+                           computer's server uses to install its ssh key is 72. The verbs, the reply and the
+                           audit lines of the key request are as they were.
+             Why         - A program written for SD Core that asked a Solo server for its revision reached the
+                           ssh key handler (owner's ruling, 11 Nov, for the Windows and Linux versions alike).
+             Does NOT    - Change what the key request does. A script written for WS1.1-3 that sends 49 to
+                           install a key must send 72.
+
 10 Nov 26  A FAILED OPENSEQ NO LONGER LEAVES ITS RECORD LOCK BEHIND (FROM SD CORE FOR LINUX).
 
              What        - When OPENSEQ took the lock on a record and then failed (OVERWRITE of a file whose old content
