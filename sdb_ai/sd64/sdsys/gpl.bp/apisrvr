@@ -1600,7 +1600,7 @@ vb.scram.first:
                         scram.gserver = ''
                      end
                   end else
-                     void kernel(K$AUDIT, 'api note user=' : scram.audit.name : ' - $GLOBAL does not share this account''s salt, so the global password cannot log in under this name (ruling 19)')
+                     void kernel(K$AUDIT, 'api note user=' : scram.audit.name : " - $GLOBAL does not share this account's salt, so the global password cannot log in under this name (ruling 19)")     ;* 11 Nov 26: was 'account''s' - SD BASIC has no '' escape
                   end
                end
                scram.cred = ''
