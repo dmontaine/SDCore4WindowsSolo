@@ -30,9 +30,10 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 GPLBP = os.path.normpath(os.path.join(HERE, '..', 'sdsys', 'gpl.bp'))
 
-# A name called and catalogued nowhere in this tree, while a row is open for it.  Each entry names its row.
+# A name called and catalogued nowhere in this tree, while a row is open for it or while the call is shown to be unreachable.  Each entry names its reason.
 KNOWN = {
-    'create_account': 'restorea:426, a restore that has to make the account; no Solo program defines it: SOLO 52',
+    'create_account': 'restorea:426 is UNREACHABLE on Solo: acc_os_info:81 says product windows-solo, so restorea sets solo true and returns at :414 (13023) before the call; '
+                      'the same text as Linux Solo; no Solo program defines it (SOLO 52, closed 11 Nov 26, nothing to build)',
     'seqkey':         'SED:833 and 876 (CREATING.SEQKEY); Core has it from Linux 400500c (284a91cd), Solo does not: SOLO 53',
 }
 
