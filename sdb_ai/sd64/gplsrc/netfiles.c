@@ -17,6 +17,10 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 12 Nov 26 SD Core Solo - SOLO 56 group 8, as Linux Solo b1d823f (SD Core's S.73 item 3 and its D1, from Windows Core 9c9fb6dd and 52431e14): net_admin, net_create_file,
+ *               net_fcontrol, net_write_seqkey (requests 68 to 71) and net_index_query (NF$INDEXQ, the index QUERY statements, no gate beyond the NET gate), with SD Core's refactor of
+ *               net_change_op into net_change_result.  NETG_ADMIN asks steps 1 and 3 of net_gate (read-mode, transaction): Solo has no S.64 edit gate.  The refusal of
+ *               CREATING.SEQKEY (step 2) is gone as in SD Core.  The server's wall is its own: a SD Core server's sdfilesadmin, a Solo server's global-password session.
  * 21 Oct 26 dm  Solo carry 10 (SD Core eb9ef4a): S.72b, see the entry below it; net_gate() has the NETG_PEEK case before the SEQKEY and transaction steps.
  * 20 Oct 26 dm  SD Core for Linux Solo, SDNet carry 9 (Core Dev 680747d, carried whole): three changes, all because Solo has no S.64 edit gates and no gates word.  (1) net_gate_ok()
  *               reads the user flag USR_NET, not UG_NET in a gates word.  (2) The kind of the REMOTE file's name (edit_kind_of_net_name, S.64) is not worked out at open and
@@ -48,6 +52,7 @@
  *  net_readv          READV (and the record-exists test, field 0)
  *  net_fileinfo       FILEINFO() keys the file variable does not answer itself
  *  net_select         SELECT, SELECTV: every record id of the remote file in one string (slice 3d)
+ *  net_index_query    INDICES, SELECTINDEX (both forms), SETLEFT, SETRIGHT, SELECTLEFT, SELECTRIGHT: the index QUERY statements, asked of the server (S.73 item 3, D1)
  *  net_refuse        Any other statement given the file variable: message 12506 (12516 for a write-mode file)
  *  net_gate           May a changing or locking statement go on for this file variable? (slice 3e: mode, CREATING.SEQKEY, transaction, edit gate)
  *  net_write          WRITE, WRITEU, MATWRITE (and so WRITEV): the record goes down as the string chain it is
@@ -135,8 +140,13 @@
 #define NF_WRITEU 14
 #define NF_DELETEU 15
 #define NF_RELEASE 16
-#define NF_FILELOCK 18      /* S.72 (17 and 20 are not used) */
+#define NF_FILELOCK 18      /* S.72 (17 is not used) */
 #define NF_FILEUNLOCK 19
+#define NF_ADMIN 20         /* S.73 item 3: a verb run on the server for the login, on the open file (request 70) */
+#define NF_CREATEFILE 21    /* S.73 item 3: create.file on a server, no file yet (request 70, operation 8) */
+#define NF_FCONTROL 22      /* S.73 item 3: FCONTROL(file, key, value) (request 71) */
+#define NF_SEQKEY 23        /* S.73 item 3: WRITE ... CREATING.SEQKEY (requests 68 and 69) */
+#define NF_INDEXQ 24        /* S.73 item 3, D1: the index QUERY statements (requests 35, 36, 38, 39, 42 to 45) */
 
 #define NF_RC_OK 0
 #define NF_RC_ELSE 2
@@ -281,6 +291,12 @@ Private void net_cache_put(FILE_VAR* fvar, const char* id, int16_t id_len, STRIN
 
 /* ======================================================================
    net_message()  -  The text of the last error of this module            */
+
+/* net_last_reply_status()  -  The server's reply STATUS() of the last handler call (S.73 item 3: the return code of a verb run on the server, what FCONTROL left there); 0 when it did not run. */
+
+int net_last_reply_status() {
+  return net_reply_status;
+}
 
 const char* net_message() {
   return net_msg;
@@ -992,7 +1008,7 @@ int net_refuse(FILE_VAR* fvar, const char* what) {
    sends nothing, so nothing on the e-stack moves and the CALLER's program flags are the ones tested.  THE ORDER IS BINDING:
      1  a read-mode file variable (the server's definition said read, or the variable was made read only): message 12506, -7000, exactly
         slice 3c.  Nothing below runs for it.
-     2  WRITE ... CREATING.SEQKEY: the counter is in the local file's header; message 12516, -7000.
+     2  (gone since S.73 item 3, carried 12 Nov 26: WRITE ... CREATING.SEQKEY was refused here with 12516; the counter is the server's now and the write has the gate of every other.)
      3  a transaction (process.txn_id, NOT the local txn_id, which is 0 for every NET_FILE because of FV_NON_TXN): message 12515, -1010.
         A remote change would never join the local COMMIT or ROLLBACK, so it is refused rather than allowed.
      4  (SD Core: the S.64 edit gate of the REMOTE file's name.  Not in Solo: it has no edit gates.)
@@ -1016,12 +1032,8 @@ int net_gate(FILE_VAR* fvar, int kind, u_int16_t op_flags, const char* what) {
     return 0;
   }
 
-  if ((kind == NETG_WRITE) && (op_flags & P_SEQKEY)) {
-    st = net_refuse_with(fvar, "WRITE ... CREATING.SEQKEY", MSG_UNAVAILABLE, -ER_NETWORK);
-    process.status = st;
-    process.op_flags = entry;
-    return st;
-  }
+  /* S.73 item 3 (carried 12 Nov 26): step 2 (the refusal of CREATING.SEQKEY) is gone.  The counter is the server's now (requests 68 and 69, which a SD Core server gives only to a login
+     in sdfilesadmin and a Solo server only to a global-password session), so the write has the gate of every other write.  The server is the wall; this is the clear text. */
 
   if (process.txn_id != 0) {
     st = net_refuse_with(fvar, what, MSG_TXN, -ER_TXN);
@@ -1045,7 +1057,11 @@ int net_gate(FILE_VAR* fvar, int kind, u_int16_t op_flags, const char* what) {
    is the handler's message 12514 and the caller's error.  Returns 0 done, ER_LCK busy (net_lock() only, process.status the holder), or a
    negative status, already raised unless the statement has ON ERROR (process.op_flags at the call).  Sets process.status.                    */
 
-Private int net_change_op(FILE_VAR* fvar, int op, const char* b, int blen, const char* c, int clen, STRING_CHUNK* chain, bool use_chain, bool lock_op) {
+/* 21 Oct 26 S.73 item 3: net_change_result() is the body, with one more argument: result NULL releases the handler's answer (every statement that has none to give), otherwise a request
+   that got 0 hands it back in *result for the caller to release (the output of a verb run on the server, the id CREATING.SEQKEY made).  The server's reply STATUS() is net_reply_status
+   for a caller that wants it; process.status is still 0 after a success. */
+
+Private int net_change_result(FILE_VAR* fvar, int op, const char* b, int blen, const char* c, int clen, STRING_CHUNK* chain, bool use_chain, bool lock_op, DESCRIPTOR* result) {
   u_int16_t entry = process.op_flags;
   int handle = fvar->access.net.handle;
   DESCRIPTOR out;
@@ -1065,8 +1081,12 @@ Private int net_change_op(FILE_VAR* fvar, int op, const char* b, int blen, const
     net_set_message(MSG_HANDLER, "it gave an answer that this statement cannot use", "", "");
     status = -ER_NETWORK;
   }
-  if (status == 0)
-    k_release(&out);
+  if (status == 0) {
+    if (result != NULL)
+      *result = out;
+    else
+      k_release(&out);
+  }
 
   if (handle > 0)
     net_cache_drop(handle);
@@ -1076,6 +1096,10 @@ Private int net_change_op(FILE_VAR* fvar, int op, const char* b, int blen, const
   if (!busy)
     process.status = 0; /* never the server's STATUS(): the handler is told only whether it worked */
   return status;
+}
+
+Private int net_change_op(FILE_VAR* fvar, int op, const char* b, int blen, const char* c, int clen, STRING_CHUNK* chain, bool use_chain, bool lock_op) {
+  return net_change_result(fvar, op, b, blen, c, clen, chain, use_chain, lock_op, NULL);
 }
 
 /* An id the caller should have refused already (op_write(), op_delete()): the statement fails as an illegal id, nothing is sent. */
@@ -1112,6 +1136,153 @@ int net_delete(FILE_VAR* fvar, char* id, int16_t id_len, bool keep_lock) {
 
 int net_clear(FILE_VAR* fvar) {
   return net_change_op(fvar, NF_CLEARFILE, "", 0, "", 0, NULL, FALSE, FALSE);
+}
+
+/* ======================================================================
+   S.73 item 3 (21 Oct 26), QMNet tiers C and D: the statements and verbs that ADMINISTER a remote file.  Each is gated here (the one wall of this machine; the server's is the group
+   sdfilesadmin, asked for requests 68 to 71) and then goes to the handler.  They answer as the other change entry points do: 0 done, a negative status already raised unless the caller put
+   P_ON_ERROR in process.op_flags (the callers here have no ON ERROR clause, so it is always raised).  The handler's answer comes back in *result for the caller to release.  A change
+   is never repeated: a lost reply is the handler's 12514.  The server's reply STATUS() - the verb's return code, or what FCONTROL left - is net_reply_status for the caller.
+
+   net_admin_verb() names the operation of request 70 (the numbers are the server's, apisrvr vb.fileadmin): 1 analyse.file, 2 configure.file, 3 create.index, 4 build.index,
+   5 delete.index, 6 disable.index, 8 create.file, 9 delete.file; the name is what the refusal message says, in lower case.                                                         */
+
+Private const char* net_admin_verb(int op) {
+  switch (op) {
+    case 1:
+      return "ANALYSE.FILE";
+    case 2:
+      return "CONFIGURE.FILE";
+    case 3:
+      return "CREATE.INDEX";
+    case 4:
+      return "BUILD.INDEX";
+    case 5:
+      return "DELETE.INDEX";
+    case 6:
+      return "DISABLE.INDEX";
+    case 8:
+      return "CREATE.FILE";
+    case 9:
+      return "DELETE.FILE";
+  }
+  return NULL;
+}
+
+/* net_admin()  -  Operation op (1 to 6 or 9) of request 70 on the open remote file, with the verb's words.  ANALYSE.FILE only reads, so it asks the read-mode test alone (NETG_PEEK);
+   the rest are changes (NETG_ADMIN: read-mode refused, a transaction refused, the edit gate of the remote file's name).  *result is what the verb printed. */
+
+int net_admin(FILE_VAR* fvar, int op, const char* words, int wlen, DESCRIPTOR* result) {
+  const char* verb = net_admin_verb(op);
+  char ob[16];
+  int st;
+
+  result->type = UNASSIGNED;
+  process.op_flags = 0;
+  if ((verb == NULL) || (op == 8)) {
+    net_set_message(MSG_HANDLER, "the operation is not one it knows", "", "");
+    return net_raise(-ER_NETWORK, 0);
+  }
+  st = net_gate(fvar, (op == 1) ? NETG_PEEK : NETG_ADMIN, 0, verb);
+  if (st != 0)
+    return st; /* the refusal is made and process.status is st (raised: there is no ON ERROR) */
+  snprintf(ob, sizeof(ob), "%d", op);
+  return net_change_result(fvar, NF_ADMIN, ob, (int)strlen(ob), words, wlen, NULL, FALSE, FALSE, result);
+}
+
+/* net_create_file()  -  CREATE.FILE on a server (operation 8): there is no file yet, so no handle and no gate of a file; the handler takes the server's name (the definition must say
+   write, the account must hold the NET gate, the server must be listed) and sends the verb's words with the new name first.  A transaction is refused (12515): the file would
+   never join the local COMMIT or ROLLBACK.  *result is what the verb printed. */
+
+int net_create_file(const char* server, int slen, const char* words, int wlen, DESCRIPTOR* result) {
+  u_int16_t entry = process.op_flags;
+  NET_RC rc;
+  bool ran;
+  int status;
+
+  result->type = UNASSIGNED;
+  net_reply_status = 0;
+  if (process.txn_id != 0) {
+    net_set_message(MSG_TXN, server, "create.file", "");
+    return net_raise(-ER_TXN, entry);
+  }
+  net_flush_pending();
+  ran = net_call_core(NF_CREATEFILE, server, slen, "", 0, words, wlen, NULL, FALSE, &rc, result);
+  net_reply_status = ran ? rc.reply_status : 0;
+  process.op_flags = entry;
+  status = net_answer(ran, &rc, 0, result, FALSE, TRUE);
+  if (status > 0) { /* an ELSE answer: not one this statement can use */
+    net_set_message(MSG_HANDLER, "it gave an answer that this statement cannot use", "", "");
+    status = -ER_NETWORK;
+  }
+  if (status < 0)
+    return net_raise(status, entry);
+  process.status = 0;
+  return 0;
+}
+
+/* net_fcontrol()  -  FCONTROL(file, key, value) of a remote file (request 71).  FC$VALID.ID (6) is a question and asks the read-mode test alone; every other key changes the file or its
+   counter and is gated as a change.  *result is what the function returned. */
+
+int net_fcontrol(FILE_VAR* fvar, int key, const char* value, int vlen, DESCRIPTOR* result) {
+  char kb[16];
+  int st;
+
+  result->type = UNASSIGNED;
+  process.op_flags = 0;
+  st = net_gate(fvar, (key == 6) ? NETG_PEEK : NETG_ADMIN, 0, "FCONTROL");
+  if (st != 0)
+    return st;
+  snprintf(kb, sizeof(kb), "%d", key);
+  return net_change_result(fvar, NF_FCONTROL, kb, (int)strlen(kb), value, vlen, NULL, FALSE, FALSE, result);
+}
+
+/* net_write_seqkey()  -  WRITE and WRITEU ... CREATING.SEQKEY (requests 68 and 69): the record goes down as the chain it is, the SERVER's counter gives the id, and it comes back in *id (a
+   string chain the caller owns).  The gate was asked by the write statement already (net_gate(NETG_WRITE): read-mode, transaction, edit gate); the server's wall is sdfilesadmin. */
+
+int net_write_seqkey(FILE_VAR* fvar, STRING_CHUNK* rec, bool keep_lock, STRING_CHUNK** id) {
+  DESCRIPTOR out;
+  int st;
+
+  *id = NULL;
+  st = net_change_result(fvar, NF_SEQKEY, keep_lock ? "1" : "0", 1, "", 0, rec, TRUE, FALSE, &out);
+  if (st != 0)
+    return st;
+  *id = net_take_string(&out);
+  k_release(&out);
+  if (*id == NULL) {
+    net_set_message(MSG_HANDLER, "it gave no id", "", "");
+    return net_raise(-ER_NETWORK, process.op_flags);
+  }
+  return 0;
+}
+
+/* ======================================================================
+   net_index_query()  -  The index QUERY statements of a remote file (S.73 item 3, D1).  what is the handler's sub-operation (netfile.h, NF$INDEXQ): 1 INDICES(f), 2 INDICES(f, name), 3 SELECTINDEX
+   name FROM f (the indexed values), 4 SELECTINDEX name, value FROM f (the ids), 5 SETLEFT, 6 SETRIGHT, 7 SELECTLEFT, 8 SELECTRIGHT; c (clen bytes) is the name, and for 4 the name, a field mark and
+   the value.  The statements have no ON ERROR clause, so an error is always raised (process.op_flags is cleared first).  On success *answer is the handler's answer as a string chain the caller
+   owns (NULL for a null string; for 7 and 8 the key, a field mark and the ids) and *server_st the server's STATUS() of the statement: 0 done, 1 no such index (7 and 8: no further key).         */
+
+int net_index_query(FILE_VAR* fvar, int what, const char* c, int clen, STRING_CHUNK** answer, int* server_st) {
+  DESCRIPTOR out;
+  char wb[16];
+  int status;
+
+  *answer = NULL;
+  *server_st = 0;
+  process.op_flags = 0;
+  snprintf(wb, sizeof(wb), "%d", what);
+  status = net_op_ex(fvar, NF_INDEXQ, wb, (int)strlen(wb), c, clen, NULL, FALSE, ER_FNF, FALSE, FALSE, &out);
+  if (status > 0) { /* an ELSE answer: not one this statement can use */
+    net_set_message(MSG_HANDLER, "it gave an answer that this statement cannot use", "", "");
+    status = -ER_NETWORK;
+  }
+  if (status < 0)
+    return net_raise(status, 0);
+  *server_st = net_reply_status;
+  *answer = net_take_string(&out);
+  k_release(&out);
+  return 0;
 }
 
 /* ======================================================================

@@ -19,6 +19,11 @@
 *
 *
 * START-HISTORY:
+* 12 Nov 26 SD Core Solo - SOLO 56 group 8, from Linux Solo b1d823f (SD Core's S.73 item 3, 21 Oct 26) with Windows message ids: request 70 (vb.fileadmin, a verb run on the
+*           server for the session: analyze.file, configure.file, the index verbs, create.file, delete.file, chosen by number, the file named by the one it was opened under,
+*           kept in file.names) and 71 (vb.fcontrol, FCONTROL of an open file) are served, global session only (the gate before the dispatch), each change asking
+*           check.voc.edit.  Operation 1 runs analyze.file (S.87 took analyse.file out of the VOC).  The group 7 line below ("still vb.illegal.action") is history.
+*           D1's server fixes with it: vb.selectright had no RETURN and ran on into vb.mark.mapping; vb.selectleft and vb.selectright ask check.list.
 * 12 Nov 26 SD Core Solo - SOLO 56 group 7, from Linux Solo f084a3f (SD Core's client library of 15 Oct 26) with Windows message ids: requests 50 to 69 are
 *           served - 50 getvar, 51 system, 52 trans, 53 rtrans, 54 txn (mode 4 non-durable, K$NON.DURABLE.TXN), 55 evaluate, 56 evalconv, 57-60 iconv, oconv,
 *           iconvs, oconvs, 61-67 openseq, readseq, readblk, writeseq, writeblk, seek, weofseq, 68-69 writeseqkey, writeuseqkey - with Linux Solo's two Solo
@@ -275,6 +280,7 @@ deffun voc_refusal(f) calling '!voc_refusal'   ;* 18 Oct 26, SOLO 46 (Linux Solo
 
 common /$APISRVR/ logged.in,          ;* Process is logged in
 files(100),         ;* Array of file variables
+file.names,         ;* 12 Nov 26 (SD Core's S.73 item 3, SOLO 56 group 8): the name each open file was opened under, field = file number (a dictionary as "dict name"); request 70 names its file by it
 logging,            ;* Logging network traffic?
 master.login.done,  ;* The MASTER.LOGIN paragraph has been run (it is run once per session)
 seqfiles(SEQ.MAX),  ;* Sequential files opened by vb.openseq, numbered SEQ.BASE + their index (sheet 441)
@@ -355,6 +361,7 @@ if not(kernel(K$CPROC.LEVEL,0)) then
 
    tty = 'apisrvr'
    master.login.done = @false      ;* MASTER.LOGIN is run once, at the first entry to an account
+   file.names = ''            ;* 12 Nov 26, SD Core's S.73 item 3 (SOLO 56 group 8): no file is open yet
 
    openpath "voc" to voc else
       abort.message = sysmsg(2026) ;* Cannot open VOC
@@ -559,8 +566,8 @@ loop
    vb.weofseq,        ;*  67   WEOFSEQ
    vb.writeseqkey,    ;*  68   WRITE ... CREATING.SEQKEY (global session only, the gate above)
    vb.writeuseqkey,   ;*  69   WRITEU ... CREATING.SEQKEY (global session only)
-   vb.illegal.action, ;*  70   File administration (Core's FILEADMIN): not in Solo yet, SOLO 56 group 8
-   vb.illegal.action, ;*  71   FCONTROL of a remote file: not in Solo yet, SOLO 56 group 8
+   vb.fileadmin,      ;*  70   A verb run on the server for the session: analyse, configure, index, create, delete (S.73 item 3) - global session only
+   vb.fcontrol,       ;*  71   FCONTROL(file, key, value) (S.73 item 3) - global session only
    vb.sshkey,         ;*  72   Manage the SD Core server's ssh keys (global session only); Core reserves 72 for it
    vb.illegal.action
 
@@ -968,6 +975,8 @@ end else
    end
    else server.error = SV$ELSE
 end
+* 12 Nov 26 SD Core Solo - SD Core's S.73 item 3 (SOLO 56 group 8): the name the file was opened under, for request 70 (a verb run on the server names its file by it, never by what the caller sends).
+if server.error = SV$OK then file.names<i> = cmnd
 
       return
 
@@ -989,6 +998,7 @@ vb.close:
       if err then return
 
       close files(fno)   ;* 0346
+      file.names<fno> = ''   ;* 12 Nov 26, SD Core's S.73 item 3 (SOLO 56 group 8)
 
       return
 
@@ -2543,6 +2553,9 @@ vb.selectleft:
 
                                                                      listno = oconv(cmnd[3,2], 'ISL')
 
+                                                                     gosub check.list      ;* 21 Oct 26 dm, S.73 item 3 (D1; Solo 12 Nov 26, SOLO 56 group 8): a list number outside 0 to 10 was a runtime error whose text names a line of this program
+                                                                     if err then return
+
                                                                      selectleft cmnd[5,999] from files(fno) setting response to listno
 
                                                                      return
@@ -2560,7 +2573,10 @@ vb.selectright:
 
                                                                      listno = oconv(cmnd[3,2], 'ISL')
 
-                                                                     selectright cmnd[5,999] from files(fno) setting response to listno
+                                                                     gosub check.list      ;* 21 Oct 26 dm, S.73 item 3 (D1; Solo 12 Nov 26, SOLO 56 group 8): as vb.selectleft
+                                                                     if err then return
+
+                                                                     selectright cmnd[5,999] from files(fno) setting response to listno ; return   ;* 21 Oct 26 dm, S.73 item 3 (D1): it had no RETURN and fell into vb.mark.mapping, which switched mark mapping on (the list number was its state) and left STATUS() 0 even at the end of the scan
 
                                                                      * ======================================================================
                                                                      * MarkMapping
@@ -3231,6 +3247,134 @@ end else
    write wk.data to files(fno) creating.seqkey wk.id on error server.error = SV$ON.ERROR
 end
 if server.error = SV$OK then response = wk.id
+return
+
+* ======================================================================
+* FILEADMIN (request 70)  -  SD Core's S.73 item 3 (21 Oct 26), carried to Linux Solo 11 Nov 26 and here 12 Nov 26 (SOLO 56 group 8).  A server verb run FOR THE SESSION,
+* built narrow because it is a new door.  On Solo the session is a global-password one (the gate before the dispatch): the master server administering this Solo.
+* In:  operation (short integer), file number (short integer; 0 for the operation that names no open file), the verb's words (text)
+* Out: what the verb printed (captured); an ON ERROR reply with its own text for a refusal
+*
+* THE VERB IS CHOSEN BY THE OPERATION NUMBER AND NEVER FROM THE TEXT: 1 analyse.file, 2 configure.file, 3 create.index, 4 build.index, 5 delete.index, 6 disable.index,
+* 8 create.file, 9 delete.file (7 is free: there is no enable.index, build.index switches an index on again).  The file an operation works on is NAMED BY THE OPEN FILE
+* (the name it was opened under, kept in file.names), so the caller cannot name a file it did not open; operation 8 names a NEW file, in the first word of the text.
+* The words are checked by fa.check.words before anything runs: letters, digits and . _ - only, single blanks, at most 200 characters, never PATHNAME, LPTR, FORCE or
+* NO.QUERY, and DIRECTORY only as the LAST word (it makes a directory file; a word after it would name a path).  A word the verb does not know is passed on as a name and
+* the verb refuses it.  The command runs in the account the session entered, so the verb's own refusals apply (and check.voc.edit, Solo's rule for a change of the VOC and
+* the global files, for every operation that changes the file).  NO.QUERY is added for the two verbs that ask (create.file, delete.file).  The file is CLOSED here before
+* the verb runs - the verbs need the file to themselves and this process's handle would be one more opener - and opened again afterwards under the same file number, unless
+* the file was deleted.  The audit line is written BEFORE the command runs, so a command that is killed is still on the trail.
+
+vb.fileadmin:
+fa.op = oconv(cmnd[1,2], 'ISL')
+fno = oconv(cmnd[3,2], 'ISL')
+fa.text = cmnd[5,len(cmnd)]
+if config("SDCLIENT") # 0 or kernel(K$SDNET, -1) then
+   abort.message = sysmsg(5265) ;* Command execution is disabled
+   server.error = SV$ON.ERROR
+   return
+end
+fa.verb = ''
+if fa.op >= 1 and fa.op <= 9 then
+*  Linux Solo 11 Nov 26: operation 1 runs ANALYZE.FILE.  SD Core's text says analyse.file, which S.87 took out of every VOC (sdsys/voc_removed/analyse.file), so on SD Core and on the
+*  first run of Linux Solo's carry the request answered "analyse.file is not in your VOC" (its sandbox-fileadmin-solo.py G3).  The audit line names the verb that ran.
+   fa.verb = field('analyze.file,configure.file,create.index,build.index,delete.index,disable.index,,create.file,delete.file', ',', fa.op)
+end
+if fa.verb = '' then
+   abort.message = sysmsg(12536, fa.op) ;* %1 is not a remote file administration operation
+   server.error = SV$ON.ERROR
+   return
+end
+fa.names.file = (fa.op # 8)
+fa.name = ''
+if fa.names.file then
+   gosub check.file
+   if err then return
+   fa.name = file.names<fno>
+   if fa.name = '' then
+      server.error = SV$ERROR
+      error.msg = sysmsg(5268) ;* Invalid file number
+      return
+   end
+   if fa.op # 1 then   ;* every operation but the report changes the file
+      gosub check.voc.edit
+      if err then return
+   end
+end
+gosub fa.check.words
+if fa.bad # '' then
+   abort.message = sysmsg(12535, fa.bad) ;* "%1" is not accepted here: names, numbers and the verb's keywords only (no path, no quote)
+   server.error = SV$ON.ERROR
+   return
+end
+if fa.names.file then fa.shown = fa.name else fa.shown = field(fa.text, ' ', 1)
+void kernel(K$AUDIT, 'api admin request=70 op=' : fa.verb : ' file=' : fa.shown : ' user=' : @logname)  ;* @logname, not logname: a plain variable does not survive an abort
+fa.cmd = fa.verb
+if fa.names.file then fa.cmd := ' ' : fa.name
+if fa.text # '' then fa.cmd := ' ' : fa.text
+if fa.op = 8 or fa.op = 9 then fa.cmd := ' no.query'
+if fa.names.file then close files(fno)
+execute fa.cmd capturing response
+st = @system.return.code
+* 8 Nov 26: ONE reopen for every operation.  A delete that worked leaves nothing to open, so the number is forgotten; a delete the verb refused leaves the file,
+*   which opens again under the same number, and the client's handle stays good.
+if fa.names.file then
+   if upcase(fa.name[1,5]) = 'DICT ' then
+      open 'DICT', trim(fa.name[6,9999]) to files(fno) else file.names<fno> = ''
+   end else
+      open fa.name to files(fno) else file.names<fno> = ''
+   end
+end
+return to return.status.set
+
+* ---- FA.CHECK.WORDS  -  fa.bad is '' when every word of fa.text may go to the verb, otherwise the first word that may not (or a note for two blanks and a long text)
+fa.check.words:
+fa.bad = ''
+if len(fa.text) > 200 then
+   fa.bad = fa.text[1,20] : '...'
+   return
+end
+if fa.text = '' then return
+fa.allowed = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-'
+fa.n.words = dcount(fa.text, ' ')
+for fa.w = 1 to fa.n.words
+   fa.tok = field(fa.text, ' ', fa.w)
+   fa.tok.ok = (fa.tok # '')
+   for fa.c = 1 to len(fa.tok)
+      if index(fa.allowed, fa.tok[fa.c,1], 1) = 0 then fa.tok.ok = @false
+   next fa.c
+   if fa.tok.ok then
+      if index(',PATHNAME,LPTR,FORCE,NO.QUERY,', ',' : upcase(fa.tok) : ',', 1) then fa.tok.ok = @false
+      if upcase(fa.tok) = 'DIRECTORY' and fa.w # fa.n.words then fa.tok.ok = @false
+   end
+   if not(fa.tok.ok) and fa.bad = '' then
+      if fa.tok = '' then fa.bad = '(two blanks)' else fa.bad = fa.tok
+   end
+next fa.w
+return
+
+* ======================================================================
+* FCONTROL (request 71)  -  SD Core's S.73 item 3 (21 Oct 26), carried here 12 Nov 26 (SOLO 56 group 8, as Linux Solo).  The public FCONTROL(file, key {, value}) of an open
+* file; a global-password session only.
+* In:  fileno (short integer), key (short integer), the value (text; empty when the call had none)
+* Out: what the function returned.  The keys are the FC$ keys of keys.h; one the function does not know is its own error.
+* Every key but FC$VALID.ID (a question) changes the file or its counter, so check.voc.edit is asked first, as for every other change here.
+
+vb.fcontrol:
+fno = oconv(cmnd[1,2], 'ISL')
+fc.key = oconv(cmnd[3,2], 'ISL')
+fc.value = cmnd[5,len(cmnd)]
+gosub check.file
+if err then return
+if fc.key # FC$VALID.ID then
+   gosub check.voc.edit
+   if err then return
+end
+if fc.value = '' then
+   response = fcontrol(files(fno), fc.key)
+end else
+   response = fcontrol(files(fno), fc.key, fc.value)
+end
 return
 
 * ======================================================================

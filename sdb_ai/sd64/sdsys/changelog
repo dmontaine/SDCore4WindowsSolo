@@ -3,6 +3,24 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+12 Nov 26  AN SD CORE SERVER CAN ADMINISTER THE FILES OF A MANAGED SOLO, AND SOLO CAN ADMINISTER FILES ON A SERVER.
+
+             What        - A session signed in to this Solo with the GLOBAL password may now, over the API, run
+                           analyze.file, configure.file, create.index, build.index, delete.index, disable.index,
+                           create.file and delete.file in the account, and call FCONTROL on an open file. A session
+                           signed in with the account password is refused each of them, on the audit trail, and keeps
+                           everything it had. On the client side a remote file (an N pointer) takes the same verbs,
+                           FCONTROL and WRITE ... CREATING.SEQKEY; CREATE.FILE name SERVER srv {AS remote} makes the
+                           file on the server and the pointer here; DELETE.FILE of a pointer deletes the file there and
+                           the pointer with it. INDICES, SELECTINDEX, SETLEFT, SETRIGHT, SELECTLEFT and SELECTRIGHT work
+                           on a remote file, so a query on one uses the server's indices.
+             Why         - The global password exists so that a server can administer Solo; until now it could not
+                           reach Solo's files without a command line.
+             Does NOT    - Open anything on a Solo with no global password (the delivered state). Pass a path, a
+                           quote, PATHNAME, LPTR, FORCE or NO.QUERY to a verb run on the server. AKREAD, AKWRITE,
+                           AKDELETE, CLEAR.AK, AKENABLE and AKMAP are still refused on a remote file. NOT YET TESTED ON
+                           AN INSTALLED SYSTEM.
+
 12 Nov 26  THE CLIENT LIBRARY HAS SD CORE'S FUNCTIONS, NESTED TRANSACTIONS CAN COMMIT INTO THEIR PARENT, AND BASIC TAKES NO.CATALOG.
 
              What        - The client library (sdclilib.dll) and the BASIC sdclient class have SD Core's functions:
@@ -14,7 +32,7 @@ of both Windows products is 2.0-0, as all four SD Core versions will be.)
                            compiles without running the program's catalog directive.
              Why         - This version refused API requests 50 to 69, which SD Core's client sends.
              Does NOT    - Let SDWriteSeqKey reach a Solo server from any session but one signed in with the global
-                           password, or administer remote files (still to come). NOT YET TESTED ON AN INSTALLED SYSTEM.
+                           password. NOT YET TESTED ON AN INSTALLED SYSTEM.
 
 12 Nov 26  THE INSTALLER ASKS WHERE NEW SESSIONS START.
 

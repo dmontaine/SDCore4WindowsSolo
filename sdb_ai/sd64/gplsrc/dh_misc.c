@@ -17,6 +17,9 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 12 Nov 26 SD Core Solo - SOLO 56 group 8, as Linux Solo b1d823f (SD Core's S.73 item 3, from Windows Core 9c9fb6dd): op_fcontrol() takes
+ *               FC_NET_ADMIN / FC_NET_CREATE (net_admin, net_create_file) and pub_fcontrol() sends a remote file's FCONTROL to its server
+ *               (net_fcontrol) instead of refusing it.  The 11 Nov line below ("still refused") is history.
  * 11 Nov 26 SD Core Solo - from SD Core 392c8e01 and 284a91cd (Linux Solo ba2eb2a; SOLO 53): dh_seq_key(), the counter of WRITE ...
  *               CREATING.SEQKEY; FCONTROL.INT keys 8 and 9; pub_fcontrol(), the public FCONTROL() with openQM's numbers; every other
  *               writer of the primary header stops short of the counter (DH_HEADER_SHARED_SIZE), and FC_NO_RESIZE frees the header
@@ -148,6 +151,38 @@ void op_fcontrol() {
   descr = e_stack - 3;
   k_get_file(descr);
   fvar = descr->data.fvar;
+
+  /* 21 Oct 26 S.73 item 3: the two internal keys of the administration verbs of a remote file.  The qualifier is "operation<FM>words" (FC_NET_ADMIN, on the open remote file) or
+     "server<FM>words" (FC_NET_CREATE, for CREATE.FILE ... SERVER: there is no file yet, so the file variable is any local one and is not looked at).  The result is what the verb printed;
+     STATUS() afterwards is the verb's return code on the server.  An error is raised (there is no ON ERROR on a function). */
+  if ((action == FC_NET_ADMIN) || (action == FC_NET_CREATE)) {
+    char net_arg[512];
+    char* net_sep;
+    DESCRIPTOR net_out;
+    int net_len;
+    int net_st;
+
+    descr = e_stack - 1;
+    k_get_value(descr);
+    net_len = k_get_c_string(descr, net_arg, (int)sizeof(net_arg) - 1);
+    net_sep = (net_len > 0) ? strchr(net_arg, FIELD_MARK) : NULL;
+    if ((net_sep == NULL) || ((action == FC_NET_ADMIN) && (fvar->type != NET_FILE)) || ((action == FC_NET_CREATE) && (fvar->type == NET_FILE))) {
+      process.status = ER_ARGS;
+      goto exit_op_fcontrol;
+    }
+    *net_sep++ = '\0';
+    process.op_flags = 0;
+    if (action == FC_NET_CREATE)
+      net_st = net_create_file(net_arg, (int)strlen(net_arg), net_sep, (int)strlen(net_sep), &net_out);
+    else
+      net_st = net_admin(fvar, atoi(net_arg), net_sep, (int)strlen(net_sep), &net_out);
+    if (net_st == 0) {
+      result = net_out;
+      process.status = net_last_reply_status();
+    }
+    goto exit_op_fcontrol;
+  }
+
   if (fvar->type == NET_FILE) /* 17 Oct 26 S.65: a remote file has no entry in the file table and no access.dh */
     net_refuse(fvar, "FCONTROL");
   fptr = FPtr(fvar->file_id);
@@ -326,10 +361,7 @@ exit_op_fcontrol:
 
    The three that change the file (2, 3, 7) are refused on a file opened read only, with STATUS() ER_RDONLY and the
    result 0 (null for 3).  STATUS() is ER_NDYN for a file that is not hashed, ER_ARGS for a number below 1, ER_IOE if the
-   header could not be written.
-
-   11 Nov 26 SD Core Solo (SOLO 53): a remote file is refused (net_refuse), as op_fcontrol() refuses it; SD Core's S.73 item 3,
-   which sends it to the server, is not in Solo yet.                                                                   */
+   header could not be written.                                                                                     */
 
 void pub_fcontrol() {
   DESCRIPTOR* descr;
@@ -355,8 +387,28 @@ void pub_fcontrol() {
   descr = e_stack - 3;
   k_get_file(descr);
   fvar = descr->data.fvar;
-  if (fvar->type == NET_FILE) /* a remote file has no entry in the file table and no access.dh */
-    net_refuse(fvar, "FCONTROL");
+
+  /* 21 Oct 26 S.73 item 3 (carried 12 Nov 26): FCONTROL of a remote file goes to the server (request 71), the key and the qualifier as they are: its own FCONTROL() answers, and an unknown
+     key is its error.  The gate (net_fcontrol) is the read-mode test alone for FC$VALID.ID, which only asks, and the gate of a change for every other key: a read-mode handle 12506, a
+     transaction 12515.  The server's wall is its own (a SD Core server's sdfilesadmin, a Solo server's global-password session).  The result is what its function returned; STATUS() is
+     what it left. */
+  if (fvar->type == NET_FILE) {
+    char net_val[MAX_ID_LEN + 128];
+    DESCRIPTOR net_out;
+    int net_vlen;
+
+    descr = e_stack - 1;
+    k_get_value(descr);
+    net_vlen = k_get_c_string(descr, net_val, (int)sizeof(net_val) - 1);
+    if (net_vlen < 0)
+      net_vlen = 0;
+    process.op_flags = 0;
+    if (net_fcontrol(fvar, action, net_val, net_vlen, &net_out) == 0) {
+      result = net_out;
+      process.status = net_last_reply_status();
+    }
+    goto exit_pub_fcontrol;
+  }
   dh_file = fvar->access.dh.dh_file; /* only used for a hashed file */
 
   descr = e_stack - 1;
@@ -438,6 +490,7 @@ void pub_fcontrol() {
       k_error(sysmsg(12360));
   }
 
+exit_pub_fcontrol:
   k_dismiss();
   k_dismiss();
   k_dismiss();
