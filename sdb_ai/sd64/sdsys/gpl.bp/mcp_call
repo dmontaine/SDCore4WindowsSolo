@@ -19,6 +19,8 @@
 * START-HISTORY:
 * 11 Nov 26 Windows port - from Linux Solo 531d829 and 5b23cb1 (S.211; SOLO 57, the owner, 11 Nov 26: "Yes, carry it").  Messages 15950-15959 (Linux 14950-14959,
 *               the second block at +1000).  The launcher is solo-mcp.py in the SD Core Solo folder; the request file is $mcp\<id> in the account's directory.
+*               After the first run on an install (11 Nov): sd_files selects WITH F1 LIKE "F..." (F1 is the type letter and a description, so = "F" matched
+*               nothing), and finish removes a terminal's escape sequences whole (LIST's clear-screen reached the agent as "[H[J").
 * 11 Nov 26 dm  New (S.211, SD Core for Linux Solo only; plan .claude/plan-solo-mcp-11nov.md).  THE LOGIC THAT MUST BE TRUSTED IS HERE, not in the launcher: a launcher that
 *               is replaced by someone else's meets the same gate, the same checks and the same audit line.
 * END-HISTORY
@@ -140,6 +142,18 @@ $include err.h
    end case
 
 finish:
+*  11 Nov 26 Windows port: a terminal's escape sequences (ESC [, digits, ; or ?, and a final character), such as the clear-screen LIST writes at the top of a page,
+*  are taken out WHOLE, so the agent gets text and not "[H[J" (witnessed 11 Nov: blanking the ESC alone left the rest).
+   loop
+      esc.at = index(out, char(27) : '[', 1)
+   while esc.at
+      j = esc.at + 2
+      loop
+      while j <= len(out) and index('0123456789;?', out[j, 1], 1)
+         j += 1
+      repeat
+      out = out[1, esc.at - 1] : out[j + 1, len(out)]
+   repeat
 *  The answer is made safe to print: marks become newlines, control characters other than tab and newline become spaces, and it is cut.
    out = convert(@fm, NL, out)
    out = convert(ctl, blanks, out)
@@ -214,8 +228,10 @@ refuse.word:
 
 * ---- FILES -----------------------------------------------------------------------------------------------------------------------
 do.files:
+*  11 Nov 26 Windows port: field 1 of a VOC record is the type letter FOLLOWED BY a description ("File - Vocabulary"), so WITH F1 = "F" matched no shipped file
+*  pointer (witnessed 11 Nov: 0 records); the type is the first character, so LIKE "F...".
    target = 'files'
-   execute 'LIST VOC WITH F1 = "F" F1 DATA.NAME' capturing out
+   execute 'LIST VOC WITH F1 LIKE "F..." F1 DATA.NAME' capturing out
    return
 
 * ---- DESCRIBE file ---------------------------------------------------------------------------------------------------------------

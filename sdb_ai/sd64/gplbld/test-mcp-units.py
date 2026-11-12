@@ -17,6 +17,7 @@ START-HISTORY:
           by itself); L6 does not ask for mode 0700 (the $mcp folder takes the account folder's access list); L20 and L22 name the Windows path and the
           Windows list of environment variables; messages are 15950-15959 (Linux 14950-14959 at +1000); B17 reads $STORED's field 2, as this tree's LOGIN
           keeps the password; K4 reads stage.py; K5 (the BASIC sdclient class methods) is not carried: this tree's sdclient has no class methods yet (SOLO 56).
+          B18 and B19 (and their mutants) are from the first run on an install, the same day: sd_files' filter and the escape sequences in answers.
 11 Nov 26 dm  New (S.211).
 """
 import json
@@ -287,6 +288,12 @@ def part2(files, label=""):
     ck("B16 SET.MCP changes ONE thing per command and everything else is the syntax message 15951", "case n.words = 3 and w2 = 'write'" in sm and "if not(syntax.ok) then stop sysmsg(15951)" in sm)
     ck("B17 SET.MCP ON says so when no password is kept ($STORED in $cred, its field 2 empty; message 15954)", "read kept from cred.f, '$STORED'" in sm
        and "if kept<2> = '' then display sysmsg(15954)" in sm)
+    # 11 Nov 26: the first run on an install showed both of these (sd_files listed 0 records; answers began "[H[J").
+    ck("B18 sd_files selects the VOC records whose type letter is F (WITH F1 LIKE \"F...\"): field 1 is the letter and a description, so = \"F\" matches nothing shipped",
+       "execute 'LIST VOC WITH F1 LIKE \"F...\" F1 DATA.NAME' capturing out" in mc and 'F1 = "F"' not in mc)
+    esc = fin.find("index(out, char(27) : '[', 1)")
+    ck("B19 finish takes a terminal's escape sequences out WHOLE, before control characters are blanked (else \"[H[J\" reaches the agent as text)",
+       0 <= esc < fin.find("out = convert(ctl, blanks, out)") and "out = out[1, esc.at - 1] : out[j + 1, len(out)]" in fin, repr(esc))
     return r
 
 
@@ -335,6 +342,8 @@ MUTANTS = [
     ("the program writes a record", "mcp_call", "   n = dcount(rec, @fm)\n", "   write rec to f, p.id\n   n = dcount(rec, @fm)\n", "B13"),
     ("SET.MCP does not ask for the administrator", "setmcp", "   if not(kernel(K$ADMINISTRATOR, -1)) then", "   if 0 then", "B15"),
     ("SET.MCP reads Linux's lower-case kept-password id", "setmcp", "read kept from cred.f, '$STORED'", "read kept from cred.f, '$stored'", "B17"),
+    ("sd_files asks for a type field equal to F", "mcp_call", "WITH F1 LIKE \"F...\" F1 DATA.NAME", "WITH F1 = \"F\" F1 DATA.NAME", "B18"),
+    ("the escape sequence is found but not taken out", "mcp_call", "      out = out[1, esc.at - 1] : out[j + 1, len(out)]\n", "", "B19"),
 ]
 
 
