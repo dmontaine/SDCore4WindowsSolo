@@ -529,11 +529,10 @@ void op_fileinfo() {
         }
         break;
 
-      case FL_REPLICATED: /* 1024  Replication targets: SD has no replication */
-      case FL_ECS_MAP_NAME: /* 1027  SD has no ECS */
-      case FL_ENCODING: /* 1028  Data encoding of a directory file: SD is English only */
       case FL_SEQ_KEY: /* 1031  The id of the last record written with CREATING.SEQKEY, 0 if none; a null string for a file
-                          that is not a hashed file.  After CONFIGURE.FILE NEXT n it is n - 1: the counter holds the NEXT id. */
+                          that is not a hashed file.  After CONFIGURE.FILE NEXT n it is n - 1: the counter holds the NEXT id.
+                          11 Nov 26 (SOLO 53): ABOVE the group below, as in SD Core - placed inside it, 1024 and 1027
+                          fell through into this code and answered 0 (verify-carry sys-b2, 21:37). */
         if (dynamic) {
           n = dh_seq_key(dh_file, 2, 0) - 1;
           if (n < 0)
@@ -543,6 +542,9 @@ void op_fileinfo() {
         p = "";
         goto set_string;
 
+      case FL_REPLICATED: /* 1024  Replication targets: SD has no replication */
+      case FL_ECS_MAP_NAME: /* 1027  SD has no ECS */
+      case FL_ENCODING: /* 1028  Data encoding of a directory file: SD is English only */
       case FL_ID_CASING: /* 1034  Forced id casing: SD has only NOCASE */
       case FL_OWNER: /* 1036  Owner of the file (Windows only) */
         p = "";

@@ -150,6 +150,12 @@
             'a name that a process has is reported'  = 'follows the WHO USER row: the suite asks PSTAT USER for the Windows login name (Don) and no process has it; the session is signed in as sduser'
             'one user (this session)'            = 'counts every logged-in user: a phantom left by an earlier suite or a console session of the owner makes it 2; it passes when run alone'
         }
+        'fcontrol' = @{
+            'FC$SYNC true returns the previous state' = 'Windows SD has no FC$SYNC (Linux made it work 16 Oct 26, QM4 Fixes 102): the public FCONTROL stops the program with 12359, as SD Core for Windows; RELEASE_1.1 236'
+            '-1 asks without changing: 1'             = 'the FC$SYNC leg: see the row above (RELEASE_1.1 236)'
+            'false returns the previous state, 1'     = 'the FC$SYNC leg: see the row above (RELEASE_1.1 236)'
+            'THE ROW: FC$CRLF on a hashed file'       = 'Windows SD has no line terminator modes: FC$CRLF stops the program with 12359 (RELEASE_1.1 236)'
+        }
         'sys-b2' = @{
             '1034, 1040, 1044, 1051, 1080:'       = 'SYSTEM(1040) answers 1 here: Windows file names are not case sensitive (deviation 8 of the areas 2-5 list)'
             'THE ZONE TOOK EFFECT'                = 'the MSYS2 runtime reads POSIX TZ strings (EST5EDT) and the Windows zone but not Olson names such as Asia/Kathmandu (measured 18 Oct: UTC)'
