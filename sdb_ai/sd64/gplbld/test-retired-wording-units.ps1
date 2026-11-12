@@ -322,9 +322,13 @@ $RETIRED = @(
     # absent from both replacements.  That is the point of registering it -
     # sd.iss carries this claim TWICE, on the options page and in the closing
     # box, which is 121's shape exactly.
+    # 12 Nov 26 SD Core Solo - SOLO 56 group 5, as SD Core for Windows 584113a5: NoBasic.  The claim was the
+    # installer's; tool.catalog (from Linux) says "but until then it cannot be run" about a program left
+    # uncompiled, which is a different and true sentence, and its wording is the template's.
     @{ Ref = '141'
        Retired     = 'Until then it'
-       Replacement = 'is not recognized' }
+       Replacement = 'is not recognized'
+       NoBasic     = $true }
     # RELEASE_1.1 58 - AN ADMINISTRATOR HAS NO REMOTE DOOR AT ALL.  Owner's
     # ruling, 18 Sep 2026.  Both phrases described the posture 58 replaced and
     # both were TRUE when written, which is exactly the class this lint exists
@@ -562,9 +566,12 @@ Write-Host ''
 
 # Every location, case-insensitive, where $phrase occurs in the corpus.  A
 # message is reported by file; a script line carries its number.
-function Find-Any([string]$phrase) {
+# 12 Nov 26 (from SD Core for Windows 584113a5) - $noBasic leaves the gpl.bp half out, for a row whose claim
+# lived only in installer and script text (141): a program that happens to use the same words is not that claim.
+function Find-Any([string]$phrase, [bool]$noBasic = $false) {
     $hits = New-Object System.Collections.ArrayList
     foreach ($c in $corpus) {
+        if ($noBasic -and $c.File.StartsWith('gpl.bp/')) { continue }
         if ($c.Text.IndexOf($phrase, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
             if ($c.Line -gt 0) { [void]$hits.Add(("{0}:{1}" -f $c.File, $c.Line)) }
             else               { [void]$hits.Add($c.File) }
@@ -642,6 +649,15 @@ $bpTrail = Find-Any 'Interactive session startup'
 Check ("a trailing ;* comment is stripped ($($bpTrail.Count) hit(s))") ($bpTrail.Count -eq 0) `
       ("login:228 carries this after ';*' - an echoed sysmsg text would read as a second copy: " + ($bpTrail -join ', '))
 
+# 12 Nov 26 (from SD Core for Windows 584113a5) - THE NoBasic SCOPE IS A FILTER, NOT A BLINDFOLD: the same
+# phrase is found in gpl.bp without it, and with it the script half is still read (the canary 'the' is found there).
+$bpOnly  = Find-Any 'Until then it'
+$scrThe  = Find-Any 'the' $true
+Check ("CONTROL: without NoBasic the scan reaches gpl.bp ('Until then it' in tool_catalog: $($bpOnly.Count) hit(s))") (@($bpOnly | Where-Object { $_ -like 'gpl.bp/*' }).Count -gt 0) `
+      'tool_catalog no longer carries the words, so this control proves nothing - pick another gpl.bp phrase'
+Check ("CONTROL: with NoBasic the scripts are still read and no gpl.bp file is ($($scrThe.Count) hit(s))") `
+      (($scrThe.Count -gt 0) -and (@($scrThe | Where-Object { $_ -like 'gpl.bp/*' }).Count -eq 0)) ($scrThe -join ', ')
+
 Write-Host ''
 Write-Host '=== 2. every retired phrase is GONE, and its replacement is present ==='
 # 26 Sep 26 SD Core Solo - SOLO 9.  These rows' REPLACEMENT wording was on the
@@ -651,7 +667,7 @@ $ReplacementGone = @('130d', '70', '70b', '70c', '139', '139b', '129', '129b', '
                      'R1.1-64b', 'R1.1-64c', 'R1.1-64d', 'R1.1-64e', 'R1.1-64f',
                      'R1.1-64g', 'R1.1-64h', 'R1.1-64i', 'R1.1-64j', '20Sep-a', '20Sep-b')
 foreach ($e in $RETIRED) {
-    $bad  = Find-Any $e.Retired
+    $bad  = Find-Any $e.Retired ([bool]$e.NoBasic)
     Check ("[$($e.Ref)] retired phrase absent: `"$($e.Retired)`"") ($bad.Count -eq 0) ("still in " + ($bad -join ', '))
     if ($ReplacementGone -contains $e.Ref) {
         Write-Host ("  [skip] [$($e.Ref)] replacement lived only in the deleted multi-user installer (SOLO 9)")

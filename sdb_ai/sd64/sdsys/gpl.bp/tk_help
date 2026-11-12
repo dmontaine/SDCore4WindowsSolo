@@ -4,10 +4,15 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
-* 9 Nov 26 Windows port - SOLO 47: the Documentation button is back (the pdf verb is carried to Solo); it runs  pdf <name>  through $tk_run, which says so itself when no viewer is allowed.
-* 25 Oct 26 Windows port - from Linux Solo ee5e80d - the Documentation button is off (doc is set to null): there is no pdf verb in this tree yet (RELEASE_1.1 179).
+* 12 Nov 26 Windows port - SOLO 56 group 5: Linux Solo 608b511 taken whole, messages renumbered (11xxx + 1005, 14xxx + 1000).  The Documentation button
+*               runs the pdf verb SOLO 47 carried.
 * 23 Oct 26 dm  New (S.75, plan section 14.5).
 * 23 Oct 26 dm  SOLO CARRY 14 (Core 72e708e): the file is context.help in the SD system directory, not in a shared account.
+* 30 Oct 26 dm  S.88 F0a: the box shows "Keys in this pane" (message 12249) above the page's help text, a list made from the key table $tk_frame kept; no page's F1 line changes.
+* 3 Nov 26 dm  S.88 K7/K8: on a page that has a menu bar the list ends with F2 (find an action) and Shift-F10 (the actions of this pane), which the bar itself
+*              answers ($tk_menubar) and which are therefore in no page's key table (messages 15002, 15003).
+* 10 Nov 26 dm  SOLO CARRY (S.117): Core's box (the keys of the pane above the text) with Solo's Documentation button kept: Core's S.187 removed the button
+*              with its pdf verb, and Solo keeps the pdf verb (owner, 9 Nov 2026).
 * END-HISTORY
 *
 * START-DESCRIPTION:
@@ -15,9 +20,11 @@
 *   call $tk_help(op, a, b, c, d)         ALWAYS FIVE ARGUMENTS: a call with fewer stops with "Argument count mismatch" (pad with 0, as $tk_keys is padded)
 *
 *     'text'  a = the key       b = the title, c = the text (one paragraph to a field), d = the name of a document (null if none)  - returned
-*     'box'   a = the key       b = a line for the status bar (null when the person only read it)  - returned.  Shows the help in a box with a
-*                               Close button, and a Documentation button when the record names a document; that button runs  pdf <name>  through
-*                               $tk_run and b is what it printed.  A session with no terminal gets nothing.
+*     'box'   a = the key       b = a line for the status bar (null when the person only read it)  - returned.  (30 Oct 26) When an app is drawing its frame, the box
+*                               opens with the heading "Keys in this pane" and the keys of the pane with the focus, one line each ("^S  Save", the reason after a key that is not
+*                               available now), made from the app's key table; then the page's help text.  Shows the help in a box with a
+*                               Close button and, when the record names a document, a Documentation button that runs pdf <name> through $tk_run
+*                               (Close is the default).  b is what pdf said, or null.  A session with no terminal gets nothing.
 *     'mark'  a = x, b = y      draws the [?] button
 *     'hit'   a = the event of SCREEN MOUSE, b = x, c = y     d = 1 when the event is a left press on the button drawn by 'mark' at x, y; else 0
 *
@@ -38,6 +45,8 @@ $catalog $tk_help
 
 $include sl.h
 $include tk.h
+
+   common /tkreg/ reg.keys, reg.pane, reg.epoch      ;* the key table and pane of the app that is drawing ($tk_frame keeps them, $tk_close clears them)
 
    begin case
       case op = 'text'
@@ -103,11 +112,32 @@ show.box:
    if wrapw > 100 then wrapw = 100
    if wrapw < 20 then wrapw = 20
    body = ''
+   rg = ''
+   if reg.epoch + 0 > 0 then call $tk_keys('keylist', reg.keys, reg.pane, rg, '', '', '')      ;* F0a: the keys of the pane that has the focus, made from the key table
+   kb = ''
+   if rg # '' then
+      kb<-1> = sysmsg(12249)
+      for p = 1 to dcount(rg, @fm)
+         kb<-1> = '  ' : rg<p>[1, wrapw - 2]
+      next p
+      * S.88 K7/K8: a page with a menu bar has the finder and the context menu too (the bar's own keys, in no page's table)
+      bm = ''
+      call $tk_keys('menus', reg.keys, '', bm, reg.pane, '', '')
+      if bm # '' then
+         kb<-1> = '  ' : sysmsg(15002)[1, wrapw - 2]
+         kb<-1> = '  ' : sysmsg(15003)[1, wrapw - 2]
+      end
+      kb<-1> = ''
+   end
    for p = 1 to dcount(lines, @fm)
       if p > 1 then body<-1> = ''
       call $tk_wrap(lines<p>, wrapw, pieces)
       body<-1> = pieces
    next p
+   * the keys go above the text, unless the two together would not fit the screen (the function-key row shows the keys anyway)
+   if kb # '' and dcount(kb, @fm) + dcount(body, @fm) <= scr<SL.S.H> - 14 then body = kb : @fm : body
+   * Solo keeps the pdf verb (owner, 9 Nov 2026: "the PDF capability should probably remain on Solo as the user will normally be at the computer"), so the box
+   *   offers the document as Solo's always did; Core's S.187 removed the button with its pdf verb, and that half is not carried.
    if doc # '' then
       btn = '&Documentation,&Close'
       dflt = 2

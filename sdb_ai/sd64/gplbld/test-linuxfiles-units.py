@@ -41,9 +41,9 @@ ACCOUNTS = 'Solo has no account management: removed in SOLO 4 (8eddae56)'
 # 59 programs came with it and are not in this tree yet.  Each is to be carried or given its own reason by SOLO 56.
 SOLO56 = 'Linux Solo\'s carry of SD Core\'s full-screen work and S.216 (to 3105155), not carried to Windows Solo yet: SOLO 56'
 NOT_HERE = {
+    # 12 Nov 26: group 5 carried the home screen, the seven development pages, tool.backups and tool.audit (with audit_read).
     **{n: SOLO56 for n in (
-        'audit_read', 'netadmin', 'remotedoor', 'setconfig', 'tool_audit', 'tool_backups', 'tool_bulk', 'tool_catalog', 'tool_config', 'tool_dict', 'tool_files',
-        'tool_query', 'tool_remote', 'tool_test', 'tool_voc')},
+        'netadmin', 'remotedoor', 'setconfig', 'tool_config', 'tool_remote')},
     # 11 Nov 26: SOLO 56 group 3 carried the screen library and the toolkit (with the AI's toolkit parts, inert as in SD Core for Windows:
     # the kernel answers K$AI.* "no helper").  11 Nov 26: group 4 carried the editors, the edit keys with Solo's answers and the toolkit's gate parts.
     'ai':               AI,
