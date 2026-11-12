@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 11 Nov 26 SD Core Solo - from SD Core / Linux Solo 57a5e8d (S.88 3.7a; SOLO 56): CONFIG() takes a name of up to 16 characters (the
+ *               setter is not touched).  SCREENTHEME is 11, so it was never found and the site theme never applied.
  * 8 Nov 26 Windows port - from Linux 2930d92f (S.87): FILERULE is gone, with the Account:File and PATH:pathname forms of file name; the installer strips the line from a restored sd.conf.
  * 18 Oct 26 Windows port - from Linux 3b43525 (15 Oct 26): TIMEZONE, a private parameter: the zone of the epoch functions (QM4 gaps Q-3, SET.TIMEZONE).
  * 19 Oct 26 Windows port - from Linux 1f5f703 - NETWAIT and NETREPLY, the two SDNet timeouts (K8d): CONFIG() reads them and PCONFIG sets them for the process, 1 to 3600 seconds.  The fields are 32 bit now (no cast).
@@ -95,7 +97,7 @@ void op_config() {
   */
 
   DESCRIPTOR* descr;
-  char param[8 + 1];
+  char param[16 + 1];   /* 29 Oct 26 dm: 16, was 8 (S.88 3.7a; Solo 11 Nov 26, SOLO 56) */
   DESCRIPTOR result;
   char s[40] = "";
 
@@ -122,7 +124,7 @@ void op_config() {
   /* Get parameter name */
 
   descr = e_stack - 1;
-  if (k_get_c_string(descr, param, 8) < 1) {
+  if (k_get_c_string(descr, param, 16) < 1) {
     InitDescr(&result, STRING);
     result.data.str.saddr = NULL;
     process.status = ER_NOT_FOUND;

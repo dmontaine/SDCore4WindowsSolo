@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 11 Nov 26 SD Core Solo - SOLO 58, from Linux Solo e625996 (SD Core's S.64 part 2): HDR_INTERNAL is honoured only for an object from
+ *               the global catalogue or in an administrator's session; any other object has the bit cleared before it runs.
  * 9 Nov 26 Windows port - from Linux 07b4f0cd (S.125, S.195): load_object()'s object_bytes and convert start
  *           at 0 / FALSE; the object file is closed on the three failure exits (header unreadable, bad
  *           magic number, code unreadable), which lost a file handle each time.
@@ -278,6 +280,15 @@ found:
   if (convert) {
     convert_object_header(&(obj->code));
   }
+
+  /* 17 Oct 26 S.64 part 2: an object runs as $internal (and skips the kernel's gates on files and operating-system paths) only when
+     it comes from the global catalogue, which only SDSYS can write, or when the session is the administrator, who can run what
+     they like.  The bit is a flag in the object's own header, so for any other object it is the bit that was set by whoever wrote
+     the file: a local or private catalogue entry, a runfile, a trigger.  It is cleared in this process's copy, before anything runs;
+     the cache search above returns that copy.  The compiler itself only sets the bit in an internal-mode compile.
+     (Solo 11 Nov 26, SOLO 58: Linux Solo's form of the test, the session's USR_ADMIN flag; it was missing here.)            */
+  if ((obj->code.flags & HDR_INTERNAL) && !(flags & OBJ_GLOBAL) && !(my_uptr->flags & USR_ADMIN))
+    obj->code.flags &= ~HDR_INTERNAL;
 
   obj->code.ext_hdr.prog.refs = 0;
 

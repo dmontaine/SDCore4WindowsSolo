@@ -46,7 +46,7 @@
       $define DEFAULT.WIDTH      140
       $define MAX.WIDTH        32767
       $define MIN.DEPTH           10
-      $define DEFAULT.DEPTH       42
+      $define DEFAULT.DEPTH       43   ;* 11 Nov 26 SD Core Solo: 43, as SD Core and Linux Solo (SOLO 56); gplsrc/tio.h the same
       $define MAX.DEPTH        32767
 
 
