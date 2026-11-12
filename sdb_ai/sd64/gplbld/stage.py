@@ -708,7 +708,7 @@ FM = '\n'
 # SD users (PRE_RELEASE_FIXES.md 28), and Solo has none, so pdump.c:98's
 # fallback to SDSYS is what it gets.
 SD_CONF = """[sd]
-GRPSIZE=2
+GRPSIZE=4
 NUMUSERS=20
 SORTMEM=4096
 ERRLOG=50

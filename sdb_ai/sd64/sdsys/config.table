@@ -21,7 +21,7 @@
 #   why      for a no, one sentence of at most 100 characters, plain, no vertical bar: why this page does not change it; blank for a yes
 #
 # A line beginning with # is a comment.  Alphabetical by key.  Windows differs from Linux's table in: APIPORT and NETDIRS (Windows parameters), no STARTUP (refused by
-# name on Windows), the Windows paths and defaults (GRPSIZE 1, the PowerShell shell commands, TEMPDIR from TMP), and SPOOLER inert.
+# name on Windows), the Windows paths and defaults (the PowerShell shell commands, TEMPDIR from TMP), and SPOOLER inert.
 # SD Core Solo (12 Nov 2026, SOLO 56 group 5): SD Core for Windows' table, with every session effect restart (above) and GRPDIR and USRDIR defaulting to folders of the
 # Solo folder (gplsrc/config.c).
 #
@@ -38,7 +38,7 @@ FDS|int|32767|||restart|live|A limit on the file descriptors SD uses; when it is
 FLTDIFF|float|0.0000000000291|||restart|live|Two floating point numbers closer together than this compare equal.|no|Changes how every program compares floating point numbers.
 FSYNC|bits|0|||restart|live|Flag bits that say when SD forces data to disk with fsync: a higher value is safer and slower.|no|Trades the safety of data against speed; flag bits that SD does not check.
 GRPDIR|path||||restart|live|The parent directory of group accounts; when it is not set SD uses group_accounts in the Solo folder.|no|A directory: accounts are found there.
-GRPSIZE|int|1|1|8|restart|live|The group size, in kilobytes, of a hashed file made without one. The shipped file says 2.|yes|
+GRPSIZE|int|4|1|8|restart|live|The group size, in kilobytes, of a hashed file made without one. 4 since 12 November 2026; an installed system keeps the value its sd.conf has until you change it.|yes|
 INTPREC|int|11|0|14|restart|live|How many digits of precision integer arithmetic and the INT function keep.|no|Changes the results of arithmetic in programs that already exist.
 LGNWAIT|int|0|0|32767|restart|live|Seconds a sign-on waits for a free user number when the user limit is reached; 0 refuses at once.|yes|
 LPTRHIGH|int|66|10|32767|restart|live|The default page depth of the printer, in lines.|yes|

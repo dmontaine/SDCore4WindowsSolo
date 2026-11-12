@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 12 Nov 26 SD Core Solo - SOLO 56 group 9 (RELEASE_1.1 240 e), as Linux: K_INTERNAL is set only by a program flagged HDR_INTERNAL; a read (-1) is unchanged.
  * 12 Nov 26 SD Core Solo - SOLO 56 group 7 (P-18), as SD Core for Windows and Linux: K_NON_DURABLE_TXN (113) sets txn_nondurable, so the next COMMIT
  *               of a nested transaction hands its updates and locks to the parent (txn.c, op_lock.c transfer_txn_locks).
  * 11 Nov 26 SD Core Solo - SOLO 56 group 4, as Linux Solo: K_EDIT_OK, K_VOC_EDIT, K_BP_EDIT, K_DICT_EDIT, K_SD_ACCOUNTS, K_SHARED_READ,
@@ -265,10 +266,14 @@ void op_kernel() {
 
   switch (action) {
     case K_INTERNAL:
+      /* 12 Nov 26 Windows port - from Linux's S.8 (14 Sep 26; RELEASE_1.1 240 e).  Setting was unguarded.  KERNEL compiles only in internal
+         mode, so this was reachable only from $internal code already; the guard makes that the rule rather than a consequence of BCOMP.
+         No shipped BASIC sets it (every caller passes -1); sd -internal sets it in C (sd.c).  A refused attempt is not an error and
+         changes nothing, as for K_ADMINISTRATOR. */
       GetInt(descr);
       if (descr->data.value < 0)
         result.data.value = internal_mode;
-      else
+      else if (process.program.flags & HDR_INTERNAL)
         internal_mode = (descr->data.value != 0);
 
       break;

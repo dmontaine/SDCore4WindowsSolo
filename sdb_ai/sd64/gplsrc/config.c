@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 12 Nov 26 SD Core Solo - SOLO 56 group 9, as Linux Solo 249a583 and SD Core for Windows (RELEASE_1.1 240 a): GRPSIZE's default is 4 (kb), for new files only;
+ *               the shipped sd.conf says 4 too.
  * 09 Nov 26 SD Core Solo - ranges_overlap() removed: nothing has called it since S.87 batch 15 took the PHANTOMS setting out (the compiler said
  *           "defined but not used"; Core and Linux Solo no longer have it).
  * 06 Oct 26 SD Core Solo - APILOGIN is retired: accepted and ignored, not
@@ -146,7 +148,7 @@ struct CONFIG* read_config(char* errmsg) {
       (snprintf(pcfg.grpdir, MAX_PATHNAME_LEN + 1, "%s\\group_accounts", home)  /* GRPDIR: group accounts parent dir */
        >= MAX_PATHNAME_LEN + 1))
     pcfg.grpdir[0] = '\0';
-  pcfg.grpsize = 1;               /* GRPSIZE:  Default group size */
+  pcfg.grpsize = 4;               /* GRPSIZE:  Default group size (1 until 12 Nov 26; the shipped sd.conf said 2, now 4) */
   pcfg.intprec = 11;              /* INTPREC:  Precision for INT() etc. 13 until 1.2-0 (openQM 2.6-9, item 6) */
   pcfg.lptrhigh = 66;             /* LPTRHIGH: Default printer lines */
   pcfg.lptrwide = 80;             /* LPTRWIDE: Default printer width */
