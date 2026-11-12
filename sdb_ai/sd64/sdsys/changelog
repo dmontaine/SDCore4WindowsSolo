@@ -3,6 +3,20 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+11 Nov 26  THE MCP DOOR: AN AI AGENT'S MCP CLIENT CAN USE YOUR ACCOUNT THROUGH READ-ONLY TOOLS (OFF AS DELIVERED).
+
+             What        - solo-mcp.py, in the SD Core Solo folder, is a Model Context Protocol server that an MCP
+                           client (Claude Code, an IDE's assistant) starts with Python 3. It offers sd_files,
+                           sd_describe, sd_read and sd_query, and, with SET.MCP WRITE ON, sd_run, which runs one
+                           sentence. Every call is a one-shot sd-solo command on the kept password, and SD decides
+                           and audits it (mcp call agent=... tool=... status=...). SET.MCP ON | OFF and SET.MCP
+                           WRITE ON | OFF (administrator) open and shut it; both are off as delivered.
+             Why         - So an AI agent can look at the account's data without being given a shell (the same
+                           door as SD Core for Linux Solo; owner's word, 11 Nov).
+             Does NOT    - Stop an agent that can already run commands as you: the switches are the rules of this
+                           door and a record of what came through it, not a wall. It opens no port and starts
+                           nothing by itself. Python 3 is not part of SD Core Solo.
+
 11 Nov 26  THE API'S SSH KEY REQUEST IS 72, AND REQUEST 49 IS THE SERVER'S REVISION (AS IN SD CORE).
 
              What        - API request 49 is now the server's revision, as in SD Core, and the request a managed

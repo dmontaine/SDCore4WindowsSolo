@@ -416,6 +416,12 @@
       $define ACC$START        16    ;* menu, terminal, or blank = the system default
       $define ACC$TILES.OFF    17    ;* tile ids that are off for this account, separated by spaces
       $define ACC$PINS         18    ;* may add its own programs to the home screen (yes/no; blank = no)
+      * 11 Nov 26 Windows port - from Linux Solo 531d829 (S.211; SOLO 57, the owner, 11 Nov 26: "Yes, carry it"): FIELDS 20 AND 21, SOLO ONLY.  Whether an AI agent's MCP
+      *   client may use the account through the MCP launcher (solo-mcp.py in the SD Core Solo folder), and whether it may also run a sentence of its own.  yes/no each; BLANK
+      *   MEANS NO (delivered off; the administrator turns them on with SET.MCP ON and SET.MCP WRITE ON).  mcp_call reads both at EVERY call.  Field 19 is SD Core's
+      *   ACC$RECOVERY, not in this tree yet; SD Core reserves 20 and 21 for these (Linux cc7cd6a6).
+      $define ACC$MCP          20    ;* an MCP agent may use the account through the launcher (yes/no; blank = no)
+      $define ACC$MCP.WRITE    21    ;* the same agent may also run a sentence of its own, sd_run (yes/no; blank = no)
       deffun parse.pathname.tokens(path) calling "!PATHTKN"
       
       * encrytption decryption  *

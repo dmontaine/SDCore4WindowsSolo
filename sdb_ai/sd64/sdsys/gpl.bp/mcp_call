@@ -1,0 +1,399 @@
+* MCP_CALL
+* MCP.CALL: the work of every call of the MCP launcher (solo-mcp.py) - the gate, the checks of every word, the work and the audit line (S.211).
+* Copyright (c) String Database
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 3, or (at your option)
+* any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software Foundation,
+* Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+*
+* START-HISTORY:
+* 11 Nov 26 Windows port - from Linux Solo 531d829 and 5b23cb1 (S.211; SOLO 57, the owner, 11 Nov 26: "Yes, carry it").  Messages 15950-15959 (Linux 14950-14959,
+*               the second block at +1000).  The launcher is solo-mcp.py in the SD Core Solo folder; the request file is $mcp\<id> in the account's directory.
+* 11 Nov 26 dm  New (S.211, SD Core for Linux Solo only; plan .claude/plan-solo-mcp-11nov.md).  THE LOGIC THAT MUST BE TRUSTED IS HERE, not in the launcher: a launcher that
+*               is replaced by someone else's meets the same gate, the same checks and the same audit line.
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*    MCP.CALL STATUS name     says whether the door is open (the launcher asks once, when the agent connects); name is the agent's name
+*    MCP.CALL id              does the call whose request file is $mcp/id in the account's directory (written by the launcher)
+*
+*    It is a verb only so that a one-shot sd-solo command can run it; typed by a person it asks for a request file that is not there.  EVERY call reads the two
+*    register fields (ACC$MCP, ACC$MCP.WRITE) again, so SET.MCP OFF stops a running agent at its next call.  What it prints is a line MCP-BEGIN id status, the
+*    text of the answer and a line MCP-END id; status is ok, refused or error.  Control characters other than newline and tab are turned into spaces; the answer
+*    is cut at 60,000 characters.  Every call, refused ones included, is one line in the audit trail:
+*       mcp call agent=<name> tool=<tool> target=<file and id, or the first 120 characters of the sentence> status=<ok|refused|error>
+*
+*    THE TOOLS (the launcher offers them as sd_files, sd_describe, sd_read, sd_query and sd_run):
+*       files                                   the account's files (the VOC entries of type F, with the name of each file's data part)
+*       describe  file                          the dictionary items of a file
+*       read      file id                       one record, a field to a line, value marks shown as ]
+*       query     file fields where sort limit  a LIST built from words checked against the file's dictionary; no free text reaches the query processor
+*       run       sentence                      one sentence as the person could type it; needs the write switch (ACC$MCP.WRITE)
+*    The request file has one thing to a line: 1 tool, 2 agent, 3 file, 4 id, 5 fields (separated by spaces), 6 sort field, 7 limit, 8 sentence, and from line 9 one
+*    condition to a line: field, a tab, an operator (= # < > <= >=), a tab, a value.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+program mcp.call
+$catalog $mcpcall
+
+$include int$keys.h
+$include keys.h
+$include err.h
+
+   @system.return.code = -ER$ARGS
+
+   TAB.CH = char(9)
+   NL = char(10)
+   MAXOUT = 60000
+   MAXROWS = 200
+   NAME.CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._$-'
+   VALUE.CHARS = NAME.CHARS : ' ,/:@+'
+   AGENT.CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789._-'
+   ctl = ''
+   for j = 1 to 31
+      if j # 9 and j # 10 then ctl := char(j)
+   next j
+   ctl := char(127)
+   blanks = str(' ', len(ctl))
+   blank.name = str(' ', len(NAME.CHARS))
+   blank.value = str(' ', len(VALUE.CHARS))
+   blank.agent = str(' ', len(AGENT.CHARS))
+
+   words = trim(@sentence)
+   req.id = field(words, ' ', 2)
+   agent = 'unknown'
+   tool = ''
+   target = ''
+   st = 'ok'
+   out = ''
+   door.on = @false
+   write.on = @false
+
+*  The id is the name of the request file: letters, digits, dot, underscore and hyphen only (so it cannot name another path), at most 40 characters.
+   id.ok = (req.id # '' and len(req.id) <= 40)
+   if id.ok then
+      if trim(convert(AGENT.CHARS, blank.agent, downcase(req.id))) # '' then id.ok = @false
+   end
+   if not(id.ok) then
+      tool = 'bad-id'
+      st = 'error'
+      out = sysmsg(15959)
+      req.id = 'x'
+      goto finish
+   end
+
+   gosub load.gate
+
+   if downcase(req.id) = 'status' then
+      tool = 'open'
+      a = downcase(field(words, ' ', 3))
+      if a # '' and len(a) <= 32 then
+         if trim(convert(AGENT.CHARS, blank.agent, a)) = '' then agent = a
+      end
+      if door.on then
+         out = 'mcp=on write=' : (if write.on then 'on' else 'off')
+      end else
+         st = 'refused'
+         out = sysmsg(15955)                              ;* The MCP door is closed
+      end
+      goto finish
+   end
+
+*  The gate comes BEFORE the request is read: a closed door reads nothing.
+   gosub read.request
+   if st # 'ok' then goto finish
+   if not(door.on) then
+      st = 'refused'
+      out = sysmsg(15955)
+      goto finish
+   end
+
+   begin case
+      case tool = 'files'
+         gosub do.files
+      case tool = 'describe'
+         gosub do.describe
+      case tool = 'read'
+         gosub do.read
+      case tool = 'query'
+         gosub do.query
+      case tool = 'run'
+         gosub do.run
+      case 1
+         st = 'error'
+         out = sysmsg(15959)
+   end case
+
+finish:
+*  The answer is made safe to print: marks become newlines, control characters other than tab and newline become spaces, and it is cut.
+   out = convert(@fm, NL, out)
+   out = convert(ctl, blanks, out)
+   if len(out) > MAXOUT then out = out[1, MAXOUT] : NL : '[output cut]'
+   target = convert(ctl, blanks, convert(TAB.CH : NL, '  ', target))
+   void kernel(K$AUDIT, 'mcp call agent=' : agent : ' tool=' : tool : ' target=' : target[1, 120] : ' status=' : st)
+   print 'MCP-BEGIN ' : req.id : ' ' : st
+   print out
+   print 'MCP-END ' : req.id
+   @system.return.code = 0
+   stop
+
+* ---- LOAD.GATE: both switches, read again at every call --------------------------------------------------------------------
+load.gate:
+   door.on = @false
+   write.on = @false
+   openpath @sdsys : @ds : 'accounts' to acc.f then
+      read acc.rec from acc.f, 'sduser' then
+         door.on = (upcase(trim(acc.rec<ACC$MCP>)) = 'YES')
+         write.on = (upcase(trim(acc.rec<ACC$MCP.WRITE>)) = 'YES')
+      end
+      close acc.f
+   end
+   return
+
+* ---- READ.REQUEST: the request file, one thing to a line ----------------------------------------------------------------------
+read.request:
+   lines = ''
+   rpath = @path : @ds : '$mcp' : @ds : req.id
+   openseq rpath readonly to rf then
+      loop
+         readseq ln from rf else exit
+         lines<-1> = ln
+         if dcount(lines, @fm) > 60 then exit
+      repeat
+      close rf
+   end else
+      st = 'error'
+      out = sysmsg(15959)
+      return
+   end
+   tool = downcase(trim(lines<1>))
+   a = downcase(trim(lines<2>))
+   if a # '' and len(a) <= 32 then
+      if trim(convert(AGENT.CHARS, blank.agent, a)) = '' then agent = a
+   end
+   p.file = trim(lines<3>)
+   p.id = lines<4>
+   p.fields = trim(lines<5>)
+   p.sort = trim(lines<6>)
+   p.limit = trim(lines<7>)
+   p.sentence = lines<8>
+   target = p.file : (if p.id # '' then ' ' : p.id else '')
+   if tool = 'run' then target = p.sentence
+   return
+
+* ---- CHECK.NAME: nm.in is a name (letters, digits and . _ $ -), 1 to 60 characters; nm.ok says so --------------------------------
+check.name:
+   nm.ok = (nm.in # '' and len(nm.in) <= 60)
+   if nm.ok then
+      if trim(convert(NAME.CHARS, blank.name, nm.in)) # '' then nm.ok = @false
+   end
+   if nm.ok then
+      if index(nm.in, ' ', 1) then nm.ok = @false
+   end
+   return
+
+refuse.word:
+   st = 'refused'
+   out = sysmsg(15957, refuse.text)                     ;* Not allowed: %1
+   return
+
+* ---- FILES -----------------------------------------------------------------------------------------------------------------------
+do.files:
+   target = 'files'
+   execute 'LIST VOC WITH F1 = "F" F1 DATA.NAME' capturing out
+   return
+
+* ---- DESCRIBE file ---------------------------------------------------------------------------------------------------------------
+do.describe:
+   nm.in = p.file
+   gosub check.name
+   if not(nm.ok) then
+      refuse.text = 'file name'
+      gosub refuse.word
+      return
+   end
+   open 'DICT', p.file to df else
+      st = 'error'
+      out = sysmsg(15958, p.file)
+      return
+   end
+   close df
+   execute 'LIST DICT ' : p.file capturing out
+   return
+
+* ---- READ file id ----------------------------------------------------------------------------------------------------------------
+do.read:
+   nm.in = p.file
+   gosub check.name
+   if not(nm.ok) then
+      refuse.text = 'file name'
+      gosub refuse.word
+      return
+   end
+   if p.id = '' or len(p.id) > 255 then
+      refuse.text = 'record id'
+      gosub refuse.word
+      return
+   end
+   if convert(ctl, blanks, p.id) # p.id then
+      refuse.text = 'record id'
+      gosub refuse.word
+      return
+   end
+   open p.file to f else
+      st = 'error'
+      out = sysmsg(15958, p.file)
+      return
+   end
+   read rec from f, p.id else
+      close f
+      st = 'error'
+      out = sysmsg(15958, p.file : ' ' : p.id)
+      return
+   end
+   close f
+   n = dcount(rec, @fm)
+   out = ''
+   for i = 1 to n
+      out := i : ': ' : convert(@vm : @sm, ']\', rec<i>) : @fm
+   next i
+   return
+
+* ---- QUERY file fields where sort limit -----------------------------------------------------------------------------------------------
+do.query:
+   nm.in = p.file
+   gosub check.name
+   if not(nm.ok) then
+      refuse.text = 'file name'
+      gosub refuse.word
+      return
+   end
+   open 'DICT', p.file to df else
+      st = 'error'
+      out = sysmsg(15958, p.file)
+      return
+   end
+   sentence = 'LIST ' : p.file
+
+*  The fields: each a name that is an item of the file's dictionary, so a keyword (LPTR, TO, SAVING ...) cannot be written as a field.
+   nf = dcount(p.fields, ' ')
+   if nf < 1 or nf > 20 then
+      close df
+      refuse.text = 'fields'
+      gosub refuse.word
+      return
+   end
+   for i = 1 to nf
+      nm.in = field(p.fields, ' ', i)
+      gosub check.name
+      if nm.ok then
+         read dd from df, nm.in else nm.ok = @false
+      end
+      if not(nm.ok) then
+         close df
+         refuse.text = 'field ' : nm.in[1, 40]
+         gosub refuse.word
+         return
+      end
+      sentence := ' ' : nm.in
+   next i
+
+*  The conditions, one to a line from line 9: field, tab, operator, tab, value.  The value is plain text between double quotes.
+   nc = dcount(lines, @fm)
+   first = 1
+   for i = 9 to nc
+      cl = lines<i>
+      if trim(cl) # '' then
+         cf = trim(field(cl, TAB.CH, 1))
+         cop = trim(field(cl, TAB.CH, 2))
+         cval = field(cl, TAB.CH, 3)
+         nm.in = cf
+         gosub check.name
+         if nm.ok then
+            read dd from df, cf else nm.ok = @false
+         end
+         op.ok = (cop = '=' or cop = '#' or cop = '<' or cop = '>' or cop = '<=' or cop = '>=')
+         val.ok = (len(cval) <= 100)
+         if val.ok then
+            if trim(convert(VALUE.CHARS, blank.value, cval)) # '' then val.ok = @false
+         end
+         if not(nm.ok and op.ok and val.ok) then
+            close df
+            refuse.text = 'condition ' : cf[1, 40]
+            gosub refuse.word
+            return
+         end
+         sentence := (if first then ' WITH ' else ' AND WITH ') : cf : ' ' : cop : ' "' : cval : '"'
+         first = 0
+      end
+   next i
+
+   if p.sort # '' then
+      nm.in = p.sort
+      gosub check.name
+      if nm.ok then
+         read dd from df, nm.in else nm.ok = @false
+      end
+      if not(nm.ok) then
+         close df
+         refuse.text = 'sort field'
+         gosub refuse.word
+         return
+      end
+      sentence := ' BY ' : p.sort
+   end
+   close df
+
+   lim = MAXROWS
+   if p.limit # '' then
+      if num(p.limit) and p.limit = int(p.limit) and p.limit >= 1 then
+         if p.limit < lim then lim = p.limit
+      end else
+         refuse.text = 'limit'
+         gosub refuse.word
+         return
+      end
+   end
+   sentence := ' SAMPLE ' : lim
+   target = sentence
+   execute sentence capturing out
+   return
+
+* ---- RUN sentence: needs the write switch ----------------------------------------------------------------------------------------
+do.run:
+   if not(write.on) then
+      st = 'refused'
+      out = sysmsg(15956)                               ;* The write tool is closed
+      return
+   end
+   if trim(p.sentence) = '' or len(p.sentence) > 500 then
+      refuse.text = 'sentence'
+      gosub refuse.word
+      return
+   end
+   if convert(ctl, blanks, p.sentence) # p.sentence then
+      refuse.text = 'sentence'
+      gosub refuse.word
+      return
+   end
+   execute p.sentence capturing out
+   return
+
+end
+
+* END-CODE

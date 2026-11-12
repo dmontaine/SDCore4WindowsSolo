@@ -1598,6 +1598,12 @@ def main():
                    # watches it - its unit test (test-sshkey-units.ps1) does
                    # not ship and is exempt as a test- file.
                    'solo-sshkey.ps1',
+                   # 11 Nov 26 - SOLO 57 (Linux Solo S.211).  The MCP
+                   # launcher: an AI agent's MCP client starts it (py -3
+                   # <folder>\solo-mcp.py) and every call is a one-shot
+                   # sd-solo mcp.call.  It SHIPS, so assert-current watches it;
+                   # its unit test (test-mcp-units.py) does not ship.
+                   'solo-mcp.py',
                    # 20 Sep 26 - RELEASE_1.1 82 (D2').  DOT-SOURCED by
                    # solo-setup.ps1, which writes LOGIN's one-shot "sd
                    # -internal" marker before its own internal sessions

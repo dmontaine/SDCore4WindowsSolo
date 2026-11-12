@@ -118,6 +118,9 @@ def run(root):
         expr = rest.lstrip(": ").strip()
         if expr.startswith("downcase(") or re.match(r"(dcount|len|count)\(", expr):
             continue                      # downcased, or a count (a number is not a command word)
+        iff = re.match(r"\(if\b[^()]*\bthen\s*'([^']*)'\s*else\s*'([^']*)'", expr)   # CALL's rest ends at the first ')', so the IF's own is not there
+        if iff and not re.search(r"[A-Z]", iff.group(1) + iff.group(2)):
+            continue                      # 11 Nov 26 (SET.MCP, Linux Solo S.211): an inline IF whose two branches are lower-case literals
         ident = re.match(r"[A-Za-z_][A-Za-z0-9_.$]*", expr)
         if not ident or not (lower_literals_only(root, p, ident.group(0)) or numeric_only(root, p, ident.group(0))):
             bad_var.append((p, n, expr[:40]))
@@ -181,6 +184,7 @@ def selftest():
         mutant("label-half-upper", "login", "'elevation granted account=SDSYS'", "'ELEVATION granted account=SDSYS'")
         mutant("variable-not-downcased", "solo_password", "'solo password set ' : downcase(which))", "'solo password set ' : which)")
         mutant("variable-not-downcased-2", "apisrvr", "'api sshkey ' : downcase(sk.verb) : ' refused - '", "'api sshkey ' : sk.verb : ' refused - '")
+        mutant("inline-if-branch-upper", "setmcp", "(if which = 'door' then '' else 'write ')", "(if which = 'door' then '' else 'WRITE ')")
         # controls: these must NOT be flagged
         mutant("control-upper-in-reason-text", "login", "' - no first password was set')", "' - NO first password was set')", expect_fail=False)
         mutant("control-upper-in-a-comment", "syncgcat", "* SYNC.GLOBAL.CATALOG verb", "* SYNC.GLOBAL.CATALOG REFUSED in a comment is not code", expect_fail=False)

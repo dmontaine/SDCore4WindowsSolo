@@ -37,7 +37,17 @@ LINUX = os.environ.get('SD_LINUX_GPLBP') or os.path.normpath(
 AI = 'the AI (Linux S.69) is not carried to Windows yet: RELEASE_1.1 197'
 OSCOPY = 'OSCOPY is carried to Core only (6c3286b7); Solo\'s copy is owed: RELEASE_1.1 146'
 ACCOUNTS = 'Solo has no account management: removed in SOLO 4 (8eddae56)'
+# 11 Nov 26: Linux Solo carried SD Core's full-screen work and its S.216 parity gaps (Linux Solo Dev 31ce6f9..3105155, mail 2026-11-12T0200); these
+# 59 programs came with it and are not in this tree yet.  Each is to be carried or given its own reason by SOLO 56.
+SOLO56 = 'Linux Solo\'s carry of SD Core\'s full-screen work and S.216 (to 3105155), not carried to Windows Solo yet: SOLO 56'
 NOT_HERE = {
+    **{n: SOLO56 for n in (
+        'audit_read', 'ced_core', 'dict_form', 'dict_item', 'edit_guard', 'edit_msg', 'edit_recovery', 'ide_name', 'ide_osfile', 'idebrk.h', 'netadmin',
+        'recarr', 'remotedoor', 'setconfig', 'sl_out', 'sl_palette', 'sl_picker', 'sl_widget_move', 'tk_aidocs', 'tk_aipage', 'tk_aiwall', 'tk_badch',
+        'tk_brk', 'tk_explain', 'tk_findrow', 'tk_form', 'tk_gate_info', 'tk_gates', 'tk_layout', 'tk_menubar', 'tk_out', 'tk_ownfile', 'tk_pickrec',
+        'tk_startof', 'tk_std', 'tk_theme', 'tk_word', 'tkclose', 'tkconfirm', 'tkform', 'tkframe', 'tkkeys', 'tklayout', 'tkmenubar', 'tkopen', 'tkout',
+        'tkpickrec', 'tkwrap', 'tool_audit', 'tool_backups', 'tool_bulk', 'tool_catalog', 'tool_config', 'tool_dict', 'tool_files', 'tool_query',
+        'tool_remote', 'tool_test', 'tool_voc')},
     'ai':               AI,
     'setai':            AI,
     'tool_ai':          AI,

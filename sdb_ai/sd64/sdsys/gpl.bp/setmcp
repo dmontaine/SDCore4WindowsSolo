@@ -1,0 +1,142 @@
+* SETMCP
+* SET.MCP verb: whether an AI agent's MCP client may use the account through the MCP launcher (S.211), and whether it may also run a sentence of its own.
+* Copyright (c) String Database
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 3, or (at your option)
+* any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software Foundation,
+* Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+*
+* START-HISTORY:
+* 11 Nov 26 Windows port - from Linux Solo 531d829 (S.211; SOLO 57, the owner, 11 Nov 26: "Yes, carry it").  Messages 15950-15959 (Linux 14950-14959, the second
+*               block at +1000).  The kept password is the $STORED record of $cred, as this tree's LOGIN reads it: field 1 the account, field 2 the DPAPI-protected
+*               password; SET.MCP ON says so when field 2 is empty.
+* 11 Nov 26 dm  New (S.211, SD Core for Linux Solo only; the owner, 26 Oct 26: "add a new pre-release task to the solo versions: mcp server", and 11 Nov 26: "i will let you
+*               make the decisions on the mcp server").  The plan is .claude/plan-solo-mcp-11nov.md.  SD Core for Linux has no MCP door (dropped 21 Oct 26), so this is a
+*               deviation from the Linux Core template with the owner's specific permission, listed for the parity audit.  Modelled on SET.PINS.
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*    SET.MCP                  says whether the MCP door is open and whether its write tool is, and changes nothing
+*    SET.MCP ON               opens the door: an AI agent's MCP client may start the launcher (solo-mcp.py in the SD Core Solo folder) and use the read-only tools
+*    SET.MCP OFF              shuts it (a running agent is refused at its next call)
+*    SET.MCP WRITE ON         also gives the agent the write tool, sd_run, which runs one sentence as the person could type it
+*    SET.MCP WRITE OFF        takes the write tool back
+*
+*    An administrator verb (ADMIN first).  BOTH are OFF as delivered.  They are fields 20 and 21 of the register record accounts/sduser (ACC$MCP, ACC$MCP.WRITE),
+*    'yes' or 'no'; ONLY 'yes' is on, so a blank field, or a record with fewer fields, is off.  The program MCP.CALL, which does the work of every call, reads both at
+*    EVERY call, so a change takes effect at the agent's next call; nothing is loaded at sign-on.  The door signs in with the account's KEPT password (the one a
+*    one-shot sd-solo command uses); with none kept, SET.MCP ON says so.  The change is written to the audit trail in lower case.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+program set.mcp
+$catalog $setmcp
+
+$include int$keys.h
+$include keys.h
+$include err.h
+
+   @system.return.code = -ER$ARGS
+
+   if not(kernel(K$ADMINISTRATOR, -1)) then
+      stop sysmsg(2001) ;* Command requires administrator privileges
+   end
+
+*  Solo's one account is always sduser (ruling 29); an internal session (the installer's) has another @logname, so the name is not read.
+   acc.name = 'sduser'
+
+   words = downcase(trim(@sentence))
+   n.words = dcount(words, ' ')
+   w2 = field(words, ' ', 2)
+   w3 = field(words, ' ', 3)
+   which = 'door'
+   want = ''
+   syntax.ok = @true
+   begin case
+      case n.words = 1
+         null
+      case n.words = 2 and (w2 = 'on' or w2 = 'off')
+         want = w2
+      case n.words = 3 and w2 = 'write' and (w3 = 'on' or w3 = 'off')
+         which = 'write tool'
+         want = w3
+      case 1
+         syntax.ok = @false
+   end case
+   if not(syntax.ok) then stop sysmsg(15951)         ;* set.mcp {on | off}; set.mcp write {on | off}
+
+   openpath @sdsys : @ds : 'accounts' to acc.f else stop sysmsg(6003)
+   readu acc.rec from acc.f, acc.name else
+      release acc.f, acc.name
+      close acc.f
+      stop sysmsg(6003)                                 ;* Account name is invalid
+   end
+   door.on = (upcase(trim(acc.rec<ACC$MCP>)) = 'YES')
+   write.on = (upcase(trim(acc.rec<ACC$MCP.WRITE>)) = 'YES')
+
+   if want = '' then
+      release acc.f, acc.name
+      close acc.f
+      @system.return.code = 0
+      display sysmsg(15950, acc.name, (if door.on then 'on' else 'off'), (if write.on then 'on' else 'off'))
+      stop
+   end
+
+   if which = 'door' then cur = door.on else cur = write.on
+   if cur = (want = 'on') then
+      release acc.f, acc.name
+      close acc.f
+      @system.return.code = 0
+      display sysmsg(15952, which, acc.name, want)      ;* The MCP %1 for %2 was already %3; nothing changed
+      stop
+   end
+
+   if which = 'door' then
+      acc.rec<ACC$MCP> = (if want = 'on' then 'yes' else 'no')
+      door.on = (want = 'on')
+   end else
+      acc.rec<ACC$MCP.WRITE> = (if want = 'on' then 'yes' else 'no')
+      write.on = (want = 'on')
+   end
+   ok = @true
+   write acc.rec to acc.f, acc.name on error ok = @false
+   if not(ok) then release acc.f, acc.name
+   close acc.f
+   if not(ok) then
+      @system.return.code = -ER$FAILED
+      stop sysmsg(15953)                                ;* The MCP setting could not be written
+   end
+
+   @system.return.code = 0
+   void kernel(K$AUDIT, 'set.mcp ' : (if which = 'door' then '' else 'write ') : want : ' account=' : acc.name)
+   display sysmsg(15950, acc.name, (if door.on then 'on' else 'off'), (if write.on then 'on' else 'off'))
+
+*  Turning the door ON with no kept password: say so (the agent could not sign in).  11 Nov 26 Windows port: the kept password is the $STORED record of $cred, as
+*  LOGIN reads it - field 1 the account, field 2 the DPAPI-protected password - so an empty field 2 is "none kept".
+   if which = 'door' and want = 'on' then
+      kept = ''
+      openpath @sdsys : @ds : '$cred' to cred.f then
+         read kept from cred.f, '$STORED' else kept = ''
+         close cred.f
+      end
+      if kept<2> = '' then display sysmsg(15954)
+   end
+   stop
+
+end
+
+* END-CODE

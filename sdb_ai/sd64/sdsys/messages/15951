@@ -1,0 +1,1 @@
+set.mcp {on | off}; set.mcp write {on | off}; set.mcp alone says whether the MCP door is open and whether its write tool is
