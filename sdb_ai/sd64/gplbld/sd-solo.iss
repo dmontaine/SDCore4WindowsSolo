@@ -238,6 +238,13 @@ Source: "{#Stage}\SDCoreSolo\sd-standalone.conf"; DestDir: "{app}"; DestName: "s
 
 #include AddBackslash(Stage) + "upgrade.iss"
 
+; 12 Nov 26 - SOLO 62, the owner's choice ("Installer keeps the MSI"): Microsoft's OpenSSH MSI from beside this installer is
+; kept in the Solo folder, on every install and upgrade, ticked ssh box or not.  REMOTE.SSH LOCAL or OPEN on a Solo installed
+; without ssh has the doors helper set ssh up later (solo-machine.ps1 -Action Doors), and with no ssh server on the computer it
+; installs one from this copy, as -SshMsi does here.  External, so the file is never in the installer or the repository; a
+; release folder without one installs nothing here.  Logged, so the uninstaller removes it.
+Source: "{src}\ssh-server\*.msi"; DestDir: "{app}\ssh-server"; Flags: external skipifsourcedoesntexist ignoreversion
+
 ; 10 Nov 26 - RELEASE_1.1 215: the Start menu shortcut, which Solo never had (owner, 10 Nov:
 ; "can solo get a start menu shortcut as well?").  In the person's own Start menu, as the
 ; install is theirs (PrivilegesRequired=lowest); the uninstaller removes it.  It opens a

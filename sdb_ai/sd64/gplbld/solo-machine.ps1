@@ -66,6 +66,8 @@
 # "SD Core Solo Doors": SYSTEM, no trigger, runs solo-doors.ps1 -Serve with -AppDir and -ForUser fixed here, and its security
 # descriptor lets -ForUser start it (read and execute) and nothing more.  They make %ProgramData%\SDCoreSolo\doors, where the
 # helper writes its answer: SYSTEM and Administrators full control, -ForUser read only.  Remove takes both away.
+#   (12 Nov 26, the owner's "Installer keeps the MSI": when ssh is set up from SD on a computer with no ssh server, the OpenSSH
+#   MSI the installer kept in <Solo folder>\ssh-server is installed first, by Install-SshMsi.)
 #   -Action Doors -Door api|ssh -Mode off|local|open   is what that helper runs, once it has checked a request, so each change
 # is made by the same steps an install makes (one copy of each): the API's listener switch and rule; ssh's task (Register-SshTask
 # when it was never set up - the owner's "set it up from the page") and rule.  The API listener only moves when SD next starts;
@@ -694,7 +696,15 @@ if ($Action -eq 'Doors') {
             } else {
                 if (-not $have) {
                     Note '  ssh was not set up: setting it up now, as the installer would (the owner: "set it up from the page")'
-                    Register-SshTask
+                    # 12 Nov 26 (the first VM witness: "there is no sshd.exe"): a Solo installed without ssh may have no OpenSSH
+                    # server on the computer at all.  The installer keeps the MSI in <Solo folder>\ssh-server (sd-solo.iss), so it
+                    # is installed from there by the install step's own function, exactly as -SshMsi does.
+                    if (-not (Find-Sshd)) {
+                        $kept = @(Get-ChildItem -LiteralPath (Join-Path $AppDir 'ssh-server') -Filter '*.msi' -ErrorAction SilentlyContinue)
+                        if ($kept.Count -eq 0) { Fail ('there is no ssh server on this computer and no OpenSSH MSI in ' + (Join-Path $AppDir 'ssh-server') + ' - run the SD Core Solo installer again') }
+                        else { Install-SshMsi $kept[0].FullName }
+                    }
+                    if ($fails.Count -eq 0) { Register-SshTask }
                 } else {
                     Enable-ScheduledTask -TaskName $SshTaskName | Out-Null
                     if (-not (Test-SshPortListening)) { Start-ScheduledTask -TaskName $SshTaskName }
