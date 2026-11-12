@@ -558,12 +558,24 @@ function Register-SshTask {
     }
     $ko = Join-Path $env:TEMP 'sd-solo-keyscan.out'
     $ke = Join-Path $env:TEMP 'sd-solo-keyscan.err'
-    $null = Start-Process -FilePath $keyscan -ArgumentList @('-t', 'ed25519', '-p', "$SshPort", '127.0.0.1') -NoNewWindow -Wait -PassThru `
-                -RedirectStandardOutput $ko -RedirectStandardError $ke
-    $seen = ''
-    foreach ($l in @(Get-Content -LiteralPath $ko -ErrorAction SilentlyContinue)) {
-        $f = $l -split '\s+'
-        if ($f.Count -ge 3 -and $f[1] -eq 'ssh-ed25519') { $seen = $f[2] }
+    # 12 Nov 26 - SOLO 62: AN UPGRADE OVER A RUNNING SOLO sshd FAILED HERE, and the line said only 'read ""'.  The
+    # same keyscan run by hand a minute later gave the choose_kex refusal below, which passes - so at install time it
+    # said something else, most likely because the restarted sshd was not yet answering; the line had dropped what.
+    # So it tries up to three times, 3 s apart, until it reads a key or the known refusal, and a failure prints the
+    # exit code and stderr of the last try.  NOT MEASURED: what the upgrade's keyscan actually printed.
+    $seen = ''; $errText = ''; $kexit = ''
+    for ($try = 1; $try -le 3; $try++) {
+        $kp = Start-Process -FilePath $keyscan -ArgumentList @('-t', 'ed25519', '-p', "$SshPort", '127.0.0.1') -NoNewWindow -Wait -PassThru `
+                    -RedirectStandardOutput $ko -RedirectStandardError $ke
+        $kexit = [string]$kp.ExitCode
+        foreach ($l in @(Get-Content -LiteralPath $ko -ErrorAction SilentlyContinue)) {
+            $f = $l -split '\s+'
+            if ($f.Count -ge 3 -and $f[1] -eq 'ssh-ed25519') { $seen = $f[2] }
+        }
+        $errText = ((Get-Content -LiteralPath $ke -ErrorAction SilentlyContinue) -join ' ')
+        if ($seen -ne '' -or $errText -match 'choose_kex|unsupported KEX') { break }
+        Note ('  ssh-keyscan try ' + $try + ' read nothing (exit ' + $kexit + ', stderr "' + $errText.Trim() + '")')
+        if ($try -lt 3) { Start-Sleep -Seconds 3 }
     }
     $disk = ((Get-Content -LiteralPath $pubFile -Raw).Trim() -split '\s+')
     if ($seen -ne '' -and $disk.Count -ge 2 -and $seen -eq $disk[1]) { Note '  PASS  the host key ssh-keyscan reads on 127.0.0.1:4251 is the one in the machine ssh folder'; return }
@@ -576,7 +588,6 @@ function Register-SshTask {
     # Solo's sshd - is measured directly instead: the process that owns the listening socket is one of the
     # sshd.exe processes already found above (their command line names Solo's config, owner SYSTEM).  ANY OTHER
     # empty read still fails: only a key-exchange refusal, which the stderr names, takes this path.
-    $errText = ((Get-Content -LiteralPath $ke -ErrorAction SilentlyContinue) -join ' ')
     if ($seen -eq '' -and $errText -match 'choose_kex|unsupported KEX') {
         $owners = @(Get-NetTCPConnection -State Listen -LocalPort $SshPort -ErrorAction SilentlyContinue | ForEach-Object { $_.OwningProcess } | Sort-Object -Unique)
         $mineIds = @($mine | ForEach-Object { [int]$_.ProcessId })
@@ -589,7 +600,7 @@ function Register-SshTask {
         Fail ('port ' + $SshPort + ' is held by pid ' + ($foreign -join ', ') + ', which is not Solo''s sshd (listeners found: ' + $owners.Count + ')')
         return
     }
-    Fail ('the host key served on port ' + $SshPort + ' is not Solo''s (ssh-keyscan read "' + $seen + '")')
+    Fail ('the host key served on port ' + $SshPort + ' is not Solo''s (' + $keyscan + ' read "' + $seen + '", exit ' + $kexit + ', stderr "' + $errText.Trim() + '")')
 }
 
 function Remove-SshTask {
