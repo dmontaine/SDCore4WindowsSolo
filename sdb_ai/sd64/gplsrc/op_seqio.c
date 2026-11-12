@@ -17,6 +17,9 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 11 Nov 26 SD Core Solo - SOLO 56 group 4, from Linux Solo carry 19 (38d522a): OPENSEQ opens read only, and cannot create, a file under a VOC,
+ *               and DELETESEQ of one is refused, for a session that is not the administrator and has no OS access (edit_os_path_refusal(),
+ *               op_dio2.c, include_leaf FALSE).  This replaces group 2's note that the S.64 gates wait: Solo's form is the VOC alone.
  * 11 Nov 26 SD Core Solo - SOLO 56 group 2, from Windows Core (Linux 36fe9456, a63c70f1, S.88 E2, A1 and A3, as in Linux Solo): OPENSEQ ... CREATING
  *               of a name that does not exist is exclusive (O_EXCL; ER_EXISTS 6032 when a file or a dangling link is there by the time it is made;
  *               SHARED keeps open-or-create) and is made AFTER the SD lock on its name is taken, so a CREATING that ends in its LOCKED clause leaves
@@ -70,6 +73,7 @@
 
 #include "sd.h"
 #include "dh_int.h"
+#include "header.h" /* HDR_INTERNAL: the VOC gate of the OS-path routes (11 Nov 26, SOLO 56 group 4, Linux Solo carry 19) */
 #include <poll.h>
 
 /* Modified by Composer AI - 2026/06/10.
@@ -240,6 +244,14 @@ void op_delseq() {
       process.status = ER_PERM;
       goto exit_op_delseq;
     }
+  }
+
+  /* 11 Nov 26 SD Core Solo - SOLO 56 group 4, from Linux Solo carry 19 (SD Core's S.64 hunk, VOC only): deleting a file of a VOC is a change
+     to it, past the test in op_dio3.c.  A $internal program is trusted, as in os_path_open_ok().  The final name is a plain file (S_ISREG
+     below), a record and not a VOC, so only what is above it is asked (include_leaf FALSE). */
+  if (!(process.program.flags & HDR_INTERNAL) && (edit_os_path_refusal(file_name, FALSE) != EDIT_NONE)) {
+    process.status = ER_PERM;
+    goto exit_op_delseq;
   }
 
   /* Check file exists */
@@ -455,6 +467,7 @@ Private void openseq(bool map_name) {
   bool leaf_is_link = FALSE; /* 30 Oct 26 S.88 E2: the name given is itself a symbolic link (fullpath() follows it below) */
   struct stat leaf_stat_buf;
   bool create_after_lock = FALSE; /* 02 Nov 26 S.88 A3: CREATING of a name that is not there: the file is made once the SD lock is held */
+  bool edit_blocked = FALSE;      /* 11 Nov 26 SOLO 56 group 4 (Linux Solo carry 19): a path in a VOC, which the session may not change */
 
   op_flags = process.op_flags;
 
@@ -663,6 +676,13 @@ Private void openseq(bool map_name) {
        file_name        Port name
  */
 
+  /* 11 Nov 26 SD Core Solo - SOLO 56 group 4, from Linux Solo carry 19 (SD Core's S.64 hunk, VOC only).  A VOC is a directory of files, so
+     OPENSEQ and WRITESEQ change one as WRITE would, past the test in op_dio3.c (Linux measured voc/%0 overwritten and deleted by an ordinary
+     session with the OS switch off).  A session that may not change the file gets the sequential file READ ONLY, and cannot create one there.
+     A $internal program is trusted, as in os_path_open_ok.  The final name is a record: only what is above it is asked (include_leaf FALSE). */
+  if (!(flags & SQ_PORT) && !(process.program.flags & HDR_INTERNAL))
+    edit_blocked = (edit_os_path_refusal(fullpathname, FALSE) != EDIT_NONE);
+
   if (!(flags & SQ_PORT)) /* Not a port */
   {
     /* Check if record to open exists */
@@ -693,7 +713,7 @@ Private void openseq(bool map_name) {
 
       /* Check if we have write access */
 
-      if ((op_flags & P_READONLY) || access(fullpathname, 2)) {
+      if ((op_flags & P_READONLY) || access(fullpathname, 2) || edit_blocked) {
         read_only = TRUE;
       }
 
@@ -705,6 +725,10 @@ Private void openseq(bool map_name) {
         process.status = ER_FNF;
         goto exit_op_openseq;
       }
+    } else if ((op_flags & 0x400) && edit_blocked) /* CREATING in a VOC the session may not change (11 Nov 26, Linux Solo carry 19) */
+    {
+      process.status = ER_PERM;
+      goto exit_op_openseq;
     } else if ((op_flags & 0x400) && leaf_is_link) /* CREATING of a name that is a link to nothing (stat() failed): the target is not made */
     {
       process.status = ER_EXISTS;
@@ -737,7 +761,7 @@ Private void openseq(bool map_name) {
   fvar->id_len = 0;
   fvar->id = NULL;
   fvar->flags = 0;
-  if (read_only)
+  if (read_only || edit_blocked) /* edit_blocked also covers a file that does not exist yet: its first WRITESEQ is refused */
     fvar->flags |= FV_RDONLY;
   /* 30 Oct 26 dm - S.88 A1: the name is a link that leads nowhere (stat() failed above, so no file was opened): fullpath() has already replaced the name by the
      link's TARGET, so the create that the first WRITESEQ would make could not tell any more; the first WRITESEQ is refused as for a place the session may not

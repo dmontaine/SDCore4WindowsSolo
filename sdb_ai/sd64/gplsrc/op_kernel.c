@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 11 Nov 26 SD Core Solo - SOLO 56 group 4, as Linux Solo: K_EDIT_OK, K_VOC_EDIT, K_BP_EDIT, K_DICT_EDIT, K_SD_ACCOUNTS, K_SHARED_READ,
+ *           K_SHARED_WRITE, K_EDIT_KIND and K_EDIT_OS_OK answered with Solo's rules (keys.h).
  * 11 Nov 26 SD Core Solo - SOLO 56 group 3: K_AI_START, POLL, CANCEL and STATUS answered "no helper", as SD Core for Windows.
  * 11 Nov 26 SD Core Solo - SOLO 56 group 2, from Windows Core (Linux d35f5e31 / d8dbde84, S.88, as in Linux Solo): K_SHOW_SAFE (151), another
  *           session's text made safe to print by the kernel's one rule (show_ts_safe()); kernel(K$AUTOLOGOUT, -2) returns the inactivity
@@ -722,6 +724,65 @@ void op_kernel() {
       result.data.value = 0;
       if (k_get_c_string(descr, path_ok_name, MAX_PATHNAME_LEN) > 0)
         result.data.value = os_path_ok_for_account(path_ok_name) ? 1 : 0;
+    } break;
+
+    /* 11 Nov 26 SD Core Solo - SOLO 56 group 4, as Linux Solo (S.117, 10 Nov 26): SD Core's editors ask these.  Solo has no edit gates, so
+       K_EDIT_OK is always yes (the VOC rule is !voc_refusal at the save) and K_EDIT_KIND only names the kind of file by its last component:
+       1 VOC, 2 dictionary (.dic), 3 program file (bp or .bp), 0 anything else.  Either separator ends a component here. */
+    case K_EDIT_OK:
+      result.data.value = 1;
+      break;
+
+    /* What the account page and the file pages ask.  Solo has one account: a VOC is the administrator's, a dictionary or a program file is
+       the account's own, and there is no shared account and no sd.accounts file to reach.  Nothing sets them. */
+    case K_VOC_EDIT:
+      result.data.value = (my_uptr->flags & USR_ADMIN) ? 1 : 0;
+      break;
+
+    case K_BP_EDIT:
+    case K_DICT_EDIT:
+      result.data.value = 1;
+      break;
+
+    case K_SD_ACCOUNTS:
+    case K_SHARED_READ:
+    case K_SHARED_WRITE:
+      result.data.value = 0;
+      break;
+
+    case K_EDIT_KIND: {
+      char edit_kname[MAX_PATHNAME_LEN + 1];
+      char* edit_leaf;
+      char* edit_bs;
+      int edit_llen;
+
+      result.data.value = 0;
+      if (k_get_c_string(descr, edit_kname, MAX_PATHNAME_LEN) > 0) {
+        edit_leaf = strrchr(edit_kname, '/');
+        edit_bs = strrchr(edit_kname, '\\');
+        if ((edit_bs != NULL) && ((edit_leaf == NULL) || (edit_bs > edit_leaf)))
+          edit_leaf = edit_bs;
+        edit_leaf = (edit_leaf != NULL) ? edit_leaf + 1 : edit_kname;
+        edit_llen = (int)strlen(edit_leaf);
+        if (strcasecmp(edit_leaf, "voc") == 0)
+          result.data.value = 1;
+        else if ((edit_llen > 4) && (strcasecmp(edit_leaf + edit_llen - 4, ".dic") == 0))
+          result.data.value = 2;
+        else if ((strcasecmp(edit_leaf, "bp") == 0) || ((edit_llen > 3) && (strcasecmp(edit_leaf + edit_llen - 3, ".bp") == 0)))
+          result.data.value = 3;
+      }
+    } break;
+
+    /* An OS pathname about to be written to (the IDE's OS files).  An empty or unreadable argument is a refusal for anybody who is not the
+       administrator.  The target may be a directory a file is copied INTO: its own name counts then (edit_leaf_counts). */
+    case K_EDIT_OS_OK: {
+      char edit_os_name[MAX_PATHNAME_LEN + 1];
+
+      result.data.value = 0;
+      if (my_uptr->flags & USR_ADMIN)
+        result.data.value = 1;
+      else if (k_get_c_string(descr, edit_os_name, MAX_PATHNAME_LEN) > 0)
+        result.data.value = (edit_os_path_refusal(edit_os_name, edit_leaf_counts(edit_os_name)) == EDIT_NONE) ? 1 : 0;
     } break;
 
     /* K_PATH_IN: "<directory><field mark><pathname>" - is the pathname inside the directory?  Geometry only (SD Core's second sitting of

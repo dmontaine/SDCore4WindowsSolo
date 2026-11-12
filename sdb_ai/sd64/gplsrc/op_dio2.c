@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 11 Nov 26 SD Core Solo - SOLO 56 group 4, from Linux Solo carry 19 (38d522a): edit_os_path_refusal() and edit_leaf_counts(), the OS-path
+ *               routes to the VOC, resolved with this file's containment helpers.
  * 11 Nov 26 SD Core Solo - from SD Core 392c8e01 (SOLO 53): FILEINFO key 1031 (FL$SEQ.KEY) is the last id CREATING.SEQKEY gave.
  * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, the OS switch (Linux Solo 7c6bbfc): os_path_ok_for_account() and os_path_open_ok() - may this
  *           account open this OS pathname - built on net_path_permitted()'s containment helpers (net_normalise, has_parent_ref, path_within)
@@ -2002,6 +2004,92 @@ bool os_path_inside(const char* rootdir, const char* name) {
   if (has_parent_ref(cand))
     return FALSE;
   return path_within(cand, root);
+}
+
+/* ======================================================================
+   edit_os_path_refusal()  -  the OS-PATH routes to the VOC: OPENSEQ, DELETESEQ, a print file (and K_EDIT_OS_OK for the IDE).
+
+   11 Nov 26 SD Core Solo - SOLO 56 group 4, from Linux Solo's carry 19 (38d522a, 24 Oct 26: "check, and close it if open").  The VOC rule of
+   ruling 14 (voc_write_refused(), op_dio3.c) watches the RECORD routes: a file variable on the VOC.  The VOC is a directory of the account
+   (voc\%0, voc\%1), so a pathname gives the same power past it: Linux measured an ordinary session with the OS switch off overwriting,
+   appending to and deleting voc/%0 with OPENSEQ + WRITESEQ and DELETESEQ.  SD Core's S.64 closes these with a function of this name that
+   knows three kinds; Solo has one rule, the VOC's, so this keeps Core's name and shape and classifies one: a component named voc (any case)
+   below the account's own directory.
+
+   Linux Solo resolves with realpath(); this one resolves as os_path_ok_for_account() above does, with this file's own helpers (fullpath,
+   the POSIX namespace, a surviving ".." refused, the account's directory from SYSCOM_ACCOUNT_PATH, compared without regard to case).
+   Returns EDIT_NONE when the session may go on, or EDIT_VOC.  Read-only use is not asked: the callers use this where they would write,
+   create or delete.  INCLUDE_LEAF says whether the FINAL component counts: OPENSEQ, DELETESEQ and a print file make or remove a plain file
+   and pass FALSE (a record called voc in an ordinary directory file is a plain file, not a VOC); a caller whose final name may be a directory
+   passes TRUE.  Every directory below the final component counts either way.
+
+   NOT ASKED: the administrator (ADMIN, who may change the VOC) and a session with OS access (USR_OS_EXEC), which reaches the files as it
+   always could.  A path outside the account is the OS gate's to refuse, not this.  A path that cannot be resolved is refused.            */
+
+int edit_os_path_refusal(const char* name, bool include_leaf) {
+  char resolved[MAX_PATHNAME_LEN + 1];
+  char cand[MAX_PATHNAME_LEN + 1];
+  char root[MAX_PATHNAME_LEN + 1];
+  char item[MAX_PATHNAME_LEN + 1];
+  DESCRIPTOR* descr;
+  const char* p;
+  const char* more;
+  size_t root_len;
+  size_t n;
+
+  if (my_uptr->flags & (USR_ADMIN | USR_OS_EXEC))
+    return EDIT_NONE;
+  if ((name == NULL) || (*name == '\0'))
+    return EDIT_NONE;
+  if (strlen(name) > MAX_PATHNAME_LEN)
+    return EDIT_VOC;
+  strcpy(resolved, name);
+  if (!fullpath(resolved, resolved) || !net_normalise(resolved, cand) || has_parent_ref(cand))
+    return EDIT_VOC; /* cannot tell: refuse (a gate that fails open on a path it cannot read is decoration) */
+
+  if (process.syscom == NULL)
+    return EDIT_VOC;
+  descr = Element(process.syscom, SYSCOM_ACCOUNT_PATH);
+  if ((k_get_c_string(descr, item, MAX_PATHNAME_LEN) <= 0) || !net_normalise(item, root))
+    return EDIT_VOC;
+  if (!path_within(cand, root))
+    return EDIT_NONE; /* outside the account's own directory: the OS gate has refused or allowed it */
+
+  root_len = strlen(root);
+  while ((root_len > 1) && (root[root_len - 1] == '/'))
+    root_len--;
+
+  for (p = cand + root_len; *p != '\0';) {
+    while (*p == '/')
+      p++;
+    n = 0;
+    while ((p[n] != '\0') && (p[n] != '/'))
+      n++;
+    more = p + n;
+    while (*more == '/')
+      more++;
+    if ((n == 3) && (strncasecmp(p, "voc", 3) == 0) && (include_leaf || (*more != '\0')))
+      return EDIT_VOC;
+    p += n;
+  }
+  return EDIT_NONE;
+}
+
+/* edit_leaf_counts()  -  for a caller that DELETES, or COPIES INTO, an OS pathname whose final name may be a plain file or a directory: does
+   that final name need classifying (include_leaf TRUE)?  Only if it is there and is not a plain file.  A plain file called voc is a record of
+   whatever directory holds it, not a VOC; a name not made yet becomes a plain file, and there is nothing to delete.  A link counts.
+   (SD Core's and Linux Solo's, resolved as SD Core for Windows resolves it.)                                                            */
+
+bool edit_leaf_counts(const char* name) {
+  struct stat sb;
+  char resolved[MAX_PATHNAME_LEN + 1];
+
+  if ((name == NULL) || (name[0] == '\0') || (strlen(name) > MAX_PATHNAME_LEN))
+    return FALSE;
+  strcpy(resolved, name);
+  if (!fullpath(resolved, resolved) || (lstat(resolved, &sb) != 0))
+    return FALSE;
+  return !S_ISREG(sb.st_mode);
 }
 
 /* ======================================================================

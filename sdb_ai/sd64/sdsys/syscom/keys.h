@@ -404,6 +404,17 @@
       *   bits (os_gate_open, op_sh.c), and these fields are only where the bits come from.  FIELD 6 STAYS DELETED.
       $define ACC$SH           7     ;* may use the SH verb and "!" (yes/no)
       $define ACC$OS.EXEC      8     ;* may use OS.EXECUTE, and reach OS paths outside its account (yes/no)
+      * 11 Nov 26 SD Core Solo - SOLO 56 group 4, as Linux Solo: FIELDS 9 TO 14 AND 19 are NAMED here at SD Core's numbers because the toolkit's gate
+      *   matrix ($tk_gates) and the editors' recovery copy (!edit_recovery) read them.  Nothing in Solo writes them, so they are blank, which each
+      *   reads as off (13, SHARED.READ, reads blank as yes, but Solo has no shared account to open); there is no recovery copy and no per-account
+      *   edit gate.  Linux Solo is the same.
+      $define ACC$SD.ACCOUNTS  9     ;* SD Core: may reach files in the accounts its user could LOGTO (yes/no) - blank in Solo
+      $define ACC$VOC.EDIT     10    ;* SD Core: may save changes to a VOC (yes/no) - blank in Solo (the VOC needs ADMIN)
+      $define ACC$BP.EDIT      11    ;* SD Core: may save changes to a program file (yes/no) - blank in Solo
+      $define ACC$DICT.EDIT    12    ;* SD Core: may save changes to a dictionary (yes/no) - blank in Solo
+      $define ACC$SHARED.READ  13    ;* SD Core: may open the files of the shared account by name - blank in Solo
+      $define ACC$SHARED.WRITE 14    ;* SD Core: may write records in the files of the shared account - blank in Solo
+      $define ACC$RECOVERY     19    ;* the editors keep a recovery copy of unsaved text (yes/no; blank = no; nothing sets it in Solo)
       *   FIELD 15 (ACC$NET, 20 Oct 26, Solo carry 8; SD Core's number for SD Core's S.65 NET gate): the account's
       *   permission to have its files opened by API request 29 (the SDNet open, apisrvr's vb.open.sdnet).  yes means
       *   on and anything else, blank and an absent field included, is OFF.  Fields 9 to 14 are SD Core's and are not

@@ -200,6 +200,16 @@
 * 25 Oct 26 Windows port - from Linux Solo 1f5f703 (SDNET CARRY 9) - SD Core's S.65 K$NET, at SD Core's number: the NET gate, settable only from $internal (LOGIN and APISRVR load it from
 *   register field 15 at account entry; the same field guards API request 29), -1 asks.  Must match gplsrc/keys.h.
       $define K$NET             127      ;* may open a file on another SD server (SDNet); account-scoped like K$SH; set from $internal, -1 asks
+* 11 Nov 26 SD Core Solo - SOLO 56 group 4: SD Core's edit keys at SD Core's numbers, answered with Solo's rules (gplsrc/keys.h, op_kernel.c), as Linux Solo.
+      $define K$SD.ACCOUNTS     118      ;* Solo: always 0 (one account)
+      $define K$VOC.EDIT        121      ;* Solo: 1 for the administrator
+      $define K$BP.EDIT         122      ;* Solo: always 1
+      $define K$DICT.EDIT       123      ;* Solo: always 1
+      $define K$EDIT.OK         124      ;* the pathname of an open file: Solo always 1 (the VOC rule is !voc_refusal at the save)
+      $define K$EDIT.KIND       125      ;* the same argument: 0 none of the three, 1 a VOC, 2 a dictionary, 3 a program file (for the message)
+      $define K$EDIT.OS.OK      126      ;* an OS pathname about to be written, created, deleted or copied into: 1 unless it runs through a VOC the session may not change
+      $define K$SHARED.READ     128      ;* Solo: always 0 (no shared account)
+      $define K$SHARED.WRITE    129      ;* Solo: always 0
 * 18 Oct 26 Windows port - from Linux 0b6a207 (14 Oct 26): sheet items 24, 29 and 38 (LISTU).  K$SET.ACCOUNT: the account the session is in, for the user
 *   table; settable only from $internal (LOGIN, CPROC's logto, APISRVR), the name as it stands is returned.
 *   K$USER.PEAK: the most user table cells in use at once since SD started.  Linux's numbers, kept exactly

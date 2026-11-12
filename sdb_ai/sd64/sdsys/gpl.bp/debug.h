@@ -18,6 +18,10 @@
 * 
 * 
 * START-HISTORY:
+* 10 Nov 26 Windows port - level with Linux e3490a7f: ai.ok (24 Oct) before dbg.store, and S.98 H1/H3's styles and stops after it, as Linux has them.
+* 1 Nov 26 dm  S.98 H1: the styles and the two stops of the new display are at the end of the common block, so no earlier variable moves.
+* 26 Oct 26 Windows port - from Linux fa146d9 (QM4 Fixes 193, 550): data.lines, expand.np and MAX.DATA.AREA.LINES.  The carry of `debug` in a8d06eb0 took the program and left this
+*           file out, so the bootstrap warned MAX.DATA.AREA.LINES and NEW.LINES "not assigned a value".
 * 25 Aug 26 Windows port - removed FVAR.NET, mirroring NET_FILE going from
 *           DESCR.H.  SDNet was removed on 18 Aug 26.
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
@@ -41,9 +45,12 @@ $define INITIAL.PROGRAMS      10    ;* Initial size of program matrices
 $define INITIAL.CHUNKS        50    ;* Initial size of source chunk matrices
 $define CHUNK.LOAD           100    ;* Lines per chunk
 $define MAX.BREAKPOINTS       20    ;* Also in op_debug.c
-$define DATA.AREA.LINES        5
+$define DATA.AREA.LINES        5    ;* The data area's usual height; WINDOW n (5 to 15) changes it
+$define MAX.DATA.AREA.LINES   15
 
    common /$debug/ debug.initialised,
+                   data.lines,                 ;* Height of the data area in full screen mode (0 until the first entry)
+                   expand.np,                  ;* The ^ command: show non-printing characters as ^nnn
                    full.screen,                ;* Full screen mode?
                    title.attr,
                    source.attr,
@@ -53,7 +60,7 @@ $define DATA.AREA.LINES        5
                    debug.screen.image,
                    debug.command.stack,
                    debug.overlay,
-                   debug.data.area(DATA.AREA.LINES), ;* The data area
+                   debug.data.area(MAX.DATA.AREA.LINES), ;* The data area
 
                    array.name,
                    array.offset,               ;* Position of rolling display
@@ -72,6 +79,7 @@ $define DATA.AREA.LINES        5
 
                    program.id(INITIAL.PROGRAMS),    ;* Id (compile time)
                    program.name(INITIAL.PROGRAMS),  ;* Program name
+                   program.src(INITIAL.PROGRAMS),   ;* The pathname of the program's source record (1 Nov 26: the AI's wall asks where the source it would send comes from)
                    head(INITIAL.PROGRAMS),
                    lines(INITIAL.PROGRAMS),
                    symbols(INITIAL.PROGRAMS),
@@ -98,7 +106,18 @@ $define DATA.AREA.LINES        5
 
                    debugger.uid,                ;* Other side for phantom debugger
 
-                   dbg.store                    ;* 9 Nov 26 (from Linux debd0698, W.11 F10b): the phantom debugger's private store, a directory file made by !pdbg_store (PDEBUG and PDBG open it; DEBUG uses it)
+                   ai.ok,                       ;* 24 Oct 26: the AI command is available (the AI is usable for the account and the display is full screen); set once, in initialise
+
+                   dbg.store,                   ;* 31 Oct 26 (W.11 F10b): the phantom debugger's private store, a directory file made by !pdbg_store (PDEBUG and PDBG open it; DEBUG uses it)
+
+                   data.attr,                   ;* 1 Nov 26 (S.98 H1): the styles of the messages, of the Autos pane and its title, of the status line and of the line numbers
+                   auto.attr,
+                   head.attr,
+                   rev.attr,
+                   num.attr,
+                   auto.here,                   ;* ...and the stops the Autos pane keys on, as program index:line: this one and the one before (0 when there is none)
+                   auto.prev,
+                   alt.able                     ;* 2 Nov 26 (S.98 H3): the terminal has an alternate screen (smcup and rmcup); set once, in initialise. Without one a full-screen debugger takes the main screen for the length of a stop
 
 * Event codes (additive)
 

@@ -3,6 +3,21 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+11 Nov 26  SED IS SD CORE'S EDITOR, THE DEBUGGER TAKES THE WHOLE SCREEN, AND THE VOC CAN NO LONGER BE WRITTEN BY PATHNAME.
+
+             What        - SED now opens SD Core's editor (the IDE): tabs, record locks, an OS-file tree, breakpoints
+                           handed to the debugger, a single-record mode, undo and redo, and the menu bar on the top
+                           line. The old SED program is gone. The debugger draws its full-screen layout with a menu
+                           bar and themes, and F1 lists its keys. CED is SD Core's. An ordinary session (not ADMIN,
+                           no OS access) can no longer change the VOC's own files by pathname: OPENSEQ gives such a
+                           file read only and cannot create one there, DELETESEQ refuses, and a print file there is
+                           refused with the VOC rule's message.
+             Why         - This version had October's SED; and the VOC rule watched only records, so a program
+                           could rewrite the VOC through its files (found on SD Core for Linux Solo, closed there
+                           on 24 Oct).
+             Does NOT    - Keep a recovery copy of unsaved text (nothing turns it on in Solo), or offer the AI.
+                           NOT YET TESTED ON AN INSTALLED SYSTEM.
+
 11 Nov 26  THE SCREEN LIBRARY AND THE TOOLKIT ARE SD CORE'S: THE PAPER AND NIGHT THEMES, FORMS THAT FOLLOW THE WINDOW, AND
            ACCELERATOR KEYS.
 

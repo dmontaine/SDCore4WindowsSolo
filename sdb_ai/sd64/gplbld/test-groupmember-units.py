@@ -96,6 +96,12 @@ FAIL_CLOSED = {
     # purpose, and a new caller must be classified here or the guard goes red.
     # 25 Sep 26 - SD Core Solo (SOLO 4): LOGIN's sdusers gate, and every site in
     # createa, granta and modifya, went with those programs (no SD groups).
+    # 11 Nov 26 - SOLO 56 group 4: the toolkit's gate matrix came with SD Core's
+    # toolkit (and Linux Solo's), and with it SD Core's declared site, unchanged.
+    ("tk_gates", "state = (if is_grp_member(user, gi<TK.G.GROUP>) then 1 else 0)"):
+        "tool.gates (S.75, carried 25 Oct 26 from Linux 04f1eaa): a display of the "
+        "gate matrix for an administrator; a could-not-tell shows the gate as off, "
+        "never as on, and nothing is granted or changed from it",
 }
 
 # 18 Sep 26 - RELEASE_1.1 64 DELETED TWO DECLARED SITES: the administrator

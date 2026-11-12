@@ -42,13 +42,10 @@ ACCOUNTS = 'Solo has no account management: removed in SOLO 4 (8eddae56)'
 SOLO56 = 'Linux Solo\'s carry of SD Core\'s full-screen work and S.216 (to 3105155), not carried to Windows Solo yet: SOLO 56'
 NOT_HERE = {
     **{n: SOLO56 for n in (
-        'audit_read', 'ced_core', 'dict_form', 'dict_item', 'edit_guard', 'edit_msg', 'edit_recovery', 'ide_name', 'ide_osfile', 'idebrk.h', 'netadmin',
-        'recarr', 'remotedoor', 'setconfig', 'tool_audit', 'tool_backups', 'tool_bulk', 'tool_catalog', 'tool_config', 'tool_dict', 'tool_files',
+        'audit_read', 'netadmin', 'remotedoor', 'setconfig', 'tool_audit', 'tool_backups', 'tool_bulk', 'tool_catalog', 'tool_config', 'tool_dict', 'tool_files',
         'tool_query', 'tool_remote', 'tool_test', 'tool_voc')},
     # 11 Nov 26: SOLO 56 group 3 carried the screen library and the toolkit (with the AI's toolkit parts, inert as in SD Core for Windows:
-    # the kernel answers K$AI.* "no helper").  These four wait for the edit keys of P-16 (SOLO 56 group 4), which they ask.
-    **{n: 'the toolkit\'s gate parts ask the edit keys (K$EDIT.OK, K$VOC.EDIT ...) that come with the editors: SOLO 56 group 4' for n in (
-        'tk_explain', 'tk_gate_info', 'tk_gates', 'tk_ownfile')},
+    # the kernel answers K$AI.* "no helper").  11 Nov 26: group 4 carried the editors, the edit keys with Solo's answers and the toolkit's gate parts.
     'ai':               AI,
     'setai':            AI,
     'tool_ai':          AI,

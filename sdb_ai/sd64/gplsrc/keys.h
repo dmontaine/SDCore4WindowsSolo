@@ -473,6 +473,19 @@
    K_SH and K_OS_EXEC are; the administrator is never refused.  SD Core keeps it in a gates word; Solo has none, so it is the user flag USR_NET
    (sysseg.h).  GPL.BP/INT$KEYS.H carries the same number. */
 #define K_NET                127
+/* 11 Nov 26 SD Core Solo - SOLO 56 group 4, as Linux Solo (S.117, 10 Nov 26; carry 19, 24 Oct 26): SD Core's edit keys at SD Core's numbers, which
+   SD Core's editors and toolkit ask, answered with Solo's rules (op_kernel.c): K_EDIT_OK, K_BP_EDIT and K_DICT_EDIT always 1 (the VOC rule is
+   !voc_refusal at the save), K_VOC_EDIT the administrator, K_SD_ACCOUNTS and K_SHARED_READ/WRITE 0 (one account, no shared account),
+   K_EDIT_KIND the kind of file by its last component, K_EDIT_OS_OK edit_os_path_refusal() (op_dio2.c, the VOC alone).  None can be set. */
+#define K_SD_ACCOUNTS        118
+#define K_VOC_EDIT           121
+#define K_BP_EDIT            122
+#define K_DICT_EDIT          123
+#define K_EDIT_OK            124
+#define K_EDIT_KIND          125
+#define K_EDIT_OS_OK         126
+#define K_SHARED_READ        128
+#define K_SHARED_WRITE       129
 #define K_PROFILER           116
 #define K_PROFILER_USER      117
 /* 13 Oct 26 dm (Linux 7ff476f) - THE TERMINAL'S OWN SIZE.  kernel(K$WINSIZE, '') answers the terminal's width, a field mark and

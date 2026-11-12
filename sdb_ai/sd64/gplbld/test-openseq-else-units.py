@@ -3,6 +3,8 @@
 # session at the home screen kept an update lock on the ABSENT start.default for as long as it lived and the next session waited at sign-on).  A program that lives as long as a page
 # or an editor is open must close the variable in the ELSE branch.  home_entry, setstart, tool_menus, viewlist and osread are held by test-home-units.py (H28a); this holds the long-lived
 # programs the audit of the same day added: SED's open of a file by path (SD Core's configuration and catalogue pages, which the audit also fixed, are not in Solo - Solo carry 21, copied from SD Core).
+# 11 Nov 26 SOLO 56 group 4: gpl.bp/sed is retired (SED is the IDE, as in SD Core and Linux Solo), so the held program is SD Core's: ide_osfile, whose
+# open the IDE's tab holds for as long as it is open.  tool_config and tool_catalog come with the pages (SOLO 56 group 5).
 # Left alone on purpose: apisrvr (seqfiles(os.slot) is an array element, and `unassigned()` of one is not known to compile; the failed open of an API request leaves the lock until the slot
 # is used again - open item), and the short programs that end at once (acc_archive, acc_os_bakdir, netcred, netdefs, locktracer, importdata, ...), whose variable goes with them.
 # FREE CHECK: the BASIC read as text; no install, no sd.
@@ -16,7 +18,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 BP = os.environ.get("BPDIR", os.path.normpath(os.path.join(HERE, "..", "sdsys", "gpl.bp")))
 # program -> the file variables whose OPENSEQ must close in ELSE
-WANT = {"sed": ["fpath.f"]}       # Solo carry 21: SD Core's configuration and catalogue pages (tool_config, tool_catalog) are not in Solo
+WANT = {"ide_osfile": ["f"]}       # as SD Core's copy, without tool_config and tool_catalog (not in Solo until SOLO 56 group 5)
 
 
 def read(name):
@@ -117,8 +119,10 @@ def selftest():
             print("  [MISSED] %s: failing rows %s" % (name, failing))
             missed += 1
 
-    mutant("sed first open", "sed", "            if not(unassigned(fpath.f)) then close fpath.f ", "            if not(unassigned(fpath.f)) then null ")
-    mutant("sed second open", "sed", "               if not(unassigned(fpath.f)) then close fpath.f\n               open.ok = @false", "               open.ok = @false")
+    # 11 Nov 26: SD Core's form of this mutant broke the first "close f" in ide_osfile, which is in the ON ERROR clause, not the ELSE branch the check reads, so it
+    # was never caught (SD Core's self-test stops earlier, on tool_config, so it never said so).  This one breaks the close in the ELSE branch of the first open.
+    mutant("ide_osfile open", "ide_osfile", "   end else\n      op.st = status()\n      if not(unassigned(f)) then close f\n",
+           "   end else\n      op.st = status()\n      if not(unassigned(f)) then null\n")
     print("selftest: %d of %d mutants caught, %d missed" % (caught, caught + missed, missed))
     return 0 if missed == 0 else 1
 

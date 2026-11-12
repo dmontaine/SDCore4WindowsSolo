@@ -441,6 +441,11 @@ bool os_gate_open(void);
 bool os_path_ok_for_account(const char * name);
 bool os_path_inside(const char * rootdir, const char * name);   /* 21 Oct 26, Solo carry 10: geometry only, for K_PATH_IN */
 bool os_path_open_ok(const char * name);
+/* 11 Nov 26 SOLO 56 group 4 (Linux Solo carry 19): the OS-path routes to the VOC (op_dio2.c).  SD Core's names and numbers; Solo knows one kind. */
+#define EDIT_NONE 0
+#define EDIT_VOC  1
+int edit_os_path_refusal(const char * name, bool include_leaf);
+bool edit_leaf_counts(const char * name);
 
 /* OP_DIO3.C - line terminator modes of directory and sequential files (16 Oct 26, QM4 Fixes item 452) */
 u_char crlf_from_vflags(const char * vflags);
