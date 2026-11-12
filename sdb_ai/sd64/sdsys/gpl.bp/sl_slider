@@ -4,6 +4,7 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 25 Oct 26 Windows port - from Linux 04f1eaa - the screen library as of S.75 TK-0.13 (containers and viewports, slider, selector, colour, accelerators, table styles)
 * 22 Oct 26 dm  New (S.75, TK-0.8; the owner asked for a slider button for on / off, 22 Oct 2026).
 * 22 Oct 26 dm  The look is [off | ON] and [OFF | on], as the owner was first shown (the first build drew a knob on a track, [O--] and [==O], and said nothing
 *               of the change); the word in force is in capitals and in the style attr (bold unless the program says another).  A click on a word sets that

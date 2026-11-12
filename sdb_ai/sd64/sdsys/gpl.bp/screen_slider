@@ -4,6 +4,7 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 25 Oct 26 Windows port - from Linux 04f1eaa - the screen library as of S.75 TK-0.13 (containers and viewports, slider, selector, colour, accelerators, table styles)
 * 22 Oct 26 dm  New (S.75, TK-0.8).
 * 22 Oct 26 dm  The look is [off | ON] (see $sl_slider), the ATTR clause names the style of the word in force and the WORDS clause the two words.
 * 22 Oct 26 dm  PLACE: where the label is (left by default).

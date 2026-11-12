@@ -4,10 +4,10 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
-* 18 Oct 26 Windows port - from Linux 1e23a00 (12 Oct 26): New.
-* 12 Oct 26 Windows port - from Linux 87ece91 - New.
-* 22 Oct 26 Windows port - from Linux 87ece91 - A letter marked with & in the text is the label's Alt-letter (S.75 TK-0.12).
-* 22 Oct 26 Windows port - from Linux 87ece91 - ... and is drawn in the hotkey style (apos, its place in the text; SCREEN SET ... TEXT clears it).
+* 25 Oct 26 Windows port - from Linux 04f1eaa - the screen library as of S.75 TK-0.13 (containers and viewports, slider, selector, colour, accelerators, table styles)
+* 12 Oct 26 dm  New.
+* 22 Oct 26 dm  A letter marked with & in the text is the label's Alt-letter (S.75 TK-0.12).
+* 22 Oct 26 dm  ... and is drawn in the hotkey style (apos, its place in the text; SCREEN SET ... TEXT clears it).
 * END-HISTORY
 *
 * START-DESCRIPTION:

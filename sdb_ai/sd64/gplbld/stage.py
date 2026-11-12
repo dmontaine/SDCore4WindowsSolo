@@ -781,6 +781,10 @@ APIPORT=4249
 # NETDIRS=
 SH=C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -NoLogo
 SH1=C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command
+# 11 Nov 26 SD Core Solo (SOLO 56 group 3) - as SD Core for Windows and Linux Solo's sd.conf:
+# The colour theme a full-screen program gets when it chooses none: paper, night, mono, classic or blue
+# (a terminal with no colour shows mono whatever this says).
+SCREENTHEME=paper
 """
 
 # 25 Aug 26 - THE STAND-ALONE VARIANT, DERIVED FROM SD_CONF AND NEVER WRITTEN

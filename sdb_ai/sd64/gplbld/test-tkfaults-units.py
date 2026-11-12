@@ -13,6 +13,8 @@ a session on a terminal.  What a text check is for here: the ORDER and the ABSEN
   F6     message 12870 ("Press Enter to return") names no screen.
 
 This is Linux's test-tkfaults-units.py reduced to what this tree has: tool.dict, tool.query, tool.bulk and tool.test are not carried (their checks, F7 to F9, are not here).
+11 Nov 26 SD Core Solo (SOLO 56 group 3, the toolkit as SD Core for Windows has it): F2 ends at $tk_layout('open' (the S.88 L1 lock, which replaced
+$sl_guardmode there) and F4 reads the seventh argument, btns, in the signature, as SD Core's copy of this guard does.
 --selftest breaks each invariant in the way an edit plausibly would and requires the named check to notice; a mutant that nothing catches is a failure of the self-test.
 """
 
@@ -116,7 +118,7 @@ def checks(raw):
        and re.search(r"\$define TK\.MINW\s+140\b", th) is not None and re.search(r"\$define TK\.MINH\s+43\b", th) is not None, "")
     ck("F2", "ORDER in $tk_open: a phantom is turned away, the minimum is asked, the audience is asked, THEN the window is asked for its size and the maximum applied, and only then the screen is taken - "
              "a window too big is refused before the screen is taken (taking it is what costs the time) and after the audience (so the administrator-only message is the same at every size)",
-       ordered(op, "system(25)", "call $sl_need(", "K$ADMINISTRATOR", "call $sl_window(win.w, win.h)", "TK.MAXW", "TK.MAXH", "screen open", "call $sl_guardmode(")
+       ordered(op, "system(25)", "call $sl_need(", "K$ADMINISTRATOR", "call $sl_window(win.w, win.h)", "TK.MAXW", "TK.MAXH", "screen open", "call $tk_layout('open'")
        and op.count("call $sl_window(win.w, win.h)") == 1, "")
     ck("F3", "the refusal says message 12956 with the app, TK.MAXW, TK.MAXH and the size found, and RETURNS (a test of BOTH dimensions; no number is typed into the program), and the message is the shape of 12202",
        re.search(r"if win\.w > TK\.MAXW or win\.h > TK\.MAXH then err = sysmsg\(12956, app, TK\.MAXW, TK\.MAXH, win\.w : ' by ' : win\.h\) return end", op) is not None
@@ -126,7 +128,7 @@ def checks(raw):
 
     ck("F4", "$tk_confirm is VAR.ARGS with a sixth argument that is only ever read after UNASSIGNED() has been tested, in a nested IF (BASIC does not short-circuit): the default is message 12817 and "
              "the one title is given to BOTH boxes the routine shows (the Run / Cancel box and the box that asks for the name typed)",
-       "subroutine tk_confirm(sentence, lines, typed, res, msg, boxtitle) var.args" in cf
+       "subroutine tk_confirm(sentence, lines, typed, res, msg, boxtitle, btns) var.args" in cf
        and cf.count("boxtitle") == 4 and ordered(cf, "ttl = sysmsg(12817)", "if not(unassigned(boxtitle)) then if boxtitle # '' then ttl = boxtitle end", "screen msgbox body title ttl buttons", "tt = ttl", "screen ask pr width fw title tt")
        and cf.count("sysmsg(12817)") == 1 and "title sysmsg(12817)" not in cf and " and boxtitle" not in cf and " or boxtitle" not in cf, "")
     bad = []
@@ -156,11 +158,11 @@ MUTANTS = [
     ("the maximum width is gone", "tk.h", "$define TK.MAXW        500", "$define TK.MAXW        5000", "F1"),
     ("the maximum height is typed into $tk_open", "tk_open", "win.w > TK.MAXW or win.h > TK.MAXH", "win.w > TK.MAXW or win.h > 300", "F3"),
     ("only the width is tested", "tk_open", "if win.w > TK.MAXW or win.h > TK.MAXH then", "if win.w > TK.MAXW then", "F3"),
-    ("the size is asked before the audience", "tk_open", "   call $sl_need(app, TK.MINW, TK.MINH, need.msg, '')", "   call $sl_window(win.w, win.h)\n   call $sl_need(app, TK.MINW, TK.MINH, need.msg, '')", "F2"),
+    ("the size is asked before the audience", "tk_open", "   call $sl_need(app, floor.w, floor.h, need.msg, '')", "   call $sl_window(win.w, win.h)\n   call $sl_need(app, floor.w, floor.h, need.msg, '')", "F2"),
     ("the refusal falls through", "tk_open", "      err = sysmsg(12956, app, TK.MAXW, TK.MAXH, win.w : ' by ' : win.h)\n      return\n", "      err = sysmsg(12956, app, TK.MAXW, TK.MAXH, win.w : ' by ' : win.h)\n", "F3"),
     ("the title is read before it is tested", "tk_confirm", "   if not(unassigned(boxtitle)) then\n      if boxtitle # '' then ttl = boxtitle\n   end\n", "   if boxtitle # '' then ttl = boxtitle\n", "F4"),
     ("the second box keeps the old title", "tk_confirm", "      tt = ttl", "      tt = sysmsg(12817)", "F4"),
-    ("the routine is no longer VAR.ARGS", "tk_confirm", "boxtitle) var.args", "boxtitle)", "F4"),
+    ("the routine is no longer VAR.ARGS", "tk_confirm", "boxtitle, btns) var.args", "boxtitle, btns)", "F4"),
     ("message 12870 names the home screen", "m12870", "Press Enter to return", "Press Enter to return to the home screen", "F6"),
     ("message 12956 loses its fourth word", "m12956", "this one is %4", "this one is", "F3"),
 ]

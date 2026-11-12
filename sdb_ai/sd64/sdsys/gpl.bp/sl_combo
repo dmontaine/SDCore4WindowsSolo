@@ -4,10 +4,10 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
-* 18 Oct 26 Windows port - from Linux 367841d (12 Oct 26): New.
-* 12 Oct 26 Windows port - from Linux 87ece91 - New.
-* 18 Oct 26 Windows port - from Linux 87ece91 - The list of choices is drawn outside the narrow clip of a container (SL.S.BCLIP).
-* 18 Oct 26 Windows port - from Linux 87ece91 - The key guardquit (the user left from the cursor lock, $sl_guardmode) closes the list as Esc does; the cursor is
+* 25 Oct 26 Windows port - from Linux 04f1eaa - the screen library as of S.75 TK-0.13 (containers and viewports, slider, selector, colour, accelerators, table styles)
+* 12 Oct 26 dm  New.
+* 18 Oct 26 dm  The list of choices is drawn outside the narrow clip of a container (SL.S.BCLIP).
+* 18 Oct 26 dm  The key guardquit (the user left from the cursor lock, $sl_guardmode) closes the list as Esc does; the cursor is
 *               placed through $sl_curat.
 * END-HISTORY
 *

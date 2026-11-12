@@ -4,15 +4,18 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
-* 18 Oct 26 Windows port - from Linux bc9ef2d (13 Oct 26): A drop-down taller than the room under its bar scrolls: it shows the rows that fit, keeps the
+* 8 Nov 26 Windows port - from Linux 2930d92f (S.87): CLOSESEQ and EQU are gone as statements: this program says CLOSE and EQUATE.
+* 25 Oct 26 Windows port - from Linux 04f1eaa - the screen library as of S.75 TK-0.13 (containers and viewports, slider, selector, colour, accelerators, table styles)
+* 12 Oct 26 dm  New.
+* 13 Oct 26 dm  A drop-down taller than the room under its bar scrolls: it shows the rows that fit, keeps the
 *               current item in view, and marks the cut edges with ^ and v.  Before this the rows that did not
 *               fit were not drawn (SED on a 12-row terminal showed 10 of the 17 Edit items) though the cursor
 *               still moved over them.
-* 18 Oct 26 Windows port - from Linux c798144 (12 Oct 26): New.
-* 18 Oct 26 Windows port - from Linux 87ece91 - The key guardquit (the user left from the cursor lock, $sl_guardmode) closes the menu as Esc does; the cursor is
+* 18 Oct 26 dm  The key guardquit (the user left from the cursor lock, $sl_guardmode) closes the menu as Esc does; the cursor is
 *               placed through $sl_curat.
-* 19 Oct 26 Windows port - from Linux 87ece91 - The op hit (which title is over a column), and title.at, which click.menu used inline: a click on a bar that is not open
+* 19 Oct 26 dm  The op hit (which title is over a column), and title.at, which click.menu used inline: a click on a bar that is not open
 *               can start the menu under it (SCREEN MENUBAR ... CLICK; the IDE ignored a click on its bar until Esc had opened the menu).
+* 10 Nov 26 dm  S.173: the style hotkey.sel (code Z), the mnemonic letter on the selected entry of a bar.
 * END-HISTORY
 *
 * START-DESCRIPTION:
@@ -385,7 +388,7 @@ get.styles:
    call $sl_attr('bar', ba)
    call $sl_attr('barsel', bs)
    call $sl_attr('hotkey.bar', hb)
-   call $sl_attr('hotkey', hu)
+   call $sl_attr('hotkey.sel', hu)
    call $sl_attr('bar.disabled', da)
    return
 

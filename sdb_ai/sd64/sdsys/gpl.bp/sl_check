@@ -4,11 +4,11 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
-* 18 Oct 26 Windows port - from Linux 1e23a00 (12 Oct 26): New.
-* 12 Oct 26 Windows port - from Linux 87ece91 - New.
-* 22 Oct 26 Windows port - from Linux 87ece91 - The label goes where place says (left by default, right, above, below), through $sl_caption.  The owner asked for a placement option with left as
+* 25 Oct 26 Windows port - from Linux 04f1eaa - the screen library as of S.75 TK-0.13 (containers and viewports, slider, selector, colour, accelerators, table styles)
+* 12 Oct 26 dm  New.
+* 22 Oct 26 dm  The label goes where place says (left by default, right, above, below), through $sl_caption.  The owner asked for a placement option with left as
 *               the default, 22 Oct 2026: a check box used to be [x] text.
-* 22 Oct 26 Windows port - from Linux 87ece91 - The letter marked with & in the label is drawn in the hotkey style while the box does not have the focus (apos; S.75 TK-0.12).
+* 22 Oct 26 dm  The letter marked with & in the label is drawn in the hotkey style while the box does not have the focus (apos; S.75 TK-0.12).
 * END-HISTORY
 *
 * START-DESCRIPTION:

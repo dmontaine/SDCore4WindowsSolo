@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 11 Nov 26 SD Core Solo - SOLO 56 group 3: K_AI_START, K_AI_POLL, K_AI_CANCEL, K_AI_STATUS (160-163), answered "no helper", as SD Core for
+ *           Windows.
  * 11 Nov 26 SD Core Solo - SOLO 56 group 2, from Windows Core (Linux Solo has it, 28 Oct 26, S.88 phase 2): K_SHOW_SAFE (151), the kernel's
  *           one rule for showing another session's text, for BASIC (PSTAT, PROFILER, HSM).
  * 9 Nov 26 SD Core Solo - from Linux debd0698 / S.88: SD_USER_HOME (112), the running user's home and a private directory below it.
@@ -441,6 +443,14 @@
    reads and changes nothing else and any program may ask: PSTAT, PROFILER DISPLAY and HSM USER n print the $IPC records S<n>, F<n> and
    H<n> that any SD user can write.  Same number as Linux; GPL.BP/INT$KEYS.H carries it. */
 #define K_SHOW_SAFE          151
+/* 11 Nov 26 SD Core Solo - SOLO 56 group 3, as SD Core for Windows (10 Nov 26, from Linux S.69 step 2): the in-SD AI helper's keys, so the
+   screen library's AI routines ($tk_ai, $tk_aipage, $tk_aiwall, $tk_aidocs) carry unchanged.  There is no helper here: op_kernel.c answers
+   each as Linux's op_ai.c does when no helper is running - START 'ERR' FM 'nohelper', POLL and STATUS 'E' FM 'nohelper', CANCEL 'OK' - so
+   the AI is never usable and nothing is sent. */
+#define K_AI_START           160
+#define K_AI_POLL            161
+#define K_AI_CANCEL          162
+#define K_AI_STATUS          163
 /* 16 Oct 26 dm - QM4 gaps (PROFILER).
      K_PROFILER        n > 0 starts the application event profiler in this process, logging the events whose PROF_x bits are in n (and
                        emptying the table); 0 stops it, leaving what was found; -1 asks which are being logged; -2 returns what was

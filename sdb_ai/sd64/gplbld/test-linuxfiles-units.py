@@ -43,16 +43,15 @@ SOLO56 = 'Linux Solo\'s carry of SD Core\'s full-screen work and S.216 (to 31051
 NOT_HERE = {
     **{n: SOLO56 for n in (
         'audit_read', 'ced_core', 'dict_form', 'dict_item', 'edit_guard', 'edit_msg', 'edit_recovery', 'ide_name', 'ide_osfile', 'idebrk.h', 'netadmin',
-        'recarr', 'remotedoor', 'setconfig', 'sl_out', 'sl_palette', 'sl_picker', 'sl_widget_move', 'tk_aidocs', 'tk_aipage', 'tk_aiwall', 'tk_badch',
-        'tk_brk', 'tk_explain', 'tk_findrow', 'tk_form', 'tk_gate_info', 'tk_gates', 'tk_layout', 'tk_menubar', 'tk_out', 'tk_ownfile', 'tk_pickrec',
-        'tk_startof', 'tk_std', 'tk_theme', 'tk_word', 'tkclose', 'tkconfirm', 'tkform', 'tkframe', 'tkkeys', 'tklayout', 'tkmenubar', 'tkopen', 'tkout',
-        'tkpickrec', 'tkwrap', 'tool_audit', 'tool_backups', 'tool_bulk', 'tool_catalog', 'tool_config', 'tool_dict', 'tool_files', 'tool_query',
-        'tool_remote', 'tool_test', 'tool_voc')},
+        'recarr', 'remotedoor', 'setconfig', 'tool_audit', 'tool_backups', 'tool_bulk', 'tool_catalog', 'tool_config', 'tool_dict', 'tool_files',
+        'tool_query', 'tool_remote', 'tool_test', 'tool_voc')},
+    # 11 Nov 26: SOLO 56 group 3 carried the screen library and the toolkit (with the AI's toolkit parts, inert as in SD Core for Windows:
+    # the kernel answers K$AI.* "no helper").  These four wait for the edit keys of P-16 (SOLO 56 group 4), which they ask.
+    **{n: 'the toolkit\'s gate parts ask the edit keys (K$EDIT.OK, K$VOC.EDIT ...) that come with the editors: SOLO 56 group 4' for n in (
+        'tk_explain', 'tk_gate_info', 'tk_gates', 'tk_ownfile')},
     'ai':               AI,
     'setai':            AI,
     'tool_ai':          AI,
-    'tk_ai':            AI,
-    'tk_runx':          'the toolkit base tool.ai uses; Core has it from the TUI carry (f55e5fa5), the AI is not carried: RELEASE_1.1 197',
     '_ioscopy':         OSCOPY,
     '_oscopy':          OSCOPY,
     'oscopya':          OSCOPY,

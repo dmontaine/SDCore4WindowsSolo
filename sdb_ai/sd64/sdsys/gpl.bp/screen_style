@@ -4,7 +4,8 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
-* 18 Oct 26 Windows port - from Linux 7ff476f (12 Oct 26): New.
+* 25 Oct 26 Windows port - from Linux 04f1eaa - the screen library as of S.75 TK-0.13 (containers and viewports, slider, selector, colour, accelerators, table styles)
+* 12 Oct 26 dm  New.
 * END-HISTORY
 *
 * START-DESCRIPTION:
@@ -15,7 +16,7 @@
 *
 *   call !screen_style(name, fg, bg, flags, ret, status)
 *
-*     name        a style of a theme: bold, window, highlight, bar, barsel, hotkey, hotkey.bar, field, disabled,
+*     name        a style of a theme: bold, window, highlight, bar, barsel, hotkey, hotkey.bar, hotkey.sel, field, disabled,
 *                 desktop, text or header (normal, reverse, underline and both are the same in every theme;
 *                 see $sl_theme)
 *     fg bg       a colour: black, blue, green, cyan, red, magenta, brown (or yellow) or white; null leaves

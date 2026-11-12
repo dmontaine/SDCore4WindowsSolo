@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 11 Nov 26 SD Core Solo - SOLO 56 group 3: K_AI_START, POLL, CANCEL and STATUS answered "no helper", as SD Core for Windows.
  * 11 Nov 26 SD Core Solo - SOLO 56 group 2, from Windows Core (Linux d35f5e31 / d8dbde84, S.88, as in Linux Solo): K_SHOW_SAFE (151), another
  *           session's text made safe to print by the kernel's one rule (show_ts_safe()); kernel(K$AUTOLOGOUT, -2) returns the inactivity
  *           clock (keyin_idle_ms()).
@@ -1007,6 +1008,20 @@ void op_kernel() {
         show_ts_safe(safe_chunk->data, (int)(safe_chunk->bytes));
       (void)ts_terminate();
     } break;
+
+    /* 11 Nov 26 SD Core Solo - SOLO 56 group 3, as SD Core for Windows: Linux's in-SD AI helper keys (op_ai.c there).  No helper exists
+       here, so each is answered as Linux answers when its helper is not running: the AI routines then find the AI unusable, draw no AI
+       line and send nothing.  The answers are strings of a word, a field mark and a word, as op_ai.c's ai_answer() builds them. */
+    case K_AI_START:
+      k_put_c_string("ERR\376nohelper", &result);
+      break;
+    case K_AI_POLL:
+    case K_AI_STATUS:
+      k_put_c_string("E\376nohelper", &result);
+      break;
+    case K_AI_CANCEL:
+      k_put_c_string("OK", &result);
+      break;
 
     case K_PROFILER:
       /* The application event profiler of this process (see keys.h and profiler.c).  Anyone may profile their own process. */

@@ -4,21 +4,29 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
-* 18 Oct 26 Windows port - from Linux 1e23a00 (12 Oct 26): New.
-* 12 Oct 26 Windows port - from Linux 87ece91 - New.
-* 18 Oct 26 Windows port - from Linux 87ece91 - Containers and viewports ($sl_viewport): a widget may have a parent (w{'parent'} an id, w{'pn'} its
+* 25 Oct 26 Windows port - from Linux 04f1eaa - the screen library as of S.75 TK-0.13 (containers and viewports, slider, selector, colour, accelerators, table styles)
+* 12 Oct 26 dm  New.
+* 18 Oct 26 dm  Containers and viewports ($sl_viewport): a widget may have a parent (w{'parent'} an id, w{'pn'} its
 *               number), laid out from it, clipped to it, hidden / disabled / deleted with it; the ops scroll and delete;
 *               the wheel, a drag on a bar's thumb, a child taking the focus scrolling into view, the hardware cursor
 *               hidden while the focused widget is not wholly in view.  A form with no parents is drawn as before.
-* 18 Oct 26 Windows port - from Linux 87ece91 - Terminal 140 by 42, phase 3: the cursor is hidden and shown through $sl_curat, which also tells the cursor lock;
+* 18 Oct 26 dm  Terminal 140 by 42, phase 3: the cursor is hidden and shown through $sl_curat, which also tells the cursor lock;
 *               the key guardquit is not a widget's, and a modal form reads it as Esc.
-* 18 Oct 26 Windows port - from Linux 87ece91 - The op drawwidget: one widget drawn again, not the whole form (the IDE changing record rewrote the whole screen, which showed as a flash).
-* 19 Oct 26 Windows port - from Linux 87ece91 - wait.event: a null key is a timeout only when STATUS() is ER$TIMEOUT; an input that has ended is end, with or without a timeout
+* 18 Oct 26 dm  The op drawwidget: one widget drawn again, not the whole form (the IDE changing record rewrote the whole screen, which showed as a flash).
+* 19 Oct 26 dm  wait.event: a null key is a timeout only when STATUS() is ER$TIMEOUT; an input that has ended is end, with or without a timeout
 *               (the IDE's timeout 1 turned the end into timeouts for ever, at full CPU; sandbox-eofkeys.py).
-* 19 Oct 26 Windows port - from Linux 87ece91 - f{'bgclick'} = 1: a press of the left button on no widget comes back as the key mouse (SCREEN MOUSE says where) instead of
+* 19 Oct 26 dm  f{'bgclick'} = 1: a press of the left button on no widget comes back as the key mouse (SCREEN MOUSE says where) instead of
 *               being ignored, so that the IDE can open its menu from a click on the bar.
-* 22 Oct 26 Windows port - from Linux 87ece91 - selector (S.75, TK-0.10): dispatched like the slider, and a change of its value is a change event.
-* 22 Oct 26 Windows port - from Linux 87ece91 - Accelerators (S.75, TK-0.12): find.accel and run.accel at the top of route.key; f{'achg'} makes the change event.
+* 22 Oct 26 dm  selector (S.75, TK-0.10): dispatched like the slider, and a change of its value is a change event.
+* 22 Oct 26 dm  Accelerators (S.75, TK-0.12): find.accel and run.accel at the top of route.key; f{'achg'} makes the change event.
+* 28 Oct 26 dm  S.88 L1 (R-a): wait.event asks $sl_scr('pending') before each key: a resize a dialogue read is the event resize first.
+* 30 Oct 26 dm  S.88 p3.6, the focus service: fix.focus (a focus that became ineligible - SCREEN SET ENABLED / VISIBLE, another tab - goes to the next control that can have it,
+*               or to none: f{'nofocus'}), run by 'redraw' and the new op 'recheck'; the op 'focus' refuses a target that cannot have the focus on a shown form (ret 1);
+*               set.focus does not draw a widget that is hidden or off the page (fpaint 0: flags only); route.key swallows a key (a bell) while the focus is stale, apart
+*               from Tab, Shift-Tab, Up, Down and Esc; park.cursor hides the cursor when nothing can have the focus; route.mouse asks can.focus.
+* 8 Nov 26 dm  S.176: f{'tabkeys'} = 1: Tab and Shift-Tab that no widget took come back to the program as keys instead of moving the focus (the IDE, whose
+*               panes are boxes: F6 and Shift-F6 move between them on every page; the owner, 8 Nov 26, "F6 for boxes is fine").
+* 10 Nov 26 dm  S.183: a form made with FILL takes the whole window and follows it (fill.form).
 * END-HISTORY
 *
 * START-DESCRIPTION:
@@ -50,7 +58,10 @@
 *     draw    the frame, then every widget, the focused one last (it leaves the cursor in itself)
 *     drawwidget  key is a widget id: that one widget is drawn again, and the cursor goes back to the focused widget (no frame,
 *             no other widget; nothing if the form is not shown)
-*     focus   key is a widget id (or number); the focus goes there, both widgets redrawn
+*     focus   key is a widget id (or number); the focus goes there, both widgets redrawn.  ret is 0 when it went, 1 when it did not: on a shown form the
+*             widget must be on the page, not hidden, not disabled and not in a container that is.  A form that is not shown takes the pointer and the flags only
+*     recheck the form is shown and a program has changed a widget without drawing the form (SCREEN SET with f{'quiet'}): if the widget that has the focus can no
+*             longer have it (hidden, disabled, or on another tab) the focus goes to the next that can, redrawn, or to none (f{'nofocus'} = 1, the cursor hidden)
 *     key     one key goes to the widget that has the focus.  ret<1> is 'handled', 'done' or 'cancel'
 *             (ret<2> the id of the button that ended the form; for Esc, that of the form's cancel
 *             button or null), or 'unhandled' with ret<2> the key.
@@ -93,6 +104,7 @@ $include err.h
 
    ret = ''
    wkey = ''                                 ;* the key handed to a widget: none for init, draw ...
+   fpaint = 1                                ;* set.focus draws the two widgets; 0 only while fix.focus runs before a redraw of the whole form
    scr<SL.S.DIFF> = scr<SL.S.SYNC> + 0       ;* 19 Oct 26: on a screen the terminal of which is known to match its shadow, $sl_put leaves out what is shown already
 
    begin case
@@ -114,9 +126,25 @@ $include err.h
          gosub find.widget
          if fw = 0 and num(key) then fw = key + 0
          nw = inmat(f{'widgets'})
+         ret = 1                             ;* 1: the focus did not move
          if fw >= 1 and fw <= nw then
             ni = fw
-            gosub set.focus
+            if f{'shown'} then
+               i = fw
+               gosub can.focus               ;* on a shown form the target must be on the page, visible, enabled and not inside what is disabled
+               if cf then
+                  gosub set.focus
+                  ret = 0
+               end
+            end else
+               w = f{'widgets', fw}
+               if w{'focusable'} + 0 = 1 and w{'disabled'} + 0 = 0 then
+                  fpaint = 0                 ;* nothing is on the screen: the pointer and the flags
+                  gosub set.focus
+                  fpaint = 1
+                  ret = 0
+               end
+            end
          end
 
       case op = 'key'
@@ -135,8 +163,17 @@ $include err.h
       case op = 'redraw'
          if f{'shown'} then
             gosub init.page
+            fpaint = 0                       ;* the whole form is drawn below: the flags are made right first, no widget drawn twice
+            gosub fix.focus
+            fpaint = 1
             gosub layout
             gosub draw.all
+         end
+
+      case op = 'recheck'
+         if f{'shown'} then
+            gosub init.page
+            gosub fix.focus
          end
 
       case op = 'drawwidget'
@@ -221,9 +258,86 @@ init.form:
       if f{'w'} = '' then f{'w'} = maxr
       if f{'h'} = '' then f{'h'} = maxb
    end
+   if f{'fill'} then gosub fill.form
    if f{'x'} = '' then f{'x'} = int((scr<SL.S.W> - f{'w'}) / 2)
    if f{'y'} = '' then f{'y'} = int((scr<SL.S.H> - f{'h'}) / 2)
    gosub init.page
+   return
+
+* S.183: a form made with FILL takes the whole window.  Its first size is the smallest window it is laid out for (below that $sl_guardmode holds the keyboard behind a warning).
+* Each widget keeps the place and size it was added with (x0 y0 w0 h0); the spare room dx, dy is shared among the widgets with STRETCH that lie on the same rows (for dx) or in
+* the same columns (for dy), and anything beyond one of them moves over by what it grew.  Worked out from x0 .. h0 every time, so nothing accumulates; a widget inside a container
+* moves with its container and is not touched.
+fill.form:
+   ff.n = inmat(f{'widgets'})
+   ff.sig = scr<SL.S.W> : ',' : scr<SL.S.H> : ',' : ff.n
+   if f{'fillsig'} = ff.sig then return
+   f{'fillsig'} = ff.sig
+   if f{'basew'} = '' then
+      f{'basew'} = f{'w'} + 0
+      f{'baseh'} = f{'h'} + 0
+      ff.name = f{'title'}
+      if ff.name = '' then ff.name = 'This program'
+      call $sl_guardmode(ff.name, f{'basew'}, f{'baseh'}, 'layout', f{'basew'}, f{'baseh'})
+   end
+   ff.dx = scr<SL.S.W> - f{'basew'}
+   if ff.dx < 0 then ff.dx = 0
+   ff.dy = scr<SL.S.H> - f{'baseh'}
+   if ff.dy < 0 then ff.dy = 0
+   f{'x'} = 0
+   f{'y'} = 0
+   f{'w'} = f{'basew'} + ff.dx
+   f{'h'} = f{'baseh'} + ff.dy
+   ff.box = ''                                    ;* for each widget: x0 @vm y0 @vm w0 @vm h0 @vm stretches across @vm stretches down, or null inside a container
+   for ff.i = 1 to ff.n
+      ff.w = f{'widgets', ff.i}
+      if ff.w{'pn'} + 0 = 0 then
+         if ff.w{'x0'} = '' then
+            ff.w{'x0'} = ff.w{'x'} + 0
+            ff.w{'y0'} = ff.w{'y'} + 0
+            ff.w{'w0'} = ff.w{'w'} + 0
+            ff.w{'h0'} = ff.w{'h'} + 0
+            if ff.w{'w0'} < 1 then ff.w{'w0'} = 1             ;* a widget with no size of its own (a label is one row) still lies on a row and a column
+            if ff.w{'h0'} < 1 then ff.w{'h0'} = 1
+         end
+         ff.st = ff.w{'stretch'}
+         ff.box<ff.i> = ff.w{'x0'} : @vm : ff.w{'y0'} : @vm : ff.w{'w0'} : @vm : ff.w{'h0'} : @vm : (ff.st = 'w' or ff.st = 'both') : @vm : (ff.st = 'h' or ff.st = 'both')
+      end
+   next ff.i
+   * What each widget grows by: the room, shared with the stretching widgets beside it (across) or above and below it (down)
+   ff.gw = '' ; ff.gh = ''
+   for ff.i = 1 to ff.n
+      ff.gw<ff.i> = 0 ; ff.gh<ff.i> = 0
+      if ff.box<ff.i> # '' then
+         ff.pw = 0 ; ff.ph = 0
+         for ff.j = 1 to ff.n
+            if ff.box<ff.j> # '' then
+               if ff.box<ff.j, 5> and ff.box<ff.i, 2> < ff.box<ff.j, 2> + ff.box<ff.j, 4> and ff.box<ff.j, 2> < ff.box<ff.i, 2> + ff.box<ff.i, 4> then ff.pw += 1
+               if ff.box<ff.j, 6> and ff.box<ff.i, 1> < ff.box<ff.j, 1> + ff.box<ff.j, 3> and ff.box<ff.j, 1> < ff.box<ff.i, 1> + ff.box<ff.i, 3> then ff.ph += 1
+            end
+         next ff.j
+         if ff.box<ff.i, 5> then ff.gw<ff.i> = int(ff.dx / ff.pw)
+         if ff.box<ff.i, 6> then ff.gh<ff.i> = int(ff.dy / ff.ph)
+      end
+   next ff.i
+   for ff.i = 1 to ff.n
+      if ff.box<ff.i> # '' then
+         ff.sx = 0 ; ff.sy = 0
+         for ff.j = 1 to ff.n
+            if ff.box<ff.j> # '' then
+               if ff.box<ff.j, 1> + ff.box<ff.j, 3> <= ff.box<ff.i, 1> and ff.box<ff.i, 2> < ff.box<ff.j, 2> + ff.box<ff.j, 4> and ff.box<ff.j, 2> < ff.box<ff.i, 2> + ff.box<ff.i, 4> then ff.sx += ff.gw<ff.j>
+               if ff.box<ff.j, 2> + ff.box<ff.j, 4> <= ff.box<ff.i, 2> and ff.box<ff.i, 1> < ff.box<ff.j, 1> + ff.box<ff.j, 3> and ff.box<ff.j, 1> < ff.box<ff.i, 1> + ff.box<ff.i, 3> then ff.sy += ff.gh<ff.j>
+            end
+         next ff.j
+         ff.w = f{'widgets', ff.i}
+         if ff.box<ff.i, 5> or ff.box<ff.i, 6> then
+            call $sl_widget_move(f, ff.w{'id'}, ff.box<ff.i, 1> + ff.sx, ff.box<ff.i, 2> + ff.sy, (ff.box<ff.i, 3> + ff.gw<ff.i>) : @vm : (ff.box<ff.i, 4> + ff.gh<ff.i>), ff.r)
+         end else
+            ff.w{'x'} = ff.box<ff.i, 1> + ff.sx
+            ff.w{'y'} = ff.box<ff.i, 2> + ff.sy
+         end
+      end
+   next ff.i
    return
 
 * The page the form shows is the chosen tab of its tab strip; with no strip every widget shows
@@ -373,6 +487,8 @@ park.cursor:
          end
       end
       w = pw0
+   end else
+      if pfi < 1 then phide = f{'nofocus'} + 0         ;* a repair (fix.focus) found nothing that can have the focus: the cursor has no widget to sit in
    end
    if phide then
       display @(-32) :
@@ -460,30 +576,84 @@ can.focus:
    cf = (w{'focusable'} + 0 = 1 and w{'disabled'} + 0 = 0 and ancdis = 0 and vis)
    return
 
-* The focus goes to widget number ni; the one that had it is redrawn without
+* The focus goes to widget number ni; the one that had it is redrawn without.  A widget that is hidden or not on the page is not drawn (30 Oct 26, S.88 p3.6: it was
+* drawn over whatever the page now shows in those cells), only told it has lost the focus.  fpaint 0 (fix.focus before a redraw of the whole form): the pointer and the flags only.
 set.focus:
    old = f{'focus'} + 0
    if old >= 1 and old <= nw and old # ni then
       w = f{'widgets', old}
       wt = w{'type'}
       wop = 'focus' ; wkey = 0
-      gosub call.widget
-   end
-   f{'focus'} = ni
-   w = f{'widgets', ni}
-   if w{'pn'} + 0 > 0 and f{'shown'} then
-      * a widget in a viewport comes into view; the viewports that moved are drawn again before the widget is
-      gosub reveal
-      if rvi > 0 then
-         vi = rvi
-         gosub redraw.vp
-         w = f{'widgets', ni}
+      gosub on.page
+      if fpaint and vis then
+         gosub call.widget
+      end else
+         w{'focused'} = 0
       end
    end
-   wt = w{'type'}
-   wop = 'focus' ; wkey = 1
-   gosub call.widget
-   gosub park.cursor
+   f{'focus'} = ni
+   f{'nofocus'} = 0
+   w = f{'widgets', ni}
+   if fpaint then
+      if w{'pn'} + 0 > 0 and f{'shown'} then
+         * a widget in a viewport comes into view; the viewports that moved are drawn again before the widget is
+         gosub reveal
+         if rvi > 0 then
+            vi = rvi
+            gosub redraw.vp
+            w = f{'widgets', ni}
+         end
+      end
+      wt = w{'type'}
+      wop = 'focus' ; wkey = 1
+      gosub call.widget
+      gosub park.cursor
+   end else
+      w{'focused'} = 1
+      if w{'pn'} + 0 > 0 and f{'shown'} then gosub reveal
+   end
+   return
+
+* The focus is made right after a change that can take it from its widget - SCREEN SET ENABLED or VISIBLE on the control or on a container round it, another tab: if the
+* widget that has it can no longer have it, it goes to the next that can (round the ring), or to none (f{'nofocus'} = 1, which park.cursor reads).  Nothing happens when
+* the focus is right, which is nearly always.  fpaint as for set.focus.  (30 Oct 26, S.88 p3.6)
+fix.focus:
+   nw = inmat(f{'widgets'})
+   fx.old = f{'focus'} + 0
+   if fx.old >= 1 and fx.old <= nw then
+      i = fx.old
+      gosub can.focus
+      if cf then return
+   end else
+      if f{'nofocus'} + 0 = 0 then return                  ;* the form has had no focus yet: show.form picks the first control
+   end
+   ni = 0
+   i = fx.old
+   if i < 0 or i > nw then i = 0
+   for fx.k = 1 to nw
+      i += 1
+      if i > nw then i = 1
+      gosub can.focus
+      if cf then ni = i ; exit
+   next fx.k
+   if ni > 0 then
+      gosub set.focus
+   end else
+      if fx.old >= 1 and fx.old <= nw then
+         w = f{'widgets', fx.old}
+         wt = w{'type'}
+         wop = 'focus' ; wkey = 0
+         gosub on.page
+         if fpaint and vis then
+            gosub call.widget
+         end else
+            w{'focused'} = 0
+         end
+      end
+      f{'focus'} = 0
+      f{'nofocus'} = 1
+      if fpaint then gosub park.cursor                 ;* the cursor has no widget to sit in
+   end
    return
 
 * The widget w (number ni) is to be seen: every viewport it is in is scrolled just far enough that the widget is inside what
@@ -586,7 +756,7 @@ default.action:
       afi = f{'focus'} + 0
       if afi >= 1 and afi <= nw and f{'activate'} + 0 then
          aw = f{'widgets', afi}
-         if aw{'type'} = 'tree' or aw{'type'} = 'table' then
+         if aw{'type'} = 'tree' or aw{'type'} = 'table' or (aw{'type'} = 'entry' and aw{'activate'} + 0) then          ;* 23 Oct 26: an entry the program flagged (aw{'activate'} = 1) too: the IDE's AI line
             ret = 'activate' : @fm : aw{'id'} : @fm : aw{'value'}
             return
          end
@@ -600,6 +770,8 @@ default.action:
 * A key the focused widget had no use for (k2) or said done with a non-button
 other.key:
    begin case
+      case (k2 = 'tab' or k2 = 'btab') and f{'tabkeys'} + 0 = 1
+         ret = 'unhandled' : @fm : k2                 ;* S.176: the program's (the IDE's boxes are moved by F6, not Tab)
       case k2 = 'tab' or k2 = 'down'
          step = 1
          gosub move.focus
@@ -698,6 +870,11 @@ route.key:
       * 19 Oct 26: a resize key with the size unchanged is the lift of the cursor lock ($sl_guard cleared the terminal and drew its own
       *   box): the terminal no longer matches the shadow, so the screen is drawn again from it, which also makes it match for what follows
       if scr<SL.S.W> = sw0 and scr<SL.S.H> = sh0 and scr<SL.S.OWNED> then call $sl_repaint(scr)
+      if f{'fill'} and f{'shown'} then                   ;* S.183: the form follows the window: laid out again and drawn whole (the frame blanks all it covers, which is the window)
+         gosub fill.form
+         gosub layout
+         gosub draw.all
+      end
       ret = 'unhandled' : @fm : key
       return
    end
@@ -722,6 +899,12 @@ route.key:
       if key = 'esc' then gosub do.cancel else ret = 'unhandled' : @fm : key
       return
    end
+   i = fi
+   gosub can.focus
+   if cf = 0 then
+      gosub stale.key                            ;* 30 Oct 26 (S.88 p3.6): the focused widget cannot be seen or used now and nothing repaired that
+      return
+   end
    w = f{'widgets', fi}
    wi = fi
    wt = w{'type'}
@@ -729,6 +912,19 @@ route.key:
    gosub call.widget
    gosub after.widget
    gosub park.cursor
+   return
+
+* The widget that has the focus can no longer have it (it was hidden or disabled, or its page or container went) and fix.focus has not run since.  A key must not reach it:
+* the form's own keys still work, so that a modal form can be left, and any other key is swallowed with a bell, not given to another control (owner, 29 Oct 26, decision 6b).
+stale.key:
+   begin case
+      case key = 'tab' or key = 'down' or key = 'btab' or key = 'up' or key = 'esc'
+         k2 = key
+         gosub other.key
+      case 1
+         display char(7) :
+         ret = 'handled'
+   end case
    return
 
 * A mouse event ($sl_mouse has it): the press of the left button, or the wheel, over a widget that can have the
@@ -761,9 +957,8 @@ route.mouse:
    my = mev<4> + 0
    hit = 0
    for i = nw to 1 step -1
-      w = f{'widgets', i}
-      gosub on.page
-      if vis and w{'focusable'} + 0 = 1 and w{'disabled'} + 0 = 0 and ancdis = 0 then
+      gosub can.focus
+      if cf then
          if mx >= w{'ax'} and mx < w{'ax'} + w{'w'} and my >= w{'ay'} and my < w{'ay'} + w{'h'} then
             cc = w{'clip'}
             if cc = '' then
@@ -1057,7 +1252,16 @@ wait.event:
    f{'scrolled'} = ''
    gosub park.cursor                         ;* the statement before this one gave the cursor back to the program
    loop
-      call $sl_key(tmo, kk)
+      * 28 Oct 26 (R-a): a resize that a dialogue read - one the program opened between two waits, or an open list of this form - was never the
+      * program's: it is the key now, before any other, and goes the way of a resize read here (the form is made the size and drawn again, and
+      * the event is resize).  One read here clears the note too, so that it is delivered once.
+      call $sl_scr('pending', rz.was)
+      if rz.was then
+         kk = 'resize'
+      end else
+         call $sl_key(tmo, kk)
+         if kk = 'resize' then call $sl_scr('pending', rz.was)
+      end
       if kk = '' then
          evt = 'end'
          * 19 Oct 26: only the time running out is a timeout.  An input that has ended also gives a null key at once, and a

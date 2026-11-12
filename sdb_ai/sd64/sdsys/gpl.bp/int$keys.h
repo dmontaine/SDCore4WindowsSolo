@@ -20,6 +20,7 @@
 	  * START-HISTORY:
 	  * 11 Nov 26 SD Core Solo - SOLO 53: the FCONTROL keys are FCI$ (the internal function is FCONTROL.INT), with 8 and 9, the CREATING.SEQKEY counter.
 	  * 11 Nov 26 SD Core Solo - SOLO 56 group 2 (as in Linux Solo and Core): K$SHOW.SAFE (151), the kernel's one rule for showing another session's text; K$AUTOLOGOUT -2 reads the inactivity clock.
+	  * 11 Nov 26 SD Core Solo - SOLO 56 group 3 (as SD Core for Windows): K$AI.START, K$AI.POLL, K$AI.CANCEL, K$AI.STATUS (160-163), answered "no helper".
 	  * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
 	  * 29 Sep 26 Windows port - from Linux 1f5f703 - K$SET.LANGUAGE (38) retired: SD is English only.
 	  * 18 Oct 26 Windows port - from Linux 1f5f703 - Solo carry from SD Core (v1.1-3 to 5315c65), LSOLO 52: Core's numbers 92, 97 to 117, 119 and 120, USR$GROUPED, the
@@ -230,6 +231,10 @@
       $define K$PHANTOM.NONCE   144      ;* 'S':secret stages the secret the next phantom() gives the new process (its environment); 'G' answers the one this process was started with (26 Oct 26, W.11 F10)
       $define K$WINSIZE          92      ;* The terminal's size from the tty
       $define K$SHOW.SAFE       151     ;* any text: the same text with every byte of the kernel's one rule (0-31, 127, 128-159, 248-255) as '?', the same length; for printing another session's text (10 Nov 26, Linux d35f5e31, S.88)
+      $define K$AI.START        160     ;* system:@fm:maxtokens:@fm:prompt, answered 'OK' or 'ERR':@fm:why (Windows: 'ERR':@fm:'nohelper')
+      $define K$AI.POLL         161     ;* 'W' waiting, 'D':@fm:the helper's reply (JSON), or 'E':@fm:why (Windows: 'E':@fm:'nohelper')
+      $define K$AI.CANCEL       162     ;* give the request up ('OK')
+      $define K$AI.STATUS       163     ;* the helper's status line, 'D':@fm:json, or 'E':@fm:why (Windows: 'E':@fm:'nohelper')
       * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH (Linux Solo 7c6bbfc): SD Core's S.63 keys at SD Core's numbers (Solo only).
       *   K$SH and K$OS.EXEC are settable only from $internal code (LOGIN and APISRVR load them from ACC$SH / ACC$OS.EXEC at account
       *   entry; get with -1); K$PATH.OK asks whether THIS ACCOUNT may open a pathname.  Must match gplsrc/keys.h.

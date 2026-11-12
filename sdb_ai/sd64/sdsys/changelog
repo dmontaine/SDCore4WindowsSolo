@@ -3,6 +3,24 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+11 Nov 26  THE SCREEN LIBRARY AND THE TOOLKIT ARE SD CORE'S: THE PAPER AND NIGHT THEMES, FORMS THAT FOLLOW THE WINDOW, AND
+           ACCELERATOR KEYS.
+
+             What        - The screen library, the SCREEN statement and the full-screen toolkit are now those of SD
+                           Core and SD Core for Linux Solo. A new install's sd.conf says SCREENTHEME=paper; the
+                           themes are paper, night, mono, classic and blue. SCREEN FORM ... FILL takes the whole
+                           window and lays itself out again when the window changes, and a text area or table
+                           with STRETCH takes the spare room; SCREEN ASK takes HISTORY; SCREEN SET can set a value
+                           to an empty string. Most controls take COLOR and ACCEL; a pasted text arrives as one
+                           paste; F1 to F12, Home and End are read as every common terminal sends them. The
+                           message that a page is for the administrator now says to type ADMIN and the password.
+             Why         - Pages did not fill the window and themes did not work: this version had the October
+                           library (owner, 11 Nov).
+             Does NOT    - Change the pages themselves yet (the home screen, the IDE, SED and the tool pages come
+                           next), or give the AI: its parts are here and find no helper, so no AI line is shown.
+                           An install upgraded over an older one keeps its sd.conf, so it stays on mono until
+                           SCREENTHEME=paper is added. NOT YET TESTED ON AN INSTALLED SYSTEM.
+
 11 Nov 26  KERNEL AND COMMAND FIXES FROM SD CORE: ANOTHER SESSION'S TEXT IS SHOWN SAFELY, OPENSEQ ... CREATING IS EXCLUSIVE,
            LIST.COMMON DETAIL, AND ED AND PICK STOP WHEN THEIR INPUT ENDS.
 
