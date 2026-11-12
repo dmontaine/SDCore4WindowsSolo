@@ -326,6 +326,10 @@ SDSYS_SHIP = [
     # 26 Oct 26 - the context help text for the [?] buttons; LOAD.HELP (run by solo-setup.ps1) reads it.  Carried to Solo without its list entry on
     # 25 Oct, so assert-current found eleven source files missing from the install.
     ('helptext',      'context help text for the [?] buttons; LOAD.HELP reads it'),
+    # 12 Nov 26 - SOLO 56 group 5 (Linux Solo S.117, SD Core for Windows RELEASE_1.1 218).  What each sd.conf
+    # parameter is, for TOOL.CONFIG; a file, replaced on upgrade.  Display only: the helper (sd-confset.ps1)
+    # holds its own list and ranges, and test-confset-units.ps1 holds the two to each other.
+    ('config.table',  'the parameters of sd.conf, for TOOL.CONFIG'),
     ('accounts',     'holds the SDSYS record; the bootstrap adds to it'),
     # 25 Aug 26 - bp IS NO LONGER ON THIS LIST.  SD ships NOTHING into SDSYS's
     # own BP now; see SDSYS_EMPTY and SDSYS_PRESERVE below.  The 24 Aug note
@@ -1631,6 +1635,14 @@ def main():
                    # !ps_script_out.  It SHIPS - do NOT add it to
                    # assert-current's $neverShipped list.  Its unit test does not.
                    'sd-backupdir.ps1',
+                   # 12 Nov 26 - SOLO 56 group 5, SD Core for Windows' helper
+                   # behind SET.CONFIG: changes one of 14 tuning parameters of
+                   # sd.conf, beside it.  gpl.bp SETCONFIG runs it through
+                   # !ps_script_out, as the user who runs SD (Solo's sd.conf is
+                   # that user's own file).  It SHIPS - do NOT add it to
+                   # assert-current's $neverShipped list.  Its unit test
+                   # (test-confset-units.ps1) does not.
+                   'sd-confset.ps1',
                    # 02 Oct 26 - SOLO 25.  sd.exe's start_sd() runs it from
                    # the install root when <root>\.sdrestore.pending exists,
                    # before the segment is made (sysseg.c
