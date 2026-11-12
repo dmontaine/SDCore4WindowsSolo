@@ -4,6 +4,8 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 12 Nov 26 SD Core Solo - SOLO 62, first VM witness: the Solo folder is taken from the helper's own path (kernel(K$WINPATH)), not cut
+*           from @sdsys, whose separators are mixed on Solo; the request is written to <Solo folder>\sdsys, where the helper reads it.
 * 12 Nov 26 SD Core Solo - SOLO 62, new: Linux Solo's remotedoor (11 Nov 26, S.117) for Windows.  Linux Solo's doors are the
 *           user's own systemd units, changed by tools/solo-service.sh with no sudo.  Windows Solo's are the API listener line in
 *           sd.conf, the API firewall rule, Solo's own sshd (a SYSTEM task) and its firewall rule: machine objects a Solo session
@@ -79,9 +81,13 @@ deffun ps_script_out(script, want.out) calling '!ps_script_out'
       if want # 'off' and want # 'local' and want # 'open' then stop sysmsg(15971, verb)
    end
 
-   ndel = count(@sdsys, @ds)
-   app.dir = @sdsys[1, index(@sdsys, @ds, ndel) - 1]             ;* the Solo folder: sdsys's parent
+*  The Solo folder is the folder of the helper, which the installer puts in it (as apisrvr finds solo-sshkey.ps1).  12 Nov 26: it was cut
+*  from @sdsys at its last @ds, but Solo's paths are built with mixed separators (sd.conf has no SDSYS line; config.c makes it), so
+*  no @ds was found and the helper was handed an empty folder ("no -AppDir, or it has no sdsys folder", the first VM witness).
    script = kernel(K$WINPATH, '/solo-doors.ps1')
+   tail = '\solo-doors.ps1'
+   if downcase(script[len(script) - len(tail) + 1, len(tail)]) # tail then stop sysmsg(15966, 'the helper path is not one this verb understands: ' : script)
+   app.dir = script[1, len(script) - len(tail)]
    if index(script : app.dir, "'", 1) then stop sysmsg(15966, 'the Solo folder has a single quote in its name')
 
    gosub show
@@ -215,7 +221,7 @@ change:
    q = char(39)
    ps = '$req = (' : q : 'version=1' : q : ', ' : q : 'door=' : door : q : ', ' : q : 'mode=' : want : q : ', ' : q : 'nonce=' : nonce : q
    ps := ', ' : q : 'time=' : now : q : ', ' : q : 'cred=' : cred : q : ', ' : q : 'proof=' : proof : q : ') -join "`n"'
-   ps<-1> = '[IO.File]::WriteAllText(' : q : @sdsys : '\doors.request' : q : ', $req + "`n", [Text.Encoding]::ASCII)'
+   ps<-1> = '[IO.File]::WriteAllText(' : q : app.dir : '\sdsys\doors.request' : q : ', $req + "`n", [Text.Encoding]::ASCII)'   ;* where the helper reads it (Join-Path -AppDir sdsys)
    ps<-1> = 'try { Start-ScheduledTask -TaskName ' : q : 'SD Core Solo Doors' : q : ' -ErrorAction Stop } catch { Write-Output ("cannot start the helper: " + $_.Exception.Message); exit 4 }'
    ps<-1> = '$res = ' : q : doors.dir : '\result.txt' : q
    ps<-1> = 'for ($i = 0; $i -lt 180; $i++) {'
