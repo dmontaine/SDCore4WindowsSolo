@@ -20,7 +20,8 @@
 * 11 Nov 26 Windows port - from Linux Solo 531d829 and 5b23cb1 (S.211; SOLO 57, the owner, 11 Nov 26: "Yes, carry it").  Messages 15950-15959 (Linux 14950-14959,
 *               the second block at +1000).  The launcher is solo-mcp.py in the SD Core Solo folder; the request file is $mcp\<id> in the account's directory.
 *               After the first run on an install (11 Nov): sd_files selects WITH F1 LIKE "F..." (F1 is the type letter and a description, so = "F" matched
-*               nothing), and finish removes a terminal's escape sequences whole (LIST's clear-screen reached the agent as "[H[J").
+*               nothing), and finish removes a terminal's escape sequences whole (LIST's clear-screen reached the agent as "[H[J").  Both witnessed fixed on an
+*               install the same day; then sd_files without the F1 column (Linux Solo a051f0c), so a file is one line.
 * 11 Nov 26 dm  New (S.211, SD Core for Linux Solo only; plan .claude/plan-solo-mcp-11nov.md).  THE LOGIC THAT MUST BE TRUSTED IS HERE, not in the launcher: a launcher that
 *               is replaced by someone else's meets the same gate, the same checks and the same audit line.
 * END-HISTORY
@@ -229,9 +230,10 @@ refuse.word:
 * ---- FILES -----------------------------------------------------------------------------------------------------------------------
 do.files:
 *  11 Nov 26 Windows port: field 1 of a VOC record is the type letter FOLLOWED BY a description ("File - Vocabulary"), so WITH F1 = "F" matched no shipped file
-*  pointer (witnessed 11 Nov: 0 records); the type is the first character, so LIKE "F...".
+*  pointer (witnessed 11 Nov: 0 records); the type is the first character, so LIKE "F...".  And F1 is not a column: its 5 characters wrapped each
+*  description a few letters to a line (witnessed 11 Nov), so one line per file is the name and its data path (as Linux Solo a051f0c).
    target = 'files'
-   execute 'LIST VOC WITH F1 LIKE "F..." F1 DATA.NAME' capturing out
+   execute 'LIST VOC WITH F1 LIKE "F..." DATA.NAME' capturing out
    return
 
 * ---- DESCRIBE file ---------------------------------------------------------------------------------------------------------------

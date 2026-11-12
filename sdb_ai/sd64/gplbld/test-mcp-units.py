@@ -290,7 +290,7 @@ def part2(files, label=""):
        and "if kept<2> = '' then display sysmsg(15954)" in sm)
     # 11 Nov 26: the first run on an install showed both of these (sd_files listed 0 records; answers began "[H[J").
     ck("B18 sd_files selects the VOC records whose type letter is F (WITH F1 LIKE \"F...\"): field 1 is the letter and a description, so = \"F\" matches nothing shipped",
-       "execute 'LIST VOC WITH F1 LIKE \"F...\" F1 DATA.NAME' capturing out" in mc and 'F1 = "F"' not in mc)
+       "LIST VOC WITH F1 LIKE \"F...\" DATA.NAME" in mc and 'F1 = "F"' not in mc)
     esc = fin.find("index(out, char(27) : '[', 1)")
     ck("B19 finish takes a terminal's escape sequences out WHOLE, before control characters are blanked (else \"[H[J\" reaches the agent as text)",
        0 <= esc < fin.find("out = convert(ctl, blanks, out)") and "out = out[1, esc.at - 1] : out[j + 1, len(out)]" in fin, repr(esc))
@@ -342,7 +342,8 @@ MUTANTS = [
     ("the program writes a record", "mcp_call", "   n = dcount(rec, @fm)\n", "   write rec to f, p.id\n   n = dcount(rec, @fm)\n", "B13"),
     ("SET.MCP does not ask for the administrator", "setmcp", "   if not(kernel(K$ADMINISTRATOR, -1)) then", "   if 0 then", "B15"),
     ("SET.MCP reads Linux's lower-case kept-password id", "setmcp", "read kept from cred.f, '$STORED'", "read kept from cred.f, '$stored'", "B17"),
-    ("sd_files asks for a type field equal to F", "mcp_call", "WITH F1 LIKE \"F...\" F1 DATA.NAME", "WITH F1 = \"F\" F1 DATA.NAME", "B18"),
+    ("sd_files asks for a type field equal to F", "mcp_call", "WITH F1 LIKE \"F...\" DATA.NAME", "WITH F1 = \"F\" DATA.NAME", "B18"),
+    ("sd_files shows the F1 column again", "mcp_call", "LIKE \"F...\" DATA.NAME", "LIKE \"F...\" F1 DATA.NAME", "B18"),
     ("the escape sequence is found but not taken out", "mcp_call", "      out = out[1, esc.at - 1] : out[j + 1, len(out)]\n", "", "B19"),
 ]
 
