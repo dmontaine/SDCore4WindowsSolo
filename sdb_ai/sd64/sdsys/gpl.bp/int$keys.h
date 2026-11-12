@@ -229,7 +229,8 @@
       $define K$CMDLOG.WRITE    109      ;* "origin<FM>command": one line in the command log if it is on (15 Oct 26, Q-8)
       $define K$GROUP.PHANTOM   110      ;* Mark the phantom with this user number as grouped with this process: 1 if marked (15 Oct 26, Q-8, PHANTOM GROUP)
       $define K$USER.STATS      112     ;* File activity counts of a user (0: all): uid, 11 counts, when counting began, login name (15 Oct 26, Q-8)
-*  113, 115 and 118 are Linux's K$NON.DURABLE.TXN (QMClient, held), K$LOCK.TRACE (LOCK.TRACER, not carried) and K$SD.ACCOUNTS (a gate of the held S.63 family): left unused.
+      $define K$NON.DURABLE.TXN 113      ;* 1: the next COMMIT is non-durable, a nested transaction goes to its parent (15 Oct 26, sheet 442; Solo 12 Nov 26, SOLO 56 group 7)
+*  115 is Linux's K$LOCK.TRACE (LOCK.TRACER, not carried): left unused.  (118, K$SD.ACCOUNTS, is defined above.)
       $define K$PHANTOM.USER    114      ;* The next phantom() is to be this user number (one PHANTOMS keeps, not in use); 0 cancels (16 Oct 26, PHANTOM USER)
       $define K$PROFILER        116      ;* n > 0 start the application event profiler (the events in n), 0 stop, -1 ask, -2 the table (16 Oct 26)
       $define K$PROFILER.USER   117      ;* user * 4096 + 2048 + n start it in another process, user * 4096 alone stop it and have it write F<user> to $ipc; administrator only

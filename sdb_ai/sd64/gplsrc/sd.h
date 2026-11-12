@@ -504,6 +504,7 @@ int16_t lock_record(FILE_VAR *, char * id, int16_t id_len, bool update,
 bool unlock_record(FILE_VAR *, char * id, int16_t id_len);
 char * deadlock_info_string(int * len);
 void unlock_txn(u_int32_t txn);
+void transfer_txn_locks(u_int32_t from, u_int32_t to); /* 12 Nov 26 (SOLO 56 group 7, P-18): a non-durable child commit hands its locks to the parent */
 void clear_lock_wait(void);
 /* 28 Oct 26 S.88 phase 2 review: ONE rule for showing another session's text (a record id, a path, a user name, a command,
    @PSTAT) to a program or a terminal: bytes 0-31, 127, 128-159 and 248-255 become '?', 160-247 are kept.  Used by op_lock.c

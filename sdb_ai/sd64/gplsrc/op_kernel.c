@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 12 Nov 26 SD Core Solo - SOLO 56 group 7 (P-18), as SD Core for Windows and Linux: K_NON_DURABLE_TXN (113) sets txn_nondurable, so the next COMMIT
+ *               of a nested transaction hands its updates and locks to the parent (txn.c, op_lock.c transfer_txn_locks).
  * 11 Nov 26 SD Core Solo - SOLO 56 group 4, as Linux Solo: K_EDIT_OK, K_VOC_EDIT, K_BP_EDIT, K_DICT_EDIT, K_SD_ACCOUNTS, K_SHARED_READ,
  *           K_SHARED_WRITE, K_EDIT_KIND and K_EDIT_OS_OK answered with Solo's rules (keys.h).
  * 11 Nov 26 SD Core Solo - SOLO 56 group 3: K_AI_START, POLL, CANCEL and STATUS answered "no helper", as SD Core for Windows.
@@ -154,6 +156,7 @@ void phantom_nonce_import(void) {
    (its strings are this process's own and BUF), or NULL if it could not be made.                                                      */
 
 extern char **environ;
+extern int txn_nondurable; /* txn.c: the next COMMIT is non-durable (K_NON_DURABLE_TXN) */
 
 Private char **phantom_child_environment(const char *nonce, char *buf, size_t bufsz) {
   size_t count = 0;
@@ -1123,6 +1126,12 @@ void op_kernel() {
         EndExclusive(SHORT_CODE);
       }
     } break;
+
+    case K_NON_DURABLE_TXN:
+      GetInt(descr);
+      txn_nondurable = (descr->data.value != 0);
+      result.data.value = txn_nondurable;
+      break;
 
     case K_USER_STATS: {
       int16_t us_i;

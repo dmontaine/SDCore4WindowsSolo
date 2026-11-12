@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 12 Nov 26 SD Core Solo - SOLO 56 group 7 (P-18), from Windows Core (Linux 15 Oct 26, QM4 gaps Q-16, sheet 442): transfer_txn_locks(), for a
+ *               non-durable child COMMIT that hands its locks to the parent transaction (txn.c).
  * 11 Nov 26 SD Core Solo - SOLO 56 group 2, from Windows Core (code as in Linux Solo; Linux 44807a43, S.88 phase 2, S1, and its review):
  *               GETLOCKS(), SYSTEM(1083) and the deadlock message 1451 give another session's record id, file path and user name with
  *               every control byte (0-31, 127, 128-159) and mark (248-255) as '?' (show_safe_text(), show_ts_safe(), declared in sd.h
@@ -1984,6 +1986,34 @@ void unlock_txn(u_int32_t txn) {
       fptr->file_lock = 0;
       fptr->txn_id = 0;
     }
+  }
+
+  EndExclusive(REC_LOCK_SEM);
+}
+
+/* ======================================================================
+   transfer_txn_locks()  -  The locks taken in transaction FROM now belong to
+   transaction TO.  Used when a non-durable child transaction commits into its
+   parent (txn.c): the child's locks are held until the parent ends, as the
+   locks of the parent's own work are.                                    */
+
+void transfer_txn_locks(u_int32_t from, u_int32_t to) {
+  FILE_ENTRY* fptr;
+  int16_t idx;
+  RLOCK_ENTRY* lptr;
+  int16_t i;
+
+  StartExclusive(REC_LOCK_SEM, 33);
+
+  for (idx = 1; idx <= sysseg->numlocks; idx++) {
+    lptr = RLPtr(idx);
+    if ((lptr->hash != 0) && (lptr->owner == process.user_no) && (lptr->txn_id == from))
+      lptr->txn_id = to;
+  }
+
+  for (i = 1, fptr = FPtr(1); i <= sysseg->used_files; i++, fptr++) {
+    if ((fptr->file_lock == process.user_no) && (fptr->txn_id == from))
+      fptr->txn_id = to;
   }
 
   EndExclusive(REC_LOCK_SEM);

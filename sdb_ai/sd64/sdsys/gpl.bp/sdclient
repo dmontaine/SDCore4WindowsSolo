@@ -18,36 +18,43 @@
 *
 * 
 * START-HISTORY:
-* 01 Oct 26 SD Core Solo - connect() defaults to port 4249, not 4243
+* 12 Nov 26 SD Core Solo - SOLO 56 group 7: SD Core for Windows' class (as Linux Solo's: the 15 Oct 26 QMClient methods, requests 49 to 69), with Solo's
+*           two differences: the default port is 4249, and SrvrSshKey is 72 (SOLO 55).  The older entries below are SD Core for Windows'.
+* 25 Oct 26 Windows port - from Linux 7fd83ad (21 Oct 26) S.73 item 3, D1 (the index QUERY statements of a remote file): selectindexv(fno, name) (request 38) and selectindexk(fno, name, value)
+*               (request 39), which return the list at once; selectleft(), selectright(), setleft() and setright() honour quiet as the others do.  The $netfile handler uses all of them.
+* 25 Oct 26 Windows port - from Linux ef9d594 (21 Oct 26) S.73 item 3: fileadmin(op, fno, text) (request 70, a verb run on the server) and fcontrol(fno, key, value) (request 71); both need
+*               the server's sdfilesadmin.  text.request lets a caller that set quiet read the refusal instead of aborting.
+* 25 Oct 26 Windows port - from Linux b052346 (20 Oct 26) S.73 item 2 (the silent server): read.packet takes server.error and ServerStatus from the header only when the BODY has been
+*               read as well.  A reply cut in the middle used to leave them set from the header it had read, so the $netfile handler saw an answer and kept a connection that was out of
+*               step; it is the same loss as a reply that never started now (message 12502, or 12514 for a change).
+* 01 Oct 26 Windows port - connect() defaults to port 4247, not 4243
 * 20 Aug 26 Windows port - connect() speaks SCRAM-SHA-256 (requests 47 and 48)
 *           instead of the cleartext SrvrLogin, which APISRVR retired in the
 *           same change.  docs/SCRAM_AUTH.md phase 5.  The class is $internal
 *           now, because the derivation needs SDEXT.
-* 20 Oct 26 Windows port - from Linux 7c53377 - SD Core for Linux Solo, SDNet carry 9: SD Core's S.65 and S.72 changes to this class (the lines below down to the 17 Oct one), carried as one merge of Core Dev
-* 21 Oct 26 Windows port - from Linux ff1a253 - Solo carry 10 (SD Core eb9ef4a and b052346): S.72b - recordlocked() honours quiet (message.pair, not text.request): an ON ERROR reply aborts the caller only when quiet is not set, so a
-*               SD Core server's refusal of request 34 (message 12526) reaches the $netfile handler as LastError / LastText.  S.73 item 2 - read.packet takes server.error and ServerStatus from the header
-*               only when the BODY has been read as well (a reply cut in the middle of its body is a lost connection, message 12502 or 12514, not "answer -1", 12509).
-*               680747d against the Core text before 96d8be8.  Solo's own default port (4249, 02 Oct 26) is kept.
-* 20 Oct 26 Windows port - from Linux 7c53377 - S.72 (QMNet parity): filelock(fno, wait) (request 32) and fileunlock(fno) (request 33).  The two requests were in the table of codes and in apisrvr and had no method here.
+* 17 Oct 26 Windows port - from Linux 96d8be8 - S.65 slice 3a: connect.keys(), the login from the stored derived keys of set.netlogin (no password; the server's public
+* 18 Oct 26 Windows port - from Linux 5315c65 - S.65 slice 3e: the public properties quiet, LastError and LastText (a quiet object does not abort on a server ON ERROR reply;
+* 19 Oct 26 Windows port - from Linux 0bdc4bd - K8d: connect.keys waits NETWAIT seconds (5) for the connection and NETREPLY seconds (30) for each read, from the configuration (sd.conf) and no longer from two $defines.
+* 19 Oct 26 Windows port - from Linux 0bdc4bd - K8c: the length a reply announces is checked before its body is read.  read.packet fails the call, as a lost connection does and without touching server.error or
+* 20 Oct 26 Windows port - from Linux fc8e304 - S.72 (QMNet parity): filelock(fno, wait) (request 32) and fileunlock(fno) (request 33).  The two requests were in the table of codes and in apisrvr and had no method here.
+* 20 Oct 26 Windows port - from Linux eb9ef4a - S.72b: recordlocked() honours quiet (message.pair, not text.request): an ON ERROR reply aborts the caller only when quiet is not set.  A login without the server's sdfileswrite group is refused request 34 that way (12526).
 *               Like clearfile() and recordlock() they abort the caller on a server ON ERROR reply unless quiet is set.  The $netfile handler is the one user of them.
-* 19 Oct 26 Windows port - from Linux 7c53377 - K8d: connect.keys waits NETWAIT seconds (5) for the connection and NETREPLY seconds (30) for each read, from the configuration (sd.conf) and no longer from two $defines.
-* 19 Oct 26 Windows port - from Linux 7c53377 - K8c: the length a reply announces is checked before its body is read.  read.packet fails the call, as a lost connection does and without touching server.error or
 *               ServerStatus, for a reply that announces less than its own header (a negative count is that too: the count is signed) and, when the new public property maxpacket
 *               is above 0, for one longer than that.  The default is 0, so other users of the class are unchanged except for the nonsense lengths below 10.  $netfile sets it.
-* 19 Oct 26 Windows port - from Linux 7c53377 - SDNet finish 2 (verifier): select() and readlist() honour quiet.  They aborted on a server ON ERROR reply even when the object was quiet, so the $netfile handler's own
+* 19 Oct 26 Windows port - from Linux d93ea0d - SDNet finish 2 (verifier): select() and readlist() honour quiet.  They aborted on a server ON ERROR reply even when the object was quiet, so the $netfile handler's own
 *               branch for that reply (act.select, which a remote SELECT passes through) could never run: a server that answered the READLIST with an ON ERROR stopped the client's
 *               program with "READLIST generated an abort event", which an ON ERROR clause cannot trap.  A quiet object now returns (err = 1 from readlist; LastError and LastText for both),
 *               as read(), write() and delete() do.  A non-quiet object, the default and everything but $netfile, aborts exactly as before.
-* 18 Oct 26 Windows port - from Linux 7c53377 - S.65 slice 3e: the public properties quiet, LastError and LastText (a quiet object does not abort on a server ON ERROR reply;
 *               LastError is the kind of the last reply, LastText the text of an ON ERROR one); clearfile(fno) (request 31); recordlock's
 *               wait flag was the wrong way round (flag 2 is NO wait, apisrvr and the C client) and is fixed.  The remote file handler
 *               $netfile is the one user of all of these.  NOT YET COMPILED OR RUN.
-* 17 Oct 26 Windows port - from Linux 7c53377 - S.65 slice 3a: connect.keys(), the login from the stored derived keys of set.netlogin (no password; the server's public
+* 17 Oct 26 Windows port - from Linux 5315c65 - S.65 slice 3a: connect.keys(), the login from the stored derived keys of set.netlogin (no password; the server's public
 *               key is compared with a pin before a byte is sent; the salt and iteration count must be the stored ones).  scram.login is
 *               now a wrapper over scram.exchange, which both logins share; settimeout() and a bounded wait for the Ack and for each read
+*               (connect.keys sets 30 seconds; connect() still waits for ever).  connect() is otherwise unchanged.
+* 02 Oct 26 Windows port - from Linux 96d8be8 - The default port is 4247 (owner: full products 4247, Solo 4249).
+* 14 Sep 26 Windows port - from Linux 96d8be8 - connect() speaks SCRAM-SHA-256 (requests 47 and 48) instead of
 *               (connect.keys sets NETREPLY seconds, 30 by default since K8d; connect() still waits for ever).  connect() is otherwise unchanged.
-* 02 Oct 26 Windows port - from Linux 7c53377 - The default port is 4249 (owner: SD Core Solo 4249, the full products 4247).
-* 14 Sep 26 Windows port - from Linux 7c53377 - connect() speaks SCRAM-SHA-256 (requests 47 and 48) instead of
 *               the cleartext SrvrLogin, which APISRVR retired in the same
 *               change - the Windows port's SDCLIENT of 20 Aug 2026, adopted
 *               unchanged (W.4 SCRAM phase 5).  The class is $internal now,
@@ -76,6 +83,7 @@
 * obj->fileunlock(fno)
 * bool = obj->logto(acc)
 * obj->markmapping(fno, state)
+* n = obj->recordlocked(fno, id)
 * fno = obj->open(name)
 * str = obj->read(fno, id, err)
 * str = obj->readl(fnom id, wait, err)
@@ -90,6 +98,32 @@
 * obj->selectindex(fno, indexname, indexvalue, listno)
 * str = obj->selectleft(fno, indexname, listno)
 * str = obj->selectright(fno, indexname, listno)
+* str = obj->getvar(name)
+* str = obj->indices(fno, indexname)
+* str = obj->selectindexv(fno, indexname)          (S.73 item 3, D1: request 38, the indexed values)
+* str = obj->selectindexk(fno, indexname, value)    (S.73 item 3, D1: request 39, the record ids that hold the value)
+* str = obj->revision()
+* str = obj->rtrans(filename, id, fieldname, action)
+* str = obj->system(key)
+* str = obj->trans(filename, id, fieldname, action)
+* obj->txn(mode)
+* str = obj->evaluate(fno, name, data, id)
+* str = obj->evalconv(fno, name, data, id)
+* str = obj->iconv(data, code)
+* str = obj->oconv(data, code)
+* str = obj->iconvs(data, code)
+* str = obj->oconvs(data, code)
+* fno = obj->openseq(filename, id, modes)
+* str = obj->readseq(fno, err)
+* str = obj->readblk(fno, bytes, err)
+* obj->writeseq(fno, data)
+* obj->writeblk(fno, data)
+* obj->seek(fno, offset, relto)
+* obj->weofseq(fno)
+* str = obj->fileadmin(op, fno, text)       (S.73 item 3: request 70, a verb run on the server; needs the server's sdfilesadmin)
+* str = obj->fcontrol(fno, key, value)       (S.73 item 3: request 71)
+* id = obj->writeseqkey(fno, data)
+* id = obj->writeuseqkey(fno, data)
 * obj->setleft(fno, indexname)
 * obj->setright(fno, indexname)
 * obj->write(fno, id, data)
@@ -188,8 +222,30 @@ $define SrvrSelectRight  45    ;* Move index position to right
 $define SrvrMarkMapping  46    ;* Enable/disable mark mapping
 $define SrvrScramFirst   47    ;* SCRAM client-first
 $define SrvrScramFinal   48    ;* SCRAM client-final
-$define SrvrRevision     49    ;* Server revision, as Core (11 Nov 26, SOLO 55)
-$define SrvrSshKey       72    ;* Manage the SD Core server's ssh keys (global session only); 49 until 11 Nov 26, now Core's SrvrRevision
+$define SrvrRevision     49    ;* Server revision                  15 Oct 26 dm - QM4 gaps C-1, as in gplsrc/sdclient.h
+$define SrvrGetVar       50    ;* Value of an @-variable
+$define SrvrSystem       51    ;* SYSTEM()
+$define SrvrTrans        52    ;* TRANS(), marks lowered one level
+$define SrvrRTrans       53    ;* TRANS(), marks as they are
+$define SrvrTxn          54    ;* Transaction start, commit, abort or non-durable commit
+$define SrvrEvaluate     55    ;* Evaluate a dictionary item against a record
+$define SrvrEvalConv     56    ;* The same, with the item's output conversion
+$define SrvrIConv        57    ;* ICONV()
+$define SrvrOConv        58    ;* OCONV()
+$define SrvrIConvs       59    ;* ICONVS()
+$define SrvrOConvs       60    ;* OCONVS()
+$define SrvrOpenSeq      61    ;* Open a sequential file
+$define SrvrReadSeq      62    ;* Read a line
+$define SrvrReadBlk      63    ;* Read bytes
+$define SrvrWriteSeq     64    ;* Write a line
+$define SrvrWriteBlk     65    ;* Write bytes
+$define SrvrSeek         66    ;* Position
+$define SrvrWeofSeq      67    ;* Truncate at the position
+$define SrvrWriteSeqKey  68    ;* Write under the next sequential id
+$define SrvrWriteuSeqKey 69    ;* The same, keeping the update lock
+$define SrvrSshKey       72    ;* Solo: manage the SD Core server's ssh keys (global session only); 49 until 11 Nov 26 (SOLO 55)
+$define SrvrFileadmin    70    ;* A verb run on the server for the login (analyse, configure, index, create or delete a file); needs sdfilesadmin   (S.73 item 3)
+$define SrvrFcontrol     71    ;* FCONTROL(file, key, value); needs sdfilesadmin   (S.73 item 3)
 
 $define SV$OK             0    ;* Action successful
 $define SV$ON.ERROR       1    ;* Action took ON ERROR clause
@@ -203,6 +259,11 @@ $define SV$PROMPT         5    ;* Server requesting input
 $define NET.ACK.TRIES    16    ;* connect.keys: bytes to read looking for the Ack
 
 
+deffun text.request(code, pkt, abort.text) local
+deffun trans.packet(code, filename, id, fieldname, action) local
+deffun evaluate.packet(code, fno, name, data, id) local
+deffun conv.packet(code, data, cv) local
+deffun seq.read(code, pkt, abort.text, err) local
 deffun read.record(mode, fno, id, err) local
 deffun message.pair(pkt.type, pkt) local
 deffun get.response() local
@@ -364,7 +425,13 @@ public function connect(host, (port), username, password, account)
 *   every API connection through its TLS relay, and scram.login binds the login
 *   to this session.
    skt = open.socket(host, port, SKT$BLOCKING + SKT$TLS)
-   if status() then return @false
+   if status() then
+*     15 Oct 26 dm - sheet 571: say why.  The caller was given false and nothing else: ServerStatus unset and no text.
+*     ServerStatus is the STATUS() of the failed open and error names the host and port.
+      ServerStatus = status()
+      error = 'Cannot connect to ' : host : ':' : port : ' (status ' : ServerStatus : ')'
+      return @false
+   end
 
    * Wait for an Ack to come back before continuing
    loop
@@ -453,7 +520,7 @@ public function connect.keys(host, (port), username, (salt), (iterations), (clie
       return @false
    end
 
-   if port = '' or port < 0 then port = 4249   ;* as connect(): SD Core Solo's fixed API port (the full products: 4247)
+   if port = '' or port < 0 then port = 4249   ;* as connect() (Solo's port)
 
    skt = open.socket(host, port, SKT$BLOCKING + SKT$TLS, config('NETWAIT'))
    st = status()
@@ -819,30 +886,6 @@ release.error:
 end
 
 * ======================================================================
-* RECORDLOCKED   (SD Core 15 Oct 26 dm, sheet 262; carried to Solo 20 Oct 26 with the SDNet client, whose $netfile handler is its one user)
-* -3 -2 -1 another user holds a file, update or read lock; 0 not locked; 1 2 3 this session holds a read, update or file lock.
-* The answer is a four byte integer on the wire; it is made signed here.  SD Core's text.request() (an abort on a server ON ERROR reply, the null
-* string for any other answer) is written out here: Solo's class has no such helper.
-
-public function recordlocked(fno, id)
-   reply = ''
-   if not(context.error(CX.CONNECTED)) then
-      if message.pair(SrvrRecordlocked, iconv(fno, 'ISL') : id) then
-         begin case
-            case server.error = SV$OK
-               reply = in.pkt
-            case server.error = SV$ON.ERROR
-               if not(quiet) then abort 'RECORDLOCKED generated an abort event'
-         end case
-      end
-   end
-   if len(reply) < 4 then return 0
-   n = oconv(reply[1,4], 'ILL')
-   if n > 2147483647 then n -= 4294967296
-   return n
-end
-
-* ======================================================================
 * RESPOND
 
 public function respond(response, err)
@@ -905,6 +948,184 @@ public subroutine selectindex(fno, indexname, indexvalue, listno)
 end
 
 * ======================================================================
+* GETVAR, INDICES, REVISION, SYSTEM, TRANS, RTRANS   (15 Oct 26 dm, QM4 gaps bundle C-1)
+
+public function getvar(name)
+   return text.request(SrvrGetVar, name, 'GETVAR generated an abort event')
+end
+
+public function indices(fno, indexname)
+   pkt = iconv(fno, 'ISL') : indexname
+   return text.request(if indexname = '' then SrvrIndices1 else SrvrIndices2, pkt, 'INDICES generated an abort event')
+end
+
+* SELECTINDEX, answered in one request (21 Oct 26 dm, S.73 item 3 D1).  selectindexv (request 38) returns the indexed VALUES of the index, field marks between (SELECTINDEX name FROM f);
+* selectindexk (request 39) returns the record ids that hold one value (SELECTINDEX name, value FROM f), field marks between.  Both leave the server's STATUS() in ServerStatus: 0, or 1
+* for an index that is not there.  Unlike request 26 the name and the value are NOT padded to a two byte boundary: the name is given its length and the value is the rest of the packet.
+public function selectindexv(fno, indexname)
+   return text.request(SrvrSelectIndexv, iconv(fno, 'ISL') : indexname, 'SELECTINDEX generated an abort event')
+end
+
+public function selectindexk(fno, indexname, indexvalue)
+   pkt = iconv(fno, 'ISL') : iconv(len(indexname), 'ISL') : indexname : indexvalue
+   return text.request(SrvrSelectIndexk, pkt, 'SELECTINDEX generated an abort event')
+end
+
+* The client's revision alone before a connection, then the client's and the server's as two values; a server that does
+* not know the request is reported as 0.0-0
+public function revision()
+   mine = system(1012)
+   if context = CX.DISCONNECTED then return mine
+   theirs = text.request(SrvrRevision, '', 'REVISION generated an abort event')
+   if theirs = '' then theirs = '0.0-0'
+   return mine : @vm : theirs
+end
+
+public function system(key)
+   return text.request(SrvrSystem, iconv(key, 'ILL'), 'SYSTEM generated an abort event')
+end
+
+* TRANS() on the server.  action is C, X or null (X).  trans lowers the marks of the answer one level, rtrans leaves them.
+public function trans(filename, id, fieldname, action)
+   return trans.packet(SrvrTrans, filename, id, fieldname, action)
+end
+
+public function rtrans(filename, id, fieldname, action)
+   return trans.packet(SrvrRTrans, filename, id, fieldname, action)
+end
+
+* 1 start, 2 commit, 3 abort, 4 commit non-durable (a nested transaction goes to its parent)
+public subroutine txn(mode)
+   void text.request(SrvrTxn, iconv(mode, 'ISL'), 'TXN generated an abort event')
+end
+
+* ======================================================================
+* SEQUENTIAL FILES   (15 Oct 26 dm, sheet 441): openseq, readseq, readblk, writeseq, writeblk, seek, weofseq; close with close()
+* openseq(file, id, modes): file is a VOC name and id the item in it, or with a null id file is the pathname.  modes adds 2 give up
+* when another process has it, 16 read only, 256 append, 512 overwrite, 1024 flush every write, 4096 shared.  The file number, or 0
+* (ServerStatus and error say why).  err is the server's answer: 2 (SV$ELSE) at the end of the file.
+
+public function openseq(filename, id, modes)
+   reply = text.request(SrvrOpenSeq, iconv(modes, 'ILL') : iconv(len(filename), 'ISL') : filename : id, 'OPENSEQ generated an abort event')
+   if len(reply) < 2 then return 0
+   return oconv(reply[1,2], 'ISL')
+end
+
+public function readseq(fno, err)
+   return seq.read(SrvrReadSeq, iconv(fno, 'ISL'), 'READSEQ generated an abort event', err)
+end
+
+public function readblk(fno, bytes, err)
+   return seq.read(SrvrReadBlk, iconv(fno, 'ISL') : iconv(bytes, 'ILL'), 'READBLK generated an abort event', err)
+end
+
+public subroutine writeseq(fno, data)
+   void text.request(SrvrWriteSeq, iconv(fno, 'ISL') : data, 'WRITESEQ generated an abort event')
+end
+
+public subroutine writeblk(fno, data)
+   void text.request(SrvrWriteBlk, iconv(fno, 'ISL') : data, 'WRITEBLK generated an abort event')
+end
+
+* relto: 0 from the start, 1 from here, 2 from the end
+public subroutine seek(fno, offset, relto)
+   if offset < 0 then offset += 4294967296
+   void text.request(SrvrSeek, iconv(fno, 'ISL') : iconv(offset, 'ILL') : iconv(relto, 'ISL'), 'SEEK generated an abort event')
+end
+
+public subroutine weofseq(fno)
+   void text.request(SrvrWeofSeq, iconv(fno, 'ISL'), 'WEOFSEQ generated an abort event')
+end
+
+* WRITE / WRITEU ... CREATING.SEQKEY: the record goes into the hashed file fno under the id the file's own counter gives it, and
+* the id is returned.  writeuseqkey keeps the update lock the write takes.
+public function writeseqkey(fno, data)
+   return text.request(SrvrWriteSeqKey, iconv(fno, 'ISL') : data, 'WRITESEQKEY generated an abort event')
+end
+
+public function writeuseqkey(fno, data)
+   return text.request(SrvrWriteuSeqKey, iconv(fno, 'ISL') : data, 'WRITEUSEQKEY generated an abort event')
+end
+
+* ======================================================================
+* FILEADMIN(op, fno, text)   (21 Oct 26 dm, S.73 item 3) - request 70: a verb run ON THE SERVER for the login.  op is the operation (two bytes), fno the open file it works on (two bytes; 0 for
+* op 8, which names no open file) and text the verb's words.  The operations: 1 analyse.file, 2 configure.file, 3 create.index, 4 build.index, 5 delete.index, 6 disable.index, 8 create.file,
+* 9 delete.file.  Returns what the verb printed; ServerStatus is the verb's return code there.  The server refuses a login that is not in sdfileswrite AND sdfilesadmin with an ON ERROR reply
+* (12526 or 12529), and a word that may not go to the verb with 12535: like recordlocked() this aborts the caller unless quiet is set.
+
+public function fileadmin(op, fno, text)
+   return text.request(SrvrFileadmin, iconv(op, 'ISL') : iconv(fno, 'ISL') : text, 'FILEADMIN generated an abort event')
+end
+
+* ======================================================================
+* FCONTROL(fno, key, value)   (21 Oct 26 dm, S.73 item 3) - request 71: the public FCONTROL of the open file on the server (the FC$ keys of keys.h).  The value is the qualifier as text (null for none).
+* Returns what the function returned; ServerStatus is what it left in STATUS().  Refused as fileadmin() is.
+
+public function fcontrol(fno, key, value)
+   return text.request(SrvrFcontrol, iconv(fno, 'ISL') : iconv(key, 'ISL') : value, 'FCONTROL generated an abort event')
+end
+
+* ======================================================================
+* RECORDLOCKED   (15 Oct 26 dm, sheet 262)
+* -3 -2 -1 another user holds a file, update or read lock; 0 not locked; 1 2 3 this session holds a read, update or file lock.
+* The answer is a four byte integer on the wire; it is made signed here.
+
+* 25 Oct 26 Windows port - from Linux eb9ef4a (S.72b, with fc8e304): a login that is not in the server's sdfileswrite group is refused request 34 with an ON ERROR reply (message 12526).
+* Like filelock() and fileunlock() this aborts the caller on that reply unless quiet is set; with quiet it returns 0 and LastError / LastText say what the reply was (text.request ignored
+* quiet, which would have stopped the $netfile handler's own program instead of giving the person its message).  26 Oct 26: this was carried as a second function of the same name above
+* and the duplicate stopped sdclient compiling; there is one, here, as on Linux.
+
+public function recordlocked(fno, id)
+   reply = ''
+   if not(context.error(CX.CONNECTED)) then
+      if message.pair(SrvrRecordlocked, iconv(fno, 'ISL') : id) then
+         begin case
+            case server.error = SV$OK
+               reply = in.pkt
+            case server.error = SV$ON.ERROR
+               if not(quiet) then abort 'RECORDLOCKED generated an abort event'
+         end case
+      end
+   end
+   if len(reply) < 4 then return 0
+   n = oconv(reply[1,4], 'ILL')
+   if n > 2147483647 then n -= 4294967296
+   return n
+end
+
+* ======================================================================
+* EVALUATE, EVALCONV, ICONV, OCONV, ICONVS, OCONVS   (15 Oct 26 dm, QM4 gaps bundle C-1, sheets 247 and 409)
+
+* The dictionary item(s) named, several separated by value marks, evaluated on the server against data (@RECORD) and id (@ID);
+* fno is the file number of the DICTIONARY.  The answers are joined by item marks.  evalconv also applies each item's output
+* conversion.  A name that is not in the dictionary gives the null string with the server status left at the ELSE case.
+public function evaluate(fno, name, data, id)
+   return evaluate.packet(SrvrEvaluate, fno, name, data, id)
+end
+
+public function evalconv(fno, name, data, id)
+   return evaluate.packet(SrvrEvalConv, fno, name, data, id)
+end
+
+* The conversion codes run on the server, which has all of them.  ServerStatus is the conversion's own status after the call.
+public function iconv(data, code)
+   return conv.packet(SrvrIConv, data, code)
+end
+
+public function oconv(data, code)
+   return conv.packet(SrvrOConv, data, code)
+end
+
+* The same on each element of a dynamic array in turn
+public function iconvs(data, code)
+   return conv.packet(SrvrIConvs, data, code)
+end
+
+public function oconvs(data, code)
+   return conv.packet(SrvrOConvs, data, code)
+end
+
+* ======================================================================
 * SELECTLEFT
 
 public function selectleft(fno, indexname, listno)
@@ -918,7 +1139,7 @@ public function selectleft(fno, indexname, listno)
             case server.error = SV$OK
                reply = in.pkt
             case server.error = SV$ON.ERROR
-               abort 'SELECTLEFT generated an abort event'
+               if not(quiet) then abort 'SELECTLEFT generated an abort event'
          end case
       end      
    end
@@ -939,7 +1160,7 @@ public function selectright(fno, indexname, listno)
             case server.error = SV$OK
                reply = in.pkt
             case server.error = SV$ON.ERROR
-               abort 'SELECTRIGHT generated an abort event'
+               if not(quiet) then abort 'SELECTRIGHT generated an abort event'
          end case
       end      
    end
@@ -954,7 +1175,7 @@ public subroutine setleft(fno, indexname)
       pkt = iconv(fno, 'ISL')
       pkt := indexname
       if message.pair(SrvrSetLeft, pkt) then
-         if server.error = SV$ON.ERROR then
+         if server.error = SV$ON.ERROR and not(quiet) then
             abort 'SETLEFT generated an abort event'
          end
       end      
@@ -969,7 +1190,7 @@ public subroutine setright(fno, indexname)
       pkt = iconv(fno, 'ISL')
       pkt := indexname
       if message.pair(SrvrSetRight, pkt) then
-         if server.error = SV$ON.ERROR then
+         if server.error = SV$ON.ERROR and not(quiet) then
             abort 'SETRIGHT generated an abort event'
          end
       end      
@@ -1241,6 +1462,74 @@ local function scram.exchange(username, password, stored.salt, stored.iter, stor
    end
 
    return @true
+end
+
+* ======================================================================
+* The requests of evaluate and evalconv: the dictionary's file number, the name length and name, the data length and data,
+* then the id.  And of the four conversions: the code length and code, then the data.
+
+local function evaluate.packet(code, fno, name, data, id)
+   pkt = iconv(fno, 'ISL') : iconv(len(name), 'ISL') : name
+   pkt := iconv(len(data), 'ILL') : data
+   pkt := id
+   return text.request(code, pkt, 'EVALUATE generated an abort event')
+end
+
+local function conv.packet(code, data, cv)
+   pkt = iconv(len(cv), 'ISL') : cv : data
+   return text.request(code, pkt, 'CONV generated an abort event')
+end
+
+* ======================================================================
+* A request for data that may be missing: the data when the server says OK, the null string otherwise, and err the server's answer
+* (-1 when there is no connection).  Used by readseq and readblk.
+
+local function seq.read(code, pkt, abort.text, err)
+   reply = ''
+   err = -1
+   if not(context.error(CX.CONNECTED)) then
+      if message.pair(code, pkt) then
+         begin case
+            case server.error = SV$OK
+               reply = in.pkt
+            case server.error = SV$ON.ERROR
+               abort abort.text
+         end case
+         err = server.error
+      end
+   end
+   return reply
+end
+
+* ======================================================================
+* A request whose answer is one string: the answer when the server says OK, the null string otherwise (an abort on the
+* server aborts here too, unless quiet is set: then the caller gets the null string and LastError / LastText say what the reply was - 21 Oct 26, S.73 item 3).
+* Used by getvar, indices, revision, rtrans, system, trans, writeseqkey, writeuseqkey, fileadmin and fcontrol.
+
+local function text.request(code, pkt, abort.text)
+   reply = ''
+   if not(context.error(CX.CONNECTED)) then
+      if message.pair(code, pkt) then
+         begin case
+            case server.error = SV$OK
+               reply = in.pkt
+            case server.error = SV$ON.ERROR
+               if not(quiet) then abort abort.text
+         end case
+      end
+   end
+   return reply
+end
+
+* ======================================================================
+* The request of trans and rtrans: three length-prefixed strings (file name, field name, action) and then the id
+
+local function trans.packet(code, filename, id, fieldname, action)
+   pkt = iconv(len(filename), 'ISL') : filename
+   pkt := iconv(len(fieldname), 'ISL') : fieldname
+   pkt := iconv(len(action), 'ISL') : action
+   pkt := id
+   return text.request(code, pkt, 'TRANS generated an abort event')
 end
 
 * ======================================================================

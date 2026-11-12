@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 12 Nov 26 SD Core Solo - SOLO 56 group 7 (P-18), from SD Core for Windows (as in Linux Solo): $MODE NON.DURABLE.TXN (mode2 bit 9, mode name 42):
+*               every COMMIT is preceded by KERNEL(K$NON.DURABLE.TXN, 1) (emit.txn.commit), so a nested transaction's COMMIT hands its updates to the parent.
 * 11 Nov 26 SD Core Solo - SOLO 56 group 3, from SD Core for Windows (as in Linux Solo): the SCREEN table takes ASK ... HISTORY list (S.184), FORM
 *               ... FILL, MEMO and TABLE ... STRETCH, and SCREEN SET passes a presence mask (SCREEN.DEFS field 4 "P", S.88 3.5), so a written
 *               VALUE / TEXT / ITEMS '' sets; screen_set takes 12 arguments.  Core's RUN.IN and NON.DURABLE.TXN pieces are not carried here.
@@ -220,7 +222,7 @@ $define M.PARTIAL.EXPRESSIONS  29  ;* 14 Oct 26 dm - openQM 417: AND and OR stop
 $define M2.TRAP.UNUSED.MAIN     5  ;* TRAP.UNUSED, for variables assigned in the program itself and not in an include record
 $define M2.EXPLICIT             7  ;* a scalar must be named in a DIM statement before it is used (explicit.check, dim.declare.scalar)
 * 28 Oct 26 dm - mode2 bit 8 (DEFAULT.UNASS.ARGS) is retired (S.87): the position stays RESERVED, blank in mode.names
-*  bit 9 is Linux's M2.NON.DURABLE.TXN (QMClient SDTxn mode 4, held): left unused so the bit numbers agree
+$define M2.NON.DURABLE.TXN      9  ;* 15 Oct 26 dm - COMMIT of a nested transaction hands its updates to the parent (emit.txn.commit)
 $define M2.DEBUG.EQUATES       11  ;* 16 Oct 26 dm - QM4 gap 218: a debug object also holds the equate and $DEFINE tokens (emit.equate.table)
 
 * Corresponding names, value delimited, first name is bit 0 of mode flags
@@ -271,7 +273,7 @@ mode.names<1,38> = "TRAP.UNUSED.MAIN"
 mode.names<1,39> = ""                   ;* retired 27 Oct 26 (was PICK.SELECT)
 mode.names<1,40> = "EXPLICIT"
 mode.names<1,41> = ""                   ;* mode2 bit 8, retired 28 Oct 26 (was DEFAULT.UNASS.ARGS)
-*  position 42 is Linux's NON.DURABLE.TXN (held): left empty
+mode.names<1,42> = "NON.DURABLE.TXN"
 mode.names<1,43> = ""                   ;* retired 27 Oct 26 (was STDFIL.SHARED)
 mode.names<1,44> = "DEBUG.EQUATES"
 *****************************************************************************
@@ -7307,10 +7309,24 @@ st.close.socket:
    return
 
 *****************************************************************************
+* EMIT.TXN.COMMIT  -  the opcode of a COMMIT (both forms of it), preceded under $MODE NON.DURABLE.TXN by the call that makes
+* this one non-durable: KERNEL(K$NON.DURABLE.TXN, 1), its result thrown away.  (15 Oct 26 dm, QM4 gaps Q-16)
+
+emit.txn.commit:
+   if bittest(mode2, M2.NON.DURABLE.TXN) then
+      n = K$NON.DURABLE.TXN ; gosub emit.numeric.load
+      n = 1 ; gosub emit.numeric.load
+      opcode.byte = OP.KERNEL ; gosub emit.simple
+      opcode.byte = OP.POP ; gosub emit.simple
+   end
+   opcode.byte = OP.TXNCMT ; gosub emit.simple
+   return
+
+*****************************************************************************
 * ST.COMMIT  -  COMMIT statement
 
 st.commit:
-   opcode.byte = OP.TXNCMT ; gosub emit.simple
+   gosub emit.txn.commit
 
    * Walk back down the jump stack to find the associated transaction
 
@@ -13502,7 +13518,7 @@ st.transaction:
          goto back.end
          
       case u.token.string = 'COMMIT'
-         opcode.byte = OP.TXNCMT ; gosub emit.simple
+         gosub emit.txn.commit
          opcode = OP.LD0
          ins '0' before onerror.stack<1>      ;* No ON ERROR clause
          ins '0' before testlock.stack<1>     ;* No LOCKED clause

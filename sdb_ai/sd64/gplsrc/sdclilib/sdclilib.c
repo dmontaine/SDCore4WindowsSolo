@@ -19,8 +19,13 @@
  * along with this library.  If not, see <https://www.gnu.org/licenses/>.
  *
  * START-HISTORY:
- * 20 Oct 26 SD Core Solo for Windows - from Linux 845d3b1 (18 Oct 26): SDChecksum(): the QMChecksum equivalent, evaluated on the client with
- *           the algorithm of BASIC's CHECKSUM().
+ * 12 Nov 26 SD Core Solo for Windows - SOLO 56 group 7: SD Core for Windows' library of 15 Oct 26 (as Linux Solo f084a3f: SDRevision, SDGetVar,
+ *           SDSystem, SDIndices, SDTrans, SDRTrans, SDTxn, SDEvaluate, SDEvalConv, SDIConv(s), SDOConv(s), SDOpenSeq to SDWeofSeq, SDWriteSeqKey,
+ *           SDWriteuSeqKey, SDRecordlocked; per-thread state), with Solo's four differences put back: a port of -1 is 4249; the installation folder
+ *           and sd.conf are found from this library's own folder (home_path(), sd-solo.exe); sd_pin.h and the first-use pin after the TLS
+ *           handshake (SOLO 24).  Earlier Solo lines follow the multi-user ones below.
+ * 20 Oct 26 Windows port - from Linux 845d3b1 (18 Oct 26): SDChecksum(): the QMChecksum equivalent, evaluated on the client with the
+ *           algorithm of BASIC's CHECKSUM().
  * 01 Oct 26 SD Core Solo for Windows - a port of -1 now means 4249, the Solo
  *           product's fixed API port (it was 4243)
  * 28 Sep 26 SD Core Solo for Windows - ruling 37: the product name in the
@@ -28,6 +33,8 @@
  * 25 Sep 26 SD Core Solo - sd.conf and SDSYS found from this library's own
  *           folder; no machine path compiled in (sysdir(), home_path())
  * 31 Dec 23 SD launch - prior history suppressed
+ * 01 Oct 26 Windows port - a port of -1 now means 4247, the full product's
+ *           fixed API port (it was 4243)
  * 18 Oct 26 Windows port - from Linux 6f35445: read_packet() reads the body in pieces
  *           bounded by what is left of the packet, not the buffer's free space
  * START-HISTORY (winSDclilib):
@@ -63,7 +70,8 @@
  * This port is not intended to be a complete port of sdclilib.c, at this time only porting functions that I currently need.
  * Also will probably not include the call function, but instead the Callx / Getarg functions of newer client versions.
  * Warning: winSDclilib does not maintian a storage area for Getarg parameters for each session.
- *  Using Callx will "overwrite" the previous Callx parameters regardless of session number.
+ *  Using Callx will "overwrite" the previous Callx parameters of the calling THREAD (since 25 Oct 26 they are per thread,
+ *  not shared by every thread of the process) regardless of session number.
  *  A solution would be to add the return call buffers to the session structure....
  *    Or size the pointer array CallArgArray to have a slot for the max number of call args * the max number of sessions
  *    char *    CallArgArray[MAX_ARGS*MAX_SESSIONS]
@@ -81,6 +89,22 @@
  *
  *   Rem "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.38.33130\bin\Hostx64\x86\dumpbin.exe" /exports winSDclilib.dll
  *   To get listing of functions
+ * 15 Sep 26 Windows port - from Linux 400500c - - sysdir()'s SD_CONFIG literals are a DUPLICATE of sddefs.h's
+ *     SD_CONFIG_ENV / SD_CONFIG_DEFAULT; change them together.  The server
+ *     used to read SCARLET_CONFIG instead; it does not any more.
+ *
+ * 25 Oct 26 Windows port - from Linux 375cbe7 (15 Oct 26) - sheet 456: THREAD SAFETY, in code (an earlier carry brought this entry without it).
+ *     The current session, the transfer buffer, the Callx argument buffers, the matching state and sysdir()'s answer are per thread
+ *     (one THREADCTX in fiber local storage, thread_ctx(); its callback gives the thread's buffers and held slots back when the thread
+ *     ends), the table of sessions is shared and its slots are claimed under session_lock, so threads work on different sessions at the
+ *     same time and each tracks its own current session (SDSetSession) as the manual requires.  Two threads must still not use ONE
+ *     session together.  A connection that fails keeps its slot (CX_HELD) so that its owner can read the error.  initialise_client()
+ *     is once per process (it used to run whenever the buffer was NULL and wiped slots in use).  Windows differences: no fork, and
+ *     SDConnectLocal's two handles are already passed by an explicit handle list, so it needs no lock round CreateProcess;
+ *     gethostbyname's buffer is per thread in Winsock.  Also: SDIndices used typeof, which the -std=c11 build refuses (5f12ad5 carry).
+ *     tests/thread_smoke.c measures it with no server (the old library fails it, this one passes).
+ * 15 Oct 26 Windows port - from Linux 400500c - SDExecute copies reply_len bytes: an on-error reply
+ *     (SDCLIENT 1 or 2) overran a one byte allocation with strcpy.
  *
  * 20240305 mab add balance of functions to msvc port
  * 20260805 align write-size validation and error-response semantics with the
@@ -124,7 +148,24 @@
  * SDReadNext()
  * SDClearSelect()
  * SDRecordlock()
+ * SDRecordlocked()
  * SDMarkMapping()
+ * SDIndices()
+ * SDTrans()
+ * SDRTrans()
+ *
+ * Server Information (15 Oct 26)
+ * ==============================
+ * SDRevision()
+ * SDGetVar()
+ * SDSystem()
+ * SDTxn()
+ * SDEvaluate()
+ * SDEvalConv()
+ * SDIConv()
+ * SDOConv()
+ * SDIConvs()
+ * SDOConvs()
  *
  *
  * Dynamic Array Handling
@@ -188,6 +229,8 @@
 #include <string.h>
 #include <ctype.h> /* toupper() in sysdir() */
 #include <fcntl.h>
+#include <signal.h>
+#include <time.h>
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -289,6 +332,10 @@ void set_default_character_maps(void);
 
 #define DLLEntry  __declspec(dllexport)
 
+/* 25 Oct 26 Windows port - Linux's QMClient code (5f12ad5 on) writes "} ALIGN2 packet;" for a packed request; this file uses #pragma pack(2) around a struct instead.
+   Both are in the file, so a carried hunk compiles as it came. */
+#define ALIGN2 __attribute__((packed, aligned(2)))
+
 #define FOPEN_READ_MODE "r"
 
 #include "err.h"
@@ -308,7 +355,7 @@ void set_default_character_maps(void);
    and its SCRAM login is bound to the TLS session.  OpenSSL is confined to
    sd_tls.c; this header names no OpenSSL type. */
 #include "sd_tls.h"
-#include "sd_pin.h"
+#include "sd_pin.h" /* 30 Sep 26 SD Core Solo - SOLO 24: first-use pinning of the server's certificate */
 
 DLLEntry char* SDError(void);
 
@@ -323,6 +370,10 @@ Private void debug(unsigned char* p, int n);
 Private void initialise_client(void);
 Private bool FindFreeSession(void);
 Private void disconnect(void);
+Private void disconnect_session(int16_t final_context);
+Private void release_held_session(void);
+Private void release_thread_buffers(void);
+Private void ensure_thread_buffer(void);
 Private int32_t grow_buffer_size(int32_t needed);
 Private bool valid_packet_length(int32_t packet_length);
 Private bool read_arg_record(const char* buf, int32_t buf_bytes, int offset,
@@ -386,27 +437,64 @@ struct INBUFF {
         struct { /* SDSelectLeft, SDSelectRight */
             char key[1];
         } selectleft;
+        struct { /* SDRevision, SDGetVar, SDSystem, SDIndices, SDTrans, SDRTrans (15 Oct 26) */
+            char text[1];
+        } text;
     } data;
 };
 #pragma pack()
 
-Private INBUFF* buff = NULL;
-Private int32_t buff_size;  /* Allocated size of buffer */
-Private int32_t buff_bytes; /* Size of received packet */
 Private FILE* srvr_debug = NULL;
 
 /* buffers for Callx return arguments  */
 #define MAX_ARGS 20
-Private char *    CallArgArray[MAX_ARGS];          /* create an array of pointers, for string arguments (returned by Callx) not sure if this is correct */
-Private int       CallArgArraySz[MAX_ARGS];        /* and size of memory allocated for each  string length + terminator */
 
-#define MAX_SESSIONS 4
+/* 25 Oct 26 Windows port - from Linux 375cbe7 (15 Oct 26, sheet 456): THREAD SAFETY.  What a call leaves behind for its caller - the
+   transfer buffer, the Callx arguments, the current session (SDSetSession), the matching state and sysdir()'s answer - belongs to the THREAD, so
+   two threads working on two sessions cannot meet in it.  Linux marks them __thread; here they are one THREADCTX per thread, held in a fiber
+   local storage slot (FlsAlloc), because the callback FLS runs when the thread ends is handed the pointer and so never has to read a thread local
+   variable of a thread that is going (the mingw runtime's emulated TLS is not safe to read from there).  The names below are macros for the
+   fields of this thread's context, so the rest of the file reads as it always did.  The table of sessions is shared; its slots are claimed and given
+   up under session_lock.  The buffer is made by the first packet a thread reads or builds (buff_size starts at 0, so every growth test already
+   allocates) and released when the thread ends or when no session is live.                                                                   */
+typedef struct THREADCTX THREADCTX;
+struct THREADCTX {
+  INBUFF* t_buff;
+  int32_t t_buff_size;  /* Allocated size of buffer */
+  int32_t t_buff_bytes; /* Size of received packet */
+  char* t_CallArgArray[MAX_ARGS]; /* string arguments (returned by Callx) */
+  int t_CallArgArraySz[MAX_ARGS]; /* and the size of memory allocated for each: string length + terminator */
+  int16_t t_session_idx;          /* this thread's current session (SDSetSession) */
+  char* t_component_start;        /* matching data */
+  char* t_component_end;
+  char sysdirpath[MAX_PATHNAME_LEN + 1];
+};
+
+Private THREADCTX* thread_ctx(void);
+#define buff (thread_ctx()->t_buff)
+#define buff_size (thread_ctx()->t_buff_size)
+#define buff_bytes (thread_ctx()->t_buff_bytes)
+#define CallArgArray (thread_ctx()->t_CallArgArray)
+#define CallArgArraySz (thread_ctx()->t_CallArgArraySz)
+#define session_idx (thread_ctx()->t_session_idx)
+#define component_start (thread_ctx()->t_component_start)
+#define component_end (thread_ctx()->t_component_end)
+
+
+/* 15 Oct 26 dm - was 4 (sheet 134: the QMClient API no longer limits the number of simultaneous connections).  The server's
+   own user table (USERPOOL, 1023 by default) is the real ceiling, so the client stops asking for a slot only above that; each
+   entry is under 1 KB.  A session index is an int16_t, which this stays far below.                                      */
+#define MAX_SESSIONS 1024
 Private struct {
   bool winsock_started;
   int16_t context;
 #define CX_DISCONNECTED 0 /* No session active */
 #define CX_CONNECTED 1    /* Session active but not... */
 #define CX_EXECUTING 2    /* ...executing command (implies connected) */
+#define CX_HELD 3         /* 25 Oct 26 (Linux 375cbe7): claimed by ONE thread - a connection being made, or one that failed or was
+                             abandoned and whose error text that thread has not read yet.  Not usable and not free: it is given up
+                             by that thread's next connect, SDSetSession, SDDisconnect or by SDDisconnectAll, so another thread
+                             cannot take the slot and clear the error first. */
   char sderror[512 + 1];
   int16_t server_error;
   int32_t sd_status;
@@ -424,13 +512,18 @@ Private struct {
   HANDLE hPipeRd; /* server -> client; the child's stdout */
   HANDLE hPipeWr; /* client -> server; the child's stdin  */
   bool is_local;
+  void* owner; /* 25 Oct 26 (Linux 375cbe7): while CX_HELD, the thread's context the slot is held for */
 } session[MAX_SESSIONS];
 
-Private int16_t session_idx = 0;
+/* Taken to claim or give up a slot of session[], to read the table for a free one, and round the start of a local server (below).  Nothing else
+   is shared, so no call holds it across a read from a server.                                                                              */
+Private CRITICAL_SECTION session_lock;
+Private INIT_ONCE ctx_once = INIT_ONCE_STATIC_INIT;
+Private INIT_ONCE client_once = INIT_ONCE_STATIC_INIT;
+Private DWORD thread_exit_index = FLS_OUT_OF_INDEXES;
 
-/* Matching data */
-Private char* component_start;
-Private char* component_end;
+#define session_live(i) \
+  ((session[i].context == CX_CONNECTED) || (session[i].context == CX_EXECUTING))
 
 /* Internally used routines */
 /*
@@ -445,6 +538,10 @@ Private char* SelectLeftRight(int16_t fno,
                               int16_t listno,
                               int16_t mode);
 Private void SetLeftRight(int16_t fno, char* index_name, int16_t mode);
+Private char* text_request(int16_t action, char* packet, int32_t bytes, char* abort_text);
+Private char* trans_request(int16_t action, char* file_name, char* id, char* field_name, char* action_text);
+Private char* evaluate_request(int16_t action, int fno, char* name, char* data, char* id);
+Private char* conv_request(int16_t action, char* data, char* code);
 Private bool context_error(int16_t expected);
 Private void delete_record(int16_t mode, int fno, char* id); 
 
@@ -1322,32 +1419,32 @@ exit_sdconnect:
    gplsrc/sddefs.h, which this toolchain deliberately does not include
    (PROJECT_STATUS.md 5.2) - change them in both places.
 
+   The answer is cached after the first successful read.
+
    25 Sep 26 SD Core Solo - NO MACHINE PATH.  With SD_CONFIG unset the file is
    sd.conf in the installation's own folder, and SDSYS defaults to its sdsys -
    the same rule the server applies (gplsrc/inipath.c).  The server asks the
    MSYS2 runtime for its POSIX root; this library has no such runtime, so it
    takes the same folder from where it was loaded: it ships in <home>\usr\bin
-   beside sd.exe (sd_exe_path() below), so the home is two folders up.
-
-   The answer is cached after the first successful read. */
+   beside sd-solo.exe (sd_exe_path() below), so the home is two folders up.  */
 
 #define SD_CONFIG_ENV     "SD_CONFIG"
 
-Private int sd_exe_path(char* buff, size_t buffsize);
+Private int sd_exe_path(char* pathbuf, size_t buffsize);
 
-/* home_path()  -  <home>, from <home>\usr\bin\sd.exe.  FALSE if the library
+/* home_path()  -  <home>, from <home>\usr\bin\sd-solo.exe.  FALSE if the library
    is not in a folder two deep, which callers report rather than guess past. */
 
-Private int home_path(char* buff, size_t buffsize) {
+Private int home_path(char* pathbuf, size_t pathsize) { /* not "buff": that is the per-thread buffer's macro here */
   int i;
   char* p;
 
-  if (!sd_exe_path(buff, buffsize))
+  if (!sd_exe_path(pathbuf, pathsize))
     return FALSE;
 
-  for (i = 0; i < 3; i++) { /* \sd.exe, \bin, \usr */
-    p = strrchr(buff, '\\');
-    if ((p == NULL) || (p == buff))
+  for (i = 0; i < 3; i++) { /* \sd-solo.exe, \bin, \usr */
+    p = strrchr(pathbuf, '\\');
+    if ((p == NULL) || (p == pathbuf))
       return FALSE;
     *p = '\0';
   }
@@ -1356,7 +1453,7 @@ Private int home_path(char* buff, size_t buffsize) {
 }
 
 Private char* sysdir(void) {
-  static char sysdirpath[MAX_PATHNAME_LEN + 1] = "";
+  char* sysdirpath = thread_ctx()->sysdirpath; /* per thread (25 Oct 26, Linux 375cbe7): the answer is not shared storage */
   char inipath[MAX_PATHNAME_LEN + 1];
   char home[MAX_PATHNAME_LEN + 1];
   char section[50];
@@ -1425,7 +1522,7 @@ Private char* sysdir(void) {
     if (strcmp(section, "SD") == 0) /* [sd] items */
     {
       if (strncmp(rec, "SDSYS=", 6) == 0) {
-        snprintf(sysdirpath, sizeof(sysdirpath), "%s", rec + 6);
+        snprintf(sysdirpath, sizeof(thread_ctx()->sysdirpath), "%s", rec + 6);
         break;
       }
     }
@@ -1433,8 +1530,9 @@ Private char* sysdir(void) {
 
   fclose(fu);
 
+  /* SD Core Solo: no SDSYS line means the installation's own sdsys, as the server's rule (gplsrc/inipath.c) */
   if (sysdirpath[0] == '\0')
-    snprintf(sysdirpath, sizeof(sysdirpath), "%.240s\\sdsys", home);
+    snprintf(sysdirpath, sizeof(thread_ctx()->sysdirpath), "%.240s\\sdsys", home);
 
   return sysdirpath;
 }
@@ -1460,7 +1558,7 @@ Private char* sysdir(void) {
    it - a client .exe would otherwise get its own directory.  UNCHANGED_REFCOUNT
    because we are not holding a reference, only asking a question.          */
 
-Private int sd_exe_path(char* buff, size_t buffsize) {
+Private int sd_exe_path(char* pathbuf, size_t buffsize) {
   /* The address handed to FROM_ADDRESS only has to lie inside this module, so
      it is a static DATUM rather than this function.  Taking a function's
      address would mean casting a function pointer to an object pointer, which
@@ -1479,7 +1577,7 @@ Private int sd_exe_path(char* buff, size_t buffsize) {
           (LPCSTR)&anchor, &hmod))
     return FALSE;
 
-  n = GetModuleFileNameA(hmod, buff, (DWORD)buffsize);
+  n = GetModuleFileNameA(hmod, pathbuf, (DWORD)buffsize);
 
   /* GetModuleFileNameA truncates and reports success on a short buffer in
      some Windows versions, so the length is checked rather than trusted. */
@@ -1487,13 +1585,13 @@ Private int sd_exe_path(char* buff, size_t buffsize) {
   if ((n == 0) || (n >= buffsize))
     return FALSE;
 
-  p = strrchr(buff, '\\');
+  p = strrchr(pathbuf, '\\');
   if (p == NULL)
     return FALSE;
 
   /* 01 Oct 26 SD Core Solo: the server is installed as sd-solo.exe ("sd" is the
      full product's name, on both platforms - owner's ruling). */
-  if ((size_t)(p - buff) + sizeof("\\sd-solo.exe") > buffsize)
+  if ((size_t)(p - pathbuf) + sizeof("\\sd-solo.exe") > buffsize)
     return FALSE;
 
   strcpy(p, "\\sd-solo.exe");
@@ -1761,27 +1859,30 @@ exit_sdconnect_local:
    SDConnected()  -  Are we connected?                                    */
 DLLEntry  int SDConnected() {
   ClearError;
-  return (session[session_idx].context == CX_DISCONNECTED) ? FALSE : TRUE;
+  return session_live(session_idx) ? TRUE : FALSE;
 }
 
 /* ======================================================================
    SDDcount()  -  Count fields, values or subvalues                       */
 DLLEntry  int SDDcount(char* src, char* delim_str) {
   int32_t src_len;
+  int32_t delim_len;
   char* p;
   int32_t ct = 0;
-  unsigned char delim;  /* note need unsigned char for memchr to work > 127 character, is this a c++ builder thing? */
 
   /* initialise_client();  */
-  if (strlen(delim_str) != 0) {
-	delim = *delim_str;
-	src_len = strlen(src);
-	if (src_len != 0) {
-	  ct = 1;
-	  while ((p = memchr(src, delim, src_len)) != NULL) {
-        src_len -= (1 + p - src);
-        src = p + 1;
-		ct++;
+
+  /* 15 Oct 26 dm - sheet 260: the delimiter may be more than one character (it was the first only).  Each occurrence of the
+     whole string counts once, non-overlapping from the left, as DCOUNT() counts them; no delimiter, or no string, is 0. */
+  delim_len = strlen(delim_str);
+  if (delim_len != 0) {
+    src_len = strlen(src);
+    if (src_len != 0) {
+      ct = 1;
+      while ((p = memstr(src, delim_str, src_len, delim_len)) != NULL) {
+        src_len -= (p - src) + delim_len;
+        src = p + delim_len;
+        ct++;
       }
 	}
   }
@@ -1987,8 +2088,10 @@ DLLEntry void SDDeleteu(int fno, char* id) {
 /* ======================================================================
    SDDisconnect()  -  Close connection to server.                         */
 DLLEntry void SDDisconnect() {
-  if (session[session_idx].context != CX_DISCONNECTED) {
+  if (session_live(session_idx)) {
     disconnect();
+  } else {
+    release_held_session(); /* a failed connection: give the slot back */
   }
 }
 
@@ -1999,7 +2102,14 @@ DLLEntry void SDDisconnectAll() {
   for (i = 0; i < MAX_SESSIONS; i++) {
     if (session[i].context != CX_DISCONNECTED) {
       session_idx = i;
-      disconnect();
+      if (session_live(i)) {
+        disconnect();
+      } else {
+        /* a failed connection, of any thread: "all" means all */
+        EnterCriticalSection(&session_lock);
+        session[i].context = CX_DISCONNECTED;
+        LeaveCriticalSection(&session_lock);
+      }
     }
   }
 }
@@ -2085,6 +2195,9 @@ DLLEntry char*  SDExecute(char* cmnd, int* err) {
       break;
   }
 exit_sdexecute:
+  /* 15 Oct 26 dm  copy reply_len bytes, not a string: on an on-error reply
+     reply_len is 0 and the buffer holds the refusal text, which the strcpy
+     wrote past a one byte allocation. */
   reply = malloc(reply_len + 1);
   if (reply == NULL) {
     snprintf(session[session_idx].sderror,
@@ -2871,6 +2984,233 @@ DLLEntry void SDRecordlock(int fno, char* id, int update_lock, int wait) {
   }
 }
 /* ======================================================================
+   SDRecordlocked()  -  Query the lock on a record (RECORDLOCKED())
+   Returns -3 another user holds a file lock, -2 another user holds an update lock, -1 another user holds a read lock, 0 not
+   locked, 1 this session holds a read lock, 2 this session holds an update lock, 3 this session holds a file lock.  The
+   server has answered request 34 for some time; there was no client function to send it (15 Oct 26 dm, sheet 262).  A
+   file number the session has not open, or a failure on the server, gives 0 with SDError() saying why.                */
+
+int DLLEntry SDRecordlocked(int fno, char* id) {
+  int id_len;
+  int32_t state = 0;
+  struct {
+    int16_t fno;
+    char id[MAX_ID_LEN];
+  } ALIGN2 packet;
+
+  if (context_error(CX_CONNECTED))
+    return 0;
+
+  id_len = strlen(id);
+  if (id_len > MAX_ID_LEN) {
+    session[session_idx].server_error = SV_ELSE;
+    session[session_idx].sd_status = ER_IID;
+    return 0;
+  }
+  packet.fno = ShortInt(fno);
+  memcpy(packet.id, id, id_len);
+
+  if (message_pair(SrvrRecordlocked, (char*)&packet, id_len + 2)) {
+    switch (session[session_idx].server_error) {
+      case SV_OK:
+        if (buff_bytes - (int32_t)offsetof(INBUFF, data.text.text) >= 4) {
+          memcpy(&state, buff->data.text.text, 4);
+          state = LongInt(state);
+        }
+        break;
+
+      case SV_ON_ERROR:
+        Abort("Recordlocked generated an abort event", TRUE);
+        break;
+    }
+  }
+  return (int)state;
+}
+
+/* ======================================================================
+   Sequential files (sheet 441): SDOpenSeq, SDReadSeq, SDReadBlk, SDWriteSeq, SDWriteBlk, SDSeek, SDWeofSeq; closed with
+   SDClose.  A sequential file's number is not one of SDOpen's (the server numbers them from 10001).  The functions follow the
+   QMClient manual.  SDWriteSeqKey and SDWriteuSeqKey, below, are not of this group: they write a record of a HASHED file.
+
+   seq_data_request()  -  A request whose answer is data that may hold any byte, so its length is returned too.  The answer
+   is a malloc()ed string with a terminator after the data; *status is the server's answer code (SV_OK, SV_ELSE ...).      */
+
+Private char* seq_data_request(int16_t action, char* packet, int32_t bytes, char* abort_text, int32_t* len, int* status) {
+  int32_t n = 0;
+  char* data;
+
+  if (!context_error(CX_CONNECTED)) {
+    if (message_pair(action, packet, bytes)) {
+      switch (session[session_idx].server_error) {
+        case SV_OK:
+          n = buff_bytes - (int32_t)offsetof(INBUFF, data.text.text);
+          break;
+
+        case SV_ON_ERROR:
+          Abort(abort_text, TRUE);
+          break;
+      }
+    }
+  }
+  if (status != NULL)
+    *status = session[session_idx].server_error;
+  if (n < 0)
+    n = 0;
+  data = malloc(n + 1);
+  if (n > 0)
+    memcpy(data, buff->data.text.text, n);
+  data[n] = '\0';
+  if (len != NULL)
+    *len = n;
+  return data;
+}
+
+/* A request of a file number and then bytes of data (a line, a block, a record); the answer, which may be nothing, is returned
+   as a malloc()ed string (a null pointer when the request could not be made) */
+Private char* seq_write_reply(int16_t action, int fno, char* data, int32_t bytes, char* abort_text) {
+  char* packet;
+  char* reply;
+  int16_t s = ShortInt((int16_t)fno);
+
+  if ((bytes < 0) || ((size_t)bytes > (size_t)SD_MAX_PACKET_BYTES - 64)) {
+    session[session_idx].server_error = SV_ELSE;
+    session[session_idx].sd_status = ER_BAD_NAME;
+    return NullString();
+  }
+  packet = malloc(2 + bytes + 1);
+  memcpy(packet, &s, 2);
+  if (bytes > 0)
+    memcpy(packet + 2, data, bytes);
+  reply = seq_data_request(action, packet, 2 + bytes, abort_text, NULL, NULL);
+  free(packet);
+  return reply;
+}
+
+Private void seq_write_request(int16_t action, int fno, char* data, int32_t bytes, char* abort_text) {
+  free(seq_write_reply(action, fno, data, bytes, abort_text));
+}
+
+/* SDWriteSeqKey(), SDWriteuSeqKey()  -  Write a record to a HASHED file under the id the file's own counter gives it, and return
+   that id (a number as text; the null string, with SDStatus() and SDError(), if the write was refused).  The update lock the write
+   takes is released before the call returns, or for SDWriteuSeqKey kept.  This is WRITE / WRITEU ... CREATING.SEQKEY: the counter
+   starts at 1 and is set with CONFIGURE.FILE NEXT.  Not valid for a directory file.  The file is one SDOpen gave.             */
+char* DLLEntry SDWriteSeqKey(int fno, char* rec) {
+  return seq_write_reply(SrvrWriteSeqKey, fno, rec, (int32_t)strlen(rec), "WriteSeqKey generated an abort event");
+}
+
+char* DLLEntry SDWriteuSeqKey(int fno, char* rec) {
+  return seq_write_reply(SrvrWriteuSeqKey, fno, rec, (int32_t)strlen(rec), "WriteuSeqKey generated an abort event");
+}
+
+/* SDOpenSeq()  -  Open a sequential file.  filename is a VOC name and id the record in it, or with a null id filename is the
+   pathname of the file.  modes adds: 2 give up with SDStatus() ER$LOCKED if another process has it (otherwise wait), 16 read
+   only, 256 append, 512 overwrite, 1024 flush after every write, 4096 shared (append, for several writers).  Returns the file
+   number, or 0 with SDStatus() and SDError() saying why.  A file that is not there yet gets a number and is made by the first
+   write.  A pathname outside what the account may open is refused as OPENSEQ refuses it.                                   */
+int DLLEntry SDOpenSeq(char* filename, char* id, int modes) {
+  size_t nl = strlen(filename);
+  size_t il = strlen(id);
+  char* packet;
+  char* reply;
+  char* p;
+  int32_t len = 0;
+  int status = SV_ERROR;
+  int fno = 0;
+  int32_t m = LongInt(modes);
+  int16_t s;
+
+  if ((nl > 32000) || (il > 255)) {
+    session[session_idx].server_error = SV_ELSE;
+    session[session_idx].sd_status = ER_BAD_NAME;
+    return 0;
+  }
+  packet = malloc(4 + 2 + nl + il + 1);
+  p = packet;
+  memcpy(p, &m, 4);
+  p += 4;
+  s = ShortInt((int16_t)nl);
+  memcpy(p, &s, 2);
+  p += 2;
+  memcpy(p, filename, nl);
+  p += nl;
+  memcpy(p, id, il);
+  p += il;
+  reply = seq_data_request(SrvrOpenSeq, packet, (int32_t)(p - packet), "OpenSeq generated an abort event", &len, &status);
+  if ((status == SV_OK) && (len >= 2)) {
+    memcpy(&s, reply, 2);
+    fno = ShortInt(s);
+  }
+  free(reply);
+  free(packet);
+  return fno;
+}
+
+/* SDReadSeq()  -  The next line of a sequential file without its terminator.  *err is the server's answer (SV_ELSE at the end
+   of the file); the string is empty then.  Free it with SDFree.                                                            */
+char* DLLEntry SDReadSeq(int fno, int* err) {
+  int16_t s = ShortInt((int16_t)fno);
+  int status = SV_OK;
+  char* data = seq_data_request(SrvrReadSeq, (char*)&s, 2, "ReadSeq generated an abort event", NULL, &status);
+
+  if (err != NULL)
+    *err = status;
+  return data;
+}
+
+/* SDReadBlk()  -  Up to that many bytes of a sequential file.  *actual is how many came back (0 with nothing left, and the
+   string is empty).  The data may hold any byte, so use *actual and not the terminator.                                  */
+char* DLLEntry SDReadBlk(int fno, int bytes, int* actual) {
+  struct {
+    int16_t fno;
+    int32_t bytes;
+  } ALIGN2 packet;
+  int32_t len = 0;
+  int status = SV_OK;
+  char* data;
+
+  packet.fno = ShortInt((int16_t)fno);
+  packet.bytes = LongInt(bytes);
+  data = seq_data_request(SrvrReadBlk, (char*)&packet, sizeof(packet), "ReadBlk generated an abort event", &len, &status);
+  if (actual != NULL)
+    *actual = len;
+  return data;
+}
+
+/* SDWriteSeq()  -  Write a line, and a terminator, to a sequential file */
+void DLLEntry SDWriteSeq(int fno, char* rec) {
+  seq_write_request(SrvrWriteSeq, fno, rec, (int32_t)strlen(rec), "WriteSeq generated an abort event");
+}
+
+/* SDWriteBlk()  -  Write that many bytes to a sequential file, exactly as they are */
+void DLLEntry SDWriteBlk(int fno, char* rec, int bytes) {
+  seq_write_request(SrvrWriteBlk, fno, rec, bytes, "WriteBlk generated an abort event");
+}
+
+/* SDSeek()  -  Position in a sequential file: relto 0 from the start, 1 from here, 2 from the end */
+void DLLEntry SDSeek(int fno, int offset, int relto) {
+  struct {
+    int16_t fno;
+    int32_t offset;
+    int16_t relto;
+  } ALIGN2 packet;
+  char* reply;
+
+  packet.fno = ShortInt((int16_t)fno);
+  packet.offset = LongInt(offset);
+  packet.relto = ShortInt((int16_t)relto);
+  reply = seq_data_request(SrvrSeek, (char*)&packet, sizeof(packet), "Seek generated an abort event", NULL, NULL);
+  free(reply);
+}
+
+/* SDWeofSeq()  -  Cut a sequential file off at the current position */
+void DLLEntry SDWeofSeq(int fno) {
+  int16_t s = ShortInt((int16_t)fno);
+  char* reply = seq_data_request(SrvrWeofSeq, (char*)&s, 2, "WeofSeq generated an abort event", NULL, NULL);
+
+  free(reply);
+}
+
+/* ======================================================================
    SDRelease()  -  Release lock                                           */
 DLLEntry void SDRelease(int fno, char* id) {
   int id_len;
@@ -3358,12 +3698,295 @@ Private void SetLeftRight(int16_t fno, char* index_name, int16_t mode) {
 
 
 /* ======================================================================
+   text_request()  -  A request whose answer is one string.
+   Used by SDRevision, SDGetVar, SDSystem, SDIndices, SDTrans and SDRTrans.
+   Returns a malloc()ed string, null when the server answered with anything
+   but success or when there is no connection; an abort on the server is
+   reported as for the other functions.                                   */
+
+Private char* text_request(int16_t action, char* packet, int32_t bytes, char* abort_text) {
+  int32_t len = 0;
+  char* text;
+
+  if (!context_error(CX_CONNECTED)) {
+    if (message_pair(action, packet, bytes)) {
+      switch (session[session_idx].server_error) {
+        case SV_OK:
+          len = buff_bytes - offsetof(INBUFF, data.text.text);
+          break;
+
+        case SV_ON_ERROR:
+          Abort(abort_text, TRUE);
+          break;
+      }
+    }
+  }
+
+  text = malloc(len + 1);
+  if (len > 0)
+    memcpy(text, buff->data.text.text, len);
+  text[len] = '\0';
+  return text;
+}
+
+/* ======================================================================
+   SDRevision()  -  Revision of the client and, when connected, the server.
+   Without a connection the client's alone; with one, a value mark
+   delimited pair, client then server.  A server that does not know the
+   request (the Windows port before it adopts it) is reported as 0.0-0, as
+   openQM does for a server older than the function.                      */
+
+char* DLLEntry SDRevision(void) {
+  char* server;
+  char* result;
+
+  initialise_client();
+
+  if (!session_live(session_idx)) {
+    result = malloc(strlen(SD_REV_STAMP) + 1);
+    strcpy(result, SD_REV_STAMP);
+    return result;
+  }
+
+  server = text_request(SrvrRevision, NULL, 0, "Revision generated an abort event");
+  if (*server == '\0')
+    strcpy(server = realloc(server, 8), "0.0-0");
+
+  result = malloc(strlen(SD_REV_STAMP) + strlen(server) + 2);
+  sprintf(result, "%s%c%s", SD_REV_STAMP, U_VALUE_MARK, server);
+  free(server);
+  return result;
+}
+
+/* ======================================================================
+   SDGetVar()  -  Value of an @-variable on the server                    */
+
+char* DLLEntry SDGetVar(char* name) {
+  if (strlen(name) > 99) {
+    session[session_idx].server_error = SV_ELSE;
+    session[session_idx].sd_status = ER_BAD_NAME;
+    return NullString();
+  }
+  return text_request(SrvrGetVar, name, strlen(name), "GetVar generated an abort event");
+}
+
+/* ======================================================================
+   SDSystem()  -  SYSTEM() on the server                                  */
+
+char* DLLEntry SDSystem(int key) {
+#pragma pack(2)
+  struct {
+    int32_t key;
+  } packet;
+#pragma pack()
+
+  packet.key = LongInt(key);
+  return text_request(SrvrSystem, (char*)&packet, sizeof(packet), "System generated an abort event");
+}
+
+/* ======================================================================
+   SDIndices()  -  INDICES() on the server: the index names of a file, or
+   with a name the details of that index                                  */
+
+char* DLLEntry SDIndices(int fno, char* index_name) {
+#pragma pack(2)
+  struct {
+    int16_t fno;
+    char index_name[99 + 1];
+  } packet;
+#pragma pack()
+  int32_t n = strlen(index_name);
+
+  if (n > 99) {
+    session[session_idx].server_error = SV_ELSE;
+    session[session_idx].sd_status = ER_BAD_NAME;
+    return NullString();
+  }
+  packet.fno = ShortInt(fno);
+  memcpy(packet.index_name, index_name, n);
+  return text_request((n == 0) ? SrvrIndices1 : SrvrIndices2, (char*)&packet, (int32_t)(packet.index_name - (char*)&packet) + n, /* C11 has no typeof */
+                      "Indices generated an abort event");
+}
+
+/* ======================================================================
+   SDTrans(), SDRTrans()  -  TRANS() on the server: the marks of the answer
+   lowered one level, or left as they are.  Action is C, X or null (X).   */
+
+char* DLLEntry SDTrans(char* file_name, char* id, char* field_name, char* action) {
+  return trans_request(SrvrTrans, file_name, id, field_name, action);
+}
+
+char* DLLEntry SDRTrans(char* file_name, char* id, char* field_name, char* action) {
+  return trans_request(SrvrRTrans, file_name, id, field_name, action);
+}
+
+Private char* trans_request(int16_t action, char* file_name, char* id, char* field_name, char* action_text) {
+  size_t fl = strlen(file_name);
+  size_t nl = strlen(field_name);
+  size_t al = strlen(action_text);
+  size_t il = strlen(id);
+  size_t total = 2 + fl + 2 + nl + 2 + al + il;
+  char* packet;
+  char* p;
+  char* result;
+  int16_t n;
+
+  if ((fl > 255) || (nl > 255) || (al > 8) || (total > 60000)) {
+    session[session_idx].server_error = SV_ELSE;
+    session[session_idx].sd_status = ER_BAD_NAME;
+    return NullString();
+  }
+
+  packet = malloc(total + 1);
+  p = packet;
+  n = ShortInt((int16_t)fl);
+  memcpy(p, &n, 2);
+  p += 2;
+  memcpy(p, file_name, fl);
+  p += fl;
+  n = ShortInt((int16_t)nl);
+  memcpy(p, &n, 2);
+  p += 2;
+  memcpy(p, field_name, nl);
+  p += nl;
+  n = ShortInt((int16_t)al);
+  memcpy(p, &n, 2);
+  p += 2;
+  memcpy(p, action_text, al);
+  p += al;
+  memcpy(p, id, il);
+  p += il;
+
+  result = text_request(action, packet, (int32_t)(p - packet), "Trans generated an abort event");
+  free(packet);
+  return result;
+}
+
+/* ======================================================================
+   SDTxn()  -  Start (1), commit (2), abort (3) or commit non-durably (4) a transaction on the server.
+   A refusal (no transaction to commit, a mode out of range) leaves SDStatus() and SDError() to say what.   */
+
+void DLLEntry SDTxn(int mode) {
+  struct {
+    int16_t mode;
+  } ALIGN2 packet;
+  char* reply;
+
+  packet.mode = ShortInt(mode);
+  reply = text_request(SrvrTxn, (char*)&packet, sizeof(packet), "Txn generated an abort event");
+  free(reply);
+}
+
+/* ======================================================================
+   SDEvaluate(), SDEvalConv()  -  Evaluate a dictionary item on the server against a record.
+   fno is the file number of the DICTIONARY (SDOpen("DICT name")), name the item or several separated by value marks, data
+   the record (it becomes @RECORD) and id its id (@ID).  The answers come back joined by item marks.  SDEvalConv also applies
+   the item's output conversion.  An item that is not there gives the null string with a server status of SV_ELSE; one that
+   is not a data item, or will not compile, SV_ERROR with SDError() saying so.                                          */
+
+char* DLLEntry SDEvaluate(int fno, char* name, char* data, char* id) {
+  return evaluate_request(SrvrEvaluate, fno, name, data, id);
+}
+
+char* DLLEntry SDEvalConv(int fno, char* name, char* data, char* id) {
+  return evaluate_request(SrvrEvalConv, fno, name, data, id);
+}
+
+Private char* evaluate_request(int16_t action, int fno, char* name, char* data, char* id) {
+  size_t nl = strlen(name);
+  size_t dl = strlen(data);
+  size_t il = strlen(id);
+  size_t total = 2 + 2 + nl + 4 + dl + il;
+  char* packet;
+  char* p;
+  char* result;
+  int16_t s;
+  int32_t l;
+
+  if ((nl > 32000) || (il > 255) || (total > (size_t)SD_MAX_PACKET_BYTES - 64)) {
+    session[session_idx].server_error = SV_ELSE;
+    session[session_idx].sd_status = ER_BAD_NAME;
+    return NullString();
+  }
+
+  packet = malloc(total + 1);
+  p = packet;
+  s = ShortInt((int16_t)fno);
+  memcpy(p, &s, 2);
+  p += 2;
+  s = ShortInt((int16_t)nl);
+  memcpy(p, &s, 2);
+  p += 2;
+  memcpy(p, name, nl);
+  p += nl;
+  l = LongInt((int32_t)dl);
+  memcpy(p, &l, 4);
+  p += 4;
+  memcpy(p, data, dl);
+  p += dl;
+  memcpy(p, id, il);
+  p += il;
+
+  result = text_request(action, packet, (int32_t)(p - packet), "Evaluate generated an abort event");
+  free(packet);
+  return result;
+}
+
+/* ======================================================================
+   SDIConv(), SDOConv(), SDIConvs(), SDOConvs()  -  ICONV(), OCONV(), ICONVS() and OCONVS() on the server, which has every
+   conversion code.  The multivalued forms convert each element of a dynamic array in turn.  SDStatus() is the conversion's
+   own status: zero after a successful one, otherwise as ICONV() and OCONV() describe it.  A connection is needed.     */
+
+char* DLLEntry SDIConv(char* data, char* code) {
+  return conv_request(SrvrIConv, data, code);
+}
+
+char* DLLEntry SDOConv(char* data, char* code) {
+  return conv_request(SrvrOConv, data, code);
+}
+
+char* DLLEntry SDIConvs(char* data, char* code) {
+  return conv_request(SrvrIConvs, data, code);
+}
+
+char* DLLEntry SDOConvs(char* data, char* code) {
+  return conv_request(SrvrOConvs, data, code);
+}
+
+Private char* conv_request(int16_t action, char* data, char* code) {
+  size_t cl = strlen(code);
+  size_t dl = strlen(data);
+  size_t total = 2 + cl + dl;
+  char* packet;
+  char* result;
+  int16_t s;
+
+  if ((cl > 1000) || (total > (size_t)SD_MAX_PACKET_BYTES - 64)) {
+    session[session_idx].server_error = SV_ELSE;
+    session[session_idx].sd_status = ER_BAD_NAME;
+    return NullString();
+  }
+
+  packet = malloc(total + 1);
+  s = ShortInt((int16_t)cl);
+  memcpy(packet, &s, 2);
+  memcpy(packet + 2, code, cl);
+  memcpy(packet + 2 + cl, data, dl);
+
+  result = text_request(action, packet, (int32_t)total, "Conv generated an abort event");
+  free(packet);
+  return result;
+}
+
+/* ======================================================================
    SDSetSession()  -  Set session index                                   */
-DLLEntry int SDSetSession(int idx) {
-  if ((idx < 0) || (idx >= MAX_SESSIONS) ||
-      (session[idx].context == CX_DISCONNECTED)) {
+
+int DLLEntry SDSetSession(int idx) {
+  if ((idx < 0) || (idx >= MAX_SESSIONS) || !session_live(idx)) {
     return FALSE;
   }
+
+  release_held_session(); /* leaving a failed connection of this thread's: its error has been had */
   session_idx = idx;
   return TRUE;
 }
@@ -4228,7 +4851,12 @@ Private bool CloseSocket() {
    header. Any diagnostic already in sderror is preserved.                    */
 Private void abandon_connection(void) {
     (void)CloseSocket();
-    session[session_idx].context = CX_DISCONNECTED;
+    /* 25 Oct 26 (Linux 375cbe7) - held, not free: the thread that met the failure reads its error text from this slot (SDError), and a slot
+       given back here could be taken, and the text cleared, by another thread's connect first. */
+    EnterCriticalSection(&session_lock);
+    session[session_idx].owner = thread_ctx();
+    session[session_idx].context = CX_HELD;
+    LeaveCriticalSection(&session_lock);
 }
 /* ======================================================================
    NetErr                                                               */
@@ -4533,28 +5161,93 @@ Private void debug(unsigned char* p, int n) {
     fprintf(srvr_debug, "\n");
 }
 
-Private void initialise_client() {
+/* ======================================================================
+   25 Oct 26 Windows port - from Linux 375cbe7 (sheet 456): THREAD SAFETY.
+
+   thread_ctx()  -  This thread's context, made on first need.  The slot is a fiber local storage index whose callback (thread_exit_cleanup)
+   is handed the pointer when the thread ends, and gives the thread's buffers, and any failed connection it was still holding, back.  Its LIVE
+   sessions are the process's: another thread may be using them.  If there is no memory for a context, or the slot cannot be made, every such
+   thread shares one static context (the library behaves as it did before this change, for those threads).                                    */
+
+Private THREADCTX shared_ctx; /* the fallback; zero filled */
+
+Private void CALLBACK thread_exit_cleanup(void* arg) {
+  THREADCTX* t = (THREADCTX*)arg;
   int16_t i;
-  /* if buff has been allocated, we have been here once before, skip */
-  if (buff == NULL) {
-	set_default_character_maps();
-	buff_size = 2048;
-    buff = (INBUFF*)malloc(buff_size);
-	for (i = 0; i < MAX_SESSIONS; i++) {
-	  session[i].context = CX_DISCONNECTED;
-	  session[i].winsock_started = FALSE;
-	  session[i].sderror[0] = '\0';
-	  session[i].sock = INVALID_SOCKET;
-	  session[i].tls = NULL; /* 15 Sep 26 Windows port - S.19 */
-	  session[i].hPipeRd = INVALID_HANDLE_VALUE;
-	  session[i].hPipeWr = INVALID_HANDLE_VALUE;
-	  session[i].is_local = FALSE;
-	}
-	  /* initialize the arg pointer array for EngCall */
-	for (i = 0; i < MAX_ARGS; i++) {
-	  CallArgArray[i] = NULL;
-	  CallArgArraySz[i] = 0;
-	}
+
+  if (t == NULL)
+    return;
+  EnterCriticalSection(&session_lock);
+  for (i = 0; i < MAX_SESSIONS; i++) {
+    if ((session[i].context == CX_HELD) && (session[i].owner == (void*)t))
+      session[i].context = CX_DISCONNECTED;
+  }
+  LeaveCriticalSection(&session_lock);
+  if (t->t_buff != NULL)
+    free(t->t_buff);
+  for (i = 0; i < MAX_ARGS; i++) {
+    if (t->t_CallArgArray[i] != NULL)
+      free(t->t_CallArgArray[i]);
+  }
+  free(t);
+}
+
+Private BOOL CALLBACK init_ctx_once(PINIT_ONCE once, PVOID param, PVOID* context) {
+  (void)once;
+  (void)param;
+  (void)context;
+  InitializeCriticalSection(&session_lock);
+  thread_exit_index = FlsAlloc(thread_exit_cleanup);
+  return TRUE;
+}
+
+Private THREADCTX* thread_ctx(void) {
+  THREADCTX* t;
+
+  (void)InitOnceExecuteOnce(&ctx_once, init_ctx_once, NULL, NULL);
+  if (thread_exit_index == FLS_OUT_OF_INDEXES)
+    return &shared_ctx;
+  t = (THREADCTX*)FlsGetValue(thread_exit_index);
+  if (t == NULL) {
+    t = (THREADCTX*)calloc(1, sizeof(THREADCTX));
+    if (t == NULL)
+      return &shared_ctx;
+    if (!FlsSetValue(thread_exit_index, t)) {
+      free(t);
+      return &shared_ctx;
+    }
+  }
+  return t;
+}
+
+/* ======================================================================
+   initialise_client()  -  Once per process: the character maps and the empty table.  It used to be done whenever the buffer was NULL - which a
+   second thread, or the first one after every session had ended, always found - and so wiped slots in use.  Then this thread's transfer buffer. */
+
+Private void prepare_session_slot(int16_t i) {
+  session[i].winsock_started = FALSE;
+  session[i].sderror[0] = '\0';
+  session[i].server_error = SV_OK;
+  session[i].sd_status = 0;
+  session[i].sock = INVALID_SOCKET;
+  session[i].tls = NULL; /* 15 Sep 26 Windows port - S.19 */
+  session[i].hPipeRd = INVALID_HANDLE_VALUE;
+  session[i].hPipeWr = INVALID_HANDLE_VALUE;
+  session[i].is_local = FALSE;
+  session[i].owner = NULL;
+}
+
+Private BOOL CALLBACK init_client_once(PINIT_ONCE once, PVOID param, PVOID* context) {
+  int16_t i;
+
+  (void)once;
+  (void)param;
+  (void)context;
+  set_default_character_maps();
+  for (i = 0; i < MAX_SESSIONS; i++) {
+    session[i].context = CX_DISCONNECTED;
+    prepare_session_slot(i);
+  }
 
     /* 19 Aug 26 Windows port - SD_CLIENT_DEBUG NOW TURNS LOGGING ON BY ITSELF.
        It used to choose the log's PATH and nothing else; the logging still had
@@ -4564,7 +5257,7 @@ Private void initialise_client() {
        and throwing QMError() away with it.  With no way to make such a client
        call SDDebug, there was no way to see which request had failed.
 
-       AFTER the loops above, not before: SDDebug() reports a log it could not
+       AFTER the loop above, not before: SDDebug() reports a log it could not
        open by writing into session[].sderror, and the loop clearing sderror
        would have wiped exactly the message that says why there is no log.
 
@@ -4572,71 +5265,143 @@ Private void initialise_client() {
        the caller's choice.  NOTE that the log holds a hex dump of every
        packet - since SCRAM that no longer includes a password, but it does
        include the user name and everything the session reads and writes. */
-    {
-      const char* auto_debug = getenv("SD_CLIENT_DEBUG");
-      if ((auto_debug != NULL) && (auto_debug[0] != '\0'))
-        SDDebug(1);
-    }
+  {
+    const char* auto_debug = getenv("SD_CLIENT_DEBUG");
+    if ((auto_debug != NULL) && (auto_debug[0] != '\0'))
+      SDDebug(1);
   }
+  return TRUE;
+}
+
+/* This thread's transfer buffer, made on first need; the callers' growth tests (bytes >= buff_size) cope with size 0 too. */
+Private void ensure_thread_buffer(void) {
+  THREADCTX* t = thread_ctx();
+
+  if (t->t_buff == NULL) {
+    t->t_buff = (INBUFF*)malloc(2048);
+    t->t_buff_size = (t->t_buff == NULL) ? 0 : 2048;
+  }
+}
+
+Private void initialise_client() {
+  (void)InitOnceExecuteOnce(&client_once, init_client_once, NULL, NULL);
+  ensure_thread_buffer();
 }
 
 /* ====================================================================== */
 Private bool FindFreeSession() {
   int16_t i;
+
+  /* 25 Oct 26 (Linux 375cbe7) - A failed connection of THIS thread, still holding its slot for the error to be read, is given up now that the
+     thread makes another.  The free slot is then claimed (CX_HELD) in the same hold of the lock that finds it, so two threads cannot be given
+     one slot; the caller makes it CX_CONNECTED once it is. */
+  release_held_session();
+
   /* Find a free session table entry */
+  EnterCriticalSection(&session_lock);
   for (i = 0; i < MAX_SESSIONS; i++) {
-	if (session[i].context == CX_DISCONNECTED)
-	  break;
+    if (session[i].context == CX_DISCONNECTED)
+      break;
   }
   if (i == MAX_SESSIONS) {
-	/* Must return error via a currently connected session */
-	strcpy_s(session[session_idx].sderror, sizeof(session[0].sderror), "Too many sessions");
-	return FALSE;
+    LeaveCriticalSection(&session_lock);
+    /* Must return error via a currently connected session */
+    strcpy_s(session[session_idx].sderror, sizeof(session[0].sderror), "Too many sessions");
+    return FALSE;
   }
+  session[i].context = CX_HELD;
+  prepare_session_slot(i);
+  session[i].owner = thread_ctx(); /* after the slot is prepared: that clears the owner */
+  LeaveCriticalSection(&session_lock);
+
   session_idx = i;
   return TRUE;
+}
+
+/* ======================================================================
+   release_held_session()  -  Give back this thread's failed connection
+
+   The current session, if it is a slot this thread was holding (a connection that failed or was abandoned, whose error text has been had), goes
+   back to the free list.  A live session, a slot already free or re-taken, and a held slot that belongs to another thread (a new thread's current
+   session is slot 0, whoever holds that) are left alone.                                                                                    */
+
+Private void release_held_session(void) {
+  EnterCriticalSection(&session_lock);
+  if ((session[session_idx].context == CX_HELD) && (session[session_idx].owner == (void*)thread_ctx()))
+    session[session_idx].context = CX_DISCONNECTED;
+  LeaveCriticalSection(&session_lock);
+}
+
+/* ======================================================================
+   release_thread_buffers()  -  Free this thread's transfer and Callx buffers */
+
+Private void release_thread_buffers(void) {
+  THREADCTX* t = thread_ctx();
+  int16_t i;
+
+  if (t->t_buff != NULL) {
+    free(t->t_buff);
+    t->t_buff = NULL;
+  }
+  t->t_buff_size = 0;
+  t->t_buff_bytes = 0;
+  for (i = 0; i < MAX_ARGS; i++) {
+    if (t->t_CallArgArray[i] != NULL) {
+      free(t->t_CallArgArray[i]);
+      t->t_CallArgArray[i] = NULL;
+    }
+    t->t_CallArgArraySz[i] = 0;
+  }
 }
 
 /* ====================================================================== */
 
 Private void disconnect() {
+  disconnect_session(CX_DISCONNECTED);
+}
+
+/* ======================================================================
+   disconnect_session()  -  End the current session
+
+   final_context is what the slot becomes: CX_DISCONNECTED, free for any thread, or CX_HELD for a connection that failed after the server was
+   started - the slot then stays this thread's, with its error text, until release_held_session() (see FindFreeSession).                    */
+
+Private void disconnect_session(int16_t final_context) {
   int16_t i;
+
   if (srvr_debug != NULL) {
-	fprintf(srvr_debug, "Disconnect session %d \n", session_idx);
+    fprintf(srvr_debug, "Disconnect session %d \n", session_idx);
     fflush(srvr_debug);
   }
   (void)write_packet(SrvrQuit, NULL, 0);
   (void)CloseSocket();
-  session[session_idx].context = CX_DISCONNECTED;
- /* I cannot find where the original transfer buffer "buff" is freed on exit
-	So look for connected session, if none, release buffer                */
+
+  EnterCriticalSection(&session_lock);
+  if (final_context == CX_HELD)
+    session[session_idx].owner = thread_ctx();
+  session[session_idx].context = final_context;
+
+  /* The transfer buffer is released when no session is left to use it.
+     15 Oct 26 dm - was "== CX_CONNECTED": a session that is EXECUTING a command (waiting for input) is alive too, and the buffer freed from
+     under it made its next packet fail, and the next SDConnect, finding the buffer gone, re-initialised every session including that one
+     (sheet 281: a second connection could terminate abnormally).
+     Sheet 456: the buffers are this THREAD's, and any session it can still use is live, so while one is the buffers stay; a connection that is
+     merely being made or held does not need them.  The table is read under the lock. */
   for (i = 0; i < MAX_SESSIONS; i++) {
-	if (session[i].context != CX_DISCONNECTED)
-	  break;
+    if (session_live(i))
+      break;
   }
+  LeaveCriticalSection(&session_lock);
 
   if (i == MAX_SESSIONS) {
-	/* looked at all the sessions and none connected free buff */
-	if (buff != NULL) {
-	  free(buff);
-	  buff = NULL;
-	}
-   /* free the callx arg buffers if they are still around */
-   /* this needs modifing if we go with more than 1 session, see comments at top */
-	for (i = 0; i < MAX_ARGS; i++) {
-	  if (CallArgArray[i] != NULL ){
-		free(CallArgArray[i]);
-		CallArgArray[i] = NULL;
-		CallArgArraySz[i] = 0;
-	}
-  }
-
+    /* looked at all the sessions and none live: free this thread's buffers (the Callx argument buffers too) */
+    release_thread_buffers();
   }
 }
 
 /* #include "ctype.c" */
 /* ======================================================================
-   Set default_character maps                                             */
+   Set default_character maps                                           */
 void set_default_character_maps() {
     int i;
     int j;

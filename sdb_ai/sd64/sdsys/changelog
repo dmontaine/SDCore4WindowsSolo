@@ -3,6 +3,39 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+12 Nov 26  THE CLIENT LIBRARY HAS SD CORE'S FUNCTIONS, NESTED TRANSACTIONS CAN COMMIT INTO THEIR PARENT, AND BASIC TAKES NO.CATALOG.
+
+             What        - The client library (sdclilib.dll) and the BASIC sdclient class have SD Core's functions:
+                           SDRevision, SDGetVar, SDSystem, SDTrans, SDRTrans, SDTxn, SDEvaluate, SDEvalConv, the four
+                           conversions, the sequential files (SDOpenSeq to SDWeofSeq), SDWriteSeqKey and
+                           SDWriteuSeqKey, and each thread has its own session; the server answers all of them. The
+                           C# and PHP bindings are installed beside the others in sdsys\syscom. $MODE NON.DURABLE.TXN
+                           (and SDTxn mode 4) commits a nested transaction into its parent. BASIC ... NO.CATALOG
+                           compiles without running the program's catalog directive.
+             Why         - This version refused API requests 50 to 69, which SD Core's client sends.
+             Does NOT    - Let SDWriteSeqKey reach a Solo server from any session but one signed in with the global
+                           password, or administer remote files (still to come). NOT YET TESTED ON AN INSTALLED SYSTEM.
+
+12 Nov 26  THE INSTALLER ASKS WHERE NEW SESSIONS START.
+
+             What        - A new installation asks, with one unticked box, whether new sessions start at the command
+                           prompt instead of the home screen; the control file's start=menu or start=terminal answers
+                           it. An upgrade keeps the start the installation has.
+             Why         - SD Core and SD Core for Linux Solo ask it; this version did not.
+             Does NOT    - Ask on an upgrade. NOT YET TESTED ON AN INSTALLED SYSTEM.
+
+12 Nov 26  THE HOME SCREEN AND THE ADMINISTRATOR'S PAGES ARE SD CORE'S, WITH TEN PAGES MORE.
+
+             What        - The home screen has a menu bar, boxed tiles in the paper and night themes and tiles for the
+                           development pages. New pages: tool.files, tool.voc, tool.dict, tool.query, tool.bulk,
+                           tool.catalog, tool.test, tool.backups, tool.audit and tool.config, and the verb set.config,
+                           which changes one of 14 tuning parameters of sd.conf (the old file is kept as sd.conf.bak;
+                           the change takes effect at the next sd-solo -start). Every page has the same frame: Esc or
+                           F10 for the menu bar, F6 between boxes, Ctrl-T the theme, Ctrl-K the keys, F1 the help with
+                           the keys of the box. SP.VIEW has the pages' look on a large enough window.
+             Why         - This version's pages were October's; SD Core and SD Core for Linux Solo had moved on.
+             Does NOT    - Have tool.remote or the AI line's answers (no AI here). NOT YET TESTED ON AN INSTALLED SYSTEM.
+
 11 Nov 26  SED IS SD CORE'S EDITOR, THE DEBUGGER TAKES THE WHOLE SCREEN, AND THE VOC CAN NO LONGER BE WRITTEN BY PATHNAME.
 
              What        - SED now opens SD Core's editor (the IDE): tabs, record locks, an OS-file tree, breakpoints

@@ -422,7 +422,11 @@
                        then opens, reads, writes, deletes, clears, selects, AK reads, AK writes, AK deletes, splits, merges and
                        the sdtime() the counts started at, as values, and the login name last. */
 #define K_USER_STATS         112
-/* 113 is Linux's K_NON_DURABLE_TXN (QMClient SDTxn mode 4, held with the QMClient requests); left free so the numbers agree. */
+/* 12 Nov 26 SD Core Solo - SOLO 56 group 7 (P-18), as SD Core for Windows and Linux (15 Oct 26, QM4 gaps Q-16, sheet 442).
+     K_NON_DURABLE_TXN 1 makes the next COMMIT of this process non-durable: if the transaction is nested in another, its cached
+                       updates and its locks go to the parent instead of to the files.  The COMMIT clears it, used or not.
+                       A program compiled with $MODE NON.DURABLE.TXN sets it before each COMMIT. */
+#define K_NON_DURABLE_TXN    113
 /* 16 Oct 26 dm - QM4 gaps (PHANTOM USER n and the PHANTOMS parameter).
      K_PHANTOM_USER    n: the next phantom() of this process is to be user number n, and no other.  The number has to be one of
                        those the PHANTOMS parameter keeps and not be in use, or phantom() returns 0.  0 cancels.  phantom() clears

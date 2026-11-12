@@ -88,6 +88,27 @@
 #define SrvrScramFirst   47    /* SCRAM client-first  -> server-first */
 #define SrvrScramFinal   48    /* SCRAM client-final  -> server-final */
 #define SrvrRevision     49    /* Server revision, as Core (11 Nov 26, SOLO 55) */
+/* 12 Nov 26 SD Core Solo - SOLO 56 group 7: Linux's QMClient request numbers 50 to 69, as SD Core for Windows has them (Linux Solo f084a3f). */
+#define SrvrGetVar       50    /* Value of an @-variable */
+#define SrvrSystem       51    /* SYSTEM() */
+#define SrvrTrans        52    /* TRANS(), marks lowered one level */
+#define SrvrRTrans       53    /* TRANS(), marks as they are */
+#define SrvrTxn          54    /* Transaction start, commit, abort or non-durable commit */
+#define SrvrEvaluate     55    /* Evaluate a dictionary item against a record (QMEvaluate) */
+#define SrvrEvalConv     56    /* The same and the item's output conversion applied (QMEvalConv) */
+#define SrvrIConv        57    /* ICONV() */
+#define SrvrOConv        58    /* OCONV() */
+#define SrvrIConvs       59    /* ICONVS(), each element of a dynamic array */
+#define SrvrOConvs       60    /* OCONVS(), each element of a dynamic array */
+#define SrvrOpenSeq      61    /* Open a sequential file (QMOpenSeq) */
+#define SrvrReadSeq      62    /* Read a line */
+#define SrvrReadBlk      63    /* Read a number of bytes */
+#define SrvrWriteSeq     64    /* Write a line */
+#define SrvrWriteBlk     65    /* Write bytes */
+#define SrvrSeek         66    /* Position */
+#define SrvrWeofSeq      67    /* Truncate at the position */
+#define SrvrWriteSeqKey  68    /* Write a record under the hashed file's next sequential id (QMWriteSeqKey); a global-password session only on Solo */
+#define SrvrWriteuSeqKey 69    /* The same, keeping the update lock (QMWriteuSeqKey); a global-password session only on Solo */
 #define SrvrSshKey       72    /* Manage the SD Core server's ssh keys (global session only); 49 until 11 Nov 26, now Core's SrvrRevision */
 
 /* Server error status values */

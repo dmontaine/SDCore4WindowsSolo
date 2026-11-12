@@ -18,6 +18,8 @@
 * 
 *
 * START-HISTORY:
+* 12 Nov 26 SD Core Solo - SOLO 56 group 7 (P-11), from SD Core for Windows (Linux 8fc6b4e1, S.96; as Linux Solo): BASIC ... NO.CATALOG compiles and does
+*           not run the program's catalog directive (message 12250 says so); keyword 239 in syscom parser.h.
 * 18 Oct 26 Windows port - from Linux df5e076 (18 Oct 26): Solo carry A (owner's ruling B): the object file asks !voc_guard before any object or listing record is deleted or written.
 * 18 Oct 26 Windows port - from Linux 1c94d00 (10 Oct 26), RELEASE_1.1 143: the
 *           NO.QUERY option (openQM ref 27), passed to CATALOGUE; BCOMP also
@@ -73,6 +75,7 @@ $define max.levels   10
 
    compiler.flags = 0
    no.query = @false
+   no.catalog = @false          ;* 3 Nov 26 (S.96)
 
    source.file.name = ""
    record.name = ""
@@ -93,6 +96,9 @@ $define max.levels   10
 
          case keyword = KW$NO.QUERY
             no.query = @true      ;* 10 Oct 26 dm  (ref 27)
+
+         case keyword = KW$NO.CATALOG
+            no.catalog = @true    ;* 3 Nov 26 dm  (S.96)
 
          case keyword = KW$NOXREF
             compiler.flags = bitor(compiler.flags, BCOMP.NO.XREF.TABLES)
@@ -371,7 +377,9 @@ compile:
       recordlocku out.f, record.name
       write object.code to out.f, record.name
 
-      if catalogue.name # '' then
+      if catalogue.name # '' and no.catalog then
+         display sysmsg(12250, record.name)   ;* %1 compiled; its catalog directive was not run (no.catalog)
+      end else if catalogue.name # '' then
          cat.cmd = 'CATALOG ' : source.file.name : ' ' : catalogue.name : ' ' : record.name : ' ' : catalogue.mode
          * NO.QUERY on the BASIC command, or on the $CATALOG directive or
          * the CATALOGUE entry of $BASIC.OPTIONS (it is then in catalogue.mode)
