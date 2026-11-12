@@ -104,3 +104,12 @@ deny-verbs=
 #os-access=none
 
 os-access=
+
+# start
+#   Where new sessions start (12 Nov 2026): menu = the home screen, as
+#   delivered; terminal = the command prompt.  The administrator can change it
+#   later (ADMIN, then SET.START.DEFAULT).  Blank: the installer asks.  Used on
+#   a new installation only: an upgrade keeps what the installation has.
+#start=terminal
+
+start=

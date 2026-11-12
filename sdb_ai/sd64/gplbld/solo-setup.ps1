@@ -33,6 +33,10 @@
 #      GLOBAL.BP.OUT back into the global catalogue after gcat is replaced)
 #   5a. (20 Oct 26, RELEASE_1.1 165, the OS switch) SD_SOLO_OS_ACCESS none|sh|os|both, new tree and upgrade:
 #      sd -internal SET.OS.ACCESS SH ON / OS ON for what it names, then SET.OS.ACCESS alone to read both switches back.
+#   5b. (12 Nov 26, SOLO 56 group 6, the start question; Linux Solo S.221 START-SET) SD_SOLO_START menu|terminal, a new tree only
+#      (sd-solo.iss passes nothing on an upgrade, which keeps the site's start): terminal runs sd -internal SET.START.DEFAULT TERMINAL
+#      and is judged on the verb's words AND on sdsys\start.default, which must then say terminal; menu writes nothing (no
+#      start.default is the home screen, as delivered).
 #   6. sd -stop    the machine step (solo-machine.ps1) starts it again from the
 #                  scheduled task, which is the process that should own it.
 # Each -internal session gets the one-shot marker LOGIN demands (ruling 13,
@@ -96,6 +100,10 @@ $denyVerbs = "" + [Environment]::GetEnvironmentVariable('SD_SOLO_DENY_VERBS', 'P
 # at all, turns nothing on: both switches stay as they are, which is OFF on a new account.
 $osAccess = ("" + [Environment]::GetEnvironmentVariable('SD_SOLO_OS_ACCESS', 'Process')).Trim().ToLowerInvariant()
 [Environment]::SetEnvironmentVariable('SD_SOLO_OS_ACCESS', $null, 'Process')
+# 12 Nov 26 - SOLO 56 group 6, THE START QUESTION (Linux Solo S.221; SD Core for Windows RELEASE_1.1 210): where new sessions start,
+# menu (the home screen, as delivered) or terminal (the command prompt).  A new tree only; '' on an upgrade.  Not a secret.
+$startAt = ("" + [Environment]::GetEnvironmentVariable('SD_SOLO_START', 'Process')).Trim().ToLowerInvariant()
+[Environment]::SetEnvironmentVariable('SD_SOLO_START', $null, 'Process')
 # SOLO 2: the tree finds itself from sd.exe's location; a stray SD_CONFIG would
 # point it somewhere else.
 [Environment]::SetEnvironmentVariable('SD_CONFIG', $null, 'Process')
@@ -114,11 +122,15 @@ Note ('global pw    : ' + $(if ($globalPw) { 'given (' + $globalPw.Length + ' ch
 Note ('account pw   : ' + $(if ($accountPw) { 'given (' + $accountPw.Length + ' characters)' } else { 'NOT given' }))
 Note ('deny verbs   : ' + $(if ($denyVerbs) { '"' + $denyVerbs + '"' } else { 'none given' }))
 Note ('os access    : ' + $(if ($osAccess) { '"' + $osAccess + '"' } else { 'not given (nothing is turned on)' }))
+Note ('start        : ' + $(if ($startAt) { '"' + $startAt + '"' } else { 'not given (nothing is written: an upgrade, or the home screen)' }))
 
 # The null cases, refused out loud.
 $refuse = @()
 # 20 Oct 26 - RELEASE_1.1 165: only the four words are an answer; it reaches sd's command line through cmd.exe.
 if ($osAccess -and ($osAccess -notmatch '^(none|sh|os|both)$')) { $refuse += 'os-access is not none, sh, os or both' }
+# 12 Nov 26 - SOLO 56 group 6: only the two words are an answer, and only on a new tree.
+if ($startAt -and ($startAt -notmatch '^(menu|terminal)$')) { $refuse += 'start is not menu or terminal' }
+if ($startAt -and $Upgrade) { $refuse += 'start is given on an upgrade, which keeps the site''s start' }
 if (-not $AppDir -or -not (Test-Path -LiteralPath $sdexe)) { $refuse += 'no sd-solo.exe under the app dir' }
 if (-not (Test-Path -LiteralPath $sdsys)) { $refuse += 'no sdsys under the app dir' }
 if (-not $User) { $refuse += 'no user name' }
@@ -238,6 +250,8 @@ $disqualify = @('only the installer may run this', 'Connection terminated', 'has
                 # SET.OS.ACCESS's refusals (RELEASE_1.1 165): 10114 (register unchanged) and 12931 (syntax)
                 'Unable to change the state of', 'Syntax: set.os.access',
                 'Cannot open accounts register', 'does not take',
+                # SET.START.DEFAULT's refusals (12877 could not be written, 12875 its syntax) - SOLO 56 group 6
+                'The system default start could not be written', 'set.start.default {menu | terminal}',
                 # WRITE_INSTALL_DICTS' refusals (and bootstrap.py's Invalid runfile)
                 'ERROR OPENING FILE', 'ERROR CANNOT OPEN', 'PROCESS ABORTED', 'READLIST EMPTY',
                 'NO DIRECTORY RECORDS FOUND', 'CANNOT READ TRANSFER_FILE', 'Invalid runfile',
@@ -392,6 +406,19 @@ try {
     if ($denyVerbs) {
         $t = Invoke-Sd ('-internal DENY.VERBS SET ' + ($denyVerbs -replace ' ', '')) ''
         Judge 'denied verbs set' $t '(?m)^DENY\.VERBS \d+: '
+    }
+
+    # 12 Nov 26 - SOLO 56 group 6, THE START QUESTION.  terminal is written with the verb (the audit line is SET.START.DEFAULT's own)
+    # and judged twice: the verb's success words (12876, or 12878 when it already said so), and the file it writes read back.
+    if ($startAt -eq 'terminal') {
+        $t = Invoke-Sd '-internal SET.START.DEFAULT TERMINAL' ''
+        Judge 'new sessions start at the command prompt (the verb)' $t '(?m)^(Accounts with no start setting of their own start at: terminal|The system default start is already terminal; nothing changed)\s*$'
+        $sdFile = Join-Path $sdsys 'start.default'
+        $first = ''
+        if (Test-Path -LiteralPath $sdFile) { $first = ("" + (@(Get-Content -LiteralPath $sdFile -TotalCount 1) | Select-Object -First 1)).Trim().ToLowerInvariant() }
+        Note ('  start.default: "' + $first + '"   (' + $sdFile + ')')
+        if ($first -eq 'terminal') { Note '  PASS  start.default says terminal' }
+        else { Note '  FAIL  start.default says terminal'; $script:fails += 'start.default says terminal' }
     }
 
     # 20 Oct 26 - RELEASE_1.1 165, THE OS SWITCH.  The shell and OS access are two switches of the one account, fields 7 and 8 of the

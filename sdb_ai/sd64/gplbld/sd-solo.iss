@@ -283,6 +283,11 @@ var
     like the rest of the control file.  OsAccessPage is the question, shown on a new install AND on an upgrade. }
   CfOsAccess: String;
   OsAccessPage: TInputOptionWizardPage;
+  { 12 Nov 26 - SOLO 56 group 6, THE START QUESTION (Linux Solo S.221 START-ASK / START-SET, control file start=; SD Core for Windows
+    RELEASE_1.1 210, task startprompt): where new sessions start.  The control file's start=, menu or terminal; '' when not given or not
+    one of those (then the page asks).  StartPage is one unticked box, shown on a new tree only: an upgrade keeps the site's start. }
+  CfStart: String;
+  StartPage: TInputOptionWizardPage;
   { 06 Oct 26 - SOLO 36: the control file's api= and ssh=, 'off', 'local' or
     'open'; '' when not given or not one of those (then the Tasks page asks). }
   CfApi, CfSsh: String;
@@ -527,6 +532,15 @@ begin
     CfOsAccess := '';
   end;
   Log('SD Core Solo: control file os-access "' + CfOsAccess + '"');
+  { 12 Nov 26 - SOLO 56 group 6: start= answers the start question (see StartPage).  Anything else is not an answer and the page asks. }
+  CfStart := Lowercase(Trim(GetIniString('install', 'start', '', F)));
+  if (CfStart <> 'menu') and (CfStart <> 'terminal') then
+  begin
+    if CfStart <> '' then
+      Log('SD Core Solo: control file start "' + CfStart + '" is not menu or terminal - asked for');
+    CfStart := '';
+  end;
+  Log('SD Core Solo: control file start "' + CfStart + '"');
 end;
 
 { 20 Oct 26 - RELEASE_1.1 165, THE OS SWITCH.  The answer to "turn on the shell and OS access?" as the word solo-setup.ps1 takes:
@@ -552,6 +566,25 @@ begin
     Result := 'os'
   else
     Result := 'none';
+end;
+
+{ 12 Nov 26 - SOLO 56 group 6, THE START QUESTION.  The word solo-setup.ps1 takes: terminal (it runs SET.START.DEFAULT TERMINAL),
+  menu (nothing is written: no start.default is the home screen), or '' on an upgrade, which keeps the start the site has.  The control
+  file answers it on a new tree; otherwise the page's one box (unticked, also what a silent install gets) is menu. }
+function StartWord: String;
+begin
+  Result := '';
+  if not DataTreeWasAbsent then
+    Exit;
+  if UseControl and (CfStart <> '') then
+  begin
+    Result := CfStart;
+    Exit;
+  end;
+  if StartPage.Values[0] then
+    Result := 'terminal'
+  else
+    Result := 'menu';
 end;
 
 function InitializeSetup: Boolean;
@@ -790,6 +823,13 @@ begin
   OsAccessPage.Values[0] := False;
   OsAccessPage.Values[1] := False;
 
+  { 12 Nov 26 - SOLO 56 group 6, THE START QUESTION: one box, unticked (the home screen, as delivered).  Options only on the screen;
+    what each start means is in the installation page of the Solo docs. }
+  StartPage := CreateInputOptionPage(OsAccessPage.ID, 'Where sessions start',
+    'New sessions start at the home screen unless you choose otherwise.', '', False, False);
+  StartPage.Add('Start new sessions at the command prompt, not the home screen');
+  StartPage.Values[0] := False;
+
   { SOLO 18: the control file's accepted answers fill their pages, which are
     then skipped; a page it did not answer is shown empty. }
   if UseControl then
@@ -837,6 +877,9 @@ begin
     Result := UseControl and (CfOsAccess <> '')
   else if PageID = wpSelectTasks then
     Result := SoloWasInstalled or (ApiAnswered and SshAnswered)
+  { 12 Nov 26 - SOLO 56 group 6: the start question on a new tree only, skipped when a control file answers it. }
+  else if PageID = StartPage.ID then
+    Result := (not DataTreeWasAbsent) or (UseControl and (CfStart <> ''))
   else if PageID = wpReady then
     Result := UseControl and CfAdminOk and CfGlobalOk;
 end;
@@ -1093,6 +1136,11 @@ begin
   { 20 Oct 26 - RELEASE_1.1 165: the answer, so install-summary.log says what was asked for (none leaves both switches as they are:
     off on a new account, unchanged on an upgrade). }
   S := S + 'shell and OS   : ' + OsAccessWord + '   (none leaves both as they are)' + #13#10;
+  { 12 Nov 26 - SOLO 56 group 6: the start question's answer (blank on an upgrade, which keeps the site's start). }
+  if StartWord = '' then
+    S := S + 'sessions start : not asked on an upgrade; the install keeps what it has' + #13#10
+  else
+    S := S + 'sessions start : ' + StartWord + '   (menu is the home screen)' + #13#10;
   SaveStringToFile(ExpandConstant('{app}\install-summary.log'), S + #13#10, True);
   Log('SD Core Solo: ' + S);
 end;
@@ -1204,6 +1252,8 @@ begin
   { 20 Oct 26 - RELEASE_1.1 165: the shell and OS access answer, for a new tree and an upgrade alike (solo-setup.ps1 turns on what it
     names with SET.OS.ACCESS and reads the state back; none turns on nothing). }
   SetEnvironmentVariable('SD_SOLO_OS_ACCESS', OsAccessWord);
+  { 12 Nov 26 - SOLO 56 group 6: the start question's answer, '' on an upgrade (solo-setup.ps1 refuses a start word on one). }
+  SetEnvironmentVariable('SD_SOLO_START', StartWord);
   if DataTreeWasAbsent then
   begin
     Params := Params + ' -Passwords';
@@ -1235,6 +1285,7 @@ begin
   SetEnvironmentVariable('SD_SOLO_ACCOUNT_PW', '');
   SetEnvironmentVariable('SD_SOLO_DENY_VERBS', '');
   SetEnvironmentVariable('SD_SOLO_OS_ACCESS', '');
+  SetEnvironmentVariable('SD_SOLO_START', '');
   AppendSummary('solo-setup (exit ' + IntToStr(Code) + ')', ReportPath);
   if Code <> 0 then
     Failed := Failed + '  account and passwords' + #13#10;
