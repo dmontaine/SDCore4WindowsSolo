@@ -4,6 +4,9 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 12 Nov 26 SD Core Solo - SOLO 62: a line before each wait (12982 before the report, about 8 s; 12981 before a change, up to 3 min
+*           when ssh is set up): the owner, 12 Nov 26, "there needs to be a message to the user any time a command is expected to
+*           take more than 2 seconds", after remote.ssh local sat silent for two minutes in the VM witness.
 * 12 Nov 26 SD Core Solo - SOLO 62, first VM witness: the Solo folder is taken from the helper's own path (kernel(K$WINPATH)), not cut
 *           from @sdsys, whose separators are mixed on Solo; the request is written to <Solo folder>\sdsys, where the helper reads it.
 * 12 Nov 26 SD Core Solo - SOLO 62, new: Linux Solo's remotedoor (11 Nov 26, S.117) for Windows.  Linux Solo's doors are the
@@ -120,6 +123,7 @@ show:
    rep.read = @false
    ps = "& '" : script : "' -Show -AppDir '" : app.dir : "'"
    ps := @fm : 'exit $LASTEXITCODE'
+   display sysmsg(12982)                                          ;* Reading the doors (a few seconds)...  (owner, 12 Nov 26: say so before any wait over 2 s)
    both = ps_script_out(ps, @true)
    rc = field(both, @fm, 1)
    out = field(both, @fm, 2, 99999)
@@ -232,6 +236,7 @@ change:
    ps<-1> = '   }'
    ps<-1> = '}'
    ps<-1> = 'exit 3'
+   display sysmsg(12981)                                          ;* The doors helper is making the change: ... (owner, 12 Nov 26: say so before any wait over 2 s)
    both = ps_script_out(ps, @true)
    rc = field(both, @fm, 1)
    answer = field(both, @fm, 2, 99999)
