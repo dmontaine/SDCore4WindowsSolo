@@ -69,17 +69,35 @@ function Invoke-Script([string]$Script, [string[]]$ScriptArgs) {
     return @{ Code = $LASTEXITCODE; Out = @($out | ForEach-Object { [string]$_ }) }
 }
 
-# A firewall rule's scope: open, restricted or none, through the script's own -ScopeFile verdict (the same test its -Show uses).
-function Get-Scope([string]$Script) {
-    $f = [IO.Path]::GetTempFileName()
+# NO CIM IN -Show (12 Nov 2026, measured in Win11VM Solo WS2.0-0): in an ssh logon every CIM cmdlet fails with
+# CimJob_BrokenCimSession - Get-NetTCPConnection, Get-ScheduledTask, and the firewall scripts' Get-NetFirewallRule - so
+# the report the verb reads is taken through .NET and COM instead, which work in any logon.
+#
+# A firewall rule's scope: open, restricted or none, by the firewall scripts' own test read through the firewall's COM
+# object, where a rule's Name is the DisplayName the scripts give it.  none: no rule, or one not for TCP on the port (an
+# earlier build's rule on 4243 admits nothing on 4249); open: any remote address ('*', the COM spelling of 'Any');
+# otherwise restricted.
+function Get-Scope([string]$DisplayName, [int]$Port) {
     try {
-        $r = Invoke-Script $Script @('-ScopeFile', $f)
-        if ($r.Code -ne 0) { return '' }
-        return ([IO.File]::ReadAllText($f)).Trim()
-    } finally { Remove-Item -LiteralPath $f -ErrorAction SilentlyContinue }
+        $fw = New-Object -ComObject HNetCfg.FwPolicy2
+        $rule = $null
+        foreach ($x in $fw.Rules) { if ($x.Name -eq $DisplayName -and $x.Direction -eq 1) { $rule = $x; break } }
+        if ($null -eq $rule -or $rule.Protocol -ne 6 -or [string]$rule.LocalPorts -ne [string]$Port) { return 'none' }
+        if (@(([string]$rule.RemoteAddresses) -split ',') -contains '*') { return 'open' }
+        return 'restricted'
+    } catch { return '' }
 }
 
-function Test-Listening([int]$Port) { return @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue).Count -gt 0 }
+function Test-Listening([int]$Port) {
+    return @([Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners() |
+             Where-Object { $_.Port -eq $Port }).Count -gt 0
+}
+
+# A scheduled task through the Task Scheduler's COM object: $null when it is absent or this caller may not see it.
+function Get-Task([string]$Name) {
+    try { return (New-Object -ComObject Schedule.Service | ForEach-Object { $_.Connect(); $_ }).GetFolder('\').GetTask($Name) }
+    catch { return $null }
+}
 
 function Show-Doors {
     # The API: the listener line in sd.conf, then who may reach it.
@@ -91,7 +109,7 @@ function Show-Doors {
     }
     if ($null -eq $on) { Say ('api mode: unknown - the listener setting could not be read (' + (($r.Out | Select-Object -Last 1)) + ')') }
     else {
-        $scope = Get-Scope 'api-firewall.ps1'
+        $scope = Get-Scope 'SD Core Solo API (SDClient)' $ApiPort
         $mode = if (-not $on) { 'off' } elseif ($scope -eq 'open') { 'open' } else { 'local' }
         Write-Output ('api mode: ' + $mode)
     }
@@ -100,18 +118,18 @@ function Show-Doors {
     # ssh: Solo's own sshd, run by a SYSTEM task; not set up at all when there is no task.
     # An unelevated caller may not be shown a SYSTEM task (not measured), so "not set up" also needs the machine ssh folder absent
     # and nothing on the port; a task that cannot be seen while either is there reads as set up.
-    $t = Get-ScheduledTask -TaskName $SshTaskName -ErrorAction SilentlyContinue
+    $t = Get-Task $SshTaskName
     $folder = Test-Path -LiteralPath (Join-Path $env:ProgramData 'SDCoreSolo\ssh')
     if (-not $t -and -not $folder -and -not (Test-Listening $SshPort)) { Write-Output 'ssh mode: notsetup' }
-    elseif ($t -and $t.State -eq 'Disabled') { Write-Output 'ssh mode: off' }
+    elseif ($t -and -not $t.Enabled) { Write-Output 'ssh mode: off' }
     else {
-        $scope = Get-Scope 'solo-ssh-firewall.ps1'
+        $scope = Get-Scope 'SD Core Solo ssh (port 4251)' $SshPort
         Write-Output ('ssh mode: ' + $(if ($scope -eq 'open') { 'open' } else { 'local' }))
     }
     Write-Output ('ssh listening: ' + $(if (Test-Listening $SshPort) { 'yes' } else { 'no' }))
     # Where the helper answers, and whether the helper is there: the verb reads both.
     Write-Output ('doors dir: ' + $DoorsDir)
-    Write-Output ('doors helper: ' + $(if ((Test-Path -LiteralPath $DoorsDir) -and (Get-ScheduledTask -TaskName 'SD Core Solo Doors' -ErrorAction SilentlyContinue)) { 'yes' } else { 'no' }))
+    Write-Output ('doors helper: ' + $(if ((Test-Path -LiteralPath $DoorsDir) -and (Get-Task 'SD Core Solo Doors')) { 'yes' } else { 'no' }))
 }
 
 if ($Show) { Show-Doors; exit 0 }
