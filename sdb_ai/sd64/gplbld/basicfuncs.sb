@@ -54,6 +54,9 @@
 *   EXPAND joins a record of a data collection FILE into a collection; the carry's own
 *   steps (verify-carry, the coll suite) cover it with a file.
 * NOT.TESTED: EXPAND
+*   12 Nov 26 (SOLO 53 carried the public FCONTROL, as SD Core for Windows has it): it needs an open file variable; the carried
+*   verify-carry suite fcontrol covers it (25 rows pass, 4 N/A: Windows' 12359 refusal; verify-carry-20261112-124233).
+* NOT.TESTED: FCONTROL
 *   25 Oct 26 (Linux 3cbe3a5, RELEASE_1.1 169): the CSV, JSON and XML functions of the carry.  Linux's sandbox-csvb, sandbox-jsonx and
 *   sandbox-xmlx exercise them; Windows has no carried suite for them yet, so they are declared until one is written.
 * NOT.TESTED: CSVPARSE CSVBUILD CSVOPEN JMERGE JPATCH JPATH JVALIDATE XPARSE XBUILD XPATH
