@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY):
+ * 11 Nov 26 SD Core Solo - SOLO 53: create_ak() and delete_ak() now do write DH_HEADER_SHARED_SIZE bytes (the 15 Oct line below
+ *               named the change, but the header had no counter in Solo and the code wrote DH_HEADER_SIZE).
  * 8 Nov 26 Windows port - from Linux 71d8550b (S.159): delete_ak() tests the index map with & after a range check, and clears the bit.
  * 8 Nov 26 Windows port - from Linux b8e7a480 (S.125): faults that optimisation exposed.
  * 25 Oct 26 Windows port - from Linux 3d3890e: update_internal_node(): removing the LAST child of an internal node that has others left no longer takes the node out of its parent too (a live
@@ -1885,9 +1887,10 @@ Private int16_t create_ak(char *data_path,          /* Data file path name */
     } while (dict_rec_len != 0);
   }
 
-  /* Write modified primary header */
+  /* Write modified primary header (15 Oct 26: all but the sequential id counter, which is not ours - see DH_HEADER_SHARED_SIZE;
+     Solo 11 Nov 26, SOLO 53: the history line of 15 Oct said so, and the code still wrote the whole header) */
 
-  if (!write_at(fu, (int64)0, (char *)&header, DH_HEADER_SIZE)) {
+  if (!write_at(fu, (int64)0, (char *)&header, DH_HEADER_SHARED_SIZE)) {
     goto exit_create_ak;
   }
 
@@ -1978,9 +1981,9 @@ Private bool delete_ak(char *pathname, /* File path name */
     header.akpath[0] = '\0';
   }
 
-  /* Write primary subfile header */
+  /* Write primary subfile header (15 Oct 26: all but the sequential id counter - see DH_HEADER_SHARED_SIZE) */
 
-  if (!write_at(fu, (int64)0, (char *)&header, DH_HEADER_SIZE)) {
+  if (!write_at(fu, (int64)0, (char *)&header, DH_HEADER_SHARED_SIZE)) {
     goto exit_delete_ak;
   }
 

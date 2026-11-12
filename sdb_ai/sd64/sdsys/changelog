@@ -3,6 +3,21 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+11 Nov 26  WRITE ... CREATING.SEQKEY, AND THE EDITORS' CREATING.SEQKEY, WORK (FROM SD CORE).
+
+             What        - WRITE rec TO file CREATING.SEQKEY id.var (and WRITEU) gives the record the hashed
+                           file's next sequential id and puts it in id.var; an id already in use is passed over.
+                           ED and SED take CREATING.SEQKEY in the place of a record id and edit a new record
+                           under the next id. CONFIGURE.FILE file NEXT n sets the next id, NEXT QUERY shows it,
+                           and a rebuild keeps it. FILEINFO(f, FL$SEQ.KEY) is the last id given. The public
+                           FCONTROL(f, action {, qualifier}) has openQM's numbers (FC$ in KEYS.H): 2 and 3 the
+                           counter, 6 a valid id, 7 the minimum modulus.
+             Why         - SED offered CREATING.SEQKEY and stopped with "Unable to load '$SEQKEY'": the
+                           statement and the counter were never in SD Core Solo (SD Core and SD Core for Linux
+                           Solo have them).
+             Does NOT    - Work on a file of another SD server (refused, as before), or on a file that is not a
+                           hashed file (message 12353). An id taken and never filed leaves a gap.
+
 11 Nov 26  THE MCP DOOR: AN AI AGENT'S MCP CLIENT CAN USE YOUR ACCOUNT THROUGH READ-ONLY TOOLS (OFF AS DELIVERED).
 
              What        - solo-mcp.py, in the SD Core Solo folder, is a Model Context Protocol server that an MCP

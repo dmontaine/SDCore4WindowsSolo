@@ -3,6 +3,7 @@
       * Copyright (c) 2004, Ladybridge Systems, All Rights Reserved
       
       $list off
+      * 11 Nov 26 SD Core Solo - from SD Core 284a91cd (SOLO 53): FC$, the actions of the public FCONTROL().
       * 9 Nov 26 SD Core Solo - from Linux debd0698 / S.88: SD_USER_HOME (112), the running user's home and a private directory below it.
       * 26 Sep 26 SD Core Solo - SD_DPAPI_PROTECT 111, SD_DPAPI_UNPROTECT 112
       * 20 Oct 26 SD Core Solo - SD_DPAPI_PROTECT and SD_DPAPI_UNPROTECT moved to 130 and 131 (Linux mail 2026-10-20T2330)
@@ -660,8 +661,22 @@
       $define ML$UNION        16    ;*   MERGELIST: the items in either list, once each
       $define ML$DIFF         24    ;*   MERGELIST: the items in the first list and not the second
       $define ML$UNSORTED     32    ;*   MERGELIST: the lists are not in order, so put them in order first
-* The FC$ tokens of the public FCONTROL() (Linux 400500c, held with the QMClient chain) and the OS$ tokens of OSPATH() for any
-* program (behind the S.63 gate) are NOT here.
+* The OS$ tokens of OSPATH() for any program (behind the S.63 gate) are NOT here.
+
+* 15 Oct 26 dm - The actions of FCONTROL(), with the openQM 4 manual's numbers (action 5, the field access test, has no token
+* here: the manual's heading for it did not survive; use the number).  FC$SYNC and FC$CRLF are named so that a program
+* written for openQM compiles, and are refused when used - SD has no forced-write mode and no line terminator modes.
+* (Solo 11 Nov 26, SOLO 53, from SD Core 284a91cd.)
+      $define FC$SYNC         1     ;*   Forced writes (refused)
+      $define FC$SET.SEQ.KEY  2     ;*   Set the next id that WRITE ... CREATING.SEQKEY gives out
+      $define FC$GET.SEQ.KEY  3     ;*   Take the next such id
+      $define FC$CRLF         4     ;*   Line terminator mode (refused)
+      $define FC$VALID.ID     6     ;*   Is the qualifier a valid record id for the file?
+      $define FC$MINMOD       7     ;*   Set the minimum modulus of a hashed file
+      $define FC$CRLF.LF      0     ;*   The modes of FC$CRLF
+      $define FC$CRLF.CRLF    1
+      $define FC$CRLF.BOTH    2
+      $define FC$CRLF.NOCR    3
 
 * 16 Oct 26 - VARTYPE() values
       $define VT$UNASSIGNED   0

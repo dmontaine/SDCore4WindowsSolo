@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 11 Nov 26 SD Core Solo - from SD Core 284a91cd / Linux Solo ba2eb2a (SOLO 53): XF_FCONTROL 29, the public FCONTROL()
+ *               (pub_fcontrol(), dh_misc.c), with WRITE ... CREATING.SEQKEY.  XF_OSPATH 31 is still not carried.
  * 8 Nov 26 Windows port - from Linux fb98cfb5 (S.87): the PMATRIX descriptor type is gone.
  * 8 Nov 26 Windows port - from Linux 7301a363 (S.87 batch 13): XF 5 to 12 (IS.ALNUM, IS.ALPHA, IS.DIGIT, IS.GRAPH, IS.MARK, IS.SPACE, LEFT, RIGHT) are gone;
  *               the numbers stay reserved.
@@ -57,6 +59,9 @@
  *    XF_SDKEY       SDKEY(passphrase, salt)   a 44 character base64 key by argon2id (2 passes, 64 MiB; fixed, they are part of the
  *                   key's format).  A null string with STATUS() 10206 for a bad salt, 10207 for an empty or over-long passphrase
  *    XF_SDRANDKEY   SDRANDKEY()               a random 256 bit key, 44 base64 characters
+ *    XF_FCONTROL    FCONTROL(fvar, action {, qualifier})  the openQM function: 2 and 3 the CREATING.SEQKEY counter, 5 field access
+ *                   (always true), 6 a valid record id, 7 the minimum modulus; 1 and 4 (forced writes, line terminators) abort
+ *                   with a message, SD having neither
  *
  * END-DESCRIPTION
  *
@@ -94,8 +99,8 @@
 #define XF_DIGEST 26  /* DIGEST(string, is.file, mode), QM4 gaps Q-13 */
 #define XF_SELSOCKET 27 /* SELECT.SOCKET(socket matrix, timeout): the compiler loads the matrix itself (in.select.socket), QM4 gaps Q-5 */
 /* 28 was SWAPMARKS(string), which returned its argument (SD has no ECS mode); removed on 27 Oct 26 (S.87 batch 3), the number stays reserved */
-/* 29 is Linux's XF_FCONTROL (the public FCONTROL, commit 400500c, which belongs to the held QMClient chain) and 31 its XF_OSPATH
-   (OSPATH for any program, behind the S.63 OS-access gate): neither is carried, and the numbers stay free. */
+#define XF_FCONTROL 29  /* FCONTROL(fvar, action, qualifier): the public one, openQM's numbers; pub_fcontrol() in dh_misc.c */
+/* 31 is Linux's XF_OSPATH (OSPATH for any program, behind the S.63 OS-access gate): not carried, and the number stays free. */
 #define XF_GET 30       /* GET var {, length} {SETTING count} FROM dev {UNTIL term} {RETURNING last} {WAITING timeout}: op_get_device() in op_seqio.c (QM4 Fixes item 583) */
 #define XF_SORT 32      /* SORT(key.count, {MAT} flags) (QM4 Fixes item 371) */
 #define XF_SORTADD 33   /* SORTADD sortvar, {MAT} keys {, data} (QM4 Fixes item 371) */
@@ -137,6 +142,7 @@ void sd_xf_salt(void);
 void sd_xf_key(void);
 void sd_xf_randkey(void);
 void op_get_device(void);
+void pub_fcontrol(void);
 void x_sort(void);
 void x_sortadd(void);
 void x_sortclear(void);
@@ -263,6 +269,9 @@ void op_xfun() {
       break;
     case XF_SELSOCKET:
       x_select_socket();
+      break;
+    case XF_FCONTROL:
+      pub_fcontrol();
       break;
     case XF_GET:
       op_get_device();

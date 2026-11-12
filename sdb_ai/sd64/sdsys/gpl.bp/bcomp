@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 11 Nov 26 SD Core Solo - from SD Core 392c8e01 and 284a91cd / Linux Solo ba2eb2a (SOLO 53): WRITE and WRITEU ... CREATING.SEQKEY id.var (OP.SETFLAGS 0x4000, P_SEQKEY); the public FCONTROL(fvar, action {, qualifier}) as XFUN 29 with openQM's numbers; the internal function is FCONTROL.INT.
 * 8 Nov 26 Windows port - from Linux 218e2e9b: EXECUTE, PHANTOM and OS.EXECUTE take SILENT (for programs moved from openQM): the output is captured into the temporary __silent and thrown away.  Refused with CAPTURING (2911), which it is a form of.
 * 8 Nov 26 Windows port - from Linux d241df26 (S.87): the C dictionary item type is gone from the compiler: the is.ctype argument of $BCOMP (callers: basic, bbproc, gplbld/COMP_PCODE), HDR.CTYPE, err.ctype and message 2994.
 * 8 Nov 26 Windows port - from Linux 2930d92f (S.87): the PROC leftovers PROCREAD, PROCWRITE, @PIB, @SIB, @POB and @SOB are gone (opcode 0xCF9A reserved).
@@ -668,6 +669,7 @@ $define STACK.MARK 9999         ;* Marks start of sub-expression
    intrinsics<-1> = "EQS"             ; intrinsic.opcodes<-1> = OP.EQS
    intrinsics<-1> = "EXP"             ; intrinsic.opcodes<-1> = OP.EXP
    intrinsics<-1> = "EXPAND"          ; intrinsic.opcodes<-1> = OP.COLL   ;* 13 Oct 26 dm - linked data collections
+   intrinsics<-1> = "FCONTROL"        ; intrinsic.opcodes<-1> = OP.XFUN   ;* 15 Oct 26 dm - the public FCONTROL(fvar, action {, qualifier}), openQM numbers
    intrinsics<-1> = "FIELD"           ; intrinsic.opcodes<-1> = OP.FIELD
    intrinsics<-1> = "FIELDS"          ; intrinsic.opcodes<-1> = OP.FIELDS
    intrinsics<-1> = "FIELDSTORE"      ; intrinsic.opcodes<-1> = OP.FLDSTORF
@@ -849,7 +851,7 @@ $define STACK.MARK 9999         ;* Marks start of sub-expression
    int.intrinsics<-1> = "DEBUG.INFO"      ; int.intrinsic.opcodes<-1> = OP.DBGINF
    int.intrinsics<-1> = "EVENTS"          ; int.intrinsic.opcodes<-1> = OP.EVENTS
    int.intrinsics<-1> = "EXPAND.HF"       ; int.intrinsic.opcodes<-1> = OP.EXPANDHF
-   int.intrinsics<-1> = "FCONTROL"        ; int.intrinsic.opcodes<-1> = OP.FCONTROL
+   int.intrinsics<-1> = "FCONTROL.INT"    ; int.intrinsic.opcodes<-1> = OP.FCONTROL   ;* 15 Oct 26 dm - was FCONTROL; the public FCONTROL has the openQM numbers (OP.XFUN)
    int.intrinsics<-1> = "FIND"            ; int.intrinsic.opcodes<-1> = OP.BTFIND
    int.intrinsics<-1> = "FORMCSV"         ; int.intrinsic.opcodes<-1> = OP.FORMCSV
    int.intrinsics<-1> = "GETLOCKS"        ; int.intrinsic.opcodes<-1> = OP.GETLOCKS
@@ -4155,7 +4157,7 @@ end
                                in.two,        ;* DEBUG.INFO
                                in.two,        ;* EVENTS
                                in.three,      ;* EXPANDHF
-                               in.three,      ;* FCONTROL
+                               in.three,      ;* FCONTROL.INT
                                in.two,        ;* FIND
                                in.one,        ;* FORMCSV
                                in.two,        ;* GETLOCKS
@@ -4253,6 +4255,7 @@ end
                       in.two,         ;* EQS
                       in.one,         ;* EXP
                       in.expand,      ;* EXPAND
+                      in.xfun,        ;* FCONTROL
                       in.field,       ;* FIELD
                       in.field,       ;* FIELDS
                       in.five,        ;* FIELDSTORE
@@ -4510,6 +4513,7 @@ xfun.table.load:
             xfun.rows := @fm:"BOOL,21,1,,0":@fm:"IS.NULL,22,1,,0":@fm:"NUMERIC,23,1,,0":@fm:"SIGNAL,25,1,,0"
             xfun.rows := @fm:"DIGEST,26,3,,0"   ;* 15 Oct 26 dm - QM4 gaps Q-13
             * 27 Oct 26 dm - function 28 (SWAPMARKS) is retired and stays reserved (27 is SELECT.SOCKET, which has its own handler)
+            xfun.rows := @fm:"FCONTROL,29,2,0,0"  ;* 15 Oct 26 dm - FCONTROL(fvar, action {, qualifier}); the qualifier is 0 when left out
             xfun.rows := @fm:"SDSALT,37,0,,0":@fm:"SDKEY,38,2,,0":@fm:"SDRANDKEY,39,0,,0"   ;* 18 Oct 26 dm - encryption layer 2
             xfun.rows := @fm:"CSVPARSE,43,1,0|,0":@fm:"CSVBUILD,44,1,0|,0":@fm:"CSVOPEN,45,1,||,0":@fm:"JMERGE,46,2,,0":@fm:"JPATCH,47,2,,0":@fm:"JPATH,48,2,,0":@fm:"JVALIDATE,49,2,,0":@fm:"XPARSE,50,1,0,0":@fm:"XBUILD,51,1,0|,0":@fm:"XPATH,52,2,,0"   ;* 20 Oct 26 dm - CSV / JSON / XML task (40 to 42 are FORMCSV, CSVDQ and CSV.MODE's operands, emitted by their own handlers)
             for xf.j = 1 to dcount(xfun.rows, @fm)
@@ -13854,6 +13858,7 @@ st.write:
    opcode = OP.WRITE
 
 st.write.common:
+   write.seqkey = @false
    * Is this a reference to a file defined by a FILE statement?
 
    if look.ahead.token = TKN.NAME then
@@ -13889,10 +13894,25 @@ st.write.common:
       * Emit file variable
 
       gosub simple.var.reference ; if err then return
-      gosub check.comma
+      * 15 Oct 26 dm - WRITE / WRITEU rec TO file CREATING.SEQKEY id.var: no comma, no id expression
+      if opcode = OP.WRITE and u.look.ahead.token.string = 'CREATING.SEQKEY' then
+         write.seqkey = @true
+      end else
+         gosub check.comma
+      end
    end
 
-   gosub exprf           ;* Get record id
+   if write.seqkey then
+      * The variable that is to be given the file's next sequential id goes where the id would, as an address; the operand is
+      * told so by P_SEQKEY (0x4000), which op_write reads.  It is a hashed file's own counter, so the id is not an expression.
+      gosub get.token                       ;* CREATING.SEQKEY
+      gosub simple.lvar.reference           ;* The id variable
+      if err then return
+      opcode.byte = OP.SETFLAGS ; gosub emit.simple
+      code.value = 0x4000 ; code.bytes = 2 ; gosub emit.multibyte.value
+   end else
+      gosub exprf           ;* Get record id
+   end
 
    if opcode = OP.WRITEV then
       gosub check.comma

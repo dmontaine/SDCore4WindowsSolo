@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 11 Nov 26 SD Core Solo - from SD Core 284a91cd / Linux Solo ba2eb2a (SOLO 53): seq_key and DH_HEADER_SHARED_SIZE, the counter of
+ *               WRITE ... CREATING.SEQKEY, which every other writer of the header stops short of.
  * 31 Dec 23 SD launch - prior history suppressed
  * END-HISTORY
  *
@@ -154,11 +156,25 @@ struct DH_HEADER {
   u_char hash;       /* Hash type */
   int32_t user_hash; /* Hash code */
   int32_t reserved1;
+  int32_t seq_key;   /* 15 Oct 26 dm - the NEXT record id WRITE ... CREATING.SEQKEY will hand out (QM4 gaps, sheet 441's
+                        QMWriteSeqKey).  Zero in a file made before it existed or never used: the next id is then 1.  The
+                        header block of a version 2 file is a whole group (1 KB at least), so the 4 bytes cost nothing, and an
+                        older SD reading such a file does not look at them. */
 
   /* All subsequent unused bytes in the header can be relied on as being
      zero. This can simplify later additions.                            */
 } ALIGN2;
 #define DH_HEADER_SIZE ((signed int)(sizeof(DH_HEADER)))
+
+/* 15 Oct 26 dm - THE BYTES OF THE PRIMARY SUBFILE HEADER THAT EVERY WRITER BUT dh_seq_key() MAY WRITE.  seq_key is the one field
+   that lives only in the header on disk (the others are held in the shared file table entry and rewritten from it by
+   dh_flush_header()), and dh_seq_key() changes it under the header's group write lock with a write of its own four bytes.  A
+   header written back WHOLE by anything else - a flush, SETTRIG, the creation or deletion of an AK subfile, FCONTROL - from a copy
+   read a moment before, puts the old counter over a newer one, and the next WRITE ... CREATING.SEQKEY hands out an id that is
+   already in use.  So those writers stop short of it: they write DH_HEADER_SHARED_SIZE bytes, which is everything before
+   seq_key.  A field added AFTER seq_key is left unwritten by them as well and needs the same thought.  The off-line tools
+   (sdfix, sdconv, sdidx) write the whole header: nothing has the file open while they run. */
+#define DH_HEADER_SHARED_SIZE ((signed int)(offsetof(DH_HEADER, seq_key)))
 
 /* ======================================================================
    Header for AK subfile                                                  */

@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 11 Nov 26 SD Core Solo - from SD Core 392c8e01 / Linux Solo ba2eb2a (SOLO 53): NEXT n sets, NEXT QUERY shows, the counter of WRITE ... CREATING.SEQKEY (messages 12354-12356); a rebuild carries the counter to the new file; the internal function is FCONTROL.INT with FCI$ keys.
 * 8 Nov 26 Windows port - from Linux d241df26 (S.87): multifiles are gone; the parser key PARSER$MFILE is retired and this program asks for PARSER$GET.TOKEN.
 * 8 Nov 26 Windows port - from Linux fb98cfb5 (S.87): the VERSION keyword is gone (a file keeps the format it has); message 6117 goes with it.
 * 18 Oct 26 Windows port - from Linux fa146d9 (16 Oct 26): QM4 Fixes 172: REPORTING shows how far a type conversion and an IMMEDIATE resize have got (messages 12391, 12392).
@@ -85,6 +86,8 @@ $include err.h
    set.default = @false
    immediate = @false
    no.resize = -1
+   next.value = -1                   ;* NEXT n: the next id WRITE ... CREATING.SEQKEY gives out (15 Oct 26)
+   next.query = @false
    binary = @false
    reporting = @false                ;* REPORTING: a progress line every REPORT.EVERY records, and the total (16 Oct 26)
    report.every = 1000
@@ -207,6 +210,18 @@ $include err.h
          case keyword = KW$NO.RESIZE
             no.resize = @true
 
+         case keyword = KW$NEXT
+            * NEXT n sets, NEXT QUERY shows, the next sequential record id of a hashed file (15 Oct 26, CREATING.SEQKEY)
+            call @parser(parser$get.token, token.type, value, keyword)
+            begin case
+               case keyword = KW$QUERY
+                  next.query = @true
+               case value matches '1N0N'
+                  next.value = value + 0
+               case 1
+                  stop sysmsg(12354) ;* NEXT needs a number, or QUERY
+            end case
+
          case keyword = KW$SPLIT.LOAD
             dh.parameters = @true
             call @parser(parser$get.token, token.type, value, keyword)
@@ -280,21 +295,34 @@ $include err.h
       * invalid actions
 
       if no.resize >= 0 then
-         void fcontrol(old.fu, FC$NO.RESIZE, no.resize)
+         void fcontrol.int(old.fu, FCI$NO.RESIZE, no.resize)
       end
 
       if immediate then  ;* Perform rehashing for IMMEDIATE option
-         if fcontrol(old.fu, FC$SPLIT.MERGE, 0) then
+         if fcontrol.int(old.fu, FCI$SPLIT.MERGE, 0) then
             display sysmsg(6203, trimf(dict.flag : ' ' : file.name)) ;* Resizing %1
             steps = 0
             loop
-            while fcontrol(old.fu, FC$SPLIT.MERGE, 0)
+            while fcontrol.int(old.fu, FCI$SPLIT.MERGE, 0)
                steps += 1
                if reporting and mod(steps, report.every) = 0 then display sysmsg(12392, steps) ;* %1 group moves so far
             repeat
             if reporting then display sysmsg(12392, steps)
          end
       end
+   end
+
+   * NEXT n / NEXT QUERY: the counter of WRITE ... CREATING.SEQKEY.  The file is reopened, as it may have been rebuilt above.
+
+   if next.value >= 0 or next.query then
+      open dict.flag, file.name to old.fu else
+         stop sysmsg(1427, trimf(dict.flag : ' ' : file.name)) ;* Cannot open %1
+      end
+      if fileinfo(old.fu, FL$TYPE) # FL$TYPE.DH then
+         stop sysmsg(12355) ;* NEXT applies to a hashed file only
+      end
+      if next.value >= 0 then void fcontrol.int(old.fu, FCI$SET.SEQ.KEY, next.value)
+      if next.query then display sysmsg(12356, fileinfo(old.fu, FL$SEQ.KEY) + 1) ;* The next sequential record id is %1
    end
 
    @system.return.code = 0
@@ -444,6 +472,10 @@ convert.file:
             display sysmsg(6175) ;* Trigger must be reactivated later
          end
       end
+
+      * The counter of WRITE ... CREATING.SEQKEY goes to the new file (15 Oct 26): the next id is the last one used, and one more
+      seq.last = fileinfo(old.fu, FL$SEQ.KEY)
+      if seq.last > 0 then void fcontrol.int(new.fu, FCI$SET.SEQ.KEY, seq.last + 1)
 
 
       close new.fu

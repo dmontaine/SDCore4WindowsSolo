@@ -34,7 +34,6 @@ GPLBP = os.path.normpath(os.path.join(HERE, '..', 'sdsys', 'gpl.bp'))
 KNOWN = {
     'create_account': 'restorea:426 is UNREACHABLE on Solo: acc_os_info:81 says product windows-solo, so restorea sets solo true and returns at :414 (13023) before the call; '
                       'the same text as Linux Solo; no Solo program defines it (SOLO 52, closed 11 Nov 26, nothing to build)',
-    'seqkey':         'SED:833 and 876 (CREATING.SEQKEY); Core has it from Linux 400500c (284a91cd), Solo does not: SOLO 53',
 }
 
 CALL = re.compile(r'\bcall\s+([!$])([a-z0-9_.%]+)', re.I)

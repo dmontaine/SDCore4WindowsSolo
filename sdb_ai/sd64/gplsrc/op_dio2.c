@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 11 Nov 26 SD Core Solo - from SD Core 392c8e01 (SOLO 53): FILEINFO key 1031 (FL$SEQ.KEY) is the last id CREATING.SEQKEY gave.
  * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, the OS switch (Linux Solo 7c6bbfc): os_path_ok_for_account() and os_path_open_ok() - may this
  *           account open this OS pathname - built on net_path_permitted()'s containment helpers (net_normalise, has_parent_ref, path_within)
  *           rather than Linux's POSIX realpath() version.
@@ -531,7 +532,17 @@ void op_fileinfo() {
       case FL_REPLICATED: /* 1024  Replication targets: SD has no replication */
       case FL_ECS_MAP_NAME: /* 1027  SD has no ECS */
       case FL_ENCODING: /* 1028  Data encoding of a directory file: SD is English only */
-      case FL_SEQ_KEY: /* 1031  Sequential record id: SD has no CREATING.SEQKEY */
+      case FL_SEQ_KEY: /* 1031  The id of the last record written with CREATING.SEQKEY, 0 if none; a null string for a file
+                          that is not a hashed file.  After CONFIGURE.FILE NEXT n it is n - 1: the counter holds the NEXT id. */
+        if (dynamic) {
+          n = dh_seq_key(dh_file, 2, 0) - 1;
+          if (n < 0)
+            n = 0;
+          break;
+        }
+        p = "";
+        goto set_string;
+
       case FL_ID_CASING: /* 1034  Forced id casing: SD has only NOCASE */
       case FL_OWNER: /* 1036  Owner of the file (Windows only) */
         p = "";

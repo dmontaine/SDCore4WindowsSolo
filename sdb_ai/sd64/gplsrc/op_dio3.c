@@ -17,6 +17,10 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 11 Nov 26 SD Core Solo - from SD Core 392c8e01 / Linux Solo ba2eb2a (SOLO 53): op_write() carries out WRITE and WRITEU ...
+ *               CREATING.SEQKEY (P_SEQKEY): the id from dh_seq_key(), an id already in use skipped, put in the program's variable and
+ *               locked; message 12353 for a file that is not hashed.  The 18 Oct and 15 Oct lines below named this text, but the
+ *               statement was not in Solo until now.  A remote file is still refused (net_gate, 12516).
  * 18 Oct 26 Windows port - from Linux 9f067b8 (11 Oct 26): Data collection files: text written to one is made into its collection before
  * 18 Oct 26 Windows port - from Linux 7c53377 - Solo carry from SD Core (v1.1-3 to 5315c65), LSOLO 52: Core's text for CREATING.SEQKEY, $MODE AUTOLOCK, data collection files,
  *               directory file line terminator modes, record ids with bytes 128 to 247 (the owner's exception of 12 Oct 26, which covers Solo),
@@ -1194,10 +1198,8 @@ void op_write() {
 
   process.status = 0;
 
-  /* Get record id */
-
-  rid_descr = e_stack - 1;
-  id_len = k_get_c_string(rid_descr, id, sysseg->maxidlen);
+  rid_descr = e_stack - 1; /* the record id, or for CREATING.SEQKEY the address of the id variable: read below */
+  id_len = 0;
 
   /* Find the file variable descriptor */
 
@@ -1242,6 +1244,74 @@ void op_write() {
     process.op_flags = 0;
     process.status = net_st;
     goto exit_op_write;
+  }
+
+  if (op_flags & P_SEQKEY) {
+    /* 15 Oct 26 dm - WRITE ... CREATING.SEQKEY id.var.  The operand where the record id would be is the ADDRESS of the program's
+       id variable.  The id is the file's next sequential number, taken from the counter in the file header; it is put in the
+       variable, an update lock is taken on it (nobody can hold it, it is new, but a transaction and MUSTLOCK demand the lock and
+       a WRITEU keeps it), and the write goes on as any other.  In a transaction the id is taken now, not at the commit.  Only a
+       hashed file has the counter.  (Solo 11 Nov 26, SOLO 53, from SD Core 392c8e01 / Linux Solo ba2eb2a: Core's edit gates
+       before it are not in Solo; Solo's VOC and global-catalogue refusals stay below, where Linux Solo has them.)            */
+    DESCRIPTOR* id_target;
+    STRING_CHUNK* id_str = NULL;
+    int32_t seq_id;
+
+    if (fvar->type != DYNAMIC_FILE) {
+      process.status = -ER_NDYN;
+      goto exit_op_write;
+    }
+
+    /* 15 Oct 26 dm - audit.  Taking an id writes the file's header, so the two refusals that cost nothing are made BEFORE it:
+       a read-only file variable is refused with its counter as it was (it was moved on, and the write then refused), and a
+       SUSPEND (sd -suspend) holds the write until sd -resume without the header having changed on disk meanwhile. */
+    if ((sysseg->flags & SSF_SUSPEND) && (txn_id == 0))
+      suspend_updates();
+
+    if (fvar->flags & FV_RDONLY) {
+      process.status = -ER_RDONLY;
+      log_permissions_error(fvar);
+      goto exit_op_write;
+    }
+
+    /* 15 Oct 26 dm - an id that already names a record is skipped, so that records written some other way (a copy, a load, a
+       program that picked its own number) are not overwritten.  openQM does not look; the owner chose to (15 Oct 2026).  Only
+       the committed file is looked at: in a transaction an id taken earlier by this process is never given out twice anyway. */
+    for (;;) {
+      seq_id = dh_seq_key(fvar->access.dh.dh_file, 0, 0);
+      if (seq_id < 0) {
+        process.status = -ER_IOE;
+        goto exit_op_write;
+      }
+      id_len = (int16_t)snprintf(id, sizeof(id), "%d", (int)seq_id);
+      if (!dh_exists(fvar->access.dh.dh_file, id, id_len)) {
+        if (dh_err == DHE_RECORD_NOT_FOUND)
+          break;
+        process.status = -dh_err;
+        goto exit_op_write;
+      }
+    }
+
+    id_target = rid_descr;
+    while (id_target->type == ADDR)
+      id_target = id_target->data.d_addr;
+    k_release(id_target);
+    ts_init(&id_str, 16);
+    ts_printf("%d", (int)seq_id);
+    ts_terminate();
+    InitDescr(id_target, STRING);
+    id_target->data.str.saddr = id_str;
+    rid_descr = id_target; /* what the trigger and the id checks below are given: the id as a string */
+
+    memcpy(lock_id, id, id_len);
+    if (lock_record(fvar, lock_id, id_len, TRUE, txn_id, FALSE) != 0) {
+      process.status = -ER_NOLOCK;
+      goto exit_op_write;
+    }
+  } else {
+    /* Get record id */
+
+    id_len = k_get_c_string(rid_descr, id, sysseg->maxidlen);
   }
 
   if ((sysseg->flags & SSF_SUSPEND) && (txn_id == 0))
@@ -1440,6 +1510,8 @@ exit_op_write:
    next reader knows it was seen rather than missed.                        */
     if (process.status == -ER_NOLOCK)
       k_error(sysmsg(10151), -process.status);
+    else if ((process.status == -ER_NDYN) && (op_flags & P_SEQKEY))
+      k_error(sysmsg(12353)); /* CREATING.SEQKEY needs a hashed file */
     else
       k_error(sysmsg(1407), -process.status, process.os_error);
   }

@@ -18,6 +18,7 @@
   	  * 
   	  * 
 	  * START-HISTORY:
+	  * 11 Nov 26 SD Core Solo - SOLO 53: the FCONTROL keys are FCI$ (the internal function is FCONTROL.INT), with 8 and 9, the CREATING.SEQKEY counter.
 	  * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
 	  * 29 Sep 26 Windows port - from Linux 1f5f703 - K$SET.LANGUAGE (38) retired: SD is English only.
 	  * 18 Oct 26 Windows port - from Linux 1f5f703 - Solo carry from SD Core (v1.1-3 to 5315c65), LSOLO 52: Core's numbers 92, 97 to 117, 119 and 120, USR$GROUPED, the
@@ -469,14 +470,17 @@
       $define MKI$NO.NULLS             4 ;* NO.NULLS (for create mode)
       $define MKI$NO.CASE              8 ;* NO.CASE (for create mode)
 
-      * FCONTROL() keys
-      $define FC$SET.JNL.FNO           1 ;* Set jnl_fno in file header
-      $define FC$KILL.JNL              2 ;* Disable journalling on open file
-      $define FC$SET.AKPATH            3 ;* Set akpath element of file header
-      $define FC$NON.TXN               4 ;* Set open file as non-transactional
-      $define FC$SPLIT.MERGE           5 ;* Force split/merge
-      $define FC$NO.RESIZE             6 ;* Set DHF_NO_RESIZE flag
-      $define FC$SET.MODE              7 ;* Set the permission bits of a record of a directory file: "id<FM>ooo" (15 Oct 26, Q-8)
+      * FCONTROL.INT() keys (the internal function; the public FCONTROL() has the openQM numbers, FC$ in keys.h).
+      * 15 Oct 26 dm - these were FC$ and FCONTROL; renamed so that keys.h can give FC$ its openQM meaning (Solo 11 Nov 26, SOLO 53).
+      $define FCI$SET.JNL.FNO          1 ;* Set jnl_fno in file header
+      $define FCI$KILL.JNL             2 ;* Disable journalling on open file
+      $define FCI$SET.AKPATH           3 ;* Set akpath element of file header
+      $define FCI$NON.TXN              4 ;* Set open file as non-transactional
+      $define FCI$SPLIT.MERGE          5 ;* Force split/merge
+      $define FCI$NO.RESIZE            6 ;* Set DHF_NO_RESIZE flag
+      $define FCI$SET.MODE             7 ;* Set the permission bits of a record of a directory file: "id<FM>ooo" (15 Oct 26, Q-8)
+      $define FCI$SET.SEQ.KEY          8 ;* Set the next id of WRITE ... CREATING.SEQKEY (hashed files only)
+      $define FCI$GET.SEQ.KEY          9 ;* Take the next such id; a null string for a file that is not a hashed file
 
 
 

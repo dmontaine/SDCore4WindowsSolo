@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 11 Nov 26 SD Core Solo - SOLO 53: the internal FCONTROL is FCONTROL.INT, its keys FCI$ (the public FCONTROL has openQM's numbers).
 * 26 Oct 26 SD Core Solo - from Linux 6dc0e3e: UPDATE.ACCOUNTS (modes 2 and 4) updates the SDSYS account's own VOC from VOC_TEMPLATE, not NEWVOC.
 * 20 Oct 26 SD Core Solo - RELEASE_1.1 165 (the OS switch, Linux Solo 7c6bbfc): K$SH and K$OS.EXEC are loaded from ACC$SH / ACC$OS.EXEC at sign-on, OFF unless the register record says yes.
 * 18 Oct 26 Windows port - from Linux 3b43525 (15 Oct 26): QM4 gaps Q-8: INHIBIT.LOGIN.  A new session is refused (12286) while the administrator has logins
@@ -1125,7 +1126,7 @@ deffun pw_complex(pw) calling '!pw_complex'
       recordlocku ipc.f,'P':@userno     ;* Phantom register
       delete ipc.f, 'P':@userno
 
-      void fcontrol(ipc.f, FC$NON.TXN, 0) ;* Set non-transactional
+      void fcontrol.int(ipc.f, FCI$NON.TXN, 0) ;* Set non-transactional
    end
 
    if not(is.phantom) and not(fileinfo(voc, FL$READONLY)) then

@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 11 Nov 26 SD Core Solo - SOLO 53: P_SEQKEY is set now, by WRITE ... CREATING.SEQKEY (op_dio3.c).
  * 8 Nov 26 Windows port - from Linux 7416a68a (S.87 batch 17): has_stdfil and stdfil_saved are gone with $MODE STDFIL.SHARED.
  * 8 Nov 26 Windows port - from Linux 2eddc5ed (S.87 batch 16): keep_select is gone (the KEEP.SELECT statement).
  * 14 Sep 26 Windows port - command_processor defaults to $cproc (RELEASE_1.1 5)
@@ -184,9 +185,7 @@ struct PROCESS {
    0x8000 (P_AUTOLOCK and P_DEF_SELLIST, $MODE AUTOLOCK and SELECTV) and 0x0020 (P_PICKREAD) are retired; the compiler no longer emits them. */
 /* 0x0800 is Linux's P_TEMPFILE (OPENTEMP, held: it rests on the S.63 OS-access gate); left free so the values agree */
 #define P_MATCMP 0x1000   /* MATSTR makes a comparison key for IF MAT a = MAT b (openQM item 111) */
-/* 0x4000 is Linux's P_SEQKEY (WRITE ... CREATING.SEQKEY, commit 400500c); the statement is not carried yet, so nothing here sets the bit, but it is
-   named so that netfiles.c (S.65 slice 3e) carries unchanged and refuses the form on a remote file the day the statement arrives (25 Oct 26) */
-#define P_SEQKEY 0x4000
+#define P_SEQKEY 0x4000   /* WRITE ... CREATING.SEQKEY id.var: the "record id" operand is the address of a variable that is given the file's next sequential id (15 Oct 26; Solo 11 Nov 26, SOLO 53) */
 /* 0x8000 is also Linux's P_AUTOLOCK (WRITE, MATWRITE or DELETE under $MODE AUTOLOCK, QM4 gap 213), not carried to Solo yet; named only so that the remote write
    in op_dio3.c (S.65 slice 3e) carries unchanged.  Nothing here sets the bit, so that test is never true (25 Oct 26) */
 #define P_AUTOLOCK 0x8000

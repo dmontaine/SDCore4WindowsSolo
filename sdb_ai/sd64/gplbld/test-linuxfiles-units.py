@@ -63,7 +63,6 @@ NOT_HERE = {
     'locktracer':       'LOCK.TRACER (Linux 7f7a4fd4) was held back in Core 18 Oct (0480ce9a): every session would append to a file in SDSYS\'s directory; owner, 10 Nov: carry it once the service is the only writer, as for the audit (RELEASE_1.1 182)',
     'setmode':          'OS: SET.MODE (Linux 3b435253) sets POSIX permission bits; Windows files have ACLs, not mode bits (agreed with Linux, mail 2026-11-11T0630)',
     'peer_local':       'never in Solo: removed from Core with the administrator predicate (RELEASE_1.1 64, fdded05a)',
-    'seqkey':           'ED and SED\'s CREATING.SEQKEY (Linux 400500c) is in Core (284a91cd), not Solo, and Solo\'s SED calls it: SOLO 53',
     'tool_viewers':     'the Viewers page; SOLO 47 carried the pdf verbs and not this page, and nothing has decided it: SOLO 54',
     'upgrade_nocase':   'removed with the upgrade it served (SOLO 9, 95c67ce1)',
 }
