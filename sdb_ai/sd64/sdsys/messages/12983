@@ -1,0 +1,1 @@
+The API listener changes when SD is next started (sd-solo -stop, then sd-solo -start, or the next boot)

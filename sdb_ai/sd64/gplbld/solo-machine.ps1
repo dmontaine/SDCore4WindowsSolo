@@ -60,9 +60,21 @@
 # NOT MEASURED: a Windows PASSWORD login through the SYSTEM sshd (the owner types his own; the
 # cycle's verify-solo leg uses a key, which stays possible as an extra), and that Windows
 # Firewall admits a remote client through the rule (WITNESSED 2 Oct 2026 for the first build).
+#
+# 12 Nov 26 - SOLO 62, THE DOORS (the owner: REMOTE.API and REMOTE.SSH from any session that passed SD's admin gate, remote ones
+# included, through a helper; "by design solo is less secure than core").  Install and Upgrade also register a THIRD task,
+# "SD Core Solo Doors": SYSTEM, no trigger, runs solo-doors.ps1 -Serve with -AppDir and -ForUser fixed here, and its security
+# descriptor lets -ForUser start it (read and execute) and nothing more.  They make %ProgramData%\SDCoreSolo\doors, where the
+# helper writes its answer: SYSTEM and Administrators full control, -ForUser read only.  Remove takes both away.
+#   -Action Doors -Door api|ssh -Mode off|local|open   is what that helper runs, once it has checked a request, so each change
+# is made by the same steps an install makes (one copy of each): the API's listener switch and rule; ssh's task (Register-SshTask
+# when it was never set up - the owner's "set it up from the page") and rule.  The API listener only moves when SD next starts;
+# nothing here restarts SD.
 
 param(
-    [ValidateSet('Install', 'Upgrade', 'Remove')] [string]$Action = 'Install',
+    [ValidateSet('Install', 'Upgrade', 'Remove', 'Doors')] [string]$Action = 'Install',
+    [ValidateSet('', 'api', 'ssh')] [string]$Door = '',
+    [ValidateSet('', 'off', 'local', 'open')] [string]$Mode = '',
     [string]$ForUser = '',
     [string]$AppDir = '',
     [string]$Result = '',
@@ -76,6 +88,11 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+# 12 Nov 26 - SOLO 62: Register-DoorsTask calls Get-Acl and Set-Acl (Microsoft.PowerShell.Security), so the module path is set to
+# Windows PowerShell's own folders before any cmdlet, as solo-sshd.ps1 does and for its reason (RELEASE_1.1 111: a PowerShell 7
+# parent passes its module folders on, and the Security module then fails to load).  SET, not removed.
+$env:PSModulePath = "$env:ProgramFiles\WindowsPowerShell\Modules;$env:SystemRoot\system32\WindowsPowerShell\v1.0\Modules"
 
 # THE INSTALLER CAN ONLY START THE 32-BIT POWERSHELL (sd-solo.iss PowerShellExe
 # records the measurement), which sees System32 as SysWOW64.  So a 32-bit copy
@@ -99,6 +116,8 @@ if (-not [Environment]::Is64BitProcess -and [Environment]::Is64BitOperatingSyste
 
 $TaskName = 'SD Core Solo'
 $SshTaskName = 'SD Core Solo SSH'
+$DoorsTaskName = 'SD Core Solo Doors'                                     # SOLO 62
+$DoorsDir = Join-Path $env:ProgramData 'SDCoreSolo\doors'                # SOLO 62: the helper's answer and log
 $SshPort = 4251        # SOLO_SSH_PORT - solo-sshd.ps1 and solo-ssh-firewall.ps1 carry the same number
 # The markers of the block an EARLIER build wrote into the system sshd_config.  They are only ever
 # used to take it OUT now (Remove-OldSshBlock), on Install, Upgrade and Remove.
@@ -123,6 +142,7 @@ function Get-SectionLabel([string]$heading) {
     if ($heading -like '--- OpenSSH server*')         { return 'ssh server install' }
     if ($heading -like '--- the old ssh route*')      { return 'ssh' }
     if ($heading -like '--- ssh:*')                   { return 'ssh' }
+    if ($heading -like '--- doors*')                  { return 'doors' }
     return 'setup'
 }
 function Note([string]$s) {
@@ -587,6 +607,118 @@ function Remove-SshTask {
     else { Note '  PASS  no ssh task, no sshd of Solo''s running and no machine ssh folder' }
 }
 
+# ---- SOLO 62: the doors helper's task and folder, and the six changes it asks for ------------------------
+function Register-DoorsTask {
+    # The folder first: SYSTEM and Administrators full control, the user read only, nothing inherited, so the SYSTEM helper writes
+    # its answer where the user cannot plant a link, and the user can read it.
+    if (-not (Test-Path -LiteralPath $DoorsDir)) { New-Item -ItemType Directory -Path $DoorsDir -Force | Out-Null }
+    $sid = (New-Object Security.Principal.NTAccount($ForUser)).Translate([Security.Principal.SecurityIdentifier]).Value
+    $acl = New-Object Security.AccessControl.DirectorySecurity
+    $acl.SetAccessRuleProtection($true, $false)
+    $inh = [Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit'
+    $none = [Security.AccessControl.PropagationFlags]::None
+    foreach ($who in @('S-1-5-18', 'S-1-5-32-544')) {
+        $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule((New-Object Security.Principal.SecurityIdentifier($who)), 'FullControl', $inh, $none, 'Allow')))
+    }
+    $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule((New-Object Security.Principal.SecurityIdentifier($sid)), 'ReadAndExecute', $inh, $none, 'Allow')))
+    Set-Acl -LiteralPath $DoorsDir -AclObject $acl
+    $back = (Get-Acl -LiteralPath $DoorsDir).Access | Where-Object { $_.FileSystemRights -match 'Write|Modify|FullControl' } |
+            ForEach-Object { $_.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value }
+    $odd = @($back | Where-Object { @('S-1-5-18', 'S-1-5-32-544') -notcontains $_ })
+    if ($odd.Count -gt 0) { Fail ('the doors folder can be written by ' + ($odd -join ', ')); return }
+    Note ('  PASS  ' + $DoorsDir + ': SYSTEM and Administrators write, ' + $ForUser + ' reads')
+
+    if (Get-ScheduledTask -TaskName $DoorsTaskName -ErrorAction SilentlyContinue) {
+        Unregister-ScheduledTask -TaskName $DoorsTaskName -Confirm:$false
+    }
+    $script = Join-Path $AppDir 'solo-doors.ps1'
+    if (-not (Test-Path -LiteralPath $script)) { Fail ('solo-doors.ps1 is not at ' + $script); return }
+    $arg = '-NoProfile -ExecutionPolicy Bypass -File "' + $script + '" -Serve -AppDir "' + $AppDir + '" -ForUser "' + $ForUser + '"'
+    Register-ScheduledTask -TaskName $DoorsTaskName `
+        -Action (New-ScheduledTaskAction -Execute $Ps -Argument $arg) `
+        -Principal (New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest) `
+        -Settings (New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+                       -ExecutionTimeLimit (New-TimeSpan -Minutes 10) -MultipleInstances IgnoreNew) | Out-Null
+    # Who may start it: the user, read and execute; SYSTEM and Administrators full.  Set through the Task Scheduler's own object,
+    # which is the only way to give a task a security descriptor.  NOT MEASURED: that this user can then start it.
+    $svc = New-Object -ComObject Schedule.Service
+    $svc.Connect()
+    $task = $svc.GetFolder('\').GetTask($DoorsTaskName)
+    $task.SetSecurityDescriptor(('D:(A;;FA;;;SY)(A;;FA;;;BA)(A;;GRGX;;;' + $sid + ')'), 0)
+    $t = Get-ScheduledTask -TaskName $DoorsTaskName -ErrorAction SilentlyContinue
+    if (-not $t) { Fail 'the doors task was not registered'; return }
+    Note ('  PASS  task "' + $DoorsTaskName + '" as ' + $t.Principal.UserId + ', no trigger, runs ' + $t.Actions[0].Execute + ' ' + $t.Actions[0].Arguments)
+    Note ('  task security descriptor: ' + $task.GetSecurityDescriptor(4))
+}
+
+function Remove-DoorsTask {
+    if (Get-ScheduledTask -TaskName $DoorsTaskName -ErrorAction SilentlyContinue) {
+        Unregister-ScheduledTask -TaskName $DoorsTaskName -Confirm:$false
+    }
+    if (Test-Path -LiteralPath $DoorsDir) { Remove-Item -LiteralPath $DoorsDir -Recurse -Force -ErrorAction SilentlyContinue }
+    if (Get-ScheduledTask -TaskName $DoorsTaskName -ErrorAction SilentlyContinue) { Fail 'the doors task is still registered' }
+    elseif (Test-Path -LiteralPath $DoorsDir) { Fail ('the doors folder ' + $DoorsDir + ' is still there') }
+    else { Note '  PASS  no doors task and no doors folder' }
+}
+
+# -Action Doors: one change, asked for by solo-doors.ps1 after it checked the request.  The same scripts and functions as an install.
+if ($Action -eq 'Doors') {
+    try {
+        Note ''
+        Note ('--- doors: ' + $Door + ' ' + $Mode)
+        if (@('api', 'ssh') -notcontains $Door -or @('off', 'local', 'open') -notcontains $Mode) { Fail 'give -Door api|ssh and -Mode off|local|open' }
+        elseif ($Door -eq 'api') {
+            $c = Invoke-Shipped 'solo-api-listener.ps1' @('-Show')
+            $wasOn = (@($lines | Where-Object { $_ -match 'state\s*:\s*ON\b' }).Count -gt 0)
+            if ($Mode -eq 'off') {
+                $c = Invoke-Shipped 'api-firewall.ps1' @('-Remove');         if ($c -ne 0) { Fail ('api-firewall.ps1 -Remove exited ' + $c) }
+                $c = Invoke-Shipped 'solo-api-listener.ps1' @('-Off');       if ($c -ne 0) { Fail ('solo-api-listener.ps1 -Off exited ' + $c) }
+            } else {
+                $c = Invoke-Shipped 'api-firewall.ps1' @($(if ($Mode -eq 'open') { '-Open' } else { '-Restrict' }))
+                if ($c -ne 0) { Fail ('api-firewall.ps1 exited ' + $c) }
+                $c = Invoke-Shipped 'solo-api-listener.ps1' @('-On');        if ($c -ne 0) { Fail ('solo-api-listener.ps1 -On exited ' + $c) }
+            }
+            if ($wasOn -ne ($Mode -ne 'off')) { Note 'NEXT START   : the API listener changes when SD is next started (sd-solo -stop, then sd-solo -start, or the next boot)' }
+        }
+        else {
+            $have = [bool](Get-ScheduledTask -TaskName $SshTaskName -ErrorAction SilentlyContinue)
+            if ($Mode -eq 'off') {
+                if ($have) {
+                    Stop-ScheduledTask -TaskName $SshTaskName -ErrorAction SilentlyContinue
+                    $null = Invoke-Shipped 'solo-sshd.ps1' @('-Stop')
+                    Disable-ScheduledTask -TaskName $SshTaskName | Out-Null
+                    if ((Get-ScheduledTask -TaskName $SshTaskName).State -ne 'Disabled') { Fail 'the ssh task is not disabled' }
+                    elseif (Test-SshPortListening) { Fail ('something still listens on port ' + $SshPort) }
+                    else { Note ('  PASS  the ssh task is disabled and nothing listens on ' + $SshPort + ' (its folder and host key are kept)') }
+                } else { Note '  ssh was not set up: nothing to turn off' }
+            } else {
+                if (-not $have) {
+                    Note '  ssh was not set up: setting it up now, as the installer would (the owner: "set it up from the page")'
+                    Register-SshTask
+                } else {
+                    Enable-ScheduledTask -TaskName $SshTaskName | Out-Null
+                    if (-not (Test-SshPortListening)) { Start-ScheduledTask -TaskName $SshTaskName }
+                    $ok = $false
+                    for ($k = 0; $k -lt 30 -and -not $ok; $k++) { if (Test-SshPortListening) { $ok = $true } else { Start-Sleep -Seconds 1 } }
+                    if ($ok) { Note ('  PASS  the ssh task is enabled and port ' + $SshPort + ' listens') } else { Fail ('nothing listens on port ' + $SshPort + ' after the ssh task was started') }
+                }
+                if ($fails.Count -eq 0) {
+                    $c = Invoke-Shipped 'solo-ssh-firewall.ps1' @($(if ($Mode -eq 'open') { '-Open' } else { '-Restrict' }))
+                    if ($c -ne 0) { Fail ('solo-ssh-firewall.ps1 exited ' + $c) }
+                }
+            }
+        }
+    }
+    catch {
+        Fail ('ERROR ' + $_.Exception.Message)
+        Note $_.ScriptStackTrace
+    }
+    Note ''
+    if ($fails.Count -eq 0) { Note 'VERDICT      : PASS'; $dc = 0 } else { Note ('VERDICT      : FAIL - ' + ($fails -join '; ')); $dc = 1 }
+    Save-Report
+    exit $dc
+}
+
 try {
     # 06 Oct 26 - SOLO 33, THE OWNER'S CHOICE OF OPTION 1: THE ORDER IS THE FIX.  On Install and Upgrade the firewall
     # rule, and on Install the listener switch, come BEFORE the startup task.  Windows shows its "allow this app?"
@@ -704,6 +836,11 @@ try {
         }
         else { Note '  not set up: ssh was not chosen (or, on an upgrade, it was not set up before)' }
     }
+
+    # SOLO 62: the doors helper (REMOTE.API / REMOTE.SSH), on every install and upgrade; taken away on removal.
+    Note ''
+    Note '--- doors helper'
+    if ($Action -eq 'Remove') { Remove-DoorsTask } else { Register-DoorsTask }
 }
 catch {
     Fail ('ERROR ' + $_.Exception.Message)

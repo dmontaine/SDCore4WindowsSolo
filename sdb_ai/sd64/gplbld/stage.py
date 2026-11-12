@@ -1606,6 +1606,11 @@ def main():
                    # watches it - its unit test (test-sshkey-units.ps1) does
                    # not ship and is exempt as a test- file.
                    'solo-sshkey.ps1',
+                   # 12 Nov 26 - SOLO 62.  The doors helper: REMOTE.API and REMOTE.SSH
+                   # run it unelevated to report (-Show), and the SYSTEM task "SD Core
+                   # Solo Doors" that solo-machine.ps1 registers runs it to make a
+                   # change (-Serve).  It SHIPS, so assert-current watches it.
+                   'solo-doors.ps1',
                    # 11 Nov 26 - SOLO 57 (Linux Solo S.211).  The MCP
                    # launcher: an AI agent's MCP client starts it (py -3
                    # <folder>\solo-mcp.py) and every call is a one-shot

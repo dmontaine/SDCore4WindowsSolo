@@ -3,6 +3,21 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+12 Nov 26  THE API AND SSH CAN BE TURNED OFF, LOCAL OR OPEN FROM SD, AND TOOL.REMOTE SHOWS THEM.
+
+             What        - REMOTE.API and REMOTE.SSH (after ADMIN) report each door, or set it off, local or open:
+                           the API's listener and firewall rule, Solo's ssh server and its rule. A change asks for the
+                           administrator password again and is made by a doors helper the installer now sets up (a
+                           task that runs as SYSTEM), from any session: at this computer, over ssh or over the API.
+                           REMOTE.SSH LOCAL or OPEN sets ssh up first if it was not chosen at install. TOOL.REMOTE
+                           is the page for the doors, the SDNet servers, the sessions now and the TLS identity.
+             Why         - The doors could only be changed from an elevated PowerShell, never from SD, and a managed
+                           Solo could not have them changed remotely.
+             Does NOT    - Ask Windows for consent: the administrator password is the gate, and it is kept in your
+                           own folder, so a program running as you could replace it. Restart SD: an API change to
+                           or from off takes effect at the next sd-solo -stop and -start. NOT YET TESTED ON AN
+                           INSTALLED SYSTEM; the helper is set up by the next install or upgrade.
+
 12 Nov 26  ANY PROGRAM MAY CALL OSPATH().
 
              What        - OSPATH(path, key {, qualifier}) compiles in a program that is not internal, with openQM's

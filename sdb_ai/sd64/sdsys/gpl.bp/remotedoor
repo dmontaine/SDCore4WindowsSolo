@@ -1,0 +1,264 @@
+* REMOTEDOOR
+* REMOTE.API and REMOTE.SSH verbs of SD Core Solo for Windows: whether this computer answers the SD API, and ssh, and for whom.
+* Copyright (c) 2026, SD Core.  This program is free software; you can redistribute
+* it and/or modify it under the terms of the GNU General Public License, version 3 or later.
+*
+* START-HISTORY:
+* 12 Nov 26 SD Core Solo - SOLO 62, new: Linux Solo's remotedoor (11 Nov 26, S.117) for Windows.  Linux Solo's doors are the
+*           user's own systemd units, changed by tools/solo-service.sh with no sudo.  Windows Solo's are the API listener line in
+*           sd.conf, the API firewall rule, Solo's own sshd (a SYSTEM task) and its firewall rule: machine objects a Solo session
+*           cannot change.  So a change goes to the doors helper, gplbld/solo-doors.ps1, run as SYSTEM by the task "SD Core Solo
+*           Doors" the installer registers (the owner, 12 Nov 26: option 2, "with the ability to manage remotely, not just console
+*           only - by design solo is less secure than core"; "Set it up from the page" for ssh that was never set up).
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*    REMOTE.API {OFF | LOCAL | OPEN}        the SD API, port 4249
+*    REMOTE.SSH {OFF | LOCAL | OPEN}        Solo's own ssh server, port 4251
+*       OFF     no listener (the API: APIPORT off in sd.conf; ssh: its task disabled and stopped)
+*       LOCAL   it listens, and the firewall admits this computer only
+*       OPEN    it listens, and the firewall admits other computers.  ON is taken as OPEN (SD Core's word).
+*    With no keyword it reports the setting and changes nothing.
+*
+*    ADMINISTRATOR ONLY (ADMIN first), and a change asks for the administrator password AGAIN: the helper is a separate SYSTEM
+*    process and believes a proof made from the password, not this session's flag.  The proof is SCRAM's ClientProof over
+*    'sd-solo-doors|v1|door|mode|nonce|time', made here from the $ADMIN (or, in managed mode, $GLOBAL) record of $cred and
+*    checked by the helper against the same record's StoredKey; solo-doors.ps1's header has the exact form.  THE LIMIT, which the
+*    owner accepted (12 Nov 26, "i"): $cred is in the user's own folder, so the proof stops a request made without the password,
+*    not a program running as this user.
+*
+*    THE REPORT IS WHAT IS INSTALLED, NOT WHAT WAS ASKED: solo-doors.ps1 -Show, unelevated, reads sd.conf, the two firewall rules
+*    (through their scripts' -ScopeFile verdicts) and the ssh task, and says whether each port listens now.
+*    A CHANGE SUCCEEDS ONLY ON THE HELPER'S OWN LINE "SOLO API LISTENER <mode>" or "SOLO SSH LISTENER <mode>", in the answer whose
+*    first line names this request's nonce - never on an exit status, and never on an older answer.
+*    THE API LISTENER ONLY MOVES WHEN SD NEXT STARTS (sd-solo -stop, then sd-solo -start, or the next boot): the helper does not
+*    restart SD, which would end every session, a remote caller's included.  The verb says so when the listener setting moved.
+*    WHAT REACHES A COMMAND LINE: the helper's path and the Solo folder (this SD's own), refused if either holds a single quote.
+*    Nothing a person typed: door and mode are this program's words, and the request travels in a file.
+*    A change is audited here (remote.api mode=open status=ok | refused) and in the helper's own log.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+program remote.door
+$catalog $remotedoor
+
+$include int$keys.h
+$include keys.h
+$include err.h
+
+deffun ps_script_out(script, want.out) calling '!ps_script_out'
+
+   prompt ''
+   @system.return.code = -ER$ARGS
+
+   if not(kernel(K$ADMINISTRATOR, -1)) then
+      stop sysmsg(2001) ;* Command requires administrator privileges
+   end
+
+   words = trim(downcase(@sentence))
+   verb = field(words, ' ', 1)
+   begin case
+      case verb = 'remote.api'
+         door = 'api' ; dname = 'The API' ; port = 4249 ; anchor = 'SOLO API LISTENER '
+      case verb = 'remote.ssh'
+         door = 'ssh' ; dname = 'ssh' ; port = 4251 ; anchor = 'SOLO SSH LISTENER '
+      case 1
+         stop sysmsg(15971, 'remote.api')                         ;* the program was reached by another word: say how it is used
+   end case
+
+   nw = dcount(words, ' ')
+   want = ''
+   if nw > 2 then stop sysmsg(15971, verb)                        ;* %1 off | local | open
+   if nw = 2 then
+      want = field(words, ' ', 2)
+      if want = 'on' then want = 'open'
+      if want # 'off' and want # 'local' and want # 'open' then stop sysmsg(15971, verb)
+   end
+
+   ndel = count(@sdsys, @ds)
+   app.dir = @sdsys[1, index(@sdsys, @ds, ndel) - 1]             ;* the Solo folder: sdsys's parent
+   script = kernel(K$WINPATH, '/solo-doors.ps1')
+   if index(script : app.dir, "'", 1) then stop sysmsg(15966, 'the Solo folder has a single quote in its name')
+
+   gosub show
+   if not(rep.read) then
+      @system.return.code = -ER$FAILED
+      stop
+   end
+
+   if want # '' then
+      if not(helper.ok) then
+         void kernel(K$AUDIT, verb : ' mode=' : want : ' status=refused reason=no helper')
+         @system.return.code = -ER$FAILED
+         stop sysmsg(12985)                                       ;* The doors helper is not installed on this computer ...
+      end
+      gosub change
+      if not(done) then
+         @system.return.code = -ER$FAILED
+         gosub show
+         stop
+      end
+      gosub show
+   end
+
+   gosub report
+   if rep.ok then @system.return.code = 0 else @system.return.code = -ER$FAILED
+   stop
+
+* ---------------------------------------------------------------- solo-doors.ps1 -Show.  Out: rep.read, mode, listening, helper.ok, doors.dir
+show:
+   rep.read = @false
+   ps = "& '" : script : "' -Show -AppDir '" : app.dir : "'"
+   ps := @fm : 'exit $LASTEXITCODE'
+   both = ps_script_out(ps, @true)
+   rc = field(both, @fm, 1)
+   out = field(both, @fm, 2, 99999)
+   mode = '' ; listening = '' ; helper.ok = @false ; doors.dir = '' ; lastl = ''
+   for i = 1 to dcount(out, @fm)
+      ln = trim(out<i>)
+      if ln # '' then lastl = ln
+      key = trim(field(ln, ':', 1))
+      val = trim(ln[index(ln, ':', 1) + 1, 99999])
+      if key = door : ' mode' then mode = val
+      if key = door : ' listening' then listening = val
+      if key = 'doors helper' then helper.ok = (val = 'yes')
+      if key = 'doors dir' then doors.dir = val
+   next i
+   if rc # 0 or mode = '' then
+      if lastl = '' then lastl = 'the helper gave no answer (status ' : rc : ')'
+      display sysmsg(15966, lastl)                                ;* The setting could not be read: %1
+      return
+   end
+   rep.read = @true
+   return
+
+* ---------------------------------------------------------------- what is installed, in words.  Out: rep.ok
+report:
+   rep.ok = @true
+   begin case
+      case mode = 'off'
+         display sysmsg(15970, dname)                             ;* %1 is off: SD has no listener for it
+      case mode = 'notsetup'
+         display sysmsg(12984)                                    ;* ssh is not set up on this computer ...
+      case mode = 'local'
+         display sysmsg(15969, dname, port)                       ;* %1 is local: only this computer can connect (port %2)
+      case mode = 'open'
+         display sysmsg(15968, dname, port)                       ;* %1 is open: other computers can connect (port %2)
+      case 1
+         display sysmsg(15966, mode)
+         rep.ok = @false
+         return
+   end case
+   if (mode = 'local' or mode = 'open') and listening # 'yes' then
+      display sysmsg(15965, port)                                 ;* ...but nothing listens on port %1 now
+      rep.ok = @false
+   end
+   return
+
+* ---------------------------------------------------------------- one change through the helper.  Out: done
+change:
+   done = @false
+
+*  The password, again, and which record it opens: the administrator's, or in managed mode the global one (as ADMIN tries them).
+   display sysmsg(12002) : ' ' :                                  ;* Administrator password:
+   input pw HIDDEN
+   cred = ''
+   ok = @false
+   call !CRED_VERIFY('$ADMIN', pw, ok)
+   if ok then cred = '$ADMIN'
+   if not(ok) then
+      call !CRED_VERIFY('$GLOBAL', pw, ok)
+      if ok then cred = '$GLOBAL'
+   end
+   if cred = '' then
+      pw = ''
+      sleep 2
+      void kernel(K$AUDIT, verb : ' mode=' : want : ' status=refused reason=wrong password')
+      display sysmsg(12987)                                       ;* Wrong password - nothing was changed
+      return
+   end
+
+*  ClientKey from the password and the record's salt, then the proof over this request.  The password goes no further.
+   openpath @sdsys : @ds : '$cred' to cred.f else
+      pw = ''
+      display sysmsg(15966, '$cred could not be opened')
+      return
+   end
+   read cred.rec from cred.f, cred else cred.rec = ''
+   close cred.f
+   salt = cred.rec<CRED$SALT> ; iter = cred.rec<CRED$ITER> ; stored.key = cred.rec<CRED$STOREDKEY>
+   salted = SDEXT(pw : @FM : salt : @FM : iter : @FM : SCRAM$KEY.LEN, @TRUE, SD_PBKDF2)
+   pw = ''
+   client.key = SDEXT(salted : @FM : 'Client Key', @TRUE, SD_HMACSHA256)
+   salted = ''
+   nonce = ''
+   call !SD_GET_SALT(nonce)
+   now = (date() - 732) * 86400 + int(time())                     ;* LOCAL seconds since 1 Jan 1970: day 732 is that date
+   authmsg = 'sd-solo-doors|v1|' : door : '|' : want : '|' : nonce : '|' : now
+   sig = SDEXT(stored.key : @FM : authmsg, @TRUE, SD_HMACSHA256)
+   proof = SDEXT(client.key : @FM : sig, @TRUE, SD_XORBYTES)
+   client.key = ''
+   if nonce = '' or sig = '' or proof = '' then
+      display sysmsg(15966, 'the request could not be signed')
+      return
+   end
+
+*  The request, the task and the wait, in ONE PowerShell script run as this user (!ps_script_out).  Not OSWRITE and OSREAD: those are
+*  !oswrite and !osread, ordinary programs that ask the account's OS switch, which is off as delivered, and the answer is in
+*  %ProgramData%.  Every value put in the script is base64, a number, a word of this program, '$ADMIN' / '$GLOBAL' or a path of this
+*  SD's own (checked above for a single quote), each inside single quotes, where PowerShell expands nothing.  The answer is
+*  result.txt in the helper's folder, whose first line names THIS request's nonce; setting ssh up can take a minute, so it waits 180 s.
+   q = char(39)
+   ps = '$req = (' : q : 'version=1' : q : ', ' : q : 'door=' : door : q : ', ' : q : 'mode=' : want : q : ', ' : q : 'nonce=' : nonce : q
+   ps := ', ' : q : 'time=' : now : q : ', ' : q : 'cred=' : cred : q : ', ' : q : 'proof=' : proof : q : ') -join "`n"'
+   ps<-1> = '[IO.File]::WriteAllText(' : q : @sdsys : '\doors.request' : q : ', $req + "`n", [Text.Encoding]::ASCII)'
+   ps<-1> = 'try { Start-ScheduledTask -TaskName ' : q : 'SD Core Solo Doors' : q : ' -ErrorAction Stop } catch { Write-Output ("cannot start the helper: " + $_.Exception.Message); exit 4 }'
+   ps<-1> = '$res = ' : q : doors.dir : '\result.txt' : q
+   ps<-1> = 'for ($i = 0; $i -lt 180; $i++) {'
+   ps<-1> = '   Start-Sleep -Seconds 1'
+   ps<-1> = '   if (Test-Path -LiteralPath $res) {'
+   ps<-1> = '      $l = @([IO.File]::ReadAllLines($res))'
+   ps<-1> = '      if ($l.Count -gt 0 -and $l[0] -eq ' : q : 'nonce=' : nonce : q : ') { $l | ForEach-Object { Write-Output $_ }; exit 0 }'
+   ps<-1> = '   }'
+   ps<-1> = '}'
+   ps<-1> = 'exit 3'
+   both = ps_script_out(ps, @true)
+   rc = field(both, @fm, 1)
+   answer = field(both, @fm, 2, 99999)
+   if rc = 4 then
+      void kernel(K$AUDIT, verb : ' mode=' : want : ' status=refused reason=the helper task could not be started')
+      display sysmsg(15967, dname, trim(answer<1>))               ;* %1 was not changed: %2
+      return
+   end
+   if rc # 0 then
+      void kernel(K$AUDIT, verb : ' mode=' : want : ' status=refused reason=no answer')
+      display sysmsg(12986, 180)                                  ;* The doors helper gave no answer within %1 seconds
+      return
+   end
+
+   lastl = ''
+   next.start = @false
+   n = dcount(answer, @fm)
+   for i = 2 to n
+      ln = trim(answer<i>)
+      if ln = anchor : want then done = @true
+      if ln[1, 10] = 'NEXT START' then next.start = @true
+      if ln[1, 8] = 'REFUSED:' or index(ln, 'FAIL', 1) then lastl = ln
+   next i
+   if not(done) then
+      void kernel(K$AUDIT, verb : ' mode=' : want : ' status=refused')
+      if lastl = '' then lastl = 'the helper did not confirm the change'
+      display sysmsg(15967, dname, lastl)                         ;* %1 was not changed: %2
+      return
+   end
+   void kernel(K$AUDIT, verb : ' mode=' : want : ' status=ok')
+   if next.start then display sysmsg(12983)                       ;* The API listener changes when SD is next started ...
+   return
+
+end
+
+* END-CODE
