@@ -3,6 +3,27 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+11 Nov 26  KERNEL AND COMMAND FIXES FROM SD CORE: ANOTHER SESSION'S TEXT IS SHOWN SAFELY, OPENSEQ ... CREATING IS EXCLUSIVE,
+           LIST.COMMON DETAIL, AND ED AND PICK STOP WHEN THEIR INPUT ENDS.
+
+             What        - Record ids, paths, commands and program names that another session wrote, as LIST.READU,
+                           PSTAT, PROFILER and HSM show them, have their control characters shown as ?, so a record
+                           id cannot send codes to your terminal. OPENSEQ ... CREATING of a name that is not there
+                           makes the file only once the lock on its name is held, refuses a name that is a link to
+                           nothing, and says the item exists (STATUS() 6032) if a file appeared there meanwhile;
+                           CREATING ... SHARED still opens or creates. LIST.COMMON DETAIL shows the program that
+                           created each named common block. ED leaves its record, and PICK its list, when the input
+                           is a pipe that has ended, instead of asking again for ever. AUTOLOGOUT counts the time a
+                           full-screen page spends waiting a second at a time, so such a page no longer keeps a
+                           session alive for ever. DIR() sets STATUS() (0, or why the directory could not be read)
+                           and lists only files and directories. SHOW ... EVAL writes nothing into your dictionary.
+                           MATCHES no longer reads past the end of a short string, and a session that ends with
+                           objects in named common no longer fails as it ends.
+             Why         - SD Core and SD Core for Linux Solo have had these since October; this version had not
+                           been given them.
+             Does NOT    - Change what a program reads of its own record ids and locks (FILEINFO, UNLOCK, RELEASE
+                           compare the real bytes). NOT YET TESTED ON AN INSTALLED SYSTEM.
+
 11 Nov 26  WRITE ... CREATING.SEQKEY, AND THE EDITORS' CREATING.SEQKEY, WORK (FROM SD CORE).
 
              What        - WRITE rec TO file CREATING.SEQKEY id.var (and WRITEU) gives the record the hashed

@@ -23,6 +23,8 @@
  * 28 Oct 26 dm  S.87: the PMATRIX descriptor type, op_pmatrix and AH_PICK_STYLE are gone: every matrix is an ARRAY with an element 0 (nothing made a Pick style matrix since $MODE PICK.MATRIX went).
  * 27 Oct 26 dm  S.87 batch 17: op_dimlclp ($MODE PICK.MATRIX) is gone and a_dimension() has no pick_style, so AH_PICK_STYLE is never set.  The PMATRIX descriptor type and op_pmatrix stay (unreachable: the compiler no longer emits OP_PMATRIX).
  * 31 Dec 23 SD launch - prior history suppressed
+ * 09 Nov 26 dm  S.125: op_common()'s a_hdr and objdata start at NULL (-Wmaybe-uninitialized); each block kind sets what it uses.
+ * 10 Nov 26 dm  S.125, found by AddressSanitizer: a_dimension() growing a matrix copied the old header by the new header's size.
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -101,6 +103,8 @@ void op_common() {
   bool add_block_to_common_chain = TRUE;
   OBJDATA* objdata;
   bool is_persistent_vars; /* Persistent variables for object? */
+  char* creator;           /* Name of the program making the block */
+  int creator_len;
 
   var_no = *(pc++);
   var_no |= ((int)*(pc++)) << 8;
@@ -189,15 +193,21 @@ void op_common() {
         null terminated to ease string comparisons above but the null is
         not included in the string length.                                 */
 
+      /* 15 Oct 26 dm - LIST.COMMON DETAIL: the name of the program that made the block follows the name's
+         null (so every strcmp on the name is as it was, and string_len is still the name's).             */
+      creator = ((OBJECT_HEADER*)c_base)->ext_hdr.prog.program_name;
+      creator_len = (int)strlen(creator);
+
       a_chunk = a_hdr->chunk[0];
       descr = &(a_chunk->descr[0]);
       InitDescr(descr, STRING);
-      str_hdr = s_alloc((int32_t)name_len + 1, &actual_size);
+      str_hdr = s_alloc((int32_t)name_len + 1 + creator_len + 1, &actual_size);
       descr->data.str.saddr = str_hdr;
       str_hdr->ref_ct = 1;
       str_hdr->string_len = name_len;
       str_hdr->bytes = name_len;
       strcpy(str_hdr->data, block_name);
+      strcpy(str_hdr->data + name_len + 1, creator);
     }
     pc += 3;
   } else /* Common block already exists */
@@ -606,6 +616,9 @@ void op_listcom() {
     if (result != NULL)
       ts_copy_byte(FIELD_MARK);
     ts_copy_c_string(str_hdr->data);
+    /* 15 Oct 26 dm - each name is followed by a value mark and the name of the program that made the block (LIST.COMMON DETAIL) */
+    ts_copy_byte(VALUE_MARK);
+    ts_copy_c_string(str_hdr->data + strlen(str_hdr->data) + 1);
   }
 
   (void)ts_terminate();
@@ -1157,7 +1170,10 @@ Private void a_dimension(bool set_zero) {
             if (new_ahdr == NULL)
               goto exit_a_dimension;
 
-            memcpy((char*)new_ahdr, (char*)a_hdr, mem_reqd);
+            /* S.125: the OLD header's size; it was the new, larger one, read past the end */
+            memcpy((char*)new_ahdr, (char*)a_hdr,
+                   sizeof(struct ARRAY_HEADER) +
+                       (((int)a_hdr->num_chunks - 1) * (long)sizeof(int16_t*)));
 
             k_free(descr->data.ahdr_addr); /* Free old header */
 

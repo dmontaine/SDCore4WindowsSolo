@@ -17,6 +17,12 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 11 Nov 26 SD Core Solo - SOLO 56 group 2, from Windows Core (Linux 36fe9456, a63c70f1, S.88 E2, A1 and A3, as in Linux Solo): OPENSEQ ... CREATING
+ *               of a name that does not exist is exclusive (O_EXCL; ER_EXISTS 6032 when a file or a dangling link is there by the time it is made;
+ *               SHARED keeps open-or-create) and is made AFTER the SD lock on its name is taken, so a CREATING that ends in its LOCKED clause leaves
+ *               no empty file; a link to nothing is refused (both forms look at the raw name first); the create that WRITESEQ and WEOFSEQ make on
+ *               the first write never follows a link at the end of the name (DIO_OVERWRITE_NOFOLLOW).  The S.64 edit gates of OPENSEQ and
+ *               DELETESEQ are not carried here (SOLO 56 group 4, with Solo's answers).
  * 10 Nov 26 SD Core Solo - from Linux ec01ff0b (14 Sep 26, P.6), as in SD Core for Windows: op_openseq()'s error cleanup releases the record lock it
  *               took, and frees the buffer and record name.  An error after lock_record() (a failed OVERWRITE truncate) left the lock behind past OFF.
  * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, the OS switch (Linux Solo 7c6bbfc): OPENSEQ by pathname and DELETESEQ of a pathname ask os_path_open_ok().
@@ -446,6 +452,9 @@ Private void openseq(bool map_name) {
   u_int32_t inode = 0;
   struct stat stat_buf;
   char vflags[VOC_FLAGS_LEN + 1] = ""; /* Field 6 of the F-type VOC entry, in capitals: its L C B X choose the line terminator mode */
+  bool leaf_is_link = FALSE; /* 30 Oct 26 S.88 E2: the name given is itself a symbolic link (fullpath() follows it below) */
+  struct stat leaf_stat_buf;
+  bool create_after_lock = FALSE; /* 02 Nov 26 S.88 A3: CREATING of a name that is not there: the file is made once the SD lock is held */
 
   op_flags = process.op_flags;
 
@@ -535,6 +544,11 @@ Private void openseq(bool map_name) {
       k_error("Overflowed path/filename size in openseq()");
       goto exit_op_openseq;
     }
+    /* 10 Nov 26 Windows port - from Linux a63c70f1 (S.88 A1): the record of a directory file can be a planted symbolic link as well, and fullpath()
+       follows it just as it does in the pathname form below; the raw name is looked at BEFORE it is resolved, so the CREATING refusal further down
+       covers this form too. */
+    if (lstat(pathname, &leaf_stat_buf) == 0 && S_ISLNK(leaf_stat_buf.st_mode))
+      leaf_is_link = TRUE;
     fullpath(fullpathname, pathname);
 
     /* 21 Aug 26 Windows port - containment gate, OPENSEQ leg.  This is the
@@ -589,6 +603,13 @@ Private void openseq(bool map_name) {
 
       flags |= SQ_PORT;
     } else {
+      /* 30 Oct 26 dm - S.88 stage E2: fullpath() FOLLOWS a symbolic link at the end of the name, even a dangling one, so the file that would be
+         made is the link's TARGET, wherever that is; the OS-access gate (os_path_open_ok above) resolves with realpath(), which fails on a
+         dangling link and takes it for a name not made yet inside the account.  A CREATING of such a name is refused below (ER_EXISTS), so
+         the exclusive create cannot be steered out of the account by a link someone planted.  Looked at BEFORE the name is resolved. */
+      if (lstat(file_name, &leaf_stat_buf) == 0 && S_ISLNK(leaf_stat_buf.st_mode))
+        leaf_is_link = TRUE;
+
       fullpath(fullpathname, file_name);
 
       /* 21 Aug 26 Windows port - containment gate, OPENSEQP leg.  THIS is
@@ -684,14 +705,17 @@ Private void openseq(bool map_name) {
         process.status = ER_FNF;
         goto exit_op_openseq;
       }
-    } else if (op_flags & 0x400) /* CREATING (and SHARED, which includes it): make the file now */
+    } else if ((op_flags & 0x400) && leaf_is_link) /* CREATING of a name that is a link to nothing (stat() failed): the target is not made */
+    {
+      process.status = ER_EXISTS;
+      goto exit_op_openseq;
+    } else if (op_flags & 0x400) /* CREATING (and SHARED, which includes it): make the file once its SD lock is held (below) */
     {
       /* 12 Oct 26, openQM items 485 and 397 */
-      fu = dio_open(fullpathname, DIO_OVERWRITE);
-      if (!ValidFileHandle(fu)) {
-        process.status = ER_FNF;
-        goto exit_op_openseq;
-      }
+      /* 02 Nov 26 dm - S.88 A3 (the second Opus review of E2): the file is made AFTER the SD lock on its name has been taken, not here.  It was made
+         here, before lock_record(), so an OPENSEQ ... CREATING ... LOCKED of a name another session held left an EMPTY FILE behind and took the
+         LOCKED clause; without a LOCKED clause the open waited with the file already made.  Now a name that is locked gets nothing on the disk. */
+      create_after_lock = TRUE;
     } else /* Does not exist, take ELSE clause, STATUS() = 0 */
     {
       fu = INVALID_FILE_HANDLE; /* Remember not opened yet */
@@ -714,6 +738,11 @@ Private void openseq(bool map_name) {
   fvar->id = NULL;
   fvar->flags = 0;
   if (read_only)
+    fvar->flags |= FV_RDONLY;
+  /* 30 Oct 26 dm - S.88 A1: the name is a link that leads nowhere (stat() failed above, so no file was opened): fullpath() has already replaced the name by the
+     link's TARGET, so the create that the first WRITESEQ would make could not tell any more; the first WRITESEQ is refused as for a place the session may not
+     change.  (DIO_OVERWRITE_NOFOLLOW in create_seq_record covers a link planted after this OPENSEQ.) */
+  if (leaf_is_link && !(flags & SQ_PORT) && !ValidFileHandle(fu))
     fvar->flags |= FV_RDONLY;
 
   if (flags & SQ_NOTFL) /* Not really a file at all */
@@ -751,6 +780,7 @@ Private void openseq(bool map_name) {
         if (sysseg->deadlock) {
           if (ValidFileHandle(fu))
             CloseFile(fu);
+          fu = INVALID_FILE_HANDLE;
           k_free(fvar); /* Give away file variable */
           fvar = NULL;
           k_deadlock();
@@ -764,6 +794,7 @@ Private void openseq(bool map_name) {
       default: /* Conflicting lock is held by another user */
         if (ValidFileHandle(fu))
           CloseFile(fu);
+        fu = INVALID_FILE_HANDLE; /* 02 Nov 26: closed - the exit below must not close the number a second time */
 
         /* Modified by Composer AI - 2026/06/10.
            The deadlock path above frees fvar before falling through; do
@@ -802,6 +833,20 @@ Private void openseq(bool map_name) {
         pc -= 2; /* Two byte opcodes for OPENSEQ and OPENSEQP */
         Sleep(250);
         return;
+    }
+  }
+
+  /* 02 Nov 26 dm - S.88 A3: CREATING of a name that was not there, now that the SD lock on it is held (a name another session holds took the
+     LOCKED clause, or waits, above, and NOTHING was made).  30 Oct 26 dm - S.88 stage E2: a plain CREATING is EXCLUSIVE (O_CREAT | O_EXCL).
+     The stat() above failed, so the name was free a moment ago; a file made in between, or a dangling symbolic link at the name (stat follows
+     the link and fails, a plain O_CREAT then follows it and makes its TARGET), is now ER_EXISTS and nothing is created.  SHARED (0x800) keeps
+     the open-or-create it always had: it appends to a file that others add to.  errno is read straight after the open.  A failure goes to the
+     exit, which gives the lock back and frees the file variable. */
+  if (create_after_lock) {
+    fu = dio_open(fullpathname, (op_flags & 0x800) ? DIO_OVERWRITE : DIO_NEW);
+    if (!ValidFileHandle(fu)) {
+      process.status = (!(op_flags & 0x800) && errno == EEXIST) ? ER_EXISTS : ER_FNF;
+      goto exit_op_openseq;
     }
   }
 
@@ -928,9 +973,10 @@ exit_op_openseq:
        RELEASED HERE TOO.  Every error after lock_record() came through this block, which closed the file and
        freed the file variable and never unlocked - so the lock outlived the session, listed against whatever
        file later reused the file-table slot.  Measured on Linux: OPENSEQ ... OVERWRITE on a read-only file,
-       whose truncate rightly fails, left an RL lock that LIST.READU showed from the next session.
-       unlock_record() is close_seq()'s own call, made while fvar->file_id is still counted.  The buffer and
-       record name, which this path also dropped, are freed with sq_file below. */
+       whose truncate rightly fails, left an RL lock that LIST.READU showed from the next session.  Here a
+       failed deferred CREATING (S.88 A3, above) also comes this way.  unlock_record() is close_seq()'s own
+       call, made while fvar->file_id is still counted.  The buffer and record name, which this path also
+       dropped, are freed with sq_file below. */
     if ((fvar != NULL) && record_locked) {
       (void)unlock_record(fvar, unmapped_name, rec_name_len);
     }
@@ -2126,7 +2172,11 @@ Private OSFILE create_seq_record(FILE_VAR* fvar) {
     }
   }
 
-  fu = dio_open(sq_file->pathname, DIO_OVERWRITE);
+  /* 30 Oct 26 dm - S.88 A1: never through a symbolic link at the end of the name.  The OPENSEQ that left this file to be made on its first write found
+     nothing at the name; a link planted since (or a dangling one that stat() could not follow) would send the create to the link's TARGET, which the
+     OS-access gate resolved as "inside the account".  A failure is -ER_SQNC, as any other file that cannot be made.  Not O_EXCL: two processes may add to
+     one log file. */
+  fu = dio_open(sq_file->pathname, DIO_OVERWRITE_NOFOLLOW);
   if (ValidFileHandle(fu))
     sq_file->fu = fu;
 

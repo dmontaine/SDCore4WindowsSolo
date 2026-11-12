@@ -17,6 +17,9 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 11 Nov 26 SD Core Solo - SOLO 56 group 2, from Windows Core (S.88 phase 2, as in Linux Solo): hsm_dump() writes each program name by
+ *               the kernel's one rule (show_ts_safe(), op_lock.c: 0-31, 127, 128-159, 248-255 as '?'); it went out raw into the $IPC
+ *               record H<n> that HSM USER n prints, and into kernel(K$HSM, 2).
  * 11 Nov 26 SD Core Solo - SOLO 58, from Linux Solo e625996 (SD Core's S.64 part 2): HDR_INTERNAL is honoured only for an object from
  *               the global catalogue or in an administrator's session; any other object has the bit cleared before it runs.
  * 9 Nov 26 Windows port - from Linux 07b4f0cd (S.125, S.195): load_object()'s object_bytes and convert start
@@ -687,7 +690,8 @@ STRING_CHUNK* hsm_dump() {
   for (p = hsm_head; p != NULL; p = p->next) {
     if (str != NULL)
       ts_copy_byte(FIELD_MARK);
-    ts_printf("%s\xfd%d\xfd%lld\xfd%u\xfd%u\xfd%u\xfd%u", p->name, p->calls, p->cp_time / 1000,
+    show_ts_safe(p->name, -1); /* 28 Oct 26 S.88 phase 2: the kernel's one rule; the name went out raw */
+    ts_printf("\xfd%d\xfd%lld\xfd%u\xfd%u\xfd%u\xfd%u", p->calls, p->cp_time / 1000,
               p->io[HSM_OPEN], p->io[HSM_READ], p->io[HSM_WRITE], p->io[HSM_DELETE]);
   }
 

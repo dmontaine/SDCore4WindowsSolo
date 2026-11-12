@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 11 Nov 26 SD Core Solo - SOLO 56 group 2, from Windows Core (Linux Solo has it, 28 Oct 26, S.88 phase 2): K_SHOW_SAFE (151), the kernel's
+ *           one rule for showing another session's text, for BASIC (PSTAT, PROFILER, HSM).
  * 9 Nov 26 SD Core Solo - from Linux debd0698 / S.88: SD_USER_HOME (112), the running user's home and a private directory below it.
  * 20 Oct 26 dm  SDNet carry 9 (SD Core's S.65 slice 2b): SD_FILE_PRIVATE (111) carried.
  * 31 Dec 23 SD launch - prior history suppressed 
@@ -434,6 +436,11 @@
                        'G' answers the secret THIS process was started with, or the null string when it was not started by a phantom()
                        that gave one (the environment variable is removed when the process starts, so nothing it runs inherits it). */
 #define K_PHANTOM_NONCE      144
+/* 10 Nov 26 Windows port - from Linux d35f5e31 (S.88 phase 2, the readers of $IPC).  K_SHOW_SAFE: the argument is any text; the answer is
+   that text with every byte of THE ONE RULE (op_lock.c show_unsafe_byte(): 0-31, 127, 128-159, 248-255) made '?', the same length.  It
+   reads and changes nothing else and any program may ask: PSTAT, PROFILER DISPLAY and HSM USER n print the $IPC records S<n>, F<n> and
+   H<n> that any SD user can write.  Same number as Linux; GPL.BP/INT$KEYS.H carries it. */
+#define K_SHOW_SAFE          151
 /* 16 Oct 26 dm - QM4 gaps (PROFILER).
      K_PROFILER        n > 0 starts the application event profiler in this process, logging the events whose PROF_x bits are in n (and
                        emptying the table); 0 stops it, leaving what was found; -1 asks which are being logged; -2 returns what was

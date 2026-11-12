@@ -17,6 +17,9 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 11 Nov 26 SD Core Solo - SOLO 56 group 2, from Windows Core (as in Linux Solo): prototypes of show_unsafe_byte(), show_safe_text() and
+ *               show_ts_safe() (op_lock.c, S.88 phase 2: the one rule for showing another session's text), sysmsg_arg1() (messages.c),
+ *               keyin_idle_ms() (linuxio.c, kernel(K$AUTOLOGOUT, -2)); DIO_OVERWRITE_NOFOLLOW (S.88 A1).
  * 9 Nov 26 SD Core Solo - from Linux ff779018 (S.196): log_termination_signal() (linuxio.c).
  * 25 Sep 26 SD Core Solo - GetHomePath(), GetDefaultSysdir()
  * 20 Oct 26 Windows port - from Linux 7c53377 - SDNet carry 9: SD Core's S.65 (slices 3c to 3e) and S.72 prototypes of netfiles.c, the NET_FILE kernel entry points; the S.64 edit-gate and S.66 / S.67
@@ -185,6 +188,7 @@ OSFILE dio_open(char * fn, int mode);
    #define DIO_READ      3 /* Open existing file, read only */
    #define DIO_UPDATE    4 /* Open existing file, read/write */
    #define DIO_OVERWRITE 5 /* Open file, creating if doesn't exist */
+   #define DIO_OVERWRITE_NOFOLLOW 6 /* As DIO_OVERWRITE, but never through a symbolic link at the end of the name (O_NOFOLLOW; 30 Oct 26, S.88 A1) */
 
 /* INIPATH.C */
 bool GetConfigPath(char * inipath);
@@ -304,6 +308,7 @@ u_int32_t GetUnsignedInt(DESCRIPTOR * descr);
 /* MESSAGES.C */
 bool init_messages(void);
 char * sysmsg(int msg_no);
+char * sysmsg_arg1(int msg_no, const char * arg);
 int sysmsg_number_of(const char * p);
 
 /* NETFILES.C - files on another SD server (SDNet, S.65 slice 3c).  Gone in plan G4, back in a new form: the kernel holds no socket code, it
@@ -495,6 +500,14 @@ bool unlock_record(FILE_VAR *, char * id, int16_t id_len);
 char * deadlock_info_string(int * len);
 void unlock_txn(u_int32_t txn);
 void clear_lock_wait(void);
+/* 28 Oct 26 S.88 phase 2 review: ONE rule for showing another session's text (a record id, a path, a user name, a command,
+   @PSTAT) to a program or a terminal: bytes 0-31, 127, 128-159 and 248-255 become '?', 160-247 are kept.  Used by op_lock.c
+   (GETLOCKS(), SYSTEM(1083), message 1451) and kernel.c (the process-status dump that PSTAT prints); since 28 Oct 26 also profiler.c
+   (the profile table, $IPC F<n>), object.c (hsm_dump(), $IPC H<n>) and op_kernel.c (K_SHOW_SAFE, the rule for BASIC: PSTAT, PROFILER and
+   HSM print what they read from $IPC through it). */
+bool show_unsafe_byte(u_char c);
+char * show_safe_text(char * out, int out_size, const char * s, int len); /* a copy, cut at out_size - 1, nul ended */
+void show_ts_safe(const char * s, int len);                                /* appended to the ts_init() string; len < 0: to the nul */
 void rebuild_llt(void);
 
 /* OP_MISC.C */
@@ -546,6 +559,7 @@ void sd_powershell_path(char * buf, int len);
 void freescrn(SCREEN_IMAGE * image);
 void break_key(void);
 int16_t keyin(int timeout);
+int32_t keyin_idle_ms(void); /* ms waited with nothing typed, as AUTOLOGOUT judges it (kernel(K$AUTOLOGOUT, -2)) */
 bool keyready(void);
 void log_termination_signal(void); /* S.196: the SIGHUP/SIGTERM line, written by process_events(), never by the handler */
 int32_t type_ahead_count(void);

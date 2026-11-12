@@ -10,6 +10,9 @@ No install, no elevation, no sd.  Exit 0 all checks passed, 1 a check failed, 2 
 tree (Windows' own containment helpers in op_dio2.c, its own OSPATH and DIGEST code, the Python gate in sdpy_session.c through os_user_permitted),
 so the rows are written against this tree.  The live witness (a session that is refused, then turned on with SET.OS.ACCESS) is owed on an install.
 
+11 Nov 26 SD Core Solo - SOLO 56 group 2: S6 asks for k_error(sysmsg_arg1(12185, account())) between the gate and the open_file label, as
+Linux Solo's row does for 11180; it passed before on "process.username" in a history comment, and os_access_refused() is gone.
+
   K   key numbers and user-table bits: the same numbers in the C and BASIC headers, no clash with another flag
   G   the gate: os_gate_open (administrator or USR_OS_EXEC), os_user_permitted answers it, the path test and its trust of an $internal program
   S   the call sites: OPENSEQ, DELETESEQ, OPENPATH, DIR, DIGEST, the OSPATH keys, a print file, K_PATH_OK
@@ -137,8 +140,10 @@ def checks(t):
     ck("S5 DIGEST of a file asks os_path_open_ok, an $internal program excepted first",
        0 <= between(t["op_xfun"], "Private bool digest_path_ok(char* name) {", "}\n").find("os_path_open_ok(name)"))
     sf = t["to_file"]
-    ck("S6 a print file's pathname asks os_path_ok_for_account in start_file, before the open_file label, and raises 12185 for the user",
-       0 <= sf.find("if (!os_path_ok_for_account(fn)) {") < sf.find("  open_file:") and has(sf, "sysmsg(12185)", "process.username"))
+    sf_gate = sf.find("if (!os_path_ok_for_account(fn)) {")
+    sf_open = sf.find("  open_file:")
+    ck("S6 a print file's pathname asks os_path_ok_for_account in start_file, before the open_file label, and raises 12185 naming the account",
+       0 <= sf_gate < sf_open and "k_error(sysmsg_arg1(12185, account()));" in sf[sf_gate:sf_open])
 
     # ---- B ----
     for prog, label in (("login", "B1 LOGIN"), ("apisrvr", "B2 APISRVR")):
@@ -230,7 +235,8 @@ MUTANTS = [
     ("OPENPATH is open", "op_dio1", "!map_name && !os_path_open_ok(pathname)", "0 && !os_path_open_ok(pathname)", "S3"),
     ("DIR() is open", "op_dio4", "if (!os_path_open_ok(pathname)) {\n      process.status = ER_PERM;\n    } else if", "if (0) {\n      process.status = ER_PERM;\n    } else if", "S4"),
     ("DIGEST of a file is open", "op_xfun", "  if (!os_path_open_ok(name))\n    return FALSE;\n  if (connection_type != CN_SOCKET)", "  if (connection_type != CN_SOCKET)", "S5"),
-    ("a print file path is open", "to_file", "    if (!os_path_ok_for_account(fn)) {\n      os_access_refused();\n    }\n", "", "S6"),
+    ("a print file path is open", "to_file", "    if (!os_path_ok_for_account(fn)) {\n      k_error(sysmsg_arg1(12185, account()));", "    if (0) {\n      k_error(sysmsg_arg1(12185, account()));", "S6"),
+    ("the refusal prints %1", "to_file", "k_error(sysmsg_arg1(12185, account()));", "k_error(sysmsg(12185));", "S6"),
     ("LOGIN does not load the switches", "login", "   void kernel(K$SH,      upcase(trim(acc.rec<ACC$SH>)) = 'YES')\n", "", "B1"),
     ("APISRVR does not load the switches", "apisrvr", "void kernel(K$OS.EXEC, api.os.grant)\n", "", "B2"),
     ("APISRVR loads them after MASTER.LOGIN", "apisrvr", "void kernel(K$SH,      api.sh.grant)\nvoid kernel(K$OS.EXEC, api.os.grant)\n\n* 19 Oct 26 Windows port - from Linux d6a86a7 (sheet 170): the MASTER.LOGIN paragraph",

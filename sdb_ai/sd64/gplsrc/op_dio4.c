@@ -17,6 +17,9 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 11 Nov 26 SD Core Solo - SOLO 56 group 2, from Windows Core (code as in Linux Solo): op_dir() tells a file from a directory with
+ *           S_ISREG / S_ISDIR (S.88 stage E2: a socket was listed as a file, a block device as a directory); STATUS() starts at 0 and a
+ *           directory that cannot be opened says ER_FNF or ER_PERM (the 18 Oct line below said so; the code was not here).
  * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, the OS switch (Linux Solo 7c6bbfc): DIR() asks os_path_open_ok() for the pathname it lists.
  * 18 Oct 26 Windows port - from Linux fa146d9 (16 Oct 26): dir_select() closes the oldest cached file and tries again when opendir() fails at the open-file limit (QM4 Fixes 279).
  * 18 Oct 26 Windows port - from Linux ff49d57 (15 Oct 26): $MODE SELECTV default select list variable (openQM item 85): readnext() takes P_DEF_SELLIST, an unassigned
@@ -1424,6 +1427,11 @@ void op_dir() {
 
   ts_init(&result, 1024);
 
+  /* 13 Oct 26: STATUS() is 0 unless this call says otherwise.  It was never set here, so an empty directory read
+     as "cannot read directory" in a session whose last operation had left a status behind (SELECT.DIR's test
+     is "no entries and STATUS() not 0"); found by the S.63 suite's SELECT.DIR sub row.                         */
+  process.status = 0;
+
   descr = e_stack - 1;
   path_len = k_get_c_string(descr, pathname, MAX_PATHNAME_LEN);
   if (path_len > 0) {
@@ -1455,9 +1463,11 @@ void op_dir() {
           continue;
 
         strcpy(name, dp->d_name);
-        if (statbuf.st_mode & S_IFREG)
+        /* 30 Oct 26 dm - S.88 stage E2: the file type is a FIELD of st_mode, not a set of bits: "& S_IFREG" (0100000) is also set for a socket (0140000)
+           and "& S_IFDIR" (0040000) for a block device (0060000), which were listed as a file and as a directory */
+        if (S_ISREG(statbuf.st_mode))
           mode = 'F';
-        else if (statbuf.st_mode & S_IFDIR)
+        else if (S_ISDIR(statbuf.st_mode))
           mode = 'D';
         else
           continue;
@@ -1477,6 +1487,10 @@ void op_dir() {
         }
       }
       closedir(dfu);
+    } else {
+      /* a directory that cannot be opened says so in STATUS(), which is what tells it from an empty one */
+      process.os_error = OSError;
+      process.status = (process.os_error == ENOENT) ? ER_FNF : ER_PERM;
     }
   }
 
