@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 12 Nov 26 SD Core Solo - RELEASE_1.1 245: an interactive console session runs in a classic window of its own (win32vt.c own_window()).
  * 28 Sep 26 SD Core Solo for Windows - ruling 37: --version's product name.
  * 26 Sep 26 SD Core Solo - -H (pre-authenticated API session) removed with
  *           the handover (SOLO 3 step 5)
@@ -138,6 +139,7 @@ void suspend_resume(bool suspend);
 void cleanup(void);
 void clean_stop(void);
 void dump_pcode_file(void);
+void own_window(const wchar_t* title); /* 12 Nov 26: win32vt.c, an interactive session in a window of its own (RELEASE_1.1 245) */
 
 /* ====================================================================== */
 
@@ -221,6 +223,14 @@ int main(int argc, char *argv[]) {
     clean_stop();
     return status; /* TODO: add a custom return value for this failure. */
   }
+
+  /* 12 Nov 26 SD Core Solo - RELEASE_1.1 245 (owner: "on windows we treat sd as though it was a windows app, it always opens it's own
+     window which it controls").  An interactive console session - no command on the line, not a phantom, the bootstrap or a
+     network session (Solo has no -JOB) - runs in a classic console window of its own; win32vt.c own_window() opens or takes it, and
+     returns only when the session is to run here.  Before the shared segment is bound, so a process that opens a new window and ends
+     has touched nothing. */
+  if ((connection_type == CN_CONSOLE) && !is_phantom && !is_bootstrap && (single_command == NULL))
+    own_window(L"SD Core Solo");
 
   if (!bind_sysseg(FALSE, errmsg)) {
     fprintf(stderr, "%s\n", errmsg);
