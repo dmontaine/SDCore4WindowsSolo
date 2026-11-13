@@ -3,6 +3,14 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+13 Nov 26  A HELP BOX'S DOCUMENTATION BUTTON FINDS ITS PDF.
+
+             What        - A help record names its documentation PDF with the book first
+                           (gettingstarted-16-configuration), which is how the release puts the chapters in the pdf
+                           directory, so the Documentation button's pdf command finds the file. It named the chapter
+                           alone, and the button could not find it.
+             Does NOT    - Change anything else. NOT YET TESTED ON AN INSTALLED SYSTEM.
+
 12 Nov 26  MORE OF SD CORE SOLO FOR LINUX'S BEHAVIOUR.
 
              What        - @WHO is the account name in lower case (it was upper case), as on Linux. ACCOUNT.PATH()
