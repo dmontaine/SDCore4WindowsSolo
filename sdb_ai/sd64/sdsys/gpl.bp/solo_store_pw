@@ -18,6 +18,7 @@
 *
 *
 * START-HISTORY:
+* 12 Nov 26 Windows port - RELEASE_1.1 260: the record id is '$stored', as Linux Solo; writing it over a $STORED an earlier release made keeps that file (NTFS).
 * 26 Sep 26 SD Core Solo - new, SOLO 15 piece 4 (ruling 21).
 * END-HISTORY
 *
@@ -81,7 +82,7 @@ $include err.h
    rec<1> = acc
    rec<2> = blob
    write.ok = @true
-   write rec to cred.f, '$STORED' on error
+   write rec to cred.f, '$stored' on error
       write.ok = @false
    end
    close cred.f
@@ -94,7 +95,7 @@ $include err.h
 *  login could use it, not that the bytes landed.
    check = ''
    openpath @sdsys:@ds:'$cred' to chk.f then
-      read check from chk.f, '$STORED' else check = ''
+      read check from chk.f, '$stored' else check = ''
       close chk.f
    end
    if check<1> # acc or compare(check<2>, blob) # 0 then

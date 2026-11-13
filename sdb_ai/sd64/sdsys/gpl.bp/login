@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 12 Nov 26 Windows port - RELEASE_1.1 260: the kept password is read as '$stored', as Linux Solo (NTFS finds a $STORED an earlier release made).
 * 11 Nov 26 SD Core Solo - SOLO 53: the internal FCONTROL is FCONTROL.INT, its keys FCI$ (the public FCONTROL has openQM's numbers).
 * 26 Oct 26 SD Core Solo - from Linux 6dc0e3e: UPDATE.ACCOUNTS (modes 2 and 4) updates the SDSYS account's own VOC from VOC_TEMPLATE, not NEWVOC.
 * 20 Oct 26 SD Core Solo - RELEASE_1.1 165 (the OS switch, Linux Solo 7c6bbfc): K$SH and K$OS.EXEC are loaded from ACC$SH / ACC$OS.EXEC at sign-on, OFF unless the register record says yes.
@@ -1595,7 +1596,7 @@ require.password:
 *  ADMIN.
    if not(pw.interactive) then
       openpath @sdsys:@ds:'$cred' to pw.cred.f then
-         read pw.rec from pw.cred.f, '$STORED' else pw.rec = ''
+         read pw.rec from pw.cred.f, '$stored' else pw.rec = ''
          close pw.cred.f
       end
       if pw.rec<1> = upcase(initial.account) and pw.rec<2> # '' then

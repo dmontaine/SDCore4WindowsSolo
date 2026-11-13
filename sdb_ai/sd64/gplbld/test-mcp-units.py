@@ -13,6 +13,8 @@ It cannot say a gate refuses anybody in a live SD: that is a witness on an insta
 Exit 0 all rows passed, 1 a row failed, 2 it could not run.
 
 START-HISTORY:
+12 Nov 26 Windows port - RELEASE_1.1 260: B17 reads '$stored', as Linux Solo (login and solo_store_pw changed with it); its mutant now reads another
+          credential ('$admin') instead of the lower-case id.
 11 Nov 26 Windows port - from Linux Solo 531d829 and d071011 (S.211; SOLO 57).  The fake sd-solo is a Python script behind a .cmd file (Windows runs no .py
           by itself); L6 does not ask for mode 0700 (the $mcp folder takes the account folder's access list); L20 and L22 name the Windows path and the
           Windows list of environment variables; messages are 15950-15959 (Linux 14950-14959 at +1000); B17 reads $STORED's field 2, as this tree's LOGIN
@@ -286,7 +288,7 @@ def part2(files, label=""):
     ck("B15 SET.MCP asks for the administrator FIRST (2001), writes only fields 20 and 21, audits in lower case", re.search(r"if not\(kernel\(K\$ADMINISTRATOR, -1\)\) then\s+stop sysmsg\(2001\)", sm) is not None
        and sm.count("acc.rec<ACC$MCP>") >= 2 and "acc.rec<ACC$MCP.WRITE>" in sm and "kernel(K$AUDIT, 'set.mcp '" in sm and "write acc.rec to acc.f, acc.name" in sm)
     ck("B16 SET.MCP changes ONE thing per command and everything else is the syntax message 15951", "case n.words = 3 and w2 = 'write'" in sm and "if not(syntax.ok) then stop sysmsg(15951)" in sm)
-    ck("B17 SET.MCP ON says so when no password is kept ($STORED in $cred, its field 2 empty; message 15954)", "read kept from cred.f, '$STORED'" in sm
+    ck("B17 SET.MCP ON says so when no password is kept ($stored in $cred, its field 2 empty; message 15954)", "read kept from cred.f, '$stored'" in sm
        and "if kept<2> = '' then display sysmsg(15954)" in sm)
     # 11 Nov 26: the first run on an install showed both of these (sd_files listed 0 records; answers began "[H[J").
     ck("B18 sd_files selects the VOC records whose type letter is F (WITH F1 LIKE \"F...\"): field 1 is the letter and a description, so = \"F\" matches nothing shipped",
@@ -341,7 +343,7 @@ MUTANTS = [
     ("the audit line is dropped", "mcp_call", "   void kernel(K$AUDIT, 'mcp call agent=' : agent : ' tool=' : tool : ' target=' : target[1, 120] : ' status=' : st)\n", "", "B9"),
     ("the program writes a record", "mcp_call", "   n = dcount(rec, @fm)\n", "   write rec to f, p.id\n   n = dcount(rec, @fm)\n", "B13"),
     ("SET.MCP does not ask for the administrator", "setmcp", "   if not(kernel(K$ADMINISTRATOR, -1)) then", "   if 0 then", "B15"),
-    ("SET.MCP reads Linux's lower-case kept-password id", "setmcp", "read kept from cred.f, '$STORED'", "read kept from cred.f, '$stored'", "B17"),
+    ("SET.MCP reads another credential than the kept password", "setmcp", "read kept from cred.f, '$stored'", "read kept from cred.f, '$admin'", "B17"),
     ("sd_files asks for a type field equal to F", "mcp_call", "WITH F1 LIKE \"F...\" DATA.NAME", "WITH F1 = \"F\" DATA.NAME", "B18"),
     ("sd_files shows the F1 column again", "mcp_call", "LIKE \"F...\" DATA.NAME", "LIKE \"F...\" F1 DATA.NAME", "B18"),
     ("the escape sequence is found but not taken out", "mcp_call", "      out = out[1, esc.at - 1] : out[j + 1, len(out)]\n", "", "B19"),

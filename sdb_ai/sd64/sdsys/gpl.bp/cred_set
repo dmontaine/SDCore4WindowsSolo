@@ -18,6 +18,8 @@
 *
 *
 * START-HISTORY:
+* 12 Nov 26 Windows port - RELEASE_1.1 260: the $cred id is lower case, as Linux Solo; writing over a record an earlier release stored upper case
+*           keeps its file (NTFS matches names without case).
 * 25 Sep 26 SD Core Solo - ruling 19: the salt and iteration count are the
 *           record's own, else its partner's ($GLOBAL <-> the account), else
 *           fresh - so the account and global records always share them and
@@ -76,7 +78,7 @@ deffun ps_script(script) calling '!ps_script'
    ok = @false
    set.status 0
 
-   account = upcase(trim(account))
+   account = downcase(trim(account))
    if account = '' or password = '' then
       set.status ER$ARGS
       return

@@ -17,6 +17,8 @@
 * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 *
 * START-HISTORY:
+* 12 Nov 26 Windows port - RELEASE_1.1 260: the $cred id read here is '$stored', as Linux Solo (NTFS finds a $STORED record stored upper case).
+*           kept<2> stays: Windows' $STORED holds the DPAPI copy in field 2.
 * 11 Nov 26 Windows port - from Linux Solo 531d829 (S.211; SOLO 57, the owner, 11 Nov 26: "Yes, carry it").  Messages 15950-15959 (Linux 14950-14959, the second
 *               block at +1000).  The kept password is the $STORED record of $cred, as this tree's LOGIN reads it: field 1 the account, field 2 the DPAPI-protected
 *               password; SET.MCP ON says so when field 2 is empty.
@@ -130,7 +132,7 @@ $include err.h
    if which = 'door' and want = 'on' then
       kept = ''
       openpath @sdsys : @ds : '$cred' to cred.f then
-         read kept from cred.f, '$STORED' else kept = ''
+         read kept from cred.f, '$stored' else kept = ''
          close cred.f
       end
       if kept<2> = '' then display sysmsg(15954)

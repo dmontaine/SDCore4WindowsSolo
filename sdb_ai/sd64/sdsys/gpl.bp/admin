@@ -18,6 +18,7 @@
 *
 *
 * START-HISTORY:
+* 12 Nov 26 Windows port - RELEASE_1.1 260: the $cred id read here is '$admin', as Linux Solo (NTFS finds a $ADMIN record stored upper case).
 * 28 Sep 26 SD Core Solo - ruling 33: the global password also sets
 *           K$GLOBAL.SESSION.
 * 25 Sep 26 SD Core Solo - new, SOLO 5.
@@ -89,7 +90,7 @@ $include err.h
 *  password be "wrong" on a system that was installed without one.
    has.admin = @false
    openpath @sdsys : @ds : '$cred' to cred.f then
-      read cred.rec from cred.f, '$ADMIN' then has.admin = @true
+      read cred.rec from cred.f, '$admin' then has.admin = @true
       close cred.f
    end
    if not(has.admin) then
