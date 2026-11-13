@@ -19,6 +19,8 @@
 *
 *
 * START-HISTORY:
+* 12 Nov 26 SD Core Solo - SOLO 66 (Core-Solo parity audit S-01): vb.filelock and vb.fileunlock use files(fno).  The 20 Oct note below records Linux Solo's K8a
+*           fix, but this tree's code still had files(i), so a lock went to whichever file was opened last.
 * 12 Nov 26 SD Core Solo - SOLO 56 group 8, from Linux Solo b1d823f (SD Core's S.73 item 3, 21 Oct 26) with Windows message ids: request 70 (vb.fileadmin, a verb run on the
 *           server for the session: analyze.file, configure.file, the index verbs, create.file, delete.file, chosen by number, the file named by the one it was opened under,
 *           kept in file.names) and 71 (vb.fcontrol, FCONTROL of an open file) are served, global session only (the gate before the dispatch), each change asking
@@ -2327,9 +2329,9 @@ vb.filelock:
                                              if err then return
 
                                              if wait then
-                                                filelock files(i)
+                                                filelock files(fno)   ;* 12 Nov 26 (SOLO 66; Core and Linux K8a, 19 Oct): was files(i), the stale loop variable of the last open
                                              end else
-                                                filelock files(i) locked server.error = SV$LOCKED
+                                                filelock files(fno) locked server.error = SV$LOCKED
                                                 end
 
                                                 return
@@ -2344,7 +2346,7 @@ vb.fileunlock:
                                                 gosub check.file
                                                 if err then return
 
-                                                fileunlock files(i)
+                                                fileunlock files(fno)   ;* 12 Nov 26 (SOLO 66): was files(i)
 
                                                 return
 

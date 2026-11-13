@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 12 Nov 26 SD Core Solo - as Linux (RELEASE_1.1 251): an empty TMP is treated as unset, and TEMPDIR's default is copied with a bound.
  * 12 Nov 26 SD Core Solo - SOLO 56 group 9, as Linux Solo 249a583 and SD Core for Windows (RELEASE_1.1 240 a): GRPSIZE's default is 4 (kb), for new files only;
  *               the shipped sd.conf says 4 too.
  * 09 Nov 26 SD Core Solo - ranges_overlap() removed: nothing has called it since S.87 batch 15 took the PHANTOMS setting out (the compiler said
@@ -449,7 +450,7 @@ struct CONFIG* read_config(char* errmsg) {
 
   if (pcfg.tempdir[0] == '\0') {
     p = getenv("TMP");
-    strcpy(pcfg.tempdir, (p == NULL) ? "/tmp" : p);
+    snprintf(pcfg.tempdir, MAX_PATHNAME_LEN + 1, "%s", ((p == NULL) || (*p == '\0')) ? "/tmp" : p); /* 12 Nov 26: as Linux */
   }
 
   /* If the SORTWORK parameter has not been set, use TEMPDIR */

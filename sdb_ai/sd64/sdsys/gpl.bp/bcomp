@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 12 Nov 26 SD Core Solo - RELEASE_1.1 255: mode.names<1,45> is listed (blank, retired AUTOLOCK) as in SD Core for Windows and Linux.
 * 12 Nov 26 SD Core Solo - RELEASE_1.1 241: OSPATH() in a program that is not internal compiles to XF_OSPATH 31 (pub_ospath), as Linux Solo.
 * 12 Nov 26 SD Core Solo - SOLO 56 group 7 (P-18), from SD Core for Windows (as in Linux Solo): $MODE NON.DURABLE.TXN (mode2 bit 9, mode name 42):
 *               every COMMIT is preceded by KERNEL(K$NON.DURABLE.TXN, 1) (emit.txn.commit), so a nested transaction's COMMIT hands its updates to the parent.
@@ -277,6 +278,7 @@ mode.names<1,41> = ""                   ;* mode2 bit 8, retired 28 Oct 26 (was D
 mode.names<1,42> = "NON.DURABLE.TXN"
 mode.names<1,43> = ""                   ;* retired 27 Oct 26 (was STDFIL.SHARED)
 mode.names<1,44> = "DEBUG.EQUATES"
+mode.names<1,45> = ""                   ;* retired 27 Oct 26 (was AUTOLOCK)
 *****************************************************************************
 
    * The {name} construct is not available until the $DICT directive is used.

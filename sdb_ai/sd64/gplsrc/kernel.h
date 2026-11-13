@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 12 Nov 26 SD Core Solo - RELEASE_1.1 255: P_AUTOLOCK is gone, as in SD Core for Windows and Linux (AUTOLOCK was retired 27 Oct 26; nothing used it).
  * 11 Nov 26 SD Core Solo - SOLO 53: P_SEQKEY is set now, by WRITE ... CREATING.SEQKEY (op_dio3.c).
  * 8 Nov 26 Windows port - from Linux 7416a68a (S.87 batch 17): has_stdfil and stdfil_saved are gone with $MODE STDFIL.SHARED.
  * 8 Nov 26 Windows port - from Linux 2eddc5ed (S.87 batch 16): keep_select is gone (the KEEP.SELECT statement).
@@ -186,9 +187,6 @@ struct PROCESS {
 /* 0x0800 is Linux's P_TEMPFILE (OPENTEMP, held: it rests on the S.63 OS-access gate); left free so the values agree */
 #define P_MATCMP 0x1000   /* MATSTR makes a comparison key for IF MAT a = MAT b (openQM item 111) */
 #define P_SEQKEY 0x4000   /* WRITE ... CREATING.SEQKEY id.var: the "record id" operand is the address of a variable that is given the file's next sequential id (15 Oct 26; Solo 11 Nov 26, SOLO 53) */
-/* 0x8000 is also Linux's P_AUTOLOCK (WRITE, MATWRITE or DELETE under $MODE AUTOLOCK, QM4 gap 213), not carried to Solo yet; named only so that the remote write
-   in op_dio3.c (S.65 slice 3e) carries unchanged.  Nothing here sets the bit, so that test is never true (25 Oct 26) */
-#define P_AUTOLOCK 0x8000
 #define P_REC_LOCKS (P_LLOCK | P_ULOCK) /* Either LLOCK or ULOCK */
   bool numeric_array_allowed;           /* Opcode allows numeric arrays? */
   int32_t status;                       /* Value from STATUS() function */

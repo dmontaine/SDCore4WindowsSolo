@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 12 Nov 26 SD Core Solo - as Linux S.125 (RELEASE_1.1 251): keyin()'s t1 starts at 0.
  * 12 Nov 26 SD Core Solo - SOLO 63: write_console() hands a console session's output to WriteConsoleW (win32vt.c, console_write_direct()):
  *           through the MSYS2 runtime's console layer a full-screen page took 3 to 5 s in a classic console window.  Core the same day.
  * 11 Nov 26 SD Core Solo - SOLO 56 group 2, from Windows Core (code as in Linux Solo): AUTOLOGOUT measures idle time ACROSS keyin() calls
@@ -736,7 +737,7 @@ int16_t keyin(timeout) int timeout; /* Milliseconds */
 {
   char c;
   struct timeval tv;
-  int64 t1;
+  int64 t1 = 0; /* 12 Nov 26: as Linux S.125; read only under a timeout, which sets it */
   int64 t2;
   int td;
   int poll_ret;

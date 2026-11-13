@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 12 Nov 26 SD Core Solo - from Linux 00359730 (RELEASE_1.1 251): the dump file is created 0600 with O_NOFOLLOW; a failure names the path and the reason.
  * 18 Oct 26 Windows port - from Linux 7c53377 - Solo carry from SD Core (v1.1-3 to 5315c65), LSOLO 52: Core's text without the S.65 remote-file branch of dump_variable().
  * 17 Oct 26 Windows port - from Linux 7c53377 - S.65 slice 3c: dump_variable() names a NET_FILE as a remote file instead of reading FPtr(-1)
  * 31 Dec 23 SD launch - prior history suppressed
@@ -113,10 +114,23 @@ void pdump() {
 
   FDS_close(); /* Ensure free handle without even checking if needed */
 
-  fu = fopen(path, FOPEN_WRITE_MODE);
-  if (fu == NULL) {
-    tio_printf("Cannot open dump file\n");
-    goto exit_pdump;
+  /* 12 Nov 26 (RELEASE_1.1 251, from Linux 00359730): a dump holds the session's variables, so it is created 0600 with
+     O_NOFOLLOW rather than through fopen(), so that a link planted as sddump.N is not written through; fchmod() because
+     O_CREAT's mode does not apply to a file that already exists.  A failure names the path and the reason. */
+  {
+    int fd;
+    fd = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_BINARY, 0600);
+    if (fd < 0) {
+      tio_printf("Cannot open dump file %s: %s\n", path, strerror(errno));
+      goto exit_pdump;
+    }
+    (void)fchmod(fd, 0600);
+    fu = fdopen(fd, FOPEN_WRITE_MODE);
+    if (fu == NULL) {
+      tio_printf("Cannot open dump file %s: %s\n", path, strerror(errno));
+      close(fd);
+      goto exit_pdump;
+    }
   }
 
   /* Write dump file header */

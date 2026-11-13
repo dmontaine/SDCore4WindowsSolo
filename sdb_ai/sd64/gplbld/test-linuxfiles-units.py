@@ -34,8 +34,7 @@ LINUX_REPO = 'SDCore4LinuxSolo'
 LINUX = os.environ.get('SD_LINUX_GPLBP') or os.path.normpath(
     os.path.join(HERE, '..', '..', '..', '..', LINUX_REPO, 'sdb_ai', 'sd64', 'sdsys', 'gpl.bp'))
 
-AI = 'the AI (Linux S.69) is not carried to Windows yet: RELEASE_1.1 197'
-OSCOPY = 'OSCOPY is carried to Core only (6c3286b7); Solo\'s copy is owed: RELEASE_1.1 146'
+AI = 'the AI (Linux S.69) is not carried to Windows yet: RELEASE_1.1 246'
 ACCOUNTS = 'Solo has no account management: removed in SOLO 4 (8eddae56)'
 # 11 Nov 26: Linux Solo carried SD Core's full-screen work and its S.216 parity gaps (Linux Solo Dev 31ce6f9..3105155, mail 2026-11-12T0200); these
 # 59 programs came with it and are not in this tree yet.  Each is to be carried or given its own reason by SOLO 56.
@@ -48,14 +47,12 @@ NOT_HERE = {
     'ai':               AI,
     'setai':            AI,
     'tool_ai':          AI,
-    '_ioscopy':         OSCOPY,
-    '_oscopy':          OSCOPY,
-    'oscopya':          OSCOPY,
+    # 12 Nov 26: OSCOPY (_oscopy, _ioscopy, oscopya) carried from Core, SOLO 67, so it is no longer listed here.
     'define_install.h': 'never in Solo: removed from Core as dead code (Core aafca0bb) before Solo began from it',
     'is_group':         ACCOUNTS,
     'is_sd_user':       ACCOUNTS,
     'is_user':          ACCOUNTS,
-    'locktracer':       'LOCK.TRACER (Linux 7f7a4fd4) was held back in Core 18 Oct (0480ce9a): every session would append to a file in SDSYS\'s directory; owner, 10 Nov: carry it once the service is the only writer, as for the audit (RELEASE_1.1 182)',
+    'locktracer':       'LOCK.TRACER (Linux 7f7a4fd4) was held back in Core 18 Oct (0480ce9a): every session would append to a file in SDSYS\'s directory; owner, 10 Nov: carry it once the service is the only writer, as for the audit (RELEASE_1.1 247)',
     'setmode':          'OS: SET.MODE (Linux 3b435253) sets POSIX permission bits; Windows files have ACLs, not mode bits (agreed with Linux, mail 2026-11-11T0630)',
     'peer_local':       'never in Solo: removed from Core with the administrator predicate (RELEASE_1.1 64, fdded05a)',
     'tool_viewers':     'the Viewers page; SOLO 47 carried the pdf verbs and not this page, and nothing has decided it: SOLO 54',
