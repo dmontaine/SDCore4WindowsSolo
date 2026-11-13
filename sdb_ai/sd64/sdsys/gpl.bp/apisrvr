@@ -19,6 +19,8 @@
 *
 *
 * START-HISTORY:
+* 13 Nov 26 Windows port - SOLO 61: Solo's own messages 12021, 12036 and 12037 are 12930, 12894 and 12884, ids no Windows or Linux tree uses
+*           (12021 and 12036-12037 are where Linux Solo's 11016, 11031 and 11032 map at +1005).
 * 12 Nov 26 Windows port - RELEASE_1.1 266: WHO is lower case, as Linux Solo (the path leaf at start, the account a client asks for).
 * 12 Nov 26 SD Core Solo - RELEASE_1.1 261 (Core-Solo re-audit N-01, N-02): abort.message is emptied at the top of every request (Linux K1; the 20 Oct
 *           line below said so, the code did it once only), and acc.suspended is a truth value when read, as Linux Solo and Core.
@@ -183,7 +185,7 @@
 * 30 Sep 26 SD Core Solo - SOLO 24: request 49, SrvrSshKey (vb.sshkey).  The
 *           managed-mode master installs its ssh public key through the API, and
 *           is the only caller (a $GLOBAL session, K$GLOBAL.SESSION).  The file
-*           work is gplbld/solo-sshkey.ps1; messages 12036 and 12037.
+*           work is gplbld/solo-sshkey.ps1; messages 12894 and 12884 (12036 and 12037 until 13 Nov 26, SOLO 61).
 * 20 Aug 26 Windows port - two comments corrected, no code changed.  Both said
 *           an API session cannot have elevation; it runs as LocalSystem,
 *           because sdwind is a service and fork()s it.  Measured with
@@ -1448,7 +1450,7 @@ vb.local.login:
 *   naming what to use instead, audited, and the connection ends.  Its old
 *   body, which took the caller's identity from the process that started
 *   sd.exe, is deleted (SOLO 3 step 5).
-               abort.message = sysmsg(12021) ;* SDConnectLocal is not available... use SDConnect
+               abort.message = sysmsg(12930) ;* SDConnectLocal is not available... use SDConnect (12021 until 13 Nov 26, SOLO 61)
                server.error = SV$ON.ERROR
                void kernel(K$AUDIT, 'api refused request=25 SDConnectLocal - disabled in SD Core Solo')
                done = @true
@@ -2642,7 +2644,7 @@ vb.sshkey:
                                                                      if not(kernel(K$GLOBAL.SESSION, -1)) then
                                                                         void kernel(K$AUDIT, 'api sshkey refused - not a global session peer=' : system(42))
                                                                         server.error = SV$ERROR
-                                                                        error.msg = sysmsg(12036) ;* Only the SD Core server may manage ssh keys
+                                                                        error.msg = sysmsg(12894) ;* Only the SD Core server may manage ssh keys
                                                                         return
                                                                      end
 
@@ -2735,7 +2737,7 @@ vb.sshkey:
                                                                               sk.shown = 'the key or fingerprint is not valid'
                                                                         end case
                                                                         server.error = SV$ERROR
-                                                                        error.msg = sysmsg(12037, sk.shown) ;* The ssh key request was refused: %1
+                                                                        error.msg = sysmsg(12884, sk.shown) ;* The ssh key request was refused: %1
                                                                         return
                                                                      end
 

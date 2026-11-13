@@ -65,7 +65,7 @@
 #      does not connect.  Both passwords reach the probe on its input, never
 #      its source.  Skipped when sd.conf has no APIPORT.
 #  12. the installed sdclilib.dll, loaded by full path, finds its home: its
-#      SDConnectLocal reaches the server and gets the ruled refusal (12021),
+#      SDConnectLocal reaches the server and gets the ruled refusal (12930; 12021 until 13 Nov 26),
 #      audited once                                          (SOLO 2 owed leg 1)
 #  13. an sd.exe started from Git Bash (or MSYS2) bash, whose POSIX root and
 #      /dev/shm are not the Solo tree's, reaches the daemon: a one-shot WHERE
@@ -1066,7 +1066,7 @@ try {
     # SOLO 2's owed leg (1), witnessed by hand 27 Sep 2026.  sdclilib.dll takes
     # the home from its own location, <home>\usr\bin (home_path()); its only
     # caller is sysdir(), reached only through SDConnectLocal, which Solo refuses
-    # on the server (message 12021, apisrvr vb.local.login).  So the REFUSAL is
+    # on the server (message 12930, apisrvr vb.local.login).  So the REFUSAL is
     # the success anchor: its text is not in the DLL and comes back only if the
     # DLL found <home>\sd.conf and sd.exe and the session started.  Loaded by
     # FULL PATH, and the loaded module is checked, so no other copy can answer.
@@ -1100,7 +1100,7 @@ public static class SdSuiteCli {
         Say ('    returned ' + $rc + '; SDError: ' + (Mask $err))
         Say ('    audit "API REFUSED request=25" lines: ' + $a0 + ' -> ' + $a1)
         Check 'the loaded sdclilib.dll is the installed one' ($mod.Count -eq 1 -and $mod[0] -eq $cliDll) ('loaded: ' + ($mod -join '; '))
-        Check 'SDConnectLocal reaches the server and is refused as ruled (12021)' ($rc -eq 0 -and $err -match '^SDConnectLocal is not available in SD Core Solo for Windows - connect with SDConnect' -and $err -notmatch '(?i)cannot determine|not found') ('returned ' + $rc + ', SDError: ' + $err)
+        Check 'SDConnectLocal reaches the server and is refused as ruled (12930)' ($rc -eq 0 -and $err -match '^SDConnectLocal is not available in SD Core Solo for Windows - connect with SDConnect' -and $err -notmatch '(?i)cannot determine|not found') ('returned ' + $rc + ', SDError: ' + $err)
         Check 'and the audit records the refusal, once' ($a0 -ge 0 -and $a1 -eq $a0 + 1) ('audit count ' + $a0 + ' -> ' + $a1)
     }
 
@@ -1538,7 +1538,7 @@ public static class SdSuiteCli {
             $hashMid = (Get-FileHash -LiteralPath $akf -Algorithm SHA256).Hash
             $t = Invoke-ScramKey 'the account password' $acctPw @('LIST', ('ADD ' + $pub), ('REMOVE ' + $fpr), '@REVISION')
             Check 'request 49 is the server revision, as in Core (SOLO 55): REVISION: OK and some text, not the ssh key handler''s refusal' ($t -match '(?m)^REVISION: OK \S') 'want "REVISION: OK <revision>"; a refusal here means 49 still reaches the key handler'
-            Check 'CONTROL: with the account password, ADD, LIST and REMOVE are all refused (12036)' ((CountOf (Get-Lines $t) 'SSHKEY (ADD|LIST|REMOVE): REFUSED server_error 3: Only the SD Core server may manage ssh keys') -eq 3) 'want three refusals'
+            Check 'CONTROL: with the account password, ADD, LIST and REMOVE are all refused (12894)' ((CountOf (Get-Lines $t) 'SSHKEY (ADD|LIST|REMOVE): REFUSED server_error 3: Only the SD Core server may manage ssh keys') -eq 3) 'want three refusals'
             Check 'and the file is byte-identical afterwards' ((Get-FileHash -LiteralPath $akf -Algorithm SHA256).Hash -eq $hashMid) 'the file changed'
         }
         finally {
