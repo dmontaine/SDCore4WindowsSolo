@@ -1260,6 +1260,10 @@ begin
   Params := '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}') +
             '\solo-setup.ps1" -AppDir "' + ExpandConstant('{app}') + '" -User "' +
             GetUserNameString + '" -Report "' + ReportPath + '"';
+  { 13 Nov 26 - RELEASE_1.1 252 (P-25): the installer's own folder, for the changes document and the pdf folder a release package
+    keeps beside it (Linux Solo S.216).  AddBackslash + '.' so that a root folder (E:\, a USB stick) cannot end in the backslash
+    that would escape the closing quote. }
+  Params := Params + ' -SourceDir "' + AddBackslash(ExpandConstant('{src}')) + '."';
   { 20 Oct 26 - RELEASE_1.1 165: the shell and OS access answer, for a new tree and an upgrade alike (solo-setup.ps1 turns on what it
     names with SET.OS.ACCESS and reads the state back; none turns on nothing). }
   SetEnvironmentVariable('SD_SOLO_OS_ACCESS', OsAccessWord);

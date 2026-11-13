@@ -70,7 +70,10 @@ param(
     # 06 Oct 26 - SOLO 37: the folder the installer moved the user's kept data to ("<tree>.kept-<time>").
     # On a NEW tree (-Passwords) it makes this run copy the kept account's files into the new account,
     # try the kept sd.conf, and refresh the account's VOC.  Never combined with -Upgrade.
-    [string]$ReloadFrom = ''
+    [string]$ReloadFrom = '',
+    # 13 Nov 26 - RELEASE_1.1 252 (P-25, Linux Solo S.216): the installer's own folder, where a release package keeps the changes
+    # document and the pdf folder of the documentation.  Empty: nothing is looked for.
+    [string]$SourceDir = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -526,6 +529,42 @@ try {
     # system directory; every install and upgrade, because an upgrade replaces the text.  The anchor is the verb's own result line (message 12844).
     $t = Invoke-Sd '-internal LOAD.HELP' ''
     Judge 'context help loaded into context.help' $t '(?m)^Context help: \d+ new, \d+ changed, \d+ already current, \d+ added by the administrator and kept\s*$'
+
+    # 13 Nov 26 - THE DOCUMENTATION BESIDE THE INSTALLER (RELEASE_1.1 252, P-25; Linux Solo S.216's CHANGES-DOC and MANUALS-PDF, from SD
+    # Core's).  Solo has no shared account, so the destination is sdsys\pdf, which sd-solo.iss's [Dirs] makes.  The changes document
+    # (sd-core-solo-for-windows-<version>-changes.pdf / .html / .md) is copied as it is; the pdf folder is handed to DOCS.INSTALL, which
+    # judges every file.  NOTHING BESIDE THE INSTALLER IS NOT A FAILURE (a build folder has neither): it is noted.  A copy that fails, or
+    # DOCS.INSTALL without its success line with nothing skipped (message 12727), is.
+    $pdfDir = Join-Path $sdsys 'pdf'
+    if (-not $SourceDir -or -not (Test-Path -LiteralPath $SourceDir)) {
+        Note '  NOTE  no installer folder was given, so no documentation was looked for'
+    } elseif (-not (Test-Path -LiteralPath $pdfDir)) {
+        Note ('  FAIL  documentation: there is no ' + $pdfDir)
+        $fails += 'documentation directory'
+    } else {
+        $seen = 0; $copied = 0
+        foreach ($pat in @('sd-core-solo-for-windows-*-changes.pdf', 'sd-core-solo-for-windows-*-changes.html', 'sd-core-solo-for-windows-*-changes.md')) {
+            foreach ($f in @(Get-ChildItem -LiteralPath $SourceDir -Filter $pat -File -ErrorAction SilentlyContinue)) {
+                if ($f.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { Note ('  NOTE  ' + $f.Name + ' is a link and was not copied'); continue }
+                $seen++
+                if ($f.Name -cnotmatch '^[a-z0-9][a-z0-9._-]{0,79}$') { Note ('  NOTE  ' + $f.Name + ' was not copied: the name must be lower case letters, digits and . _ -'); continue }
+                $to = Join-Path $pdfDir $f.Name
+                try { Copy-Item -LiteralPath $f.FullName -Destination $to -Force -ErrorAction Stop } catch { }
+                if (Test-Path -LiteralPath $to) { $copied++ } else { Note ('  FAIL  ' + $f.Name + ' was not copied into ' + $pdfDir); $fails += 'changes document' }
+            }
+        }
+        if ($seen -eq 0) { Note ('  NOTE  no changes document beside the installer (' + $SourceDir + ')') }
+        else { Note ('  PASS  changes document: ' + $copied + ' of ' + $seen + ' file(s) copied into ' + $pdfDir) }
+
+        $srcPdf = Join-Path $SourceDir 'pdf'
+        $nPdf = @(Get-ChildItem -LiteralPath $srcPdf -Filter '*.pdf' -File -ErrorAction SilentlyContinue).Count
+        if ($nPdf -eq 0) {
+            Note ('  NOTE  no documentation PDFs beside the installer (' + $srcPdf + '); the administrator can add them later:  docs.install <folder of PDFs>')
+        } else {
+            $t = Invoke-Sd ('-internal DOCS.INSTALL "' + $srcPdf + '"') ''
+            Judge ('documentation PDFs (' + $nPdf + ') installed into ' + $pdfDir) $t '(?m)^Copied \d+ document\(s\) into the pdf directory; skipped 0\s*$'
+        }
+    }
 }
 catch {
     Note ('ERROR        : ' + $_.Exception.Message)
