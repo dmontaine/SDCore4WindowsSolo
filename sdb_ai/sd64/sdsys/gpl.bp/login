@@ -18,8 +18,10 @@
 * 
 * 
 * START-HISTORY:
+* 12 Nov 26 Windows port - RELEASE_1.1 266: @WHO IS LOWER CASE, AS LINUX SOLO: initial.account is downcased at every source, its tests and the
+*   audit name say 'sdsys', and the update.sdsys.voc test is Linux's `@who = 'sdsys'` again (setacc and apisrvr set WHO the same way).
 * 12 Nov 26 Windows port - RELEASE_1.1 266 (owner: "Yes, install it"): voc_template is installed again and SDSYS's own VOC is refreshed from it,
-*   as Linux Solo; the test downcases @who, which is upper case here (as written it was never true).
+*   as Linux Solo.
 * 12 Nov 26 Windows port - RELEASE_1.1 260: the kept password is read as '$stored', as Linux Solo (NTFS finds a $STORED an earlier release made).
 * 11 Nov 26 SD Core Solo - SOLO 53: the internal FCONTROL is FCONTROL.INT, its keys FCI$ (the public FCONTROL has openQM's numbers).
 * 26 Oct 26 SD Core Solo - from Linux 6dc0e3e: UPDATE.ACCOUNTS (modes 2 and 4) updates the SDSYS account's own VOC from VOC_TEMPLATE, not NEWVOC.
@@ -465,14 +467,14 @@ deffun pw_complex(pw) calling '!pw_complex'
          update.voc.f = voc
 * 26 Oct 26 SD Core Solo - from Linux 6dc0e3e: THE SDSYS ACCOUNT'S OWN VOC IS UPDATED FROM VOC_TEMPLATE, NOT FROM NEWVOC (tool.gates is the administrator's
 *   matrix in one and the holder's read-only page in the other; UPDATE.ACCOUNTS ALL, run on every install, wrote the holder's page over the administrator's).
-         update.sdsys.voc = (downcase(@who) = 'sdsys' and kernel(K$ADMINISTRATOR,-1))   ;* 12 Nov 26: @who is upper case here (row 266)
+         update.sdsys.voc = (@who = 'sdsys' and kernel(K$ADMINISTRATOR,-1))
          upd.account = downcase(@who)               ;* 27 Oct 26 - the name the deletion list's saved copies and audit line carry
          gosub update.voc
          if upd.denied then display sysmsg(12988, @path : @ds : 'voc')
          close update.voc.f
       end
 
-      if @who = 'SDSYS' and kernel(K$ADMINISTRATOR,-1) then
+      if @who = 'sdsys' and kernel(K$ADMINISTRATOR,-1) then
 * 04 Sep 26 Windows port - MODE 4 DOES NOT ASK, AND IT SAYS SO RATHER THAN GOING
 *   QUIET.  PRE_RELEASE_FIXES 70.  The installer runs this from ssPostInstall,
 *   where there is nobody at a keyboard: stdin is not a terminal, "input" gets
@@ -720,7 +722,7 @@ deffun pw_complex(pw) calling '!pw_complex'
 
    begin case
       case kernel(K$FORCED.ACCOUNT,0) # ''   ;* "sd -Aname", or -INTERNAL
-         initial.account = upcase(kernel(K$FORCED.ACCOUNT,0))
+         initial.account = downcase(kernel(K$FORCED.ACCOUNT,0))
 
          read acc.rec from acc.f, initial.account else
             display sysmsg(5018, initial.account) ;* Account %1 not in register
@@ -754,7 +756,7 @@ deffun pw_complex(pw) calling '!pw_complex'
 *   and comes from a command line rather than a session.
 
          if kernel(K$INTERNAL,-1) then
-            if initial.account = 'SDSYS' and not(kernel(K$ADMINISTRATOR,-1)) then
+            if initial.account = 'sdsys' and not(kernel(K$ADMINISTRATOR,-1)) then
                display sysmsg(10002) ;* SDSYS Account access is restricted to privileged users
                audit.reason = 'SDSYS requires an elevated session'
                goto terminate.connection
@@ -766,7 +768,7 @@ deffun pw_complex(pw) calling '!pw_complex'
             gosub internal.gate
             if not(gate.ok) then goto terminate.connection
          end else
-            if initial.account # upcase(@logname) then
+            if initial.account # downcase(@logname) then
                display sysmsg(10051) ;* You can only log in to your own account
                audit.reason = 'not the caller own account'
                goto terminate.connection
@@ -935,12 +937,12 @@ deffun pw_complex(pw) calling '!pw_complex'
 *        elevated or not, and whatever the Windows account is called (ruling 11).
          if upcase(@logname) = 'SDSYS' then
             display sysmsg(10002) ;* SDSYS Account access is restricted to privileged users
-            audit.account = 'SDSYS'
+            audit.account = 'sdsys'
             audit.reason = 'SDSYS is not a login target'
             goto terminate.connection
          end
 
-         initial.account = upcase(@logname)
+         initial.account = downcase(@logname)
 
 * 22 Sep 26 Windows port - THE ONLY PRIVILEGED ACCOUNT IS SDSYS.  Owner's
 *   ruling, 22 Sep 2026: "elevation should not give ANY user any additional SD
@@ -1061,7 +1063,7 @@ deffun pw_complex(pw) calling '!pw_complex'
 
       if initial.account = '' then
          * Just use final part of pathname
-         initial.account = upcase(account.path[index(account.path, @ds, count(account.path, @ds)) + 1, 99999])
+         initial.account = downcase(account.path[index(account.path, @ds, count(account.path, @ds)) + 1, 99999])
       end
    end
 

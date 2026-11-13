@@ -19,6 +19,7 @@
 *
 *
 * START-HISTORY:
+* 12 Nov 26 Windows port - RELEASE_1.1 266: WHO is lower case, as Linux Solo (the path leaf at start, the account a client asks for).
 * 12 Nov 26 SD Core Solo - RELEASE_1.1 261 (Core-Solo re-audit N-01, N-02): abort.message is emptied at the top of every request (Linux K1; the 20 Oct
 *           line below said so, the code did it once only), and acc.suspended is a truth value when read, as Linux Solo and Core.
 * 12 Nov 26 SD Core Solo - SOLO 66 (Core-Solo parity audit S-01): vb.filelock and vb.fileunlock use files(fno).  The 20 Oct note below records Linux Solo's K8a
@@ -360,7 +361,7 @@ if not(kernel(K$CPROC.LEVEL,0)) then
 
    account.path = ospath("", os$cwd)     ;* @PATH
    initial.account.path = account.path
-   who = upcase(account.path[index(account.path, @ds, count(account.path, @ds)) + 1, 99999]) ;* 0414
+   who = downcase(account.path[index(account.path, @ds, count(account.path, @ds)) + 1, 99999]) ;* 0414; 12 Nov 26 (RELEASE_1.1 266): lower case, as Linux Solo
    abort.code = 0
 
    tty = 'apisrvr'
@@ -765,7 +766,7 @@ vb.account:
 readv i from @voc,'ON.LOGTO',0 on error null
 then execute 'ON.LOGTO' trapping aborts capturing response
 
-new.account = upcase(cmnd)
+new.account = downcase(cmnd)       ;* 12 Nov 26 (RELEASE_1.1 266): lower case, as Linux Solo
 
 old.account.path = account.path
 
