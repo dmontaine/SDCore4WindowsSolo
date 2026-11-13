@@ -4,6 +4,7 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 12 Nov 26 SD Core Solo - SOLO 62: the helper task is started by Task Scheduler COM; Start-ScheduledTask (CIM) is refused over ssh.
 * 12 Nov 26 SD Core Solo - SOLO 62: a line before each wait (12982 before the report, about 8 s; 12981 before a change, up to 3 min
 *           when ssh is set up): the owner, 12 Nov 26, "there needs to be a message to the user any time a command is expected to
 *           take more than 2 seconds", after remote.ssh local sat silent for two minutes in the VM witness.
@@ -226,7 +227,9 @@ change:
    ps = '$req = (' : q : 'version=1' : q : ', ' : q : 'door=' : door : q : ', ' : q : 'mode=' : want : q : ', ' : q : 'nonce=' : nonce : q
    ps := ', ' : q : 'time=' : now : q : ', ' : q : 'cred=' : cred : q : ', ' : q : 'proof=' : proof : q : ') -join "`n"'
    ps<-1> = '[IO.File]::WriteAllText(' : q : app.dir : '\sdsys\doors.request' : q : ', $req + "`n", [Text.Encoding]::ASCII)'   ;* where the helper reads it (Join-Path -AppDir sdsys)
-   ps<-1> = 'try { Start-ScheduledTask -TaskName ' : q : 'SD Core Solo Doors' : q : ' -ErrorAction Stop } catch { Write-Output ("cannot start the helper: " + $_.Exception.Message); exit 4 }'
+*  The task is started through the Task Scheduler's COM object, not Start-ScheduledTask: that is a CIM cmdlet, and in an ssh logon
+*  every CIM cmdlet fails ("Cannot connect to CIM server. Access denied", the VM witness of 12 Nov 26).
+   ps<-1> = 'try { $ts = New-Object -ComObject Schedule.Service; $ts.Connect(); $null = $ts.GetFolder(' : q : '\' : q : ').GetTask(' : q : 'SD Core Solo Doors' : q : ').Run($null) } catch { Write-Output ("cannot start the helper: " + $_.Exception.Message); exit 4 }'
    ps<-1> = '$res = ' : q : doors.dir : '\result.txt' : q
    ps<-1> = 'for ($i = 0; $i -lt 180; $i++) {'
    ps<-1> = '   Start-Sleep -Seconds 1'
