@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 12 Nov 26 Windows port - RELEASE_1.1 266 (owner: "Yes, install it"): voc_template is installed again and SDSYS's own VOC is refreshed from it,
+*   as Linux Solo; the test downcases @who, which is upper case here (as written it was never true).
 * 12 Nov 26 Windows port - RELEASE_1.1 260: the kept password is read as '$stored', as Linux Solo (NTFS finds a $STORED an earlier release made).
 * 11 Nov 26 SD Core Solo - SOLO 53: the internal FCONTROL is FCONTROL.INT, its keys FCI$ (the public FCONTROL has openQM's numbers).
 * 26 Oct 26 SD Core Solo - from Linux 6dc0e3e: UPDATE.ACCOUNTS (modes 2 and 4) updates the SDSYS account's own VOC from VOC_TEMPLATE, not NEWVOC.
@@ -463,7 +465,7 @@ deffun pw_complex(pw) calling '!pw_complex'
          update.voc.f = voc
 * 26 Oct 26 SD Core Solo - from Linux 6dc0e3e: THE SDSYS ACCOUNT'S OWN VOC IS UPDATED FROM VOC_TEMPLATE, NOT FROM NEWVOC (tool.gates is the administrator's
 *   matrix in one and the holder's read-only page in the other; UPDATE.ACCOUNTS ALL, run on every install, wrote the holder's page over the administrator's).
-         update.sdsys.voc = (@who = 'sdsys' and kernel(K$ADMINISTRATOR,-1))
+         update.sdsys.voc = (downcase(@who) = 'sdsys' and kernel(K$ADMINISTRATOR,-1))   ;* 12 Nov 26: @who is upper case here (row 266)
          upd.account = downcase(@who)               ;* 27 Oct 26 - the name the deletion list's saved copies and audit line carry
          gosub update.voc
          if upd.denied then display sysmsg(12988, @path : @ds : 'voc')
