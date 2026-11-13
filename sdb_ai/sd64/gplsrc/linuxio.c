@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 12 Nov 26 Windows port - from Linux e79f6499, as Linux Solo (RELEASE_1.1 252, P-23): a TCP connection to a session that is not the API
+ *           server is refused, and a peer whose address cannot be read has port 0.
  * 12 Nov 26 SD Core Solo - as Linux S.125 (RELEASE_1.1 251): keyin()'s t1 starts at 0.
  * 12 Nov 26 SD Core Solo - SOLO 63: write_console() hands a console session's output to WriteConsoleW (win32vt.c, console_write_direct()):
  *           through the MSYS2 runtime's console layer a full-screen page took 3 to 5 s in a classic console window.  Core the same day.
@@ -310,6 +312,13 @@ bool start_connection(int unused) {
             }
           } else {
             strcpy(ip_addr, "?");
+            port_no = 0;    /* 12 Nov 26 (RELEASE_1.1 252, P-23): as Linux e79f6499, no port for a peer that cannot be read */
+          }
+          /* 12 Nov 26 Windows port - from Linux e79f6499, as Linux Solo (RELEASE_1.1 252, audit P-23): TCP is for the API server
+             ONLY (-Q sets is_sdApiSrvr); a plain "sd-solo -N" with a TCP socket on descriptor 0 is nothing SD starts, so it is refused. */
+          if (!is_sdApiSrvr) {
+            syslog(LOG_INFO, "Refusing PF_INET connection (not API server) from %s", ip_addr);
+            return FALSE; /* Error */
           }
           syslog(LOG_INFO, "API connection from %s port %d", ip_addr,
                  (int)port_no);
