@@ -13,6 +13,9 @@ so the rows are written against this tree.  The live witness (a session that is 
 11 Nov 26 SD Core Solo - SOLO 56 group 2: S6 asks for k_error(sysmsg_arg1(12185, account())) between the gate and the open_file label, as
 Linux Solo's row does for 11180; it passed before on "process.username" in a history comment, and os_access_refused() is gone.
 
+12 Nov 26 SD Core Solo - SOLO 59: the B3 and B6 mutants are anchored on the current text (the K$NET line now follows the two loads in apisrvr;
+QPROC's gate is indented 3 spaces), so --selftest proves those two rows again.
+
   K   key numbers and user-table bits: the same numbers in the C and BASIC headers, no clash with another flag
   G   the gate: os_gate_open (administrator or USR_OS_EXEC), os_user_permitted answers it, the path test and its trust of an $internal program
   S   the call sites: OPENSEQ, DELETESEQ, OPENPATH, DIR, DIGEST, the OSPATH keys, a print file, K_PATH_OK
@@ -239,11 +242,12 @@ MUTANTS = [
     ("the refusal prints %1", "to_file", "k_error(sysmsg_arg1(12185, account()));", "k_error(sysmsg(12185));", "S6"),
     ("LOGIN does not load the switches", "login", "   void kernel(K$SH,      upcase(trim(acc.rec<ACC$SH>)) = 'YES')\n", "", "B1"),
     ("APISRVR does not load the switches", "apisrvr", "void kernel(K$OS.EXEC, api.os.grant)\n", "", "B2"),
-    ("APISRVR loads them after MASTER.LOGIN", "apisrvr", "void kernel(K$SH,      api.sh.grant)\nvoid kernel(K$OS.EXEC, api.os.grant)\n\n* 19 Oct 26 Windows port - from Linux d6a86a7 (sheet 170): the MASTER.LOGIN paragraph",
-     "* 19 Oct 26 Windows port - from Linux d6a86a7 (sheet 170): the MASTER.LOGIN paragraph", "B3"),
+    # 12 Nov 26 (SOLO 59): anchored on the text as it is now; the 20 Oct SDNet carry put the K$NET line between these two and MASTER.LOGIN.
+    ("APISRVR loads them after MASTER.LOGIN", "apisrvr", "void kernel(K$SH,      api.sh.grant)\nvoid kernel(K$OS.EXEC, api.os.grant)\nvoid kernel(K$NET,",
+     "void kernel(K$NET,", "B3"),
     ("the shell is open again", "cproc", "sh.listed = kernel(K$SH, -1)", "sh.listed = @true", "B4"),
     ("EDIT is open again", "edit", "if kernel(K$ADMINISTRATOR, -1) or kernel(K$OS.EXEC, -1) then", "if @true then", "B5"),
-    ("QPROC writes anywhere", "qproc", "      if not(kernel(K$PATH.OK, csv.pathname)) then", "      if 0 then", "B6"),
+    ("QPROC writes anywhere", "qproc", "   if not(kernel(K$PATH.OK, csv.pathname)) then", "   if 0 then", "B6"),   # 12 Nov 26 (SOLO 59): the gate is indented 3 spaces now
     ("a VOC pointer is not held to the gate", "voc_ref", "vr.free = vr.admin or kernel(K$OS.EXEC, -1)", "vr.free = @true", "B7"),
     ("the verb is open to everyone", "setosacc", "if not(kernel(K$ADMINISTRATOR, -1)) then", "if 0 then", "V1"),
     ("the verb takes two actions", "setosacc", "if os.field = 0 or word.3 # '' then", "if os.field = 0 then", "V3"),
@@ -254,8 +258,8 @@ MUTANTS = [
     ("the question starts ticked", "iss", "OsAccessPage.Values[0] := False;", "OsAccessPage.Values[0] := True;", "I2"),
     ("the question is skipped on an upgrade", "iss", "    Result := UseControl and (CfOsAccess <> '')\n  else if PageID = wpSelectTasks",
      "    Result := (not DataTreeWasAbsent) or (UseControl and (CfOsAccess <> ''))\n  else if PageID = wpSelectTasks", "I2"),
-    ("the answer is only passed for a new tree", "iss", "  SetEnvironmentVariable('SD_SOLO_OS_ACCESS', OsAccessWord);\n  if DataTreeWasAbsent then\n  begin\n    Params := Params + ' -Passwords';",
-     "  if DataTreeWasAbsent then\n  begin\n    SetEnvironmentVariable('SD_SOLO_OS_ACCESS', OsAccessWord);\n    Params := Params + ' -Passwords';", "I3"),
+    # 12 Nov 26 (SOLO 59): SOLO 56 group 6 put SD_SOLO_START between the answer and the new-tree branch, so the mutant takes the answer's line out.
+    ("the answer is not passed before the new-tree branch", "iss", "  SetEnvironmentVariable('SD_SOLO_OS_ACCESS', OsAccessWord);\n", "", "I3"),
     ("solo-setup accepts any word", "setup", "-notmatch '^(none|sh|os|both)$'", "-notmatch '^.*$'", "I4"),
     ("solo-setup never turns the shell on", "setup", "Invoke-Sd '-internal SET.OS.ACCESS SH ON' ''", "Invoke-Sd '-internal SET.OS.ACCESS SH OFF' ''", "I5"),
     ("the sample forgets os-access", "sample", "# os-access", "# something", "I6"),

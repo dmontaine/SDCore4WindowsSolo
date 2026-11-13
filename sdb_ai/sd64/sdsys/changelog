@@ -10,7 +10,8 @@ of both Windows products is 2.0-0, as all four SD Core versions will be.)
                            IDE's menu bar, F1 help and line prompt and the CED footer now describe the editors as they
                            are; they still showed the old IDE's menus. An API client's FILELOCK and FILEUNLOCK lock the
                            file they name, not the last one opened, and an ON ERROR reply no longer carries the text
-                           of an earlier refusal. EXECUTE ... CAPTURING of a command whose whole
+                           of an earlier refusal. The home screen leaves out the AI tile (the AI is not in this
+                           version yet), and RUN of a program whose path is too long says what the limit is. EXECUTE ... CAPTURING of a command whose whole
                            output is one newline no longer risks a crash; a failure to extend an index file is
                            reported; a process dump is readable by its owner only; an empty TMP is treated as unset.
              Does NOT    - Change anything else. NOT YET TESTED ON AN INSTALLED SYSTEM.
