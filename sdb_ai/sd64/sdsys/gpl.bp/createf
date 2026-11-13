@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 12 Nov 26 Windows port - from Linux 47efffaf (RELEASE_1.1 252, P-21): the name is looked up (as typed, lower, upper) before it is folded.
 * 12 Nov 26 SD Core Solo - SOLO 56 group 8, as Linux Solo b1d823f (SD Core's S.73 item 3, Windows Core's text as it now stands): CREATE.FILE name ... SERVER srv {AS remote}
 *               makes the file on another SD server and writes the N pointer only after the server confirmed it (create.remote.file, messages 12533, 12534, 12538, 12541-12544).
 * 18 Oct 26 Windows port - from Linux df5e076 (18 Oct 26): Solo carry A (owner's ruling B): a file that already exists (a component added, or a single file made a multifile) asks
@@ -145,7 +146,19 @@ $define default.split.load 80
 *   7 Nov 26 Windows port - from Linux 398fb6a1 (S.87 batch 1): the
 *   CREATE.FILE.CASE option, the way back to "exactly as typed", is gone (owner's
 *   emulation survey, A-039), so the name is always lower case.
-   file.name = downcase(file.name)          ;* 8 Nov 26: component (a multifile part) is gone, S.87 (Linux d241df26)
+*   12 Nov 26 Windows port - from Linux 47efffaf (RELEASE_1.1 252, P-21): THE NAME IS LOOKED UP BEFORE IT IS FOLDED, as Linux: as typed,
+*   lower, upper.  An entry that already exists keeps its id; only a name with no entry at all becomes lower case.
+   read voc.rec from voc.f, file.name else
+      read voc.rec from voc.f, downcase(file.name) then
+         file.name = downcase(file.name)
+      end else
+         read voc.rec from voc.f, upcase(file.name) then
+            file.name = upcase(file.name)
+         end else
+            file.name = downcase(file.name)
+         end
+      end
+   end
 
    * Check for file type keyword. We default to DYNAMIC
 
