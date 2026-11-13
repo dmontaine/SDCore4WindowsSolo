@@ -252,7 +252,11 @@ Source: "{src}\ssh-server\*.msi"; DestDir: "{app}\ssh-server"; Flags: external s
 ; (win32vt.c grow_console_window()), so the shortcut carries no size of its own.  Working
 ; folder: the data tree, as the full product's shortcut has.
 [Icons]
-Name: "{userprograms}\SD Core Solo"; Filename: "{app}\usr\bin\sd-solo.exe"; WorkingDir: "{#DataDir}"
+; 12 Nov 26 - SOLO 63 (owner: "change both shortcuts to use conhost"): the shortcut runs sd-solo inside conhost.exe, the
+; classic console, named outright.  Started plainly, a console program on Windows 11 is handed to Windows Terminal when that
+; is the default terminal, and in that window a full-screen page took about a second; in conhost.exe, measured the same day,
+; 0.09 s.  {sys} is System32: this installer runs in 64-bit mode, and conhost.exe has no SysWOW64 copy.  The icon stays Solo's.
+Name: "{userprograms}\SD Core Solo"; Filename: "{sys}\conhost.exe"; Parameters: """{app}\usr\bin\sd-solo.exe"""; WorkingDir: "{#DataDir}"; IconFilename: "{app}\usr\bin\sd-solo.exe"
 
 [Code]
 const
