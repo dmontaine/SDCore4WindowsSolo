@@ -19,6 +19,8 @@
 *
 *
 * START-HISTORY:
+* 12 Nov 26 SD Core Solo - RELEASE_1.1 261 (Core-Solo re-audit N-01, N-02): abort.message is emptied at the top of every request (Linux K1; the 20 Oct
+*           line below said so, the code did it once only), and acc.suspended is a truth value when read, as Linux Solo and Core.
 * 12 Nov 26 SD Core Solo - SOLO 66 (Core-Solo parity audit S-01): vb.filelock and vb.fileunlock use files(fno).  The 20 Oct note below records Linux Solo's K8a
 *           fix, but this tree's code still had files(i), so a lock went to whichever file was opened last.
 * 12 Nov 26 SD Core Solo - SOLO 56 group 8, from Linux Solo b1d823f (SD Core's S.73 item 3, 21 Oct 26) with Windows message ids: request 70 (vb.fileadmin, a verb run on the
@@ -448,6 +450,11 @@ scram.refuse.reason = '';* Why this exchange was refused; '' = not refused
 loop
    unload.object               ;* Unload inactive object code
 
+*  12 Nov 26 (Core-Solo re-audit N-01; Linux K1, 19 Oct): the message of an ON ERROR reply belongs to the request that got it.  @abort.message is set by a
+*   refusal and nothing cleared it, so an ON ERROR clause with nothing to say sent the text of the last refusal in the session.  The 20 Oct history line
+*   below records this as carried; the code only cleared it once, before this loop.  A real abort sets the message itself, after this line.
+   abort.message = ''
+
    * Fetch new command
 
    cmnd = readpkt()
@@ -803,7 +810,7 @@ api.net.grant = @false     ;* 25 Oct 26, Linux Solo 1f5f703 (SDNet carry 9; SD C
 openpath @sdsys:@ds:'accounts' to acc.f then
    read acc.rec from acc.f, new.account then
       account.path = parse.pathname.tokens(acc.rec<ACC$PATH>)
-      acc.suspended = acc.rec<ACC$SUSPENDED>
+      acc.suspended = (upcase(trim(acc.rec<ACC$SUSPENDED>)) = 'SUSPENDED')   ;* 12 Nov 26: a truth value, as Linux Solo and Core (account.entry.check tests it with IF)
       api.sh.grant = (upcase(trim(acc.rec<ACC$SH>)) = 'YES')
       api.os.grant = (upcase(trim(acc.rec<ACC$OS.EXEC>)) = 'YES')
       api.net.grant = (upcase(trim(acc.rec<ACC$NET>)) = 'YES')
