@@ -4,6 +4,7 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 13 Nov 26 SD Core Solo - RELEASE_1.1 285 (owner 14 Nov, Linux S.231): the date line ends with the product and the version stamp, cut at 72 (60 would not hold them).
 * 12 Nov 26 SD Core Solo - RELEASE_1.1 262: a cmd: tile is shown only when its verb is in the account's VOC (the AI tile had no page here).
 * 12 Nov 26 Windows port - SOLO 56 group 5: Linux Solo 608b511 taken whole (messages renumbered: 11xxx + 1005), but the Bypass programs tile stays out: tool.viewers is
 *               not in this tree (SOLO 54).  This replaces the 25 Oct carry of ee5e80d and the 28 Oct carry of ec8459b.
@@ -121,6 +122,7 @@ $include int$keys.h
 $include err.h
 $include sl.h
 $include tk.h
+$include revstamp.h
 
 $define HT.ID     1       ;* a tile is a field of tl, its values:  the id (for the key jump and the tests)
 $define HT.GROUP   2       ;* the group's number in gr
@@ -762,7 +764,7 @@ draw.clock:
       dt = oconv(date(), 'D4DMY[,A3]')
       mo = field(dt, ' ', 2)
       mo = upcase(mo[1, 1]) : downcase(mo[2, 9])
-      screen text fmt(wd : ' ' : field(dt, ' ', 1) : ' ' : mo : ' ' : field(dt, ' ', 3) : '  -  ' : mm, '60L') at idx,hdy + 2 attr 'desktop'
+      screen text fmt(wd : ' ' : field(dt, ' ', 1) : ' ' : mo : ' ' : field(dt, ' ', 3) : '  -  ' : mm : '  -  SD Core Solo for Windows ' : SD.REV.STAMP, '72L') at idx,hdy + 2 attr 'desktop'
    end
    return
 
