@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 13 Nov 26 Windows port - RELEASE_1.1 266, later the same night (Core's): @PATH is /cygdrive/c/..., so folding case and slashes was not
+*   enough; both sides of the walk's comparison now go through path.key.
 * 13 Nov 26 Windows port - RELEASE_1.1 266: UPDATE.ACCOUNTS ALL's walk compares account paths with the case and the slashes folded (Core's
 *   change of the same day): a register path that differed from @path only in case or slash was walked again and updated from NEWVOC.
 * 12 Nov 26 Windows port - RELEASE_1.1 266: @WHO IS LOWER CASE, AS LINUX SOLO: initial.account is downcased at every source, its tests and the
@@ -511,7 +513,7 @@ deffun pw_complex(pw) calling '!pw_complex'
 *   was read.
             acc.updated = 0
             acc.denied = 0
-            voc.paths = downcase(convert('\', '/', @path))          ;* 13 Nov 26 (266): paths compared folded, see START-HISTORY
+            pk.in = @path ; gosub path.key ; voc.paths = pk.out      ;* 13 Nov 26 (266): paths compared in one form, see path.key
             openpath @sdsys:@ds:'accounts' to acc.f then
                select acc.f to 12
                loop
@@ -519,7 +521,7 @@ deffun pw_complex(pw) calling '!pw_complex'
                   read acc.rec from acc.f, acc.name then
                      acc.path = parse.pathname.tokens(acc.rec<ACC$PATH>)
 
-                     acc.key = downcase(convert('\', '/', acc.path))
+                     pk.in = acc.path ; gosub path.key ; acc.key = pk.out
                      locate acc.key in voc.paths<1> setting s else
                         s = acc.path:@ds:'voc'
                         openpath s to update.voc.f then
@@ -1741,6 +1743,23 @@ set.first.password:
 * BATCH.PERMITTED was here: the per-account command list in @SDSYS/batch.jobs.
 * 25 Sep 26 SD Core Solo (SOLO 4) - deleted with the batch gate that called it
 * and the file it read; the multi-user reasoning is in sd4windows' history.
+
+*
+* ======================================================================
+* PATH.KEY  -  one spelling of an account directory, for UPDATE.ACCOUNTS ALL's
+*              walk to compare (13 Nov 26 Windows port, RELEASE_1.1 266; Core's).
+*
+* @PATH is this process's own spelling (/cygdrive/c/...; measured on Core in
+* the VM sitting, 13 Nov) and the register holds the drive-letter one, so both
+* are put into accountpath's form: forward slashes, a drive letter as
+* /cygdrive/<letter>, then lower case (NTFS ignores case).
+*  pk.in  ->  pk.out
+
+path.key:
+   pk.out = convert(char(92), '/', pk.in)
+   if pk.out[2, 1] = ':' then pk.out = '/cygdrive/' : pk.out[1, 1] : pk.out[3, 99999]
+   pk.out = downcase(pk.out)
+   return
 
 *
 * ======================================================================
