@@ -64,7 +64,7 @@ static int store_path(char* path, size_t n, char* dir, size_t dn, int* own_dir,
     return 0;
   }
   sprintf(dir, "%s\\.sdcore", prof);
-  snprintf(path, n, "%s\\known_servers", dir);
+  snprintf(path, n, "%.1000s\\known_servers", dir);   /* 14 Nov 26: bounded - the compiler (-Wformat-truncation) wanted it; strlen(dir) is under 1100 by the check above */
   *own_dir = 1;
   return 1;
 }
