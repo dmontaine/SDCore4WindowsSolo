@@ -1506,11 +1506,12 @@ begin
     end;
     Exit;
   end;
-  if RemoveFolderContents(Root, '|', '|') then
+  { 15 Nov 26 (Linux Solo S.122, mail 2026-11-15T2050): deleted is said only when the folder is gone, as Linux's
+    deletesdsolo.sh refuses to report success while the tree is still there; RemoveDir's answer was not read. }
+  if RemoveFolderContents(Root, '|', '|') and (RemoveDir(Root) or not DirExists(Root)) then
   begin
     { 26 Oct 26, SOLO 37: the contents are gone and the folder was left behind empty.  RemoveDir removes a
       directory only when it is empty, so this can never delete anything that is still there. }
-    RemoveDir(Root);
     MsgBox('Your SD Core Solo data and configuration were deleted from ' + Root + '.', mbInformation, MB_OK);
   end
   else
