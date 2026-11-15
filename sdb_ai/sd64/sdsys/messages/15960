@@ -1,0 +1,1 @@
+set.recovery {on | off}; set.recovery alone says whether the IDE keeps a recovery copy of unsaved text

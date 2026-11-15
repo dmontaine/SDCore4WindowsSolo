@@ -3,6 +3,17 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+15 Nov 26  THE IDE'S RECOVERY COPY CAN BE TURNED ON.
+
+             What        - The new administrator verb SET.RECOVERY ON | OFF turns on the IDE's recovery copy of
+                           unsaved text (readable only by you, in AppData\Local\.local\state\sd\recovery\sduser of
+                           your profile, offered back when the record is opened again); SET.RECOVERY alone says
+                           whether it is on. OFF as delivered. sdidx refuses a link put in place of a file's primary
+                           subfile instead of following it.
+             Why         - SD Core Solo for Linux has them. The IDE kept recovery copies only when a switch was on,
+                           and Solo had no way to turn it on.
+             Does NOT    - Change anything else. NOT YET TESTED ON AN INSTALLED SYSTEM.
+
 13 Nov 26  THE HOME SCREEN SAYS WHICH SD IS RUNNING.
 
              What        - The home screen's date line ends with the product and its version, for

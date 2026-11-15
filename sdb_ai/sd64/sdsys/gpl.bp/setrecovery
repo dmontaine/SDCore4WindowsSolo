@@ -1,0 +1,91 @@
+* SETRECOVERY
+* SET.RECOVERY verb: whether the IDE keeps a recovery copy of unsaved text (S.234 N4; SD Core does this with MODIFY.ACCOUNT name RECOVERY-ON | RECOVERY-OFF).
+* Copyright (c) 2026, SD Core for Linux.  This program is free software; you can redistribute
+* it and/or modify it under the terms of the GNU General Public License, version 3 or later.
+*
+* START-HISTORY:
+* 14 Nov 26 dm  New (S.234 N4, the Core-Solo parity audit of 14 Nov).  The IDE and !edit_recovery were carried from SD Core and read register field 19
+*               (ACC$RECOVERY), but nothing in Solo could write it, so the copy could never be turned on: a restrictive default with no way to relax it.
+*               Solo has no MODIFY.ACCOUNT and one account, so the switch has a verb of its own, as the home screen pins have SET.PINS.
+* 15 Nov 26 dm  Windows Solo, SOLO 70: carried from Linux Solo 2778c4b.  Messages are Linux's + 1000 (14960-14962 here 15960-15962) and Core's 12775
+*               (Linux 11770 + 1005); the store's place is the Windows one (win32_user_home: the profile's AppData\Local).  Otherwise as Linux.
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*   SET.RECOVERY         says whether the IDE keeps a recovery copy of the account's unsaved editor text
+*   SET.RECOVERY ON      keeps one: readable only by you, in AppData\Local\.local\state\sd\recovery\sduser of your profile, offered back when the record is opened again
+*   SET.RECOVERY OFF     keeps none (a copy already kept stays until it is offered and answered)
+*
+*   An administrator verb (ADMIN first).  OFF as delivered.  The switch is field 19 of the register record accounts/sduser (ACC$RECOVERY): ONLY 'yes'
+*   is on, so a blank field, or a record with fewer fields, is off.  Takes effect at once: the editor reads the field each time it writes a copy.
+*   Written to the audit trail in lower case.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+program set.recovery
+$catalog $setrecovery
+
+$include int$keys.h
+$include keys.h
+$include err.h
+
+   @system.return.code = -ER$ARGS
+
+   if not(kernel(K$ADMINISTRATOR, -1)) then
+      stop sysmsg(2001) ;* Command requires administrator privileges
+   end
+
+*  Solo's one account is always sduser (ruling 29); an internal session (the installer's) has another @logname, so the name is not read.
+   acc.name = 'sduser'
+
+   words = trim(@sentence)
+   n.words = dcount(words, ' ')
+   want = downcase(field(words, ' ', 2))
+   if n.words > 2 or (n.words = 2 and want # 'on' and want # 'off') then stop sysmsg(15960)     ;* set.recovery {on | off}
+
+   openpath @sdsys : @ds : 'accounts' to acc.f else stop sysmsg(6003)
+   readu acc.rec from acc.f, acc.name else
+      release acc.f, acc.name
+      close acc.f
+      stop sysmsg(6003)                                 ;* Account name is invalid
+   end
+   is.on = (upcase(trim(acc.rec<ACC$RECOVERY>)) = 'YES')
+
+   if n.words = 1 then
+      release acc.f, acc.name
+      close acc.f
+      @system.return.code = 0
+      display sysmsg(12775, acc.name, (if is.on then 'yes' else 'no'))       ;* Account %1 keeps a recovery copy of unsaved editor text: %2
+      stop
+   end
+
+   if is.on = (want = 'on') then
+      release acc.f, acc.name
+      close acc.f
+      @system.return.code = 0
+      display sysmsg(15961, acc.name, want)             ;* The recovery copy for %1 was already %2; nothing changed
+      stop
+   end
+
+   acc.rec<ACC$RECOVERY> = (if want = 'on' then 'yes' else 'no')
+   ok = @true
+   write acc.rec to acc.f, acc.name on error ok = @false
+   if not(ok) then release acc.f, acc.name
+   close acc.f
+   if not(ok) then
+      @system.return.code = -ER$FAILED
+      stop sysmsg(15962)                                ;* The recovery copy switch could not be written
+   end
+
+   @system.return.code = 0
+   void kernel(K$AUDIT, 'set.recovery ' : want : ' account=' : acc.name)
+   display sysmsg(12775, acc.name, (if want = 'on' then 'yes' else 'no'))
+   stop
+
+end
+
+* END-CODE
