@@ -17,6 +17,10 @@
 * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 *
 * START-HISTORY:
+* 15 Nov 26 SD Core Solo - from Linux Solo 90f6738 (S.234 BASIC review): the !voc_guard call added.  Solo carry 12 (21 Oct 26) left SD Core's
+*               edit_guard call out and put nothing in its place, so IMPORT.CSV / .JSON / .XML into the file VOC wrote VOC records from a session
+*               that had not typed ADMIN: this program is $internal, which the kernel's voc_write_refused() lets through, trusting $internal
+*               programs to check for themselves.
 * 28 Oct 26 dm  S.87: CLOSESEQ and EQU are gone as statements: this program says CLOSE and EQUATE.
 * 20 Oct 26 dm  New.  The owner's CSV / JSON / XML task: "a one-line import of a CSV file into an SD file" and "reading an XML document into a
 *               file's records (the reverse of the XML keyword)".  One program under three VOC verbs; the word typed says which.
@@ -39,8 +43,8 @@
 *   what XML cannot have in a name made an underscore).  The id is the attribute or child ID names, or the record's number.
 *
 * A record that is already there is left alone and counted, unless OVERWRITING.  The pathname goes through the OS-access gate, and each record
-* written takes its record lock.  Nothing is changed by a file that cannot be read.  (SD Core also asks its S.64 edit gates of the file, with
-* !edit_guard; Solo has no edit gates, so that call is not here - Solo carry 12, 21 Oct 26.)
+* written takes its record lock.  Nothing is changed by a file that cannot be read.  SD Core asks its S.64 edit gates of the file (!edit_guard);
+* Solo asks its own rule for the VOC, !voc_guard (ruling 14: a VOC is written only after ADMIN), as COPY and ED do.
 *
 * END-DESCRIPTION
 *
@@ -56,6 +60,7 @@ $include int$keys.h
 $include parser.h
 
    deffun readcsvrow(f, d, q, e, row) calling '!readcsvrow'
+   deffun voc_guard(f) calling '!voc_guard'
 
    parser = '!PARSER'
    @system.return.code = -ER$ARGS
@@ -116,6 +121,10 @@ $include parser.h
          @system.return.code = -ER$FNF
          return
       end
+   end
+   if not(voc_guard(out.f)) then                 ;* 15 Nov 26 (Linux Solo 90f6738, S.234): the VOC is written only after ADMIN (ruling 14); the guard says why
+      @system.return.code = -ER$PERM
+      return
    end
    if kind = 'JSON' and not(fileinfo(out.f, FL$COLLECTION)) then
       display sysmsg(12859, fname)

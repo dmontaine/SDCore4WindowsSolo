@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 15 Nov 26 SD Core Solo - from Core 9927feaf / Linux Solo 8ee65fe (S.241): a phantom gives back a pipe its session held on fds 0-2.
  * 15 Nov 26 SD Core Solo - from Core f6c20e51 (Linux Solo 9b69caa, S.242 stage 3, RELEASE_1.1 299): K_XFER (173), the file transfer slot and server (sd_sftp.c k_xfer()).
  * 12 Nov 26 SD Core Solo - SOLO 56 group 9 (RELEASE_1.1 240 e), as Linux: K_INTERNAL is set only by a program flagged HDR_INTERNAL; a read (-1) is unchanged.
  * 12 Nov 26 SD Core Solo - SOLO 56 group 7 (P-18), as SD Core for Windows and Linux: K_NON_DURABLE_TXN (113) sets txn_nondurable, so the next COMMIT
@@ -1598,6 +1599,7 @@ void op_phantom() {
       close(i); /* 0401 */
 
     daemon(1, 1);
+    release_pipe_fds(); /* 15 Nov 26 SD Core Solo - S.241 (Core 9927feaf, Linux Solo 8ee65fe): a session run through a pipe must not hand that pipe to its phantom */
 
     /* 06 Oct 26 SD Core Solo - SOLO 26 / multi-user RELEASE_1.1 119.  THIS BUILT
        "<sysdir>/bin/sd", WHICH HOLDS NO EXECUTABLE IN AN INSTALL (the programs are in

@@ -3,6 +3,16 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+15 Nov 26  IMPORT INTO A VOC NEEDS ADMIN; AN API SIGN-IN IS AUDITED; A CAPTURED START RETURNS.
+
+             What        - IMPORT.CSV, IMPORT.JSON and IMPORT.XML into a VOC are refused unless ADMIN was typed, as
+                           COPY and ED are.  An API sign-in writes "api login user= account=" to the audit trail.
+                           A script that captures the output of sd-solo -start, or runs a session whose phantom
+                           outlives it, through a pipe gets its end of file: the background process no longer holds
+                           the pipe.  A one-byte leak in SDEXT with an empty argument is gone.
+             Why         - SD Core and SD Core Solo for Linux have them; the import was a way round the VOC rule.
+             Does NOT    - Change anything else.  NOT YET TESTED ON AN INSTALLED SYSTEM.
+
 15 Nov 26  FILE TRANSFER OVER SOLO'S SSH: RECEIVE, SEND AND SET.XFER.ACCESS.
 
              What        - two new commands move plain-text files between the account and another computer.

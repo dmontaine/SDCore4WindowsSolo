@@ -18,6 +18,9 @@
  * 
  * 
  * START-HISTORY:
+ * 15 Nov 26 SD Core Solo - from Linux Solo 90f6738 (S.234 kernel review; SD Core d8dbde84, Windows Core 10 Nov): the value buffer is freed unless
+ *           SDMEArgArray[0] points at it (myval_in_args).  The test was IsArgMV != 0, which left the one byte of an EMPTY argument allocated for
+ *           good on every SDEXT('', @FALSE, key) - SD_USER_HOME's call for the home itself.
  * 9 Nov 26 SD Core Solo - from Linux debd0698 / S.88: SD_USER_HOME (112), the running user's AppData\Local and a private store below
  *           it (win32_user_home(), win32tls.c).
  * 20 Oct 26 SD Core Solo - from Linux 00a5888 (18 Oct 26), encryption layer 3: SD_KEYRING (120), set / clear / list on the key ring of
@@ -159,6 +162,7 @@ void op_sdext() {
   int32_t myval_len;
   int32_t mybuf_sz;
   char* myval_buffer;                      /* buffer for past value string  */
+  int myval_in_args = 0;                   /* 1 when SDMEArgArray[0] IS myval_buffer, which the release loop below then frees */
   STRING_CHUNK* str;
   int argIdx;
   int argCnt;
@@ -244,7 +248,8 @@ void op_sdext() {
 	    }
     } else {  /* MV Flag not set, */
         argCnt = 1;                       /* always one args */
-        SDMEArgArray[0] = myval_buffer;   /* we just point to the value buffer created earlier */  
+        SDMEArgArray[0] = myval_buffer;   /* we just point to the value buffer created earlier */
+        myval_in_args = 1;
     }
   }	  
   
@@ -618,7 +623,9 @@ void op_sdext() {
   }
   /* and the val buffer */
   if (myval_buffer != NULL){
-    if (IsArgMV != 0) {      /* rem if IsArgMV not set, we pointed DMEArgArray[0] to myval_buffer*/
+    /* 15 Nov 26 SD Core Solo - from Linux Solo 90f6738 (SD Core d8dbde84): freed here unless SDMEArgArray[0] points at it, when the release
+       loop above has freed it.  The test used to be IsArgMV != 0, which left the one byte of an EMPTY argument with IsArgMV false allocated. */
+    if (!myval_in_args) {
 	    explicit_bzero(myval_buffer, strlen(myval_buffer));
 	    free(myval_buffer);    /* do not want to attempt to free the memory again!!*/
     }

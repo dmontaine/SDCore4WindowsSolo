@@ -19,6 +19,8 @@
 *
 *
 * START-HISTORY:
+* 15 Nov 26 SD Core Solo - S.235 (Linux Solo 113b7e5): an API sign-in writes `api login user= account=` once, at the session's first entry
+*           to its account, before MASTER.LOGIN / LOGIN run.
 * 13 Nov 26 Windows port - SOLO 61: Solo's own messages 12021, 12036 and 12037 are 12930, 12894 and 12884, ids no Windows or Linux tree uses
 *           (12021 and 12036-12037 are where Linux Solo's 11016, 11031 and 11032 map at +1005).
 * 12 Nov 26 Windows port - RELEASE_1.1 266: WHO is lower case, as Linux Solo (the path leaf at start, the account a client asks for).
@@ -887,6 +889,12 @@ void kernel(K$NET,     api.net.grant)   ;* 20 Oct 26, SDNet carry 9: loaded at e
 *   no such paragraph unless the administrator wrote one.  It runs in the account just entered, under that account's switches.
 if not(master.login.done) then
    master.login.done = @true
+*  15 Nov 26 SD Core Solo - S.235, from Linux Solo 113b7e5 (SD Core d5270fe2; Windows Core RELEASE_1.1 247): THE API SIGN-IN IS ON THE AUDIT
+*    TRAIL BY USER AND ACCOUNT.  A terminal sign-in writes `login account=` from LOGIN; an API caller reaches an account through neither, so a
+*    sign-in left nothing that named the user (only a refusal was recorded).  One line, at the first entry to the account (an SDLogto is not
+*    another sign-in), after every refusal of this routine has passed and before MASTER.LOGIN or the account's LOGIN runs.  @logname, not
+*    logname: a plain variable does not survive an abort (as the other lines of this program).
+   void kernel(K$AUDIT, 'api login user=' : @logname : ' account=' : who)
    openpath @sdsys:@ds:'voc' to master.f on error null
    then
       read master.rec from master.f, 'MASTER.LOGIN' on error null

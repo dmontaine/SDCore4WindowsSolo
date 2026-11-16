@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 15 Nov 26 SD Core Solo - from Core 9927feaf / Linux Solo 8ee65fe (S.241): release_pipe_fds() - sdwind gives back a caller's pipe on fds 0-2.
+ *           (Core's S.230 daemon() message, 64561d81, is row 286's Solo half and is not taken here.)
  * 02 Oct 26 SD Core Solo - SOLO 25: start_sd() puts a pending RESTORE.ACCOUNT
  *           in place (apply_pending_restore) before the segment is made
  * 25 Sep 26 SD Core Solo - SOLO 13: stop_sd() asks sdwind through the segment
@@ -73,6 +75,7 @@ void UnlockSemaphore(int semno);
    and native Windows has no System V IPC.                                  */
 
 #include <sys/mman.h>
+#include <sys/stat.h> /* 14 Nov 26 - S_ISFIFO for release_pipe_fds() */
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -725,6 +728,34 @@ Private void apply_pending_restore(void) {
 }
 
 /* ======================================================================
+   release_pipe_fds()  -  A detached child gives back the caller's pipe
+
+   15 Nov 26 SD Core Solo - from Core 9927feaf / Linux Solo 8ee65fe (S.241).  Core's words follow.
+   14 Nov 26 Windows port - from Linux e99979d6 (S.241), found here (RELEASE_1.1 284): daemon(1, 1) keeps fds 0-2, so
+   sdwind, started by a caller that captured "sd -start" or "sd -restart" through a pipe, held the pipe's write end and
+   the reader waited for end of file until sd -stop (24 minutes on the VM, 13 Nov).  Called in the child after
+   daemon(): each of 0-2 that is a pipe (S_ISFIFO; the MSYS2 runtime reports a Windows pipe so) is reopened on
+   /dev/null, read for 0 and write for 1 and 2.  A regular file (the SD service's sdsvc-sd.log), a terminal and a
+   socket are kept, and so is anything fstat() cannot read.  If /dev/null cannot be opened nothing changes.          */
+
+void release_pipe_fds(void) {
+  int fd;
+  struct stat st;
+
+  for (fd = 0; fd <= 2; fd++) {
+    if (fstat(fd, &st) != 0 || !S_ISFIFO(st.st_mode))
+      continue;
+    int null_fd = open("/dev/null", (fd == 0) ? O_RDONLY : O_WRONLY);
+    if (null_fd < 0)
+      continue;
+    if (null_fd != fd) {
+      dup2(null_fd, fd);
+      close(null_fd);
+    }
+  }
+}
+
+/* ======================================================================
    start_sd()                                                             */
 
 bool start_sd() {
@@ -825,6 +856,7 @@ bool start_sd() {
     for (i = 3; i < 1024; i++)
       close(i);
     daemon(1, 1);
+    release_pipe_fds(); /* 15 Nov 26 SD Core Solo - S.241 (Core 9927feaf, Linux Solo 8ee65fe): give back a caller's pipe on 0-2 */
 
     /* 14 Aug 26 Windows port - this built "<sysdir>/bin/sdlnxd", which was
        right while the Linux install kept the executables and the pcode
