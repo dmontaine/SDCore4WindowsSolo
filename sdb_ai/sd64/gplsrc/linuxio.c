@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 15 Nov 26 SD Core Solo - from Core (Linux 64561d81, S.230): the UNIX socket path is copied bounded and always terminated.
  * 12 Nov 26 Windows port - from Linux e79f6499, as Linux Solo (RELEASE_1.1 252, P-23): a TCP connection to a session that is not the API
  *           server is refused, and a peer whose address cannot be read has port 0.
  * 12 Nov 26 SD Core Solo - as Linux S.125 (RELEASE_1.1 251): keyin()'s t1 starts at 0.
@@ -225,7 +226,15 @@ bool start_connection(int unused) {
       case PF_UNIX:
         struct sockaddr_un* sU =  (struct sockaddr_un*)&sa;
         /* pull out UNIX Socket path */
-        strncpy(ip_addr,sU->sun_path,MAX_SOCKET_ADDR_STR_LEN-1);
+        {
+          /* 15 Nov 26 SD Core Solo - from Core (Linux 64561d81, S.230): bounded copy that always terminates (strncpy could leave
+             ip_addr without its NUL when the path filled sun_path; -Wstringop-truncation, reported by the optimised build).  */
+          size_t n = strnlen(sU->sun_path, sizeof(sU->sun_path));
+          if (n > MAX_SOCKET_ADDR_STR_LEN - 1)
+            n = MAX_SOCKET_ADDR_STR_LEN - 1;
+          memcpy(ip_addr, sU->sun_path, n);
+          ip_addr[n] = '\0';
+        }
         /* see who is connecting */
         if (getpeereid(0, &peer_usr_id, &peer_grp_id) == -1){
           // check errno

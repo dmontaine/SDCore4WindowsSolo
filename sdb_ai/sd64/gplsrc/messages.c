@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 15 Nov 26 SD Core Solo - from Core 9449f834 (parity audit P-20, RELEASE_1.1 251): Linux's reload guard in init_messages(): the old month
+ *           and day tables are freed when it runs again.  It has one caller (sd.c), so this is parity rather than a fix.
  * 11 Nov 26 SD Core Solo - SOLO 56 group 2, from Windows Core (Linux Solo has it from SD Core 27db277): sysmsg_arg1(): a message written
  *           for BASIC (%1) can be raised from C; to_file.c's start_file() uses it for 12185 in place of its own os_access_refused().
  * 18 Oct 26 Windows port - from Linux bafe928 (17 Oct 26): sysmsg_number_of(): k_error() learns which message it was given (QM4 Fixes 354, SYS.* exceptions).
@@ -76,6 +78,7 @@ int sysmsg_number_of(const char* p) {
    start-up)                                                              */
 
 bool init_messages(void) {
+  static bool loaded = FALSE;
   static char* default_months =
       "January,February,March,April,May,June,July,August,September,October,"
       "November,December";
@@ -89,6 +92,11 @@ bool init_messages(void) {
      check the k_alloc() results before copying into them. */
   char* savep = NULL;
   /* -------------------- */
+
+  if (loaded) { /* Free old memory */
+    k_free(month_names[0]);
+    k_free(day_names[0]);
+  }
 
   /* Month names */
 
@@ -115,6 +123,7 @@ bool init_messages(void) {
     day_names[i] = strtok(NULL, ","); */
   month_names[0] = (char*)k_alloc(83, strlen(p) + 1);
   if (month_names[0] == NULL) {
+    loaded = FALSE;
     return FALSE;
   }
   strcpy(month_names[0], p);
@@ -130,6 +139,7 @@ bool init_messages(void) {
   day_names[0] = (char*)k_alloc(84, strlen(p) + 1);
   if (day_names[0] == NULL) {
     k_free(month_names[0]);
+    loaded = FALSE;
     return FALSE;
   }
   savep = NULL;
@@ -138,6 +148,8 @@ bool init_messages(void) {
   for (i = 1; i < 7; i++)
     day_names[i] = strtok_r(NULL, ",", &savep);
   /* -------------------- */
+
+  loaded = TRUE;
 
   return TRUE;
 }

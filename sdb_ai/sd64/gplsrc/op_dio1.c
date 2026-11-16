@@ -17,6 +17,11 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 15 Nov 26 SD Core Solo - from Core b06b5267 (Linux b9c71c3d, RELEASE_1.1 251): OPENTEMP.  op_opentemp() makes a dynamic file at the path
+ *           the program names, or under a generated name in TEMPDIR, opens it with P_TEMPFILE so that the file variable is marked FV_TEMP, and
+ *           dio_close() deletes it (remove_temp_file) when the last file variable goes.  The OS-access gate is asked for both forms; a name
+ *           already there makes nothing and the ELSE clause is taken.  SD Core's S.64 test of a name inside a VOC, a dictionary or a program
+ *           file is not here, as in Linux Solo: Solo has voc_guard, not the edit gates.
  * 17 Oct 26 Windows port - from Linux 7c53377 - S.65 slice 3c: op_configfl() refuses a NET_FILE (net_refuse)
  * 17 Oct 26 Windows port - from Linux 7c53377 - S.65 slice 3c: open_file() opens a file on another SD server when the VOC (N pointer, _voc_ref) gives it the encoded path
  *           char(1) 'N' char(1) server char(1) file: net_open() (netfiles.c) BEFORE fullpath() and any file table lookup, and only for OPEN
@@ -43,6 +48,7 @@
  *           OPEN and OPENPATH, and FV_RDONLY for a read-only admission
  * 14 Sep 26 Windows port - op_create_dh() sets DHF_NOCASE on every file it
  *           creates (RELEASE_1.1 5 D2); DHF_KEEPCASE honoured in internal mode
+ * 13 Nov 26 Windows port - from Linux S.125: the locals gcc -O2 called maybe-uninitialized start at 0, NULL or FALSE, as Linux's do (RELEASE_1.1 251; the build takes Linux's OPT_FLAGS, RELEASE_1.1 265).
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -65,6 +71,7 @@
  * START-CODE
  */
 
+#include <dirent.h>
 #include "sd.h"
 #include "dh_int.h"
 #include "header.h"
@@ -90,6 +97,7 @@ Private struct DH_CACHE dh_cache[MAX_DH_CACHE_SIZE];
 Private int16_t dh_cache_size = 0;
 
 Private void open_file(bool map_name);
+Private void remove_temp_file(const char* path);
 
 /* ======================================================================
    op_close()  -  Close a file                                            */
@@ -529,6 +537,12 @@ void dio_close(FILE_VAR* fvar) {
 
   }
 
+  if (fvar->temp_path != NULL) /* OPENTEMP: the file goes with its last file variable (openQM items 431, 440) */
+  {
+    remove_temp_file(fvar->temp_path);
+    k_free(fvar->temp_path);
+  }
+
   if (fvar->voc_name != NULL)
     k_free(fvar->voc_name);
 
@@ -614,7 +628,7 @@ Private void open_file(bool map_name) /* Map file name via VOC entry */
   DESCRIPTOR* fvar_descr;
   DESCRIPTOR* dict_descr;
   DESCRIPTOR* filename_descr;
-  bool open_dict;
+  bool open_dict = FALSE;
   char voc_name[MAX_ID_LEN + 1];
   char mapped_name[MAX_PATHNAME_LEN + 1];
   char pathname[MAX_PATHNAME_LEN + 1];
@@ -691,6 +705,7 @@ Private void open_file(bool map_name) /* Map file name via VOC entry */
   fvar->ref_ct = 1;
   fvar->index = next_fvar_index++;
   fvar->voc_name = NULL;
+  fvar->temp_path = NULL;
   fvar->id_len = 0;
   fvar->id = NULL;
   fvar->file_id = -1;
@@ -1014,6 +1029,17 @@ opened_via_txn_cache:
   if (((strchr(vflags, 'S') != NULL) || (op_flags & P_SYNC)) && (fvar->type == DYNAMIC_FILE))
     fvar->access.dh.dh_file->flags |= DHF_SYNC; /* every write and delete of this file is flushed to disk from now on */
 
+  /* 14 Oct 26 (openQM items 431, 440): OPENTEMP made this file; closing the file variable deletes it.  Its updates are
+     non-transactional, so that the close is a real one even inside a transaction. */
+
+  if ((op_flags & P_TEMPFILE) && (fvar->temp_path == NULL)) {
+    fvar->temp_path = (char*)k_alloc(106, strlen(pathname) + 1);
+    if (fvar->temp_path != NULL) {
+      strcpy(fvar->temp_path, pathname);
+      fvar->flags |= FV_TEMP | FV_NON_TXN;
+    }
+  }
+
   /* Set file variable */
 
 net_file_opened: /* 17 Oct 26 S.65 slice 3c: a NET_FILE has no mode letters to act on and no file table entry; net_open() set what it needs */
@@ -1039,6 +1065,83 @@ exit_op_open:
       k_error("%s", net_message()); /* the handler's own message (12465, 12466, 12501, 12502 ...), not "Error %d opening file" */
     k_error(sysmsg(1402), -process.status);
   }
+}
+
+/* ======================================================================
+   remove_temp_file()  -  delete the directory of a dynamic file that OPENTEMP made: its files, then it.  Only plain
+   files are removed; a directory inside (it should hold none) is left, and so is the directory then. */
+
+Private void remove_temp_file(const char* path) {
+  DIR* dp;
+  struct dirent* de;
+  char name[MAX_PATHNAME_LEN + 1];
+
+  if ((dp = opendir(path)) != NULL) {
+    while ((de = readdir(dp)) != NULL) {
+      if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, ".."))
+        continue;
+      if (snprintf(name, sizeof(name), "%s%c%s", path, DS, de->d_name) < (int)sizeof(name))
+        unlink(name);
+    }
+    closedir(dp);
+    rmdir(path);
+  }
+}
+
+/* ======================================================================
+   op_opentemp()  -  OPENTEMP {pathname} {options} TO file.var   (14 Oct 26, openQM items 431, 440)
+
+   Stack: top ADDR to file variable, below it the pathname, null for a file of SD's own making in the temp directory
+   (TEMPDIR).  SECURITY (owner, 14 Oct 26: "security first"): the pathname goes through the same OS-access question as
+   OPENPATH asks (os_path_open_ok), and so does the generated one in the temp directory, which is outside the account:
+   an account without the OS gate is refused both.  A file that already exists is never taken (it would be deleted at
+   close).  The file is a dynamic file with the usual defaults, private to nobody in particular: it is not opened
+   exclusively, but its generated name carries the process id and a counter.  A process that dies leaves its file. */
+
+void op_opentemp() {
+  DESCRIPTOR* name_descr;
+  char path[MAX_PATHNAME_LEN + 1];
+  int name_len;
+  bool created = FALSE;
+  static int temp_seq = 0;
+  struct stat statbuf;
+  size_t n;
+
+  name_descr = e_stack - 2;
+  name_len = k_get_c_string(name_descr, path, MAX_PATHNAME_LEN);
+
+  if (name_len == 0) {
+    n = strlen(pcfg.tempdir);
+    if (snprintf(path, sizeof(path), "%s%ssdtmp%d_%d", pcfg.tempdir, (n > 0 && pcfg.tempdir[n - 1] == DS) ? "" : "/", (int)getpid(),
+                 ++temp_seq) >= (int)sizeof(path))
+      path[0] = '\0'; /* TEMPDIR is too long to add a name to: open_file() refuses the null name */
+  } else if (name_len < 0) {
+    path[0] = '\0'; /* Too long: open_file() refuses a null name */
+  }
+
+  if (path[0] != '\0') {
+    fullpath(path, path);
+    if (os_path_open_ok(path)) {
+      /* 15 Nov 26 SD Core Solo - SD Core's S.64 test (create_edit_refusal) is not asked here, as in Linux Solo: Solo has voc_guard,
+         not the edit gates. */
+      if (stat(path, &statbuf) == 0) {
+        path[0] = '\0'; /* Already there: not ours to take and delete */
+      } else if (dh_create_file(path, -1, -1, -1, -1, -1, DHF_NOCASE, -1)) {
+        created = TRUE;
+        process.op_flags |= P_TEMPFILE;
+      } else {
+        path[0] = '\0';
+      }
+    } /* else open_file() asks the same question and gives the refusal (ER_PERM) */
+  }
+
+  k_release(name_descr);
+  k_put_c_string(path, name_descr);
+
+  open_file(FALSE);
+
+  if (created && process.status != 0)
+    remove_temp_file(path); /* It was made but could not be opened */
 }
 
 /* ======================================================================
