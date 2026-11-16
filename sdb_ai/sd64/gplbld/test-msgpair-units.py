@@ -43,8 +43,7 @@ ALLOWED = {
     ('11021', '12930'): 'product name: SD Core Solo for Windows (SOLO 4); 12021 until 13 Nov 26 (SOLO 61)',
     ('11025', '12025'): 'product name: SD Core Solo for Windows (SOLO 4)',
     ('11458', '12463'): 'OS: a Windows user, not a Linux user',
-    ('11637', '12642'): 'the AI is not built on Windows yet: RELEASE_1.1 246 owes these texts with it',
-    ('11943', '12948'): 'the AI is not built on Windows yet: RELEASE_1.1 246 owes these texts with it',
+    ('11609', '12614'): 'OS: SET.AI CA takes a Windows path, written C:/... (a set.ai word cannot hold a backslash) (RELEASE_1.1 246)',
     ('11899', '12904'): 'OS: a viewer is a full Windows path to an .exe, not a name looked up in /usr/bin (SOLO 47)',
     ('11983', '12988'): 'OS: Windows has no file-permission refusal of that kind here; the upgrade updates every account (SOLO 9)',
 }

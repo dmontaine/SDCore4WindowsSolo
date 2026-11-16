@@ -34,7 +34,6 @@ LINUX_REPO = 'SDCore4LinuxSolo'
 LINUX = os.environ.get('SD_LINUX_GPLBP') or os.path.normpath(
     os.path.join(HERE, '..', '..', '..', '..', LINUX_REPO, 'sdb_ai', 'sd64', 'sdsys', 'gpl.bp'))
 
-AI = 'the AI (Linux S.69) is not carried to Windows yet: RELEASE_1.1 246'
 ACCOUNTS = 'Solo has no account management: removed in SOLO 4 (8eddae56)'
 # 11 Nov 26: Linux Solo carried SD Core's full-screen work and its S.216 parity gaps (Linux Solo Dev 31ce6f9..3105155, mail 2026-11-12T0200); these
 # 59 programs came with it and are not in this tree yet.  Each is to be carried or given its own reason by SOLO 56.
@@ -44,9 +43,7 @@ NOT_HERE = {
     # group 8 carried netadmin (SDNet file administration); SOLO 62 (12 Nov 26) carried remotedoor and tool_remote, so no SOLO 56 file is left here.
     # 11 Nov 26: SOLO 56 group 3 carried the screen library and the toolkit (with the AI's toolkit parts, inert as in SD Core for Windows:
     # the kernel answered K$AI.* "no helper" until 16 Nov 26, when RELEASE_1.1 246 carried op_ai.c and the helper).  11 Nov 26: group 4 carried the editors, the edit keys with Solo's answers and the toolkit's gate parts.
-    'ai':               AI,
-    'setai':            AI,
-    'tool_ai':          AI,
+    # 16 Nov 26: RELEASE_1.1 246 step 3 carried ai, setai and tool_ai from Linux Solo, so they are no longer listed here.
     # 12 Nov 26: OSCOPY (_oscopy, _ioscopy, oscopya) carried from Core, SOLO 67, so it is no longer listed here.
     'define_install.h': 'never in Solo: removed from Core as dead code (Core aafca0bb) before Solo began from it',
     'is_group':         ACCOUNTS,

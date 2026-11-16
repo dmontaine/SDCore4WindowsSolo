@@ -1,0 +1,5 @@
+May this account use the AI?
+gettingstarted-24-the-ai-helper
+This box shows whether the ai gate is on. While it is off the account cannot send anything to the AI provider, whatever else is set. It is off as delivered.
+Enter turns the gate on or off: the command is set.ai gate on or set.ai gate off. Turning it on asks you to type ai, because the text the account sends leaves this machine for the provider you chose. The change takes effect at the next request to the AI.
+The gate is a setting of the AI helper. Solo runs the helper as you, with no separate operating system user, so it cannot tell SD from another program of yours: any process you run can talk to it and use the key it holds. The gate is the one switch SD keeps, and the key is never shown by SD.
