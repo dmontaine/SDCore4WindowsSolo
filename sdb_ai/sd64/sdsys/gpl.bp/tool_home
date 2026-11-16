@@ -4,6 +4,7 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 15 Nov 26 SD Core Solo - RELEASE_1.1 327 (Core's row): ask.ai gives the AI line the focus again (ai.focus.on) after Follow up.
 * 13 Nov 26 SD Core Solo - RELEASE_1.1 285 (owner 14 Nov, Linux S.231): the date line ends with the product and the version stamp, cut at 72 (60 would not hold them).
 * 12 Nov 26 SD Core Solo - RELEASE_1.1 262: a cmd: tile is shown only when its verb is in the account's VOC (the AI tile had no page here).
 * 12 Nov 26 Windows port - SOLO 56 group 5: Linux Solo 608b511 taken whole (messages renumbered: 11xxx + 1005), but the Bypass programs tile stays out: tool.viewers is
@@ -1254,6 +1255,10 @@ ask.ai:
    call $tk_ai('clear', ctx, '', '')
    aif = 0
    msg = res<5>
+   if res<1> = 'follow' then                              ;* 15 Nov 26 (RELEASE_1.1 327): Follow up leaves the cursor in the AI line for the next question
+      gosub ai.focus.on
+      msg = res<5>
+   end
    begin case
       case res<1> = 'action'
          found = 0
