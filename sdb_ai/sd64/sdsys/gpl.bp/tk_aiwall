@@ -4,6 +4,10 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 16 Nov 26 SD Core Solo - RELEASE_1.1 246: Windows paths, as SD Core for Windows' e8dbdcd5: a drive-letter path (C:/..., what FILEINFO FL$PATH gives) counts as absolute, and
+*               the places are Solo's own, all under its one folder: sdsys (the AI's settings and keys are sdsys/ai), usr (sd-solo.exe, sd-ai.exe, ai-providers, ai-context),
+*               dev (the shared memory, <root>/dev/shm) and sd.conf.  The account's own folder, user_accounts/sduser, is not among them.  The build-tree test takes
+*               either separator and either case.  Linux's "not /, so unknown" refused every record here.
 * 1 Nov 26 dm   New.  The owner's rule of 1 Nov 2026 (CLAUDE.md, "THE AI BOUNDARY"): the AI field never reaches the C and GPL.BP code or any other system information, for every provider,
 *               and even the administrator asks no system-development questions inside SD.  Before this nothing told $tk_ai where a text came from, so an administrator who had a record of
 *               the system's own gpl.bp open in the IDE or SED sent it to the provider on "Explain the selection".
@@ -78,13 +82,17 @@ check.origin:
          return
    end case
 
-   if pth[1, 1] # '/' then
+   * absolute: /... (or /cygdrive/c/...) or a drive letter, C:/... or C:\... (16 Nov 26, as Core's 13 Nov: FILEINFO FL$PATH gives C:/...)
+   if not(pth[1, 1] = '/' or (pth[2, 1] = ':' and alpha(pth[1, 1]) and (pth[3, 1] = '/' or pth[3, 1] = '\'))) then
       why = 'unknown'
       return
    end
 
-   * the places that are SD's own: a path inside any of them, or equal to one
-   places = @sdsys : @fm : '/var/lib/sd-ai' : @fm : '/usr/local/lib/sd-ai' : @fm : '/run/sd-ai' : @fm : '/run/sd' : @fm : '/etc/sd.conf'
+   * the places that are SD's own: a path inside any of them, or equal to one.  Solo's are under its one folder, the parent of @sdsys (16 Nov 26).
+   sroot = convert('\', '/', @sdsys)
+   sroot = sroot[1, index(sroot, '/', count(sroot, '/')) - 1]
+   places = @sdsys
+   if sroot # '' then places := @fm : sroot : '/usr' : @fm : sroot : '/dev' : @fm : sroot : '/sd.conf'
    for i = 1 to dcount(places, @fm)
       if places<i> # '' then
          if kernel(K$PATH.IN, places<i> : @fm : pth) then
@@ -94,10 +102,11 @@ check.origin:
       end
    next i
 
-   * the build tree, wherever a copy of it is: a directory called gplsrc, gplbld or gplobj on the way
-   n = dcount(pth, '/')
+   * the build tree, wherever a copy of it is: a directory called gplsrc, gplbld or gplobj on the way (either separator, either case, 16 Nov 26 as Core)
+   pf = convert('\', '/', pth)
+   n = dcount(pf, '/')
    for i = 1 to n
-      c = field(pth, '/', i)
+      c = downcase(field(pf, '/', i))
       if c = 'gplsrc' or c = 'gplbld' or c = 'gplobj' then
          why = 'system'
          return
