@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 16 Nov 26 SD Core Solo - RELEASE_1.1 247, from Windows Core f43a0a43 (Linux 7f7a4fd4): K_LOCK_TRACE (115), LOCK.TRACER.
  * 16 Nov 26 SD Core Solo - RELEASE_1.1 246: the AI keys' comment says the helper is here (op_ai.c); the numbers are unchanged.
  * 15 Nov 26 SD Core Solo - from Core f6c20e51 (Linux Solo 9b69caa, S.242 stage 3, RELEASE_1.1 299): K_XFER (173), the file transfer slot and server.
  * 11 Nov 26 SD Core Solo - SOLO 56 group 3: K_AI_START, K_AI_POLL, K_AI_CANCEL, K_AI_STATUS (160-163), answered "no helper", as SD Core for
@@ -434,9 +435,14 @@
                        those the PHANTOMS parameter keeps and not be in use, or phantom() returns 0.  0 cancels.  phantom() clears
                        it, made or not.  Returns 1. */
 #define K_PHANTOM_USER       114
-/* 115 is Linux's K_LOCK_TRACE (LOCK.TRACER).  Not carried here: the trace file lives in the system directory with mode 0620 and
-   the directory's group so that every session can append, which an ordinary Windows user cannot do in SDSYS's directory (and
-   loosening that is not a thing to do for a diagnostic).  The number is left unused.                                         */
+/* 16 Oct 26 dm - QM4 gaps (LOCK.TRACER).  16 Nov 26 SD Core Solo - from Windows Core f43a0a43 (Linux 7f7a4fd4; RELEASE_1.1 247).
+   It was left out because the trace file sits in the system directory, which no ordinary Windows user may write in Core; Solo's
+   tree belongs to its one Windows user (installed per user), so the session appends as Linux Solo's does.
+     K_LOCK_TRACE      1 starts lock tracing, 0 stops it, -1 only asks.  Starting (administrator only: ADMIN unlocked) makes an
+                       empty file locktrace in the system directory and refuses a link in its place; every lock taken or let go
+                       after that is appended to it by lock_trace() in op_lock.c.  Returns the state after the call, -1 if the
+                       caller may not change it or the file could not be made. */
+#define K_LOCK_TRACE         115
 /* 28 Oct 26 Windows port - from Linux ec8459b - W.11 F10 (the start-up records of a phantom are written to $ipc, a file every SD user's process may write).
      K_PHANTOM_NONCE   'S' followed by 16 to 64 characters of the base64 alphabet: the secret the next phantom() of this process is to
                        give the new process (in its environment, SD_PHANTOM_NONCE, which only the same operating-system user can read).

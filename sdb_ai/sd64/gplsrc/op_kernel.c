@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 16 Nov 26 SD Core Solo - RELEASE_1.1 247, from Windows Core f43a0a43 / Linux Solo: K_LOCK_TRACE (115), LOCK.TRACER; the file is made
+ *           here and appended to by the session (op_lock.c), as Linux Solo does - Solo has no service and one Windows user.
  * 16 Nov 26 SD Core Solo - RELEASE_1.1 246: K_AI_START, POLL, CANCEL and STATUS (160-163) go to k_ai() (op_ai.c, its transport win32ai.c: the helper
  *           sd-ai.exe started per request), as SD Core for Windows and Linux Solo; the "no helper" answers of 11 Nov are gone.
  * 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230, RELEASE_1.1 286): a phantom's failed daemon() is logged.
@@ -76,6 +78,7 @@
 
 #include <time.h>
 #include <unistd.h>
+#include <fcntl.h> /* 16 Nov 26 SD Core Solo - K_LOCK_TRACE's open() (RELEASE_1.1 247) */
 #include "sd.h"
 #include "revstamp.h"
 #include "header.h"
@@ -1093,6 +1096,37 @@ void op_kernel() {
     case K_AI_STATUS:
       k_ai(action, descr, &result);
       break;
+
+    case K_LOCK_TRACE: {
+      /* LOCK.TRACER (see keys.h).  Only an administrator changes it.  Starting makes an EMPTY locktrace file in the system
+         directory and refuses a link in its place (O_NOFOLLOW).  16 Nov 26 SD Core Solo - Linux Solo's code (RELEASE_1.1 247)
+         without its fchmod 0620 and fchown to the system directory's group: Solo's tree belongs to its one Windows user, whose
+         sessions append to the file, and Windows has no group or mode to give it.                                          */
+      int lt_arg;
+      char lt_path[MAX_PATHNAME_LEN + 1];
+      int lt_fd;
+
+      GetInt(descr);
+      lt_arg = (int)descr->data.value;
+      if (lt_arg == -1) {
+        result.data.value = sysseg->lock_trace;
+      } else if (!(my_uptr->flags & USR_ADMIN)) {
+        result.data.value = -1;
+      } else if (lt_arg == 0) {
+        sysseg->lock_trace = 0;
+        result.data.value = 0;
+      } else {
+        result.data.value = -1;
+        if (snprintf(lt_path, sizeof(lt_path), "%s%clocktrace", sysseg->sysdir, DS) < (int)sizeof(lt_path)) {
+          lt_fd = open(lt_path, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC, 0600);
+          if (lt_fd >= 0) {
+            close(lt_fd);
+            sysseg->lock_trace = 1;
+            result.data.value = 1;
+          }
+        }
+      }
+    } break;
 
     case K_PROFILER:
       /* The application event profiler of this process (see keys.h and profiler.c).  Anyone may profile their own process. */

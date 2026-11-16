@@ -45,11 +45,11 @@ NOT_HERE = {
     # the kernel answered K$AI.* "no helper" until 16 Nov 26, when RELEASE_1.1 246 carried op_ai.c and the helper).  11 Nov 26: group 4 carried the editors, the edit keys with Solo's answers and the toolkit's gate parts.
     # 16 Nov 26: RELEASE_1.1 246 step 3 carried ai, setai and tool_ai from Linux Solo, so they are no longer listed here.
     # 12 Nov 26: OSCOPY (_oscopy, _ioscopy, oscopya) carried from Core, SOLO 67, so it is no longer listed here.
+    # 16 Nov 26: LOCK.TRACER (locktracer) carried, RELEASE_1.1 247: Solo's tree is its one Windows user's, so sessions append as Linux Solo's do.
     'define_install.h': 'never in Solo: removed from Core as dead code (Core aafca0bb) before Solo began from it',
     'is_group':         ACCOUNTS,
     'is_sd_user':       ACCOUNTS,
     'is_user':          ACCOUNTS,
-    'locktracer':       'LOCK.TRACER (Linux 7f7a4fd4) was held back in Core 18 Oct (0480ce9a): every session would append to a file in SDSYS\'s directory; owner, 10 Nov: carry it once the service is the only writer, as for the audit (RELEASE_1.1 247)',
     'setmode':          'OS: SET.MODE (Linux 3b435253) sets POSIX permission bits; Windows files have ACLs, not mode bits (agreed with Linux, mail 2026-11-11T0630)',
     'peer_local':       'never in Solo: removed from Core with the administrator predicate (RELEASE_1.1 64, fdded05a)',
     'upgrade_nocase':   'removed with the upgrade it served (SOLO 9, 95c67ce1)',

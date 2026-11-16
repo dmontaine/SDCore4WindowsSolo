@@ -3,6 +3,14 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+16 Nov 26  LOCK.TRACER, AS ON SD CORE SOLO FOR LINUX.
+
+             What        - LOCK.TRACER ON (needs ADMIN) starts a trace of every lock taken or let go by every
+                           session, OFF stops it, and LOCK.TRACER {USER n} {LPTR {n}} {NO.PAGE} lists it.  The
+                           trace is the file locktrace in the system folder; ON empties it first.
+             Does NOT    - Log a lock that waits or is refused (only the moment it is granted), or the locks a
+                           killed session's cleanup gives back.  NOT YET TESTED ON AN INSTALLED SYSTEM.
+
 16 Nov 26  ONE FAILED START NO LONGER STALLS EVERY LATER SESSION.
 
              What        - An sd.exe that stopped with "SD has not been started." (or failed in the same early step)

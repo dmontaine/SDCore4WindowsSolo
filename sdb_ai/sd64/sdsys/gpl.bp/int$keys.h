@@ -18,6 +18,7 @@
   	  * 
   	  * 
 	  * START-HISTORY:
+	  * 16 Nov 26 SD Core Solo - RELEASE_1.1 247, from Windows Core: K$LOCK.TRACE (115), LOCK.TRACER.
 	  * 11 Nov 26 SD Core Solo - SOLO 53: the FCONTROL keys are FCI$ (the internal function is FCONTROL.INT), with 8 and 9, the CREATING.SEQKEY counter.
 	  * 11 Nov 26 SD Core Solo - SOLO 56 group 2 (as in Linux Solo and Core): K$SHOW.SAFE (151), the kernel's one rule for showing another session's text; K$AUTOLOGOUT -2 reads the inactivity clock.
 	  * 11 Nov 26 SD Core Solo - SOLO 56 group 3 (as SD Core for Windows): K$AI.START, K$AI.POLL, K$AI.CANCEL, K$AI.STATUS (160-163), answered "no helper".
@@ -230,8 +231,8 @@
       $define K$GROUP.PHANTOM   110      ;* Mark the phantom with this user number as grouped with this process: 1 if marked (15 Oct 26, Q-8, PHANTOM GROUP)
       $define K$USER.STATS      112     ;* File activity counts of a user (0: all): uid, 11 counts, when counting began, login name (15 Oct 26, Q-8)
       $define K$NON.DURABLE.TXN 113      ;* 1: the next COMMIT is non-durable, a nested transaction goes to its parent (15 Oct 26, sheet 442; Solo 12 Nov 26, SOLO 56 group 7)
-*  115 is Linux's K$LOCK.TRACE (LOCK.TRACER, not carried): left unused.  (118, K$SD.ACCOUNTS, is defined above.)
       $define K$PHANTOM.USER    114      ;* The next phantom() is to be this user number (one PHANTOMS keeps, not in use); 0 cancels (16 Oct 26, PHANTOM USER)
+      $define K$LOCK.TRACE      115      ;* 1 start lock tracing (administrator: makes the locktrace file), 0 stop, -1 ask; the state, -1 if refused (16 Oct 26; Solo 16 Nov 26, RELEASE_1.1 247)
       $define K$PROFILER        116      ;* n > 0 start the application event profiler (the events in n), 0 stop, -1 ask, -2 the table (16 Oct 26)
       $define K$PROFILER.USER   117      ;* user * 4096 + 2048 + n start it in another process, user * 4096 alone stop it and have it write F<user> to $ipc; administrator only
       $define K$IS.SDAPISRVR     25      ;* Is this process an API server?  (kernel.h K_IS_SDAPISRVR; named here 16 Oct 26)
