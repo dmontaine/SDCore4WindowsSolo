@@ -688,18 +688,21 @@
 
 * 15 Oct 26 dm - The actions of FCONTROL(), with the openQM 4 manual's numbers (action 5, the field access test, has no token
 * here: the manual's heading for it did not survive; use the number).  FC$SYNC and FC$CRLF are named so that a program
-* written for openQM compiles, and are refused when used - SD has no forced-write mode and no line terminator modes.
-* (Solo 11 Nov 26, SOLO 53, from SD Core 284a91cd.)
-      $define FC$SYNC         1     ;*   Forced writes (refused)
+* written for openQM compiles.  FC$SYNC (forced writes of a hashed file) and FC$CRLF (the line terminator mode of a directory or a
+* sequential file) work since 16 Oct 26 on Linux and 15 Nov 26 in Solo (RELEASE_1.1 236); both were refused with a message before.
+* The manual spells the fourth mode FC$CRLF.NOCR in its table and FC$CRLF.NO.CR in its text: both are here.
+* (Solo 11 Nov 26, SOLO 53, from SD Core 284a91cd; 15 Nov 26 from Core 064c0e9f.)
+      $define FC$SYNC         1     ;*   Forced writes: the previous state is returned; -1 asks without changing
       $define FC$SET.SEQ.KEY  2     ;*   Set the next id that WRITE ... CREATING.SEQKEY gives out
       $define FC$GET.SEQ.KEY  3     ;*   Take the next such id
-      $define FC$CRLF         4     ;*   Line terminator mode (refused)
+      $define FC$CRLF         4     ;*   Line terminator mode of a directory or sequential file: the previous mode is returned; -1 asks
       $define FC$VALID.ID     6     ;*   Is the qualifier a valid record id for the file?
       $define FC$MINMOD       7     ;*   Set the minimum modulus of a hashed file
       $define FC$CRLF.LF      0     ;*   The modes of FC$CRLF
       $define FC$CRLF.CRLF    1
       $define FC$CRLF.BOTH    2
       $define FC$CRLF.NOCR    3
+      $define FC$CRLF.NO.CR   3     ;*   (the same, spelt as the manual's text spells it)
 
 * 16 Oct 26 - VARTYPE() values
       $define VT$UNASSIGNED   0
@@ -722,4 +725,3 @@
       $define VT$PERSISTENT   18
       $define VT$COLLECTION   19
       $define VT$SORT         20
-

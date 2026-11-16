@@ -17,6 +17,10 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 15 Nov 26 SD Core Solo - from Core 064c0e9f (Linux 7aba47df, f0af637c; RELEASE_1.1 236): pub_fcontrol() answers FC$SYNC (DHF_SYNC on a
+ *               hashed file) and FC$CRLF (the mode of a directory or sequential file) as Linux Solo's does, in place of message 12359.  Core's
+ *               S.66 shared-account refusal is not here (Solo has no shared account; Linux Solo has none either).  A file with no mode set
+ *               keeps writing CR LF, Core's OS deviation (RELEASE_1.1 271), and FC$CRLF reports Linux's number for it.
  * 12 Nov 26 SD Core Solo - SOLO 56 group 8, as Linux Solo b1d823f (SD Core's S.73 item 3, from Windows Core 9c9fb6dd): op_fcontrol() takes
  *               FC_NET_ADMIN / FC_NET_CREATE (net_admin, net_create_file) and pub_fcontrol() sends a remote file's FCONTROL to its server
  *               (net_fcontrol) instead of refusing it.  The 11 Nov line below ("still refused") is history.
@@ -351,8 +355,9 @@ exit_op_fcontrol:
                     action
                     file variable                                   -> the result
 
-      1 FC$SYNC     forced writes     \  SD has neither: the program is stopped with a message, never answered as if it
-      4 FC$CRLF     line terminators  /  had worked
+      1 FC$SYNC     qualifier 0 / 1 / -1   forced writes of a hashed file; the state it was in (QM4 Fixes item 102)
+      4 FC$CRLF     qualifier 0 to 3 / -1  line terminator mode of a directory or sequential file; the mode it was in
+                    (QM4 Fixes item 452; a hashed file: STATUS() ER_NDIR; a mode outside 0 to 3: ER_ARGS, nothing changed)
       2 FC$SET.SEQ.KEY  qualifier n   sets the next id of WRITE ... CREATING.SEQKEY (a hashed file); 1 if done
       3 FC$GET.SEQ.KEY                takes that id and moves the counter on; a null string if the file is not hashed
       5 field access                  always 1 (SD has no field level encryption)
@@ -415,10 +420,55 @@ void pub_fcontrol() {
   k_get_value(descr);
 
   switch (action) {
-    case 1: /* FC$SYNC */
-    case 4: /* FC$CRLF */
-      k_error(sysmsg(12359)); /* does not return */
+    case 1: /* FC$SYNC: forced writes of a hashed file (QM4 Fixes item 102).  The previous state is the result; -1 asks only. */
+      if (fvar->type != DYNAMIC_FILE) {
+        process.status = ER_NDYN;
+        break;
+      }
+      GetInt(descr);
+      n = descr->data.value;
+      result.data.value = ((dh_file->flags & DHF_SYNC) != 0);
+      if (n >= 0) {
+        if (n != 0)
+          dh_file->flags |= DHF_SYNC;
+        else
+          dh_file->flags &= ~DHF_SYNC;
+      }
       break;
+
+    case 4: /* FC$CRLF: the line terminator mode of a directory file or a sequential file (16 Oct 26, QM4 Fixes item 452) */
+    {
+      u_char *crlf;
+      int dflt;
+
+      if (fvar->type == DIRECTORY_FILE) {
+        /* the bit field cannot be pointed at: work on a copy and put it back */
+        dflt = 0; /* LF: what a directory file READ and WRITE have always done */
+        n = fvar->access.dir.crlf;
+        crlf = NULL;
+      } else if ((fvar->type == SEQ_FILE) && (fvar->access.seq.sq_file != NULL)) {
+        dflt = 2; /* BOTH: READSEQ has always ended a line at LF and dropped a CR in front of it */
+        crlf = &(fvar->access.seq.sq_file->crlf);
+        n = *crlf;
+      } else {
+        process.status = ER_NDIR; /* a hashed file has no line terminators */
+        break;
+      }
+      result.data.value = (n == CRLF_UNSET) ? dflt : (n - 1); /* the mode it was in */
+
+      GetInt(descr);
+      if (descr->data.value == -1) /* only asking */
+        break;
+      if ((descr->data.value < 0) || (descr->data.value > 3)) {
+        process.status = ER_ARGS;
+        break;
+      }
+      n = (int32_t)descr->data.value + 1; /* FC$CRLF.LF 0 .. FC$CRLF.NOCR 3 are CRLF_LF .. CRLF_NOCR less one */
+      if (crlf != NULL)
+        *crlf = (u_char)n;
+      else
+        fvar->access.dir.crlf = (u_int16_t)n;
+    } break;
 
     case 2: /* FC$SET.SEQ.KEY */
     case 7: /* FC$MINMOD */

@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 15 Nov 26 SD Core Solo - from Core e861651e (RELEASE_1.1 279, 236): dir_write() writes LF for an explicit FC$CRLF mode 0, 2 or 3; CR LF stays
+ *               for mode 1 and a file with no mode (Core's OS deviation, RELEASE_1.1 271).
  * 11 Nov 26 SD Core Solo - from SD Core 392c8e01 / Linux Solo ba2eb2a (SOLO 53): op_write() carries out WRITE and WRITEU ...
  *               CREATING.SEQKEY (P_SEQKEY): the id from dh_seq_key(), an id already in use skipped, put in the program's variable and
  *               locked; message 12353 for a file that is not hashed.  The 18 Oct and 15 Oct lines below named this text, but the
@@ -2728,8 +2730,10 @@ bool dir_write(FILE_VAR *fvar, char *mapped_id, STRING_CHUNK *str) {
   struct stat statbuf;
   /* What ends a line of the record: LF, except in the mode that wants CR LF (16 Oct 26, QM4 Fixes item 452).  The other
      modes write the operating system's line end, which on Linux is the LF. */
-  char *newline = (fvar->access.dir.crlf == CRLF_CRLF) ? "\r\n" : Newline;
-  int16_t newline_bytes = (fvar->access.dir.crlf == CRLF_CRLF) ? 2 : NewlineBytes;
+  /* 13 Nov 26 Windows port - RELEASE_1.1 279: an EXPLICIT mode 0, 2 or 3 writes LF (User 07's table, Linux); only a file with no
+     mode keeps this port's CR LF (Newline; RELEASE_1.1 271), and mode 1 CR LF. */
+  char *newline = (fvar->access.dir.crlf == CRLF_CRLF) ? "\r\n" : (fvar->access.dir.crlf == CRLF_UNSET) ? Newline : "\n";
+  int16_t newline_bytes = (fvar->access.dir.crlf == CRLF_CRLF) ? 2 : (fvar->access.dir.crlf == CRLF_UNSET) ? NewlineBytes : 1;
 
   t1_fu = INVALID_FILE_HANDLE;
   process.status = 0;

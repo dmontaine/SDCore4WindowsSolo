@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 15 Nov 26 SD Core Solo - from Core e861651e (RELEASE_1.1 279, 236): WRITESEQ writes LF for an explicit FC$CRLF mode 0, 2 or 3; CR LF stays
+ *               for mode 1 and a file with no mode (Core's OS deviation, RELEASE_1.1 271).
  * 11 Nov 26 SD Core Solo - SOLO 56 group 4, from Linux Solo carry 19 (38d522a): OPENSEQ opens read only, and cannot create, a file under a VOC,
  *               and DELETESEQ of one is refused, for a session that is not the administrator and has no OS access (edit_os_path_refusal(),
  *               op_dio2.c, include_leaf FALSE).  This replaces group 2's note that the S.64 gates wait: Solo's form is the VOC alone.
@@ -2008,6 +2010,11 @@ Private void writeseq(bool flush_to_disk) {
   if (sq_file->crlf == CRLF_CRLF) {
     nl = "\r\n";
     nl_bytes = 2;
+  } else if (sq_file->crlf != CRLF_UNSET) {
+    /* 13 Nov 26 Windows port - RELEASE_1.1 279: an EXPLICIT mode 0, 2 or 3 writes LF, as User 07's table and Linux say; only a
+       file with no mode keeps this port's CR LF (Newline; the owner's RELEASE_1.1 271).  Windows does not force CR LF here. */
+    nl = "\n";
+    nl_bytes = 1;
   }
 
   fu = sq_file->fu;
