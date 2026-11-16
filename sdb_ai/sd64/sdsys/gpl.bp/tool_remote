@@ -29,6 +29,11 @@
 * 8 Nov 26 dm  S.176: F6 / Shift-F6 are the box keys of every page ($tk_aipage 'ring'): from the view to the AI line and back; AI > Ask the AI is a menu entry of its own.
 * 8 Nov 26 dm  S.179: Ctrl-T the theme (View > Theme) and Ctrl-K the keys of the page (Help > Keys), through $tk_std as on every page.
 * 9 Nov 26 dm  S.186: View > Mouse and Ctrl-O (the log of the commands run), the same on every page (the cases act:std.mouse and ctrl-o, through $tk_std).
+* 16 Nov 26 dm  Carried from SD Core (853870e6), S.244, the owner's page rules: A and S choose open, local or off from a list that starts on off (Solo's
+*              doors keep their three words); N's entries open empty, its defaults beside them, and Files is a choice; the box wants the word open, in either case.
+* 15 Nov 26 SD Core Solo - RELEASE_1.1 314, the line above carried from Linux Solo 10fcf2f onto Windows Solo's doors (SOLO 62): the pick list and the
+*              typed word are Linux's; after Run the terminal still goes to the verb (the doors helper and the administrator password), and the
+*              Windows texts about the firewall rule stay.  Linux's sdsys login view (view 6) is not here: Windows Solo has no sdsys user.
 * END-HISTORY
 *
 * START-DESCRIPTION:
@@ -448,9 +453,9 @@ draw.detail:
    begin case
       case view = 1
          lines<-1> = 'Each door is off, local or open. OFF: no listener (the API: SD opens no socket; ssh: its server is stopped). LOCAL: it listens and the firewall lets only this computer in. OPEN: other computers on the network may connect. The API is port 4249; ssh is the ssh server of SD itself, port 4251.'
-         lines<-1> = 'A change is made by the doors helper the installer set up, after the verb asks for the administrator password again; A and S give the terminal to REMOTE.API or REMOTE.SSH for that. ssh that was never set up is set up by LOCAL or OPEN.'
+         lines<-1> = 'A and S offer off, local or open in a list that starts on off. A change is made by the doors helper the installer set up, after the verb asks for the administrator password again; A and S give the terminal to REMOTE.API or REMOTE.SSH for that. ssh that was never set up is set up by LOCAL or OPEN.'
          lines<-1> = 'SD opens or closes the API socket only when it starts, so an API change to or from OFF takes effect at the next sd-solo -stop and -start (or the next boot). The firewall part and every ssh change take effect at once.'
-         lines<-1> = 'What is shown above is what is installed, read back from sd.conf, the firewall rules and the ssh task, not what this page meant. OPEN lets other computers reach this one, so its box wants the word OPEN typed.'
+         lines<-1> = 'What is shown above is what is installed, read back from sd.conf, the firewall rules and the ssh task, not what this page meant. OPEN lets other computers reach this one, so its box wants the word open typed (in either case).'
       case view = 2
          lines<-1> = 'A user account is reached by a door only if its Windows user is in the Windows group of that door: sdssh for ssh, sdapi for the whole API, sdfiles for the files-only route (sdfileswrite and sdfilesadmin add what it may do).'
          lines<-1> = 'When sdapi and sdfiles are both held, the API wins. NET is the register switch that lets the account open a file on another SD server. The switches are changed on TOOL.GATES (or modify.account), not here.'
@@ -678,22 +683,23 @@ do.ssh:
    gosub do.door
    return
 
-* In: door.verb, door.name, door.what, door.port.  The word is asked (off, local or open), the command shown in its box, and after Run the terminal is given to the
-* verb, which asks for the administrator password again and hands the change to the doors helper; OPEN wants the word typed.  (SD Core Solo, 12 Nov 26, SOLO 62.)
+* In: door.verb, door.name, door.what, door.port.  The word is chosen from a list (open, local, off; it starts on off, the tightest: SD Core's S.244 (1),
+* carried from Linux Solo 10fcf2f 15 Nov 26), the command shown in its box, and after Run the terminal is given to the verb, which asks for the
+* administrator password again and hands the change to the doors helper; open wants the word open typed (taken in either case).  (SOLO 62.)
 do.door:
-   screen ask upcase(door.verb) : ': off, local or open' width 8 value '' title door.name returning aw else return
-   aw = downcase(trim(aw))
-   if aw = 'on' then aw = 'open'
-   if aw # 'open' and aw # 'local' and aw # 'off' then
-      msg = downcase(door.name) : ' is off, local or open'
+   dw = 'open' : @vm : 'local' : @vm : 'off'
+   screen pick 'open  - other computers may connect' : @vm : 'local - only this computer' : @vm : 'off   - no listener at all' title door.name : ' (' : upcase(door.verb) : ')' default 3 returning pk else pk = 0
+   if pk < 1 or pk > 3 then
+      msg = sysmsg(12826)                                       ;* nothing was run
       return
    end
+   aw = dw<1, pk>
    sent = door.verb : ' ' : aw
    typed = ''
    el = ''
    begin case
       case aw = 'open'
-         typed = 'OPEN'
+         typed = 'open'
          el<-1> = 'SD listens on port ' : door.port : ' and the firewall rule lets other computers on the network connect to ' : door.what : ' of this computer.'
       case aw = 'local'
          el<-1> = 'SD listens on port ' : door.port : ' and the firewall rule lets only this computer connect.'
@@ -730,12 +736,14 @@ do.delete:
 do.new:
    * S.88: one form with the seven answers in view; the first one SET.SERVER would refuse is said under the entries and the form stays
    spec = 'Define a server' : @fm : '&Define' : @fm : 'Pin: connect or 64 hex digits.  Port 4247 SD Core, 4249 Solo.'
+   * S.244: the entries open empty and the port and pin show their defaults beside them, an empty entry taking it (2); Files is a choice (1)
+   dk = @vm : '' : @vm : 1 : @vm : '' : @vm : 'default'
    spec<-1> = 'name' : @vm : 'Name (a-z, 0-9)' : @vm : 18 : @vm : 16
    spec<-1> = 'host' : @vm : 'Host (DNS, IPv4, IPv6)' : @vm : 60 : @vm : 253
-   spec<-1> = 'port' : @vm : 'API port' : @vm : 8 : @vm : 5
+   spec<-1> = 'port' : @vm : 'API port' : @vm : 8 : @vm : 5 : dk
    spec<-1> = 'acc' : @vm : 'Account on the server' : @vm : 34 : @vm : 32
-   spec<-1> = 'pin' : @vm : 'Pin' : @vm : 66 : @vm : 64
-   spec<-1> = 'mode' : @vm : 'Files: read or write' : @vm : 8 : @vm : 8
+   spec<-1> = 'pin' : @vm : 'Pin' : @vm : 66 : @vm : 64 : dk
+   spec<-1> = 'mode' : @vm : 'Files' : @vm : '' : @vm : '' : @vm : 2 : @vm : '' : @vm : 'read' : @sm : 'write'
    spec<-1> = 'accts' : @vm : 'Local accounts (a,b)' : @vm : 60 : @vm : 300
    fv = '' : @fm : '' : @fm : '4247' : @fm : '' : @fm : 'connect' : @fm : 'read' : @fm : ''
    call $tk_form('open', ctx, spec, fv, fo)
