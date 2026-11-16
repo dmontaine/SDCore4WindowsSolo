@@ -1124,14 +1124,16 @@ end;
   WINDOW OUTLIVES sd -stop.  When a session ends with an error, SD's window host (itself sd-solo.exe) waits at "SD stopped ... Press
   Enter to close this window" with the runtime's DLLs loaded; no session list holds it, so sd -stop cannot end it, and Setup meets the
   files-in-use page (Core's named cygsodium-26.dll).  Called only AFTER sd -stop: SD is down, so what is left of BinDir's own SD
-  program is such a window and closing it loses nothing.  sd is the name before the rename.  Returns PowerShell's exit. }
+  program is such a window and closing it loses nothing.  sd is the name before the rename.  Returns PowerShell's exit.
+  16 Nov 26 - RELEASE_1.1 246: it ends a running sd-ai.exe from BinDir too (the AI helper, which SD starts per request), so the
+  helper's program is not in use when Setup replaces or removes it.  After sd -stop no session is left to be waiting on one. }
 function CloseLeftoverSdWindows(const BinDir: String): Integer;
 var
   Bin, Params: String;
 begin
   Bin := BinDir;
   StringChangeEx(Bin, '''', '''''', True);
-  Params := '-NoProfile -NonInteractive -Command "Get-Process -Name sd-solo,sd -ErrorAction SilentlyContinue | ' +
+  Params := '-NoProfile -NonInteractive -Command "Get-Process -Name sd-solo,sd,sd-ai -ErrorAction SilentlyContinue | ' +
             'Where-Object { $_.Path -like ''' + Bin + '\*'' } | ' +
             'ForEach-Object { Stop-Process -Id $_.Id -Force; Wait-Process -Id $_.Id -Timeout 5 -ErrorAction SilentlyContinue }"';
   if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Params, '', SW_HIDE, ewWaitUntilTerminated, Result) then

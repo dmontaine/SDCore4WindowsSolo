@@ -140,6 +140,13 @@ PROGRAM_FILES_BIN = [
     # GetModuleFileName.  Native with a static OpenSSL - it is not in DLL_SCAN
     # (nothing to resolve), and NATIVE_ONLY below insists it stays that way.
     'sdtlsrelay.exe',           # native UCRT64, the TLS relay
+    # 16 Nov 26 SD Core Solo - RELEASE_1.1 246.  The AI helper (SD Core's
+    # lib\sd-ai\sd-ai.exe, in Linux Solo's same-user form).  BESIDE sd-solo.exe
+    # because win32ai.c starts <the running program's folder>\sd-ai.exe --one
+    # per request and set.ai runs it from usr\bin as the client; its data files,
+    # AI_HELPER_FILES below, sit beside it.  Native with a static OpenSSL, so
+    # not in DLL_SCAN, and NATIVE_ONLY checks it.
+    'sd-ai.exe',                # native UCRT64, the AI helper and its client
 ]
 
 # 16 Sep 26 - BINARIES THAT MUST NOT IMPORT THE MSYS2 RUNTIME.  The relay's
@@ -158,9 +165,24 @@ PROGRAM_FILES_BIN = [
 # ever see; sdtlsrelay.c satisfies them with stubs, and this refuses the build
 # if they come back (gplbld/probe-user32desk.c has the measurement).  Each
 # entry names the DLL-name prefixes that binary may not import.
+#
+# 16 Nov 26 SD Core Solo - RELEASE_1.1 246: sd-ai.exe, with SD Core's list
+# (13 Nov 26 there): no msys- (it is UCRT64), no python (the AI needs none),
+# no USER32 (sdai_https.c stubs libcrypto's three imports as sdtlsrelay.c
+# does) and no SHELL32 (-municode: wmain, so CommandLineToArgvW is not needed).
 NATIVE_ONLY = {
     'sdtlsrelay.exe': ['msys-', 'user32'],
+    'sd-ai.exe':      ['msys-', 'python', 'user32', 'shell32'],
 }
+
+# 16 Nov 26 SD Core Solo - RELEASE_1.1 246.  THE AI HELPER'S DATA FILES, from
+# gplbld as SD Core's are (its AI_HELPER_FILES), staged into usr\bin beside
+# sd-ai.exe: the helper's defaults (gplsrc/sdai/sdai_main.c, main()) are the
+# providers file beside the program and ai-context beside that.  Program files,
+# so an upgrade replaces them (the [Files] entry for the whole tree); the
+# user's own settings and keys are in sdsys\ai, which no list here names.
+# Named, so that a file missing from gplbld fails the build.
+AI_HELPER_FILES = ['ai-providers', 'ai-context']
 
 # 12 Sep 26 - THE PYTHON HELPER, PROJECT_STATUS.md 5.27.  Staged if bin/ has
 # it and skipped with a line of output if not.
@@ -1566,6 +1588,19 @@ def main():
         if bad:
             die('%s imports %s: it may not (see NATIVE_ONLY)' % (f, ', '.join(bad)))
         print('stage: %s imports %d DLLs, none of %s' % (f, len(imports), ', '.join(forbidden)))
+
+    # 16 Nov 26 SD Core Solo - RELEASE_1.1 246: the AI helper's data files
+    # beside sd-ai.exe (see AI_HELPER_FILES).  sdsys\ai, its state, is not
+    # staged: the helper makes it, as the user, on its first request.
+    for n in AI_HELPER_FILES:
+        src = os.path.join(os.path.dirname(os.path.abspath(__file__)), n)
+        if not os.path.isfile(src):
+            die('missing %s - the AI helper needs it' % src)
+        dst = os.path.join(pfbin, n)
+        shutil.copy2(src, dst)
+        staged.add(stage, dst)
+    print('  AI helper: sd-ai.exe and %d data file(s) staged to %s\\%s'
+          % (len(AI_HELPER_FILES), STAGE_ROOT, PF_BIN_SUBDIR))
 
     # Third-party editors bundled beside sd.exe.  PRE_RELEASE_FIXES 66.
     stage_editors(pfbin, staged, stage)

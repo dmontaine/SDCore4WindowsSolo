@@ -181,7 +181,8 @@ sd: BITSIZE := 64
 #           are carried (RELEASE_1.1 251).  No -march, as Linux.
 OPT_FLAGS := -O2 -fwrapv -fno-strict-aliasing -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=3 -fstack-protector-strong
 sd: C_FLAGS  :=  -std=gnu17 -Wall -Wformat=2 -Wno-format-nonliteral -D_FILE_OFFSET_BITS=64 -I$(GPLSRC) -I$(SODIUM) -DGPL -g $(OPT_FLAGS) $(ARCH)
-sd: $(SDOBJS) sdclilib sdtlsrelay sdpy sdtic sdfix sdconv sdidx sdwind terminfo
+# 16 Nov 26 SD Core Solo - RELEASE_1.1 246: sd builds sd-ai as well, as Core's does (the AI helper, below).
+sd: $(SDOBJS) sdclilib sdtlsrelay sd-ai sdpy sdtic sdfix sdconv sdidx sdwind terminfo
 	@echo Linking $@
 	@cd $(GPLOBJ)
 # 13 Aug 26 Windows port - libraries must follow the objects that reference
@@ -359,8 +360,8 @@ sdtlsrelay:
 # (set.ai's) in the same program; there is no service.  Built like sdtlsrelay -
 # the UCRT64 compiler and the same STATIC OpenSSL - so it needs no MSYS2 runtime
 # and no Python; sdai_https.c stubs the three USER32 functions libcrypto imports,
-# as sdtlsrelay.c does (the import check is stage.py's NATIVE_ONLY, owed with
-# the installer step).  -municode: wmain, so SHELL32 (which brings USER32) is not
+# as sdtlsrelay.c does (the import check is stage.py's NATIVE_ONLY, which names
+# sd-ai.exe since 16 Nov 26).  -municode: wmain, so SHELL32 (which brings USER32) is not
 # needed for the command line.  No -lnetapi32: Solo has no gate group to read.
 # NEVER -DSDAI_TESTS here: that is the test build test-aihelper-units.py makes.
 # Its own directory keeps it out of TEMPSRCS' wildcard, as sdtlsrelay/ is.
