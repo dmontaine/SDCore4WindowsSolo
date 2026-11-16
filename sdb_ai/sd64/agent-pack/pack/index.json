@@ -2266,7 +2266,7 @@
 "part": "reference/basic-statements.md",
 "since": "-",
 "tier": "reference",
-"words": 25
+"words": 30
 },
 "basic:stmt:crt": {
 "kind": "basic.statement",
@@ -3897,7 +3897,7 @@
 "part": "core.md",
 "since": "-",
 "tier": "core",
-"words": 254
+"words": 240
 },
 "core:voc-types": {
 "kind": "core.digest",

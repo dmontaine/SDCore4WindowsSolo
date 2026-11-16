@@ -61,29 +61,29 @@ The dictionary item types (field 1 starts with the letter). Each type is the chu
 7. A statement in this pack that the guide marks `unverified` has no probe behind it. Compile and run a small test before you rely on it.
 
 ### core:tcl-verbs
-> kind=core.digest tier=core since=- src=docs:tools/tcl-syntax-shapes.txt:28#8b8501a6
+> kind=core.digest tier=core since=- src=docs:tools/tcl-syntax-shapes.txt:25#eb31e34a
 
 The 30 verbs the User pages 19-24 and the tutorial use most (counted in their examples), each as its syntax line; a verb's full chunk is `tcl:<verb>`.
 
+- **`admin`** | **`admin off`**
 - **`analyze.file`** {**`dict`**} *file* {**`statistics`**} {**`lptr`**}
 - **`basic`** {*file*} *record* {*record* …}
 - **`build.index`** *file* *field* … | **`all`**
 - **`catalog`** {*file* {*call.name*}} {*program*} {**`local`** | **`global`** | **`pcode`**} {**`no.xref`**}
 - **`clear.file`** {**`data`** | **`dict`**} *file*
 - **`compile.dict`** {**`dict`** | **`data`**} *file* {*i-type* …} {**`no.query`**} {**`no.page`**}  ·  **`compile.dict local`**  ·  **`compile.dict all`**
-- **`configure.file`** {**`dict`**} *voc.name* {*parameters*} | **`default`**
-- **`copy from`** {**`dict`**} *src* {**`to`** {**`dict`**} *tgt*} {*id* …} {**`(options`**}
 - **`count`** {**`dict`**} *file* {*selection*}
 - **`create.file`** {**`dict`**} *voc.name* {**`directory`**} {*parameters*}
 - **`create.index`** *file* *field* … {**`no.nulls`**} {**`pathname`** *path*}
 - **`ct`** {**`dict`**} *file* {*id* … | **`*`**} {**`(options`**}
-- **`date`** | **`internal`** | *n* | *date*
 - **`delete`** {**`dict`**} *file* {*id* …} {**`no.query`**}
 - **`delete.index`** *file* *field* … | **`all`**
 - **`display`** *text*
-- **`file.stat`** {**`dict`**} {*file* …} {**`lptr`** {*n*}} {**`no.page`**}
+- **`ed`** {**`dict`**} *file* {*id* …}
+- **`format`** {*file*} {*record*} {**`case`**}
 - **`fstat`** *file* **`on`** | **`off`** | {**`lptr`**}  ·  **`fstat global`** {**`lptr`**}  ·  **`fstat reset`**  ·  **`fstat`**
 - **`generate`** {**`dict`**} *file* *record* …
+- **`ide`** {*file* *record*}
 - **`list`** {**`dict`**} *file* {*selection*} {*fields*} {*options*}
 - **`list.index`** *file* {*field* …}
 - **`off`**
