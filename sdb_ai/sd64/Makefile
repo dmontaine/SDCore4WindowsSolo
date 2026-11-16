@@ -211,7 +211,7 @@ UCRT_BIN := $(dir $(UCRT_CC))
 # Neither target names a file that make should test for.  Without this, VPATH
 # finds the gplsrc/sdclilib directory (and the generated terminfo directory)
 # and decides the target is already satisfied.
-.PHONY: sdclilib sdtlsrelay sdpy terminfo check-local check-remote check-api-admin build-api-identity
+.PHONY: sdclilib sdtlsrelay sd-ai sdpy terminfo check-local check-remote check-api-admin build-api-identity
 
 # 04 Sep 26 - ALL FOUR CLIENT DLLs, NOT ONE.  PRE_RELEASE_FIXES 161, the
 # owner's ruling: "let's get rid of the client installers all together and just
@@ -350,6 +350,26 @@ sdtlsrelay:
 	@echo Building native TLS relay
 	@PATH="$(UCRT_BIN):$$PATH" $(UCRT_CC) -std=gnu17 -Wall -Wformat=2 -O2 \
 	    $(RELAYDIR)/sdtlsrelay.c -o $(GPLBIN)sdtlsrelay.exe \
+	    -Wl,-Bstatic -lssl -lcrypto -Wl,-Bdynamic -lcrypt32 -lws2_32 -ladvapi32
+
+# 16 Nov 26 SD Core Solo - RELEASE_1.1 246: THE AI HELPER, from SD Core's sd-ai
+# target (13 Nov 26: "python not being an integral part of windows argues for
+# the c helper"), in Linux Solo's same-user form: sd-ai.exe is started by the SD
+# session per request (--one, anonymous pipes, as the user) and is the client
+# (set.ai's) in the same program; there is no service.  Built like sdtlsrelay -
+# the UCRT64 compiler and the same STATIC OpenSSL - so it needs no MSYS2 runtime
+# and no Python; sdai_https.c stubs the three USER32 functions libcrypto imports,
+# as sdtlsrelay.c does (the import check is stage.py's NATIVE_ONLY, owed with
+# the installer step).  -municode: wmain, so SHELL32 (which brings USER32) is not
+# needed for the command line.  No -lnetapi32: Solo has no gate group to read.
+# NEVER -DSDAI_TESTS here: that is the test build test-aihelper-units.py makes.
+# Its own directory keeps it out of TEMPSRCS' wildcard, as sdtlsrelay/ is.
+AIDIR := $(GPLSRC)sdai
+
+sd-ai:
+	@echo Building native AI helper
+	@PATH="$(UCRT_BIN):$$PATH" $(UCRT_CC) -std=gnu17 -Wall -Wformat=2 -O2 -municode \
+	    $(wildcard $(AIDIR)/*.c) -o $(GPLBIN)sd-ai.exe \
 	    -Wl,-Bstatic -lssl -lcrypto -Wl,-Bdynamic -lcrypt32 -lws2_32 -ladvapi32
 
 # 12 Sep 26 Windows port - the Python helper, PROJECT_STATUS.md 5.27.
