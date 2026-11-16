@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 16 Nov 26 SD Core Solo - RELEASE_1.1 255 (D-02): a Q-pointer's account path is read raw and expanded by the "if qpath[1,1] = '@'" line after it, as
+*               Linux Solo and SD Core for Windows do; it was expanded twice here (the second a no-op).  The answer is the same.
 * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, the OS switch (Linux Solo 7c6bbfc; SD Core's S.63 second sitting, carried): a VOC pointer is held
 *               to the OS gate - an F-pointer's target and a Q-pointer's must be inside the account's own directory or the stock VOC's own,
 *               unless the session is the administrator or holds OS; refusal is ER$PERM.  SD Core's group test and K$PATH.IN are not here.
@@ -236,7 +238,7 @@ parse.as.q.pointer:
                   if len(qpath) < 64 then
                      openpath @sdsys:@ds:'accounts' to acc.f then
                         read acc.rec from acc.f, qpath then
-                           qpath = parse.pathname.tokens(acc.rec<ACC$PATH>)
+                           qpath = acc.rec<ACC$PATH>          ;* 16 Nov 26: expanded below, as Linux Solo and Core read it (D-02)
                         end
                      end
                   end

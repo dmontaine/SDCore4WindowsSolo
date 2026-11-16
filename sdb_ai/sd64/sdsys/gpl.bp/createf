@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 16 Nov 26 SD Core Solo - RELEASE_1.1 255 (D-07): the deffun of !voc_guard is gone, as Linux Solo's (Solo carry 22, 9 Nov 26): with multifiles removed,
+*               CREATE.FILE no longer changes a file that exists, so nothing called it.
 * 14 Nov 26 Windows port - from Linux 64561d81 (S.230, RELEASE_1.1 286): the unused no.query is gone.
 * 12 Nov 26 Windows port - from Linux 41d8817d (RELEASE_1.1 252, audit P-22): the name is looked up (as typed, lower, upper) before it is folded.
 * 12 Nov 26 SD Core Solo - SOLO 56 group 8, as Linux Solo b1d823f (SD Core's S.73 item 3, Windows Core's text as it now stands): CREATE.FILE name ... SERVER srv {AS remote}
@@ -70,7 +72,6 @@ $include parser.h
 $include keys.h
 $include err.h
 
-deffun voc_guard(f) calling '!voc_guard'   ;* 18 Oct 26, Solo carry A
 deffun edit_msg(emk) calling '!edit_msg'     ;* 12 Nov 26, SOLO 56 group 8: the carry of SD Core's S.73 item 3 (create.remote.file)
 
 $define default.merge.load 50
