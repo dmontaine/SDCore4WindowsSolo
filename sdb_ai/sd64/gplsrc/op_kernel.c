@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 15 Nov 26 SD Core Solo - from Core f6c20e51 (Linux Solo 9b69caa, S.242 stage 3, RELEASE_1.1 299): K_XFER (173), the file transfer slot and server (sd_sftp.c k_xfer()).
  * 12 Nov 26 SD Core Solo - SOLO 56 group 9 (RELEASE_1.1 240 e), as Linux: K_INTERNAL is set only by a program flagged HDR_INTERNAL; a read (-1) is unchanged.
  * 12 Nov 26 SD Core Solo - SOLO 56 group 7 (P-18), as SD Core for Windows and Linux: K_NON_DURABLE_TXN (113) sets txn_nondurable, so the next COMMIT
  *               of a nested transaction hands its updates and locks to the parent (txn.c, op_lock.c transfer_txn_locks).
@@ -86,6 +87,7 @@
    K_ASSUME_USER and K_HANDOFF (SOLO 3 step 5). */
 #include "win32group.h"   /* K_GROUP_MEMBER's live SAM query */
 #include "sd_tls.h"
+#include "sd_sftp.h"        /* 15 Nov 26 SD Core Solo - K_XFER (Core f6c20e51, Linux Solo 9b69caa, RELEASE_1.1 299) */
 
 #include <syslog.h>
 
@@ -1449,6 +1451,12 @@ void op_kernel() {
     case K_WINPID:
       result.data.value =
           (int32_t)cygwin_internal(CW_CYGWIN_PID_TO_WINPID, getpid());
+      break;
+
+    /* 15 Nov 26 SD Core Solo - from Core f6c20e51 (Linux Solo 9b69caa, S.242 stage 3, RELEASE_1.1 299): the file transfer slot (RECEIVE /
+       SEND) and the transfer server's side of it; $internal only (sd_sftp.c). */
+    case K_XFER:
+      k_xfer(descr, &result);
       break;
 
     default:

@@ -4,6 +4,10 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 15 Nov 26 SD Core Solo - RELEASE_1.1 299, from Linux Solo 9b69caa (the Solo carry of SD Core's S.242): the file transfer gate, field 22 of the register
+*               (ACC$XFER), which RECEIVE, SEND and the transfer server read each time, so its "this session" is the register, read for every session; Enter runs
+*               set.xfer.access on|off.  Linux Solo's FIFTH row; here the FOURTH, because this tree has no AI row yet (RELEASE_1.1 246's Solo carry puts it
+*               at 4 and moves this one to 5, as Linux).
 * 12 Nov 26 Windows port - SOLO 56 group 5: Linux Solo 608b511 (the layout service, the menu bar, $tk_std, the AI line), with the Windows difference the 25 Oct
 *               carry made: no AI row (this tree has no AI helper, RELEASE_1.1 197), so three gates, no set.ai, no K$AI.STATUS read, and "Windows user".
 *               The AI line itself is the toolkit's and is inert here, as on SD Core for Windows' pages.
@@ -55,7 +59,7 @@ $include tk.h
 
    prompt ''
 
-   allow = 'set.os.access set.net.access'                       ;* the commands this page may run
+   allow = 'set.os.access set.net.access set.xfer.access'       ;* the commands this page may run (15 Nov 26: set.xfer.access, the file transfer switch)
    acc.name = 'sduser'                                          ;* Solo's one account (ruling 29); the register record the three verbs write
 
    call $tk_open('tool.gates', '', ctx, err)
@@ -82,21 +86,24 @@ $include tk.h
    call $tk_aipage('init', ctx, keys, '', '', aout)
    if aout then gosub declare.layout                     ;* the AI line took the body's last row: the panes again (as SD Core's pages)
 
-*  The table: one row to a gate, in the order the page shows them.  The words are the verbs' own (set.os.access, set.net.access).  Linux Solo's AI row is not here: this tree has no AI helper.
-   gids = 'sh' : @fm : 'os' : @fm : 'net'
-   gti = 'Shell' : @fm : 'OS.EXECUTE' : @fm : 'Remote files'
-   gcmd.on = 'set.os.access sh on' : @fm : 'set.os.access os on' : @fm : 'set.net.access on'
-   gcmd.off = 'set.os.access sh off' : @fm : 'set.os.access os off' : @fm : 'set.net.access off'
-   gwhen = 'next sign-on' : @fm : 'next sign-on' : @fm : 'next sign-on'
+*  The table: one row to a gate, in the order the page shows them.  The words are the verbs' own (set.os.access, set.net.access, set.xfer.access).  Linux Solo's AI row
+*  (its fourth) is not here yet: this tree has no AI helper until RELEASE_1.1 246's Solo carry, so file transfer is row 4 here and row 5 there.
+   gids = 'sh' : @fm : 'os' : @fm : 'net' : @fm : 'xfer'
+   gti = 'Shell' : @fm : 'OS.EXECUTE' : @fm : 'Remote files' : @fm : 'File transfer'
+   gcmd.on = 'set.os.access sh on' : @fm : 'set.os.access os on' : @fm : 'set.net.access on' : @fm : 'set.xfer.access on'
+   gcmd.off = 'set.os.access sh off' : @fm : 'set.os.access os off' : @fm : 'set.net.access off' : @fm : 'set.xfer.access off'
+   gwhen = 'next sign-on' : @fm : 'next sign-on' : @fm : 'next sign-on' : @fm : 'at the next transfer'
    gall = "use the SH verb and ! to run operating-system commands as your Windows user"
    gall<2> = "run OS.EXECUTE, the embedded Python, a print unit's SPOOLER string and the editors that run outside SD, and reach files and directories outside the account by pathname"
    gall<3> = 'open a file on another SD server through a server definition, and have its own files opened over the API by request 29'
    gstill = "do everything inside SD, with the account's own files"
    gstill<2> = 'open and write files inside its own account directory'
    gstill<3> = 'open every file on this computer that its other gates allow'
-   NG = 3
+   gall<4> = "move plain-text files in and out of its transfer folders with RECEIVE and SEND, over Solo's ssh login, while sd.conf's XFER is 1"
+   gstill<4> = 'do everything else its other gates allow, and sign in over ssh'
+   NG = 4
 
-   VIS = 3                                                      ;* gate rows on the screen
+   VIS = 4                                                      ;* gate rows on the screen (15 Nov 26: four, with file transfer; the box's 11 rows hold them)
    ci = 1                                                       ;* the gate under the cursor
    gen = 0
    msg = (if adm then "Up and Down move; Enter turns the gate on the cursor's row ON or off" else 'Up and Down move; this page only shows what you may do, it cannot alter it')
@@ -156,17 +163,23 @@ read.all:
    gnow<2> = (if kernel(K$OS.EXEC, -1) then 1 else 0)
    gnow<3> = (if kernel(K$NET, -1) then 1 else 0)
    reg.ok = 0
-   if adm then
-      openpath @sdsys:@ds:'accounts' to acc.f then
-         read acc.rec from acc.f, acc.name then
+   xf.rec = ''
+   openpath @sdsys:@ds:'accounts' to acc.f then
+      read acc.rec from acc.f, acc.name then
+         xf.rec = acc.rec
+         if adm then
             reg.ok = 1
             gset<1> = (if upcase(trim(acc.rec<ACC$SH>)) = 'YES' then 1 else 0)
             gset<2> = (if upcase(trim(acc.rec<ACC$OS.EXEC>)) = 'YES' then 1 else 0)
             gset<3> = (if upcase(trim(acc.rec<ACC$NET>)) = 'YES' then 1 else 0)
          end
-         close acc.f
       end
+      close acc.f
    end
+*  15 Nov 26: file transfer is not held by a session - RECEIVE, SEND and the transfer server read the register each time - so "this session"
+*  and the register are the same value, read here for every session (the account's own record, no lock).  Row 4 here (Linux Solo's 5).
+   gnow<4> = (if upcase(trim(xf.rec<ACC$XFER>)) = 'YES' then 1 else 0)
+   if adm then gset<4> = gnow<4>
    return
 
 * ------------------------------------------------------------------------------------------------- drawing
@@ -273,7 +286,12 @@ draw.row:
             end else
                lines<-1> = 'The administrator changes it with: ' : (if gnow<k> = 1 then gcmd.off<k> else gcmd.on<k>)
             end
-            lines<-1> = 'As delivered it is off.  A change reaches you: ' : gwhen<k> : '.  It does not touch a session that is already running.  This gate reaches BEYOND SD.'
+            if gids<k> = 'xfer' then
+               lines<-1> = 'As delivered it is off.  A change reaches you at the next transfer: it is read each time, not at sign-on.  This gate reaches BEYOND SD.'
+               lines<-1> = "It also needs XFER=1 in sd.conf (Solo reads that when it starts); then RECEIVE or SEND opens one transfer at a time, from your own session."
+            end else
+               lines<-1> = 'As delivered it is off.  A change reaches you: ' : gwhen<k> : '.  It does not touch a session that is already running.  This gate reaches BEYOND SD.'
+            end
       end case
    end
    ww = row.w - 4

@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 15 Nov 26 SD Core Solo - from Core f6c20e51 (Linux Solo 9b69caa, S.242 stage 3, RELEASE_1.1 299): K_XFER (173), the file transfer slot and server.
  * 11 Nov 26 SD Core Solo - SOLO 56 group 3: K_AI_START, K_AI_POLL, K_AI_CANCEL, K_AI_STATUS (160-163), answered "no helper", as SD Core for
  *           Windows.
  * 11 Nov 26 SD Core Solo - SOLO 56 group 2, from Windows Core (Linux Solo has it, 28 Oct 26, S.88 phase 2): K_SHOW_SAFE (151), the kernel's
@@ -498,6 +499,11 @@
    keeps what the kernel read and no longer overrides it with terminfo's 120 by 36.  Linux's number (its block 90-99), kept exactly;
    GPL.BP/INT$KEYS.H carries the same number. */
 #define K_WINSIZE            92
+/* 15 Nov 26 SD Core Solo - from Core f6c20e51 (Linux Solo 9b69caa, S.242 stage 3, file transfer over the ssh login, RELEASE_1.1 299).
+   kernel(K$XFER, 'op' {: @fm : ...}) from a $internal program: the slot a session opens with RECEIVE / SEND (open, close, state) and the
+   transfer server's side of it (find, serve, refuse); sd_sftp.c k_xfer() has the arguments and answers.  Same number as SD Core and Linux
+   Solo; GPL.BP/INT$KEYS.H carries it.  174 is reserved for SD Core for Windows' K$OS.SDSYS.USER and not used here. */
+#define K_XFER               173
 
 /* PTERM() function action keys */
 #define PT_BREAK              1

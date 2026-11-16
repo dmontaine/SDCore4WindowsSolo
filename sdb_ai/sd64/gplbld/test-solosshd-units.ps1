@@ -135,6 +135,14 @@ Check 'the host key and pid file are in the MACHINE folder, the optional key fil
     $cfgText.Contains('HostKey ' + ((Join-Path $mdir 'ssh_host_ed25519_key') -replace '\\', '/')) -and $cfgText.Contains('PidFile ' + ((Join-Path $mdir 'sshd.pid') -replace '\\', '/')) -and
     $cfgText.Contains('AuthorizedKeysFile ' + ((Join-Path $sshDir 'authorized_keys') -replace '\\', '/')))
 Check 'it does NOT force key-only: no "PasswordAuthentication no" and no AuthenticationMethods line' ($cfgText -notmatch '(?m)^PasswordAuthentication no' -and $cfgText -notmatch '(?m)^AuthenticationMethods')
+# 15 Nov 26 - RELEASE_1.1 299 (file transfer): the sftp subsystem is named with the command sd_sftp.h's SD_SFTP_SUBSYSTEM matches, exactly once;
+# without it sshd refuses an sftp request before sd-solo sees it, and with another command sd-solo would not know the request.
+$sftpH = Join-Path (Split-Path -Parent $PSScriptRoot) 'gplsrc\sd_sftp.h'
+$sub = ''
+if ((Test-Path $sftpH) -and ((Get-Content -Raw $sftpH) -match '(?m)^#define SD_SFTP_SUBSYSTEM "([^"]+)"')) { $sub = $Matches[1] }
+Write-Host ('  SD_SFTP_SUBSYSTEM read from ' + $sftpH + ': [' + $sub + ']')
+Check 'the config names the sftp subsystem once, with sd_sftp.h''s SD_SFTP_SUBSYSTEM' (
+    $sub -ne '' -and @([regex]::Matches($cfgText, '(?m)^Subsystem\s')).Count -eq 1 -and $cfgText -match ('(?m)^Subsystem sftp ' + [regex]::Escape($sub) + '\s*$'))
 if ($haveSshd) {
     $tcfg = Join-Path $root 'test_sshd_config'
     [IO.File]::WriteAllText($tcfg, ($cfgText.TrimEnd() + "`n"), (New-Object Text.UTF8Encoding($false)))

@@ -28,6 +28,8 @@
  *           SET.BACKUP.DIRECTORY writes does not stop SD starting
  * 01 Oct 26 SD Core Solo - APIPORT is an ON/OFF switch: any value above zero
  *           means the fixed port SD_API_PORT (owner's port ruling)
+ * 15 Nov 26 SD Core Solo - from Core f6c20e51 (Linux Solo 9b69caa, S.242 stage 1, RELEASE_1.1 299): XFER (delivered 0), XFERFILE, XFERSLOT,
+ *           XFERWAIT, XFERIDLE, XFERMAX and XFERKIND, the file transfer parameters, read when SD starts, range-checked.
  * 25 Sep 26 SD Core Solo - SDSYS, USRDIR and GRPDIR default to folders in
  *           the installation's own folder (inipath.c GetHomePath)
  * 19 Oct 26 Windows port - from Linux 1f5f703 - NETWAIT and NETREPLY are held in 32 bit fields (config.h): 65541 in sd.conf wrapped to 5 in the 16 bit field BEFORE rangecheck, so SD started with a 5 second wait instead of
@@ -77,6 +79,13 @@
  *  STARTUP=cmd   (REMOVED 6 Oct 2026 - refused by name if present)
  *  TEMPDIR=path  Pathname of temporary directory
  *  TERMINFO=path Pathname of terminfo directory
+ *  XFER=0        File transfer over the ssh login (RECEIVE / SEND): 0 = none on this system (delivered), 1 = accounts with xfer-on may
+ *  XFERFILE=n    Largest file a transfer slot takes, kilobytes (10240; 1 to 1048576)
+ *  XFERSLOT=n    Most a transfer slot takes in all, kilobytes (102400; 1 to 4194304)
+ *  XFERWAIT=n    Seconds a slot waits for its first connection (600; 10 to 3600)
+ *  XFERIDLE=n    Seconds a slot stays open after its last file closes (120; 10 to 3600)
+ *  XFERMAX=n     Seconds a slot may stay open at most, 0 = no ceiling (3600; 0 to 86400)
+ *  XFERKIND=list Extensions a received file must have, comma separated (not set = any plain-text file)
  *  YEARBASE=n    Two digit year base (default = 1930)
  *
  *
@@ -173,6 +182,13 @@ struct CONFIG* read_config(char* errmsg) {
   pcfg.tempdir[0] = '\0';     /* TEMPDIR:  Temporary directory */
   pcfg.spooler[0] = '\0';     /* SPOOLER:  Default spooler name */
   pcfg.terminfodir[0] = '\0'; /* TERMINFO: Use default location */
+  pcfg.xfer = 0;              /* XFER:     14 Nov 26, S.242: no file transfer unless the administrator says 1 */
+  pcfg.xferfile = 10240;      /* XFERFILE: 10 MB (owner, 14 Nov) */
+  pcfg.xferslot = 102400;     /* XFERSLOT: 100 MB (owner, 14 Nov) */
+  pcfg.xferwait = 600;        /* XFERWAIT: ten minutes for the first connection */
+  pcfg.xferidle = 120;        /* XFERIDLE: two minutes after the last file */
+  pcfg.xfermax = 3600;        /* XFERMAX:  60 minutes (owner, 14 Nov) */
+  pcfg.xferkind[0] = '\0';    /* XFERKIND: any plain-text file (owner, 14 Nov: "Plain text by content") */
   pcfg.timezone[0] = '\0';    /* TIMEZONE: the epoch functions use the process's own TZ (15 Oct 26, QM4 gaps Q-3) */
 /* 20240219 mab create-account based on type (user / group / other) */
 /* 13 Aug 26 Windows port - see the note on grpdir above.                   */
@@ -416,6 +432,23 @@ struct CONFIG* read_config(char* errmsg) {
         strcpy(pcfg.tempdir, rec + 8);
       else if (strncmp(rec, "TERMINFO=", 9) == 0)
         strcpy(pcfg.terminfodir, rec + 9);
+      /* 14 Nov 26, S.242: file transfer.  "XFER=%d" does not match XFERFILE= and the others (the F is not the =). */
+      else if (sscanf(rec, "XFER=%d", &n) == 1)
+        pcfg.xfer = n;
+      else if (sscanf(rec, "XFERFILE=%d", &n) == 1)
+        pcfg.xferfile = n;
+      else if (sscanf(rec, "XFERSLOT=%d", &n) == 1)
+        pcfg.xferslot = n;
+      else if (sscanf(rec, "XFERWAIT=%d", &n) == 1)
+        pcfg.xferwait = n;
+      else if (sscanf(rec, "XFERIDLE=%d", &n) == 1)
+        pcfg.xferidle = n;
+      else if (sscanf(rec, "XFERMAX=%d", &n) == 1)
+        pcfg.xfermax = n;
+      else if (strncmp(rec, "XFERKIND=", 9) == 0) {
+        strncpy(pcfg.xferkind, rec + 9, sizeof(pcfg.xferkind) - 1);
+        pcfg.xferkind[sizeof(pcfg.xferkind) - 1] = '\0';
+      }
       else if (sscanf(rec, "USERPOOL=%d", &n) == 1)
         cfg->userpool = n;
       else if (sscanf(rec, "USPLIT=%d", &n) == 1)
@@ -501,6 +534,12 @@ struct CONFIG* read_config(char* errmsg) {
       !rangecheck("NETREPLY", pcfg.netreply, 1, 3600, errmsg) ||
       !rangecheck("NUMLOCKS", numlocks_asked, 1, 32767, errmsg) ||        /* 16 Oct 26 (openQM 532): the table's cells are int16 */
       !rangecheck("PWDELAY", pcfg.pwdelay, 0, 3600, errmsg) ||
+      !rangecheck("XFER", pcfg.xfer, 0, 1, errmsg) ||                     /* 14 Nov 26, S.242 */
+      !rangecheck("XFERFILE", pcfg.xferfile, 1, 1048576, errmsg) ||
+      !rangecheck("XFERSLOT", pcfg.xferslot, 1, 4194304, errmsg) ||
+      !rangecheck("XFERWAIT", pcfg.xferwait, 10, 3600, errmsg) ||
+      !rangecheck("XFERIDLE", pcfg.xferidle, 10, 3600, errmsg) ||
+      !rangecheck("XFERMAX", pcfg.xfermax, 0, 86400, errmsg) ||
       !rangecheck("USERPOOL", cfg->userpool, 0, 16383, errmsg) ||
       !rangecheck("USPLIT", cfg->usplit, 0, 1, errmsg) ||
       !rangecheck("CLEANUP", cfg->cleanup, 30, 3600, errmsg) ||

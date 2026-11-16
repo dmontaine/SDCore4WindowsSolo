@@ -33,6 +33,13 @@
 # cosmetic fault.  The one thing in the config that points into the user's own tree is the ForceCommand, which
 # runs as the signed-in user (sshd starts it under that user's token), and the optional AuthorizedKeysFile.
 #
+# FILE TRANSFER (15 Nov 2026, RELEASE_1.1 299, Linux Solo 9b69caa / SD Core's S.242): the config also names the sftp
+# subsystem "Subsystem sftp sftp-server.exe", Windows' stock command, as SD Core for Windows' sshd has it.  Nothing
+# runs it: with a ForceCommand, sshd runs sd-solo.exe for an sftp request too, with SSH_ORIGINAL_COMMAND set to
+# that command (gplsrc/sd_sftp.h SD_SFTP_SUBSYSTEM), and sd-solo is then the confined transfer server - only while
+# the person's own SD session waits in RECEIVE or SEND, and only with XFER=1 and the account's switch on.  Without
+# the line sshd refuses every sftp request itself.  Linux Solo names <tree>/bin/sd-sftp; the string is an OS deviation.
+#
 # THE COST OF PASSWORD LOGIN, for the docs: anyone who can reach port 4251 can try passwords for the owner's
 # Windows account, and the account lockout policy then locks the OWNER out (here: 10 failures in 10 minutes).  The
 # old port-22 route had the same property.  The firewall rule is open only when the owner chose it, or in managed mode.
@@ -159,6 +166,7 @@ function Get-Config([string]$app, [string]$user, [string]$mdir) {
         ('AllowUsers ' + $user),
         'DisableForwarding yes',
         'LogLevel INFO',
+        'Subsystem sftp sftp-server.exe',
         ('ForceCommand "' + (Join-Path $app 'usr\bin\sd-solo.exe') + '"')
     ) -join "`n") + "`n"
 }

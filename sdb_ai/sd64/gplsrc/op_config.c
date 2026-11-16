@@ -21,6 +21,7 @@
  *               setter is not touched).  SCREENTHEME is 11, so it was never found and the site theme never applied.
  * 8 Nov 26 Windows port - from Linux 2930d92f (S.87): FILERULE is gone, with the Account:File and PATH:pathname forms of file name; the installer strips the line from a restored sd.conf.
  * 18 Oct 26 Windows port - from Linux 3b43525 (15 Oct 26): TIMEZONE, a private parameter: the zone of the epoch functions (QM4 gaps Q-3, SET.TIMEZONE).
+ * 15 Nov 26 SD Core Solo - from Core f6c20e51 (Linux Solo 9b69caa, S.242 stage 1, RELEASE_1.1 299): CONFIG() reads XFER, XFERFILE, XFERSLOT, XFERWAIT, XFERIDLE, XFERMAX and XFERKIND; PCONFIG sets none of them.
  * 19 Oct 26 Windows port - from Linux 1f5f703 - NETWAIT and NETREPLY, the two SDNet timeouts (K8d): CONFIG() reads them and PCONFIG sets them for the process, 1 to 3600 seconds.  The fields are 32 bit now (no cast).
  * 15 Oct 26 Windows port - from Linux 1f5f703 - TIMEZONE, a private parameter: the zone of the epoch functions (QM4 gaps Q-3, SET.TIMEZONE).
  * 10 Sep 26 Windows port - from Linux 1f5f703 - Parity audit: CONFIG() with a name over eight characters
@@ -251,6 +252,21 @@ void op_config() {
  /* 20240219 mab create-account based on type (user / group / other) */
   else if (!strcmp(param, "USRDIR"))
     k_put_c_string(pcfg.usrdir, &result);
+  /* 14 Nov 26, S.242: the file transfer parameters, read only (PCONFIG does not set them: the transfer server reads sd.conf itself) */
+  else if (!strcmp(param, "XFER"))
+    result.data.value = pcfg.xfer;
+  else if (!strcmp(param, "XFERFILE"))
+    result.data.value = pcfg.xferfile;
+  else if (!strcmp(param, "XFERSLOT"))
+    result.data.value = pcfg.xferslot;
+  else if (!strcmp(param, "XFERWAIT"))
+    result.data.value = pcfg.xferwait;
+  else if (!strcmp(param, "XFERIDLE"))
+    result.data.value = pcfg.xferidle;
+  else if (!strcmp(param, "XFERMAX"))
+    result.data.value = pcfg.xfermax;
+  else if (!strcmp(param, "XFERKIND"))
+    k_put_c_string(pcfg.xferkind, &result);
   else if (!strcmp(param, "YEARBASE"))
     result.data.value = pcfg.yearbase;
   else {

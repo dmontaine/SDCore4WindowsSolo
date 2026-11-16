@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 15 Nov 26 SD Core Solo - from Core f6c20e51 (Linux Solo 9b69caa, S.242 stage 3, RELEASE_1.1 299): main() calls xfer_detect() first; an sftp
+ *           request Solo's own sshd sent here is the file transfer server (sd_sftp.c), and it never opens SD's own window.
  * 12 Nov 26 SD Core Solo - RELEASE_1.1 245: an interactive console session runs in a classic window of its own (win32vt.c own_window()).
  * 28 Sep 26 SD Core Solo for Windows - ruling 37: --version's product name.
  * 26 Sep 26 SD Core Solo - -H (pre-authenticated API session) removed with
@@ -114,6 +116,7 @@
    that sd.c never sees windows.h.  See win32pipe.h.                        */
 #include "win32pipe.h"
 #include "win32token.h" /* 25 Sep 26 SD Core Solo - SOLO 3, ruling 16 */
+#include "sd_sftp.h"    /* 15 Nov 26 SD Core Solo - xfer_detect() (Core f6c20e51, Linux Solo 9b69caa, RELEASE_1.1 299) */
 #include "locks.h"
 #include "keys.h"
 
@@ -187,6 +190,11 @@ int main(int argc, char *argv[]) {
 
   tio.term_type[0] = '\0';
 
+  /* 15 Nov 26 Windows port - from Linux d15ace15 (S.242 stage 3, RELEASE_1.1 299).  FIRST, before anything can print: an sftp request that
+     sshd sent here (no terminal, SSH_ORIGINAL_COMMAND the Subsystem path) is the file transfer server, not a login.  Its channel is moved
+     off descriptors 0 and 1 (sd_sftp.c). */
+  xfer_detect(argc);
+
  /* 20240126 mab add syslog */
  /* log startup and command line args */
   int arg;
@@ -229,7 +237,8 @@ int main(int argc, char *argv[]) {
      network session (Solo has no -JOB) - runs in a classic console window of its own; win32vt.c own_window() opens or takes it, and
      returns only when the session is to run here.  Before the shared segment is bound, so a process that opens a new window and ends
      has touched nothing. */
-  if ((connection_type == CN_CONSOLE) && !is_phantom && !is_bootstrap && (single_command == NULL))
+  /* 15 Nov 26 SD Core Solo - RELEASE_1.1 299: and never the file transfer server (is_xfer, set by xfer_detect() at the top of main()). */
+  if ((connection_type == CN_CONSOLE) && !is_phantom && !is_bootstrap && !is_xfer && (single_command == NULL))
     own_window(L"SD Core Solo");
 
   if (!bind_sysseg(FALSE, errmsg)) {

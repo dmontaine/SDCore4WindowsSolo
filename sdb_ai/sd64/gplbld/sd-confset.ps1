@@ -76,7 +76,9 @@ $Fixed = @('APIPORT', 'BACKUPDIR', 'CMDSTACK', 'DEADLOCK', 'DEBUG', 'DUMPDIR', '
            'FLTDIFF', 'FSYNC', 'GRPDIR', 'INTPREC', 'MAXIDLEN', 'MUSTLOCK', 'NETDIRS', 'NETFILES',
            'NUMFILES', 'NUMUSERS', 'OBJECTS', 'OBJMEM', 'PDUMP', 'PHANTOMS', 'PWDELAY', 'SAFEDIR',
            'SCREENTHEME', 'SDCLIENT', 'SDSYS', 'SH', 'SH1', 'SORTMEM', 'SORTWORK', 'SPOOLER',
-           'TEMPDIR', 'TERMINFO', 'USERPOOL', 'USRDIR', 'YEARBASE')
+           'TEMPDIR', 'TERMINFO', 'USERPOOL', 'USRDIR', 'YEARBASE',
+           # 15 Nov 26 (RELEASE_1.1 299, Core f6c20e51, Linux Solo 9b69caa): the file transfer door XFER and its limits, set by hand.
+           'XFER', 'XFERFILE', 'XFERIDLE', 'XFERKIND', 'XFERMAX', 'XFERSLOT', 'XFERWAIT')
 
 # Why NAME=VALUE may not be written, or '' when it may.  Nothing here touches the disk.
 function Test-Setting([string]$k, [string]$v) {

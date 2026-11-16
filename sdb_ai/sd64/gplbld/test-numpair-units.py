@@ -38,6 +38,7 @@ LINUX = os.environ.get('SD_LINUX_SD64') or os.path.normpath(os.path.join(HERE, '
 # test above cannot see as one (the id is held in a variable or a table and reaches sysmsg later); Linux's number must still be a message.
 # Each reason cites its evidence (a row, a commit, or OS:).  Read 12 Nov 2026 (RELEASE_1.1 258), every line, use by use.
 ALLOWED = {
+    ('sd_sftp.c', r'^#define XM_[A-Z_]+ #'): 'the XM_ names are message ids the transfer server returns to xfersrv to show (Core f6c20e51, Linux Solo 9b69caa, RELEASE_1.1 299)',
     ('ide', r'^(for j = # to #|if (alone and )?j = # (then|and))'): 'menu ids are message ids, shown by sysmsg(j) (SOLO 65)',
     ('importdata', r'^usage = # ;'): 'usage is shown by display sysmsg(usage) (RELEASE_1.1 258)',
     ('netfile', r'^(fail\.num = #|if cn = # or cn = # then$)'): 'fail.num and cn (err<1,1>) are message ids returned as rc<2> (RELEASE_1.1 258)',

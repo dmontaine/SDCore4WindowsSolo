@@ -246,6 +246,10 @@
       $define K$AI.POLL         161     ;* 'W' waiting, 'D':@fm:the helper's reply (JSON), or 'E':@fm:why (Windows: 'E':@fm:'nohelper')
       $define K$AI.CANCEL       162     ;* give the request up ('OK')
       $define K$AI.STATUS       163     ;* the helper's status line, 'D':@fm:json, or 'E':@fm:why (Windows: 'E':@fm:'nohelper')
+* 15 Nov 26 SD Core Solo - from Core f6c20e51 / Linux Solo 9b69caa (S.242 stage 3, RELEASE_1.1 299).  kernel(K$XFER, op {: @fm : ...}): the file
+*   transfer slot (open, close, state) and the transfer server's side (find, serve, refuse).  The arguments and answers are at k_xfer() in
+*   gplsrc/sd_sftp.c.  Must match gplsrc/keys.h.  174 is SD Core for Windows' K$OS.SDSYS.USER, not used here.
+      $define K$XFER           173      ;* File transfer over the ssh login: the slot and the server (S.242)
       * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH (Linux Solo 7c6bbfc): SD Core's S.63 keys at SD Core's numbers (Solo only).
       *   K$SH and K$OS.EXEC are settable only from $internal code (LOGIN and APISRVR load them from ACC$SH / ACC$OS.EXEC at account
       *   entry; get with -1); K$PATH.OK asks whether THIS ACCOUNT may open a pathname.  Must match gplsrc/keys.h.

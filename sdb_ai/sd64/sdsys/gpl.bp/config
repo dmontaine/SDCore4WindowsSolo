@@ -21,6 +21,7 @@
 * 28 Sep 26 SD Core Solo - SOLO 21: CONFIG GPL and CONFIG CONTRIB need no
 *           ADMIN; the gate moved after the parser for everything else.
 * 28 Sep 26 SD Core Solo - ruling 35: needs ADMIN (2001).
+* 15 Nov 26 SD Core Solo - RELEASE_1.1 299 (Linux Solo 9b69caa): the listing gains XFER, XFERFILE, XFERSLOT, XFERWAIT, XFERIDLE, XFERMAX and XFERKIND.
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
 * rev 0.9.0 Jan 25 mab add CREATUSR config parameter
 * 16 Aug 26 Windows port - CREATUSR is no longer reported.  op_config() has
@@ -171,6 +172,13 @@ report.params:
    print 'USPLIT    '        : config('USPLIT')
 * 20240219 mab create-account based on type (user / group / other)
    print 'USRDIR    '        : config('USRDIR')
+   print 'XFER      '        : config('XFER')
+   print 'XFERFILE  '        : config('XFERFILE') : ' kb'
+   print 'XFERSLOT  '        : config('XFERSLOT') : ' kb'
+   print 'XFERWAIT  '        : config('XFERWAIT') : ' seconds'
+   print 'XFERIDLE  '        : config('XFERIDLE') : ' seconds'
+   print 'XFERMAX   '        : config('XFERMAX') : ' seconds'
+   print 'XFERKIND  '        : config('XFERKIND')
    print 'YEARBASE  '        : config('YEARBASE')
    print
 
