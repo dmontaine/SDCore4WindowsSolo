@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 16 Nov 26 SD Core Solo - RELEASE_1.1 286 (Linux Solo S.232, 14 Nov): lgn.id, set and never read, is gone - BCOMP warned on the 16 Nov Solo build.
 * 16 Nov 26 SD Core Solo - SOLO 60 (Linux mail 2026-11-16T1330): the $cred id '$global' in lower case, as Linux Solo.
 * 13 Nov 26 Windows port - RELEASE_1.1 266, later the same night (Core's): @PATH is /cygdrive/c/..., so folding case and slashes was not
 *   enough; both sides of the walk's comparison now go through path.key.
@@ -623,7 +624,6 @@ deffun pw_complex(pw) calling '!pw_complex'
 *   this user, so SD asks it who they are and never asks for a password.
 *   See PROJECT_STATUS.md section 5.6.
      * This user has come in from a command prompt.
-     lgn.id = @logname
 
 * 14 Aug 26 Windows port - INTERNAL MODE IS EXEMPT FROM THE sdusers GATE.
 *   Owner's decision, 14 Aug 2026, and the reason is the bootstrap: it runs

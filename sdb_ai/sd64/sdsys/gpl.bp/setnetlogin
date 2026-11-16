@@ -17,6 +17,7 @@
 * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 *
 * START-HISTORY:
+* 16 Nov 26 SD Core Solo - RELEASE_1.1 286: lu, cred.path and tail, assigned first and never read (BCOMP warned on the 16 Nov Solo build), are gone.
 * 20 Oct 26 dm  SD Core for Linux Solo, SDNet carry 9 (Core Dev 680747d): section (c) is Solo's.  The administrator may keep a login (Solo's administrator is the same
 *               Linux user as the account: ADMIN elevates sduser, it is not another operating system user, so SD Core's message 12467 does not apply and is not used), and
 *               the directory is made by $netcred itself (ENSURE, mkdir -m 700 under <sys>) instead of sd-elevate netcred-dir.  accos.h is not included.
@@ -83,9 +84,6 @@ $define SV$ON.ERROR      1
    err = ''
    found = 0
    acc = ''
-   lu = ''
-   cred.path = ''
-   tail = ''
    is.admin = @false
    ru = ''
    pw = ''
