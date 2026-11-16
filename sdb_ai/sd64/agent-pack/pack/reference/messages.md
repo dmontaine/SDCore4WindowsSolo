@@ -8029,10 +8029,10 @@ The list of allowed programs could not be written
 cited by: `setviewer`
 
 ### msg:12904
-> kind=message tier=reference since=- src=sdsys/messages/12904:1#1880f66f
+> kind=message tier=reference since=- src=sdsys/messages/12904:1#32514ef7
 
 ```
-%1 is not a full path; give the drive letter and the folders of the .exe, such as C:/Program Files/Some Reader/reader.exe
+%1 was not found: give the full path of the .exe, such as C:/Program Files/Some Reader/reader.exe, or the name of a program this computer's App Paths knows, such as msedge
 ```
 
 cited by: `setviewer`

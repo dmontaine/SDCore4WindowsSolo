@@ -1,0 +1,5 @@
+Programs allowed to start without os.execute
+gettingstarted-06b-operating-system-access
+The programs here are started by the pdf verb even when the account has no os.execute switch on. That is the one bypass of the switch, and it is yours to grant: nothing is allowed as delivered.
+The program is given one argument, a document of the pdf directory. It is started only if it still passes the test made when it was added: an .exe under Program Files or the Windows folder, a regular file and not a link, owned by SYSTEM, the Administrators or TrustedInstaller, that no other user can change. A program that fails the test is shown as FAILS and is not started.
+A graphical reader can open other files you may read and follow links, so allow only programs you trust, and never a shell or an editor. Enter on a row stops allowing it. At the prompt: set.viewer remove pdf name.

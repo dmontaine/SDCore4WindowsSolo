@@ -1,1 +1,1 @@
-%1 is not a full path; give the drive letter and the folders of the .exe, such as C:/Program Files/Some Reader/reader.exe
+%1 was not found: give the full path of the .exe, such as C:/Program Files/Some Reader/reader.exe, or the name of a program this computer's App Paths knows, such as msedge

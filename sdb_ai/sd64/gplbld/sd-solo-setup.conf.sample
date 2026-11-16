@@ -114,3 +114,16 @@ os-access=
 #start=terminal
 
 start=
+
+# viewer
+#   A PDF reader the pdf command may start to show the documentation, even
+#   though the account has no OS access (16 Nov 2026): none, or the name this
+#   computer's App Paths knows it by - msedge, acrobat, acrord32,
+#   foxitpdfreader, sumatrapdf, pdfxedit, firefox or chrome.  The program must
+#   pass the same test as SET.VIEWER ADD (an .exe under Program Files that only
+#   the system and administrators can change).  Nothing is allowed unless it is
+#   named.  Blank: the installer asks when one of those readers is installed.
+#   Later: ADMIN, then SET.VIEWER or the Bypass programs page (TOOL.VIEWERS).
+#viewer=msedge
+
+viewer=

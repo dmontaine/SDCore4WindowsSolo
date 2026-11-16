@@ -5,6 +5,7 @@
 *
 * START-HISTORY:
 * 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230, RELEASE_1.1 286): the unused hdx and hdw are gone.
+* 16 Nov 26 SD Core Solo - SOLO 54: the Bypass programs tile (tool.viewers), as Linux Solo, now that the page is carried.
 * 15 Nov 26 SD Core Solo - RELEASE_1.1 327 (Core's row): ask.ai gives the AI line the focus again (ai.focus.on) after Follow up.
 * 13 Nov 26 SD Core Solo - RELEASE_1.1 285 (owner 14 Nov, Linux S.231): the date line ends with the product and the version stamp, cut at 72 (60 would not hold them).
 * 12 Nov 26 SD Core Solo - RELEASE_1.1 262: a cmd: tile is shown only when its verb is in the account's VOC (the AI tile had no page here).
@@ -363,7 +364,8 @@ build.page:
       id = 'menus' ; grp = g ; label = 'Menu management' ; glyph = '[=]' ; sub = 'tiles and start' ; act = 'cmd:tool.menus' ; pal = 'rust' ; size = 'n' ; pause = 0 ; why = '' ; gosub add.tile
       id = 'audit' ; grp = g ; label = 'Audit trail' ; glyph = '[*]' ; sub = 'who did what' ; act = 'cmd:tool.audit' ; pal = 'rust' ; size = 'n' ; pause = 0 ; why = '' ; gosub add.tile
       id = 'config' ; grp = g ; label = 'Configuration' ; glyph = '[%]' ; sub = 'sd.conf and SD' ; act = 'cmd:tool.config' ; pal = 'rust' ; size = 'n' ; pause = 0 ; why = '' ; gosub add.tile
-      * Linux Solo has a Bypass programs tile here (tool.viewers, the readers pdf may start).  Windows Solo has the pdf verb (SOLO 47) but not the page (SOLO 54), so no tile.
+      * Solo keeps the pdf verb (owner, 9 Nov 2026), so it keeps the page of the readers pdf may start (Core's S.187 removed both).  16 Nov 26 - SOLO 54: the page is here now.
+      id = 'viewers' ; grp = g ; label = 'Bypass programs' ; glyph = '[!]' ; sub = 'readers for pdf' ; act = 'cmd:tool.viewers' ; pal = 'rust' ; size = 'n' ; pause = 0 ; why = '' ; gosub add.tile
       * who may do what, and who is on: the people and access group
       g += 1
       gr<g> = 'People and access' : @vm : bnd : @vm : 2

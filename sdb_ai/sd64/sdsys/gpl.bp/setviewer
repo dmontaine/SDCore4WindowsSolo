@@ -4,6 +4,8 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 16 Nov 26 SD Core Solo - SOLO 54: a bare name (no / \ : or space), as Linux Solo takes one, is looked up with !viewlist 'find' - the machine's App Paths key on
+*               Windows, /usr/bin and the like on Linux - so the Bypass programs page (tool.viewers), whose commands carry no slash, can name a reader.  12904 says so.
 * 9 Nov 26 Windows port - from Linux Solo 15767b9 (SOLO 47, the owner: "the windows solo should get pdf").  The program is always a full path (there is no search of three folders), and the path may have spaces, so
 *               everything after the purpose is the path; a pair of double quotes round it is taken off.  The message ids are Linux's plus 1005.
 * 23 Oct 26 dm  New (S.75; the owner: "an admin screen to setup which programs are allowed to bypass the os.execute restriction globally ... normally GUI programs
@@ -17,7 +19,8 @@
 *   SET.VIEWER REMOVE pdf program       stops allowing it
 *
 *   The administrator's verb.  NOTHING IS ALLOWED AS DELIVERED: PDF says no viewer has been allowed until one is added here.  The program is the full path of an .exe, such as
-*   "C:/Program Files/Some Reader/reader.exe" (double quotes are optional; / or \ both do).  A program is added only if !VIEWLIST's test passes (an existing regular .exe under Program Files or the
+*   "C:/Program Files/Some Reader/reader.exe" (double quotes are optional; / or \ both do), or a bare name such as msedge, which is the program the machine's App Paths
+*   key names for msedge.exe (16 Nov 26, SOLO 54; Linux Solo looks a bare name up in /usr/bin and the like).  A program is added only if !VIEWLIST's test passes (an existing regular .exe under Program Files or the
 *   Windows folder, owned by SYSTEM, the Administrators or TrustedInstaller, that no ordinary user can write), and the same test is made each time PDF starts it.  Passing the test does not make a
 *   program safe: a graphical viewer can open other files its user may read and follow links, which is why this is the administrator's list and not a setting of an account.  Takes effect at once.
 *
@@ -56,7 +59,11 @@ $include err.h
    if action # 'add' and action # 'remove' then stop sysmsg(12895)
    if purpose # 'pdf' then stop sysmsg(12902, purpose[1, 40])    ;* %1 is not a purpose; only pdf can be set
 
-   call !viewlist('native', arg, path, 0)
+   if index(arg, '/', 1) or index(arg, '\', 1) or index(arg, ':', 1) or index(arg, ' ', 1) then
+      call !viewlist('native', arg, path, 0)
+   end else
+      call !viewlist('find', arg, path, 0)                       ;* SOLO 54: a bare name, from the machine's App Paths key
+   end
    if action = 'remove' and path = '' then path = arg            ;* the program may be gone from the disk, or typed in a spelling that is not a path
    call !viewlist('get', purpose, paths, 0)
    locate path in paths<1> setting p then there = 1 else there = 0

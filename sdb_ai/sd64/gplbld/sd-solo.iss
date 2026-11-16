@@ -306,6 +306,14 @@ var
     one of those (then the page asks).  StartPage is one unticked box, shown on a new tree only: an upgrade keeps the site's start. }
   CfStart: String;
   StartPage: TInputOptionWizardPage;
+  { 16 Nov 26 - SOLO 54, THE PDF READER QUESTION (Linux Solo's ask_viewer, Solo carry 14): the pdf verb shows the documentation even
+    when the account has no OS access, so it starts only a reader the administrator allowed, and none is allowed as delivered.
+    ViewerFound is the first known reader the machine's App Paths names ('' when none); ViewerAllowedAlready is a "pdf " line in
+    sdsys\viewers (an upgrade keeps what the administrator chose).  CfViewer is the control file's viewer=: 'none', a reader's
+    name, or '' (asked). }
+  CfViewer, ViewerFound: String;
+  ViewerAllowedAlready: Boolean;
+  ViewerPage: TInputOptionWizardPage;
   { 06 Oct 26 - SOLO 36: the control file's api= and ssh=, 'off', 'local' or
     'open'; '' when not given or not one of those (then the Tasks page asks). }
   CfApi, CfSsh: String;
@@ -480,6 +488,66 @@ begin
     Result := 'given, refused (' + Problem + '), asked for';
 end;
 
+{ 16 Nov 26 - SOLO 54.  A reader's name as SET.VIEWER takes one bare: a-z 0-9 . _ + -, not starting with a dot, at most 60. }
+function IsReaderName(const S: String): Boolean;
+var
+  I: Integer;
+begin
+  Result := (S <> '') and (Length(S) <= 60) and (S[1] <> '.');
+  if not Result then
+    Exit;
+  for I := 1 to Length(S) do
+    if Pos(S[I], 'abcdefghijklmnopqrstuvwxyz0123456789._+-') = 0 then
+    begin
+      Result := False;
+      Exit;
+    end;
+end;
+
+{ 16 Nov 26 - SOLO 54 (Linux Solo's find_pdf_reader): the first known reader the machine's App Paths names, or ''.  The names and
+  their order are tool_viewers' (cnames).  HKLM only, both views: only an administrator writes there.  SET.VIEWER tests the program
+  itself when it is allowed, so a name found here is only what is offered. }
+function FindPdfReader: String;
+var
+  Names: TArrayOfString;
+  I: Integer;
+  V, K: String;
+begin
+  Result := '';
+  SetArrayLength(Names, 8);
+  Names[0] := 'msedge';  Names[1] := 'acrobat';  Names[2] := 'acrord32';  Names[3] := 'foxitpdfreader';
+  Names[4] := 'sumatrapdf';  Names[5] := 'pdfxedit';  Names[6] := 'firefox';  Names[7] := 'chrome';
+  for I := 0 to GetArrayLength(Names) - 1 do
+  begin
+    K := 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\' + Names[I] + '.exe';
+    V := '';
+    if not RegQueryStringValue(HKLM64, K, '', V) then
+      RegQueryStringValue(HKLM32, K, '', V);
+    if Trim(V) <> '' then
+    begin
+      Result := Names[I];
+      Exit;
+    end;
+  end;
+end;
+
+{ 16 Nov 26 - SOLO 54: whether sdsys\viewers already allows a reader for pdf (a line that begins "pdf "). }
+function ViewerListHasPdf(const Root: String): Boolean;
+var
+  Lines: TArrayOfString;
+  I: Integer;
+begin
+  Result := False;
+  if not LoadStringsFromFile(Root + '\sdsys\viewers', Lines) then
+    Exit;
+  for I := 0 to GetArrayLength(Lines) - 1 do
+    if CompareText(Copy(Trim(Lines[I]), 1, 4), 'pdf ') = 0 then
+    begin
+      Result := True;
+      Exit;
+    end;
+end;
+
 { SOLO 18: the control file's answers, read and checked once.  Passwords are
   never logged - only whether each was given and whether it was accepted. }
 procedure LoadControlFile;
@@ -565,6 +633,16 @@ begin
     CfStart := '';
   end;
   Log('SD Core Solo: control file start "' + CfStart + '"');
+  { 16 Nov 26 - SOLO 54: viewer= answers the PDF reader question: none, or a reader's name (letters, digits and . _ + -, not starting
+    with a dot), which SET.VIEWER looks up in App Paths and tests.  Anything else is not an answer and the page asks. }
+  CfViewer := Lowercase(Trim(GetIniString('install', 'viewer', '', F)));
+  if not IsReaderName(CfViewer) and (CfViewer <> 'none') then
+  begin
+    if CfViewer <> '' then
+      Log('SD Core Solo: control file viewer "' + CfViewer + '" is not none or a reader''s name - asked for');
+    CfViewer := '';
+  end;
+  Log('SD Core Solo: control file viewer "' + CfViewer + '"');
 end;
 
 { 20 Oct 26 - RELEASE_1.1 165, THE OS SWITCH.  The answer to "turn on the shell and OS access?" as the word solo-setup.ps1 takes:
@@ -590,6 +668,24 @@ begin
     Result := 'os'
   else
     Result := 'none';
+end;
+
+{ 16 Nov 26 - SOLO 54, THE PDF READER QUESTION.  The reader solo-setup.ps1 allows (SET.VIEWER ADD PDF name), or '' for none.  The control
+  file answers it on a new tree; otherwise the page's one box, unticked as delivered (also what a silent install gets: nothing is allowed
+  unless someone said so).  Not asked, and '', where no known reader is installed or a reader is already allowed. }
+function ViewerWord: String;
+begin
+  Result := '';
+  if UseControl and (CfViewer <> '') then
+  begin
+    if CfViewer <> 'none' then
+      Result := CfViewer;
+    Exit;
+  end;
+  if (ViewerFound = '') or ViewerAllowedAlready then
+    Exit;
+  if ViewerPage.Values[0] then
+    Result := ViewerFound;
 end;
 
 { 12 Nov 26 - SOLO 56 group 6, THE START QUESTION.  The word solo-setup.ps1 takes: terminal (it runs SET.START.DEFAULT TERMINAL),
@@ -639,6 +735,8 @@ begin
                  FileExists(SoloRoot + '\sdsys\$cred\$admin') and FileExists(SoloRoot + '\sdsys\$cred\$stored');
   KeptGlobalFound := KeptPwFound and FileExists(SoloRoot + '\sdsys\$cred\$global');
   KeptStartFound := KeptWasFound and FileExists(SoloRoot + '\sdsys\start.default');
+  ViewerFound := FindPdfReader;
+  ViewerAllowedAlready := ViewerListHasPdf(SoloRoot);
   SoloWasInstalled := RegKeyExists(HKCU, SoloKey);
   SshServerWasFound := FileExists(ExpandConstant('{sys}\OpenSSH\sshd.exe')) or
                        FileExists(ExpandConstant('{commonpf64}\OpenSSH\sshd.exe'));
@@ -672,7 +770,8 @@ begin
       ' keptdata=' + IntToStr(Ord(KeptWasFound)) +
       ' keptpasswords=' + IntToStr(Ord(KeptPwFound)) +
       ' keptglobal=' + IntToStr(Ord(KeptGlobalFound)) +
-      ' keptstart=' + IntToStr(Ord(KeptStartFound)));
+      ' keptstart=' + IntToStr(Ord(KeptStartFound)) +
+      ' pdfreader="' + ViewerFound + '" pdfallowed=' + IntToStr(Ord(ViewerAllowedAlready)));
   Result := True;
 end;
 
@@ -878,6 +977,13 @@ begin
   StartPage.Add('Start new sessions at the command prompt, not the home screen');
   StartPage.Values[0] := False;
 
+  { 16 Nov 26 - SOLO 54, THE PDF READER QUESTION: one box, unticked (nothing allowed, as delivered).  Options only on the screen; what
+    allowing a reader means is in the installation page of the Solo docs. }
+  ViewerPage := CreateInputOptionPage(StartPage.ID, 'PDF reader',
+    'No program is allowed to show the documentation unless you choose one.', '', False, False);
+  ViewerPage.Add('Allow ' + ViewerFound + ' to show the documentation (the pdf command)');
+  ViewerPage.Values[0] := False;
+
   { SOLO 18: the control file's accepted answers fill their pages, which are
     then skipped; a page it did not answer is shown empty. }
   if UseControl then
@@ -929,6 +1035,10 @@ begin
   { 12 Nov 26 - SOLO 56 group 6: the start question on a new tree only, skipped when a control file answers it. }
   else if PageID = StartPage.ID then
     Result := (not DataTreeWasAbsent) or (ReloadChosen and KeptStartFound) or (UseControl and (CfStart <> ''))
+  { 16 Nov 26 - SOLO 54: the PDF reader question, on a new tree and an upgrade, only where a known reader is installed and none is
+    allowed yet; skipped when a control file answers it. }
+  else if PageID = ViewerPage.ID then
+    Result := (ViewerFound = '') or ViewerAllowedAlready or (UseControl and (CfViewer <> ''))
   else if PageID = wpReady then
     Result := UseControl and CfAdminOk and CfGlobalOk;
 end;
@@ -1219,6 +1329,15 @@ begin
     S := S + 'sessions start : not asked on an upgrade; the install keeps what it has' + #13#10
   else
     S := S + 'sessions start : ' + StartWord + '   (menu is the home screen)' + #13#10;
+  { 16 Nov 26 - SOLO 54: the PDF reader allowed now, or why none. }
+  if ViewerWord <> '' then
+    S := S + 'pdf reader     : ' + ViewerWord + ' (set.viewer add pdf ' + ViewerWord + ')' + #13#10
+  else if ViewerAllowedAlready then
+    S := S + 'pdf reader     : not asked; a reader is already allowed' + #13#10
+  else if ViewerFound = '' then
+    S := S + 'pdf reader     : not asked; no known reader is in App Paths' + #13#10
+  else
+    S := S + 'pdf reader     : none allowed' + #13#10;
   SaveStringToFile(ExpandConstant('{app}\install-summary.log'), S + #13#10, True);
   Log('SD Core Solo: ' + S);
 end;
@@ -1336,6 +1455,8 @@ begin
   SetEnvironmentVariable('SD_SOLO_OS_ACCESS', OsAccessWord);
   { 12 Nov 26 - SOLO 56 group 6: the start question's answer, '' on an upgrade (solo-setup.ps1 refuses a start word on one). }
   SetEnvironmentVariable('SD_SOLO_START', StartWord);
+  { 16 Nov 26 - SOLO 54: the PDF reader to allow, new tree and upgrade alike ('' allows nothing). }
+  SetEnvironmentVariable('SD_SOLO_VIEWER', ViewerWord);
   if DataTreeWasAbsent then
   begin
     { SOLO 37: reload the kept data (moved aside by PrepareToInstall) into this new tree. }
@@ -1372,6 +1493,7 @@ begin
   SetEnvironmentVariable('SD_SOLO_DENY_VERBS', '');
   SetEnvironmentVariable('SD_SOLO_OS_ACCESS', '');
   SetEnvironmentVariable('SD_SOLO_START', '');
+  SetEnvironmentVariable('SD_SOLO_VIEWER', '');
   AppendSummary('solo-setup (exit ' + IntToStr(Code) + ')', ReportPath);
   if Code <> 0 then
     Failed := Failed + '  account and passwords' + #13#10;

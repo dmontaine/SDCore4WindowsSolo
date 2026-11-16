@@ -111,6 +111,10 @@ $osAccess = ("" + [Environment]::GetEnvironmentVariable('SD_SOLO_OS_ACCESS', 'Pr
 # menu (the home screen, as delivered) or terminal (the command prompt).  A new tree only; '' on an upgrade.  Not a secret.
 $startAt = ("" + [Environment]::GetEnvironmentVariable('SD_SOLO_START', 'Process')).Trim().ToLowerInvariant()
 [Environment]::SetEnvironmentVariable('SD_SOLO_START', $null, 'Process')
+# 16 Nov 26 - SOLO 54, THE PDF READER QUESTION (Linux Solo's --viewer, Solo carry 14): a reader's name to allow for the pdf verb
+# (SET.VIEWER ADD PDF name, which looks it up in App Paths and tests it), or '' for none.  New tree and upgrade.  Not a secret.
+$viewer = ("" + [Environment]::GetEnvironmentVariable('SD_SOLO_VIEWER', 'Process')).Trim().ToLowerInvariant()
+[Environment]::SetEnvironmentVariable('SD_SOLO_VIEWER', $null, 'Process')
 # SOLO 2: the tree finds itself from sd.exe's location; a stray SD_CONFIG would
 # point it somewhere else.
 [Environment]::SetEnvironmentVariable('SD_CONFIG', $null, 'Process')
@@ -130,6 +134,7 @@ Note ('account pw   : ' + $(if ($accountPw) { 'given (' + $accountPw.Length + ' 
 Note ('deny verbs   : ' + $(if ($denyVerbs) { '"' + $denyVerbs + '"' } else { 'none given' }))
 Note ('os access    : ' + $(if ($osAccess) { '"' + $osAccess + '"' } else { 'not given (nothing is turned on)' }))
 Note ('start        : ' + $(if ($startAt) { '"' + $startAt + '"' } else { 'not given (nothing is written: an upgrade, or the home screen)' }))
+Note ('pdf reader   : ' + $(if ($viewer) { '"' + $viewer + '"' } else { 'not given (nothing is allowed)' }))
 
 # The null cases, refused out loud.
 $refuse = @()
@@ -138,6 +143,8 @@ if ($osAccess -and ($osAccess -notmatch '^(none|sh|os|both)$')) { $refuse += 'os
 # 12 Nov 26 - SOLO 56 group 6: only the two words are an answer, and only on a new tree.
 if ($startAt -and ($startAt -notmatch '^(menu|terminal)$')) { $refuse += 'start is not menu or terminal' }
 if ($startAt -and $Upgrade) { $refuse += 'start is given on an upgrade, which keeps the site''s start' }
+# 16 Nov 26 - SOLO 54: a reader's name reaches sd's command line through cmd.exe, so only a-z 0-9 . _ + -, not starting with a dot.
+if ($viewer -and (($viewer -notmatch '^[a-z0-9._+-]{1,60}$') -or $viewer.StartsWith('.'))) { $refuse += 'the pdf reader is not a name of letters, digits and . _ + -' }
 if (-not $AppDir -or -not (Test-Path -LiteralPath $sdexe)) { $refuse += 'no sd-solo.exe under the app dir' }
 if (-not (Test-Path -LiteralPath $sdsys)) { $refuse += 'no sdsys under the app dir' }
 if (-not $User) { $refuse += 'no user name' }
@@ -269,6 +276,8 @@ $disqualify = @('only the installer may run this', 'Connection terminated', 'has
                 'Cannot open accounts register', 'does not take',
                 # SET.START.DEFAULT's refusals (12877 could not be written, 12875 its syntax) - SOLO 56 group 6
                 'The system default start could not be written', 'set.start.default {menu | terminal}',
+                # SET.VIEWER's refusals (12854 the test, 12904 not found, 12903 not written, 12895 its syntax) - SOLO 54
+                'cannot be used:', 'was not found: give the full path', 'The list of allowed programs could not be written', 'set.viewer {add | remove}',
                 # WRITE_INSTALL_DICTS' refusals (and bootstrap.py's Invalid runfile)
                 'ERROR OPENING FILE', 'ERROR CANNOT OPEN', 'PROCESS ABORTED', 'READLIST EMPTY',
                 'NO DIRECTORY RECORDS FOUND', 'CANNOT READ TRANSFER_FILE', 'Invalid runfile',
@@ -496,6 +505,19 @@ try {
         Note ('  start.default: "' + $first + '"   (' + $sdFile + ')')
         if ($first -eq 'terminal') { Note '  PASS  start.default says terminal' }
         else { Note '  FAIL  start.default says terminal'; $script:fails += 'start.default says terminal' }
+    }
+
+    # 16 Nov 26 - SOLO 54, THE PDF READER.  SET.VIEWER ADD PDF <name>: it finds the program in App Paths and tests it; judged on its
+    # success words (12896, or 12898 when it was already allowed), and the list it writes read back.
+    if ($viewer) {
+        $t = Invoke-Sd ('-internal SET.VIEWER ADD PDF ' + $viewer) ''
+        Judge ('pdf reader ' + $viewer + ' allowed (the verb)') $t '(?m)^The program \S.* (is now|was already) allowed for pdf'
+        $vf = Join-Path $sdsys 'viewers'
+        $vl = @()
+        if (Test-Path -LiteralPath $vf) { $vl = @(Get-Content -LiteralPath $vf | Where-Object { $_ -match '^pdf \S' }) }
+        Note ('  viewers: ' + $vl.Count + ' pdf line(s) in ' + $vf + $(if ($vl.Count) { ': ' + ($vl -join ' | ') } else { '' }))
+        if ($vl.Count -gt 0) { Note '  PASS  the list holds a pdf reader' }
+        else { Note '  FAIL  the list holds a pdf reader'; $script:fails += 'pdf reader in the list' }
     }
 
     # 20 Oct 26 - RELEASE_1.1 165, THE OS SWITCH.  The shell and OS access are two switches of the one account, fields 7 and 8 of the

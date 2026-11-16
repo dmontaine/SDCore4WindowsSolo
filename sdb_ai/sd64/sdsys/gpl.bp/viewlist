@@ -4,6 +4,9 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 16 Nov 26 SD Core Solo - SOLO 54 (Linux Solo's tool.viewers carried): 'find' is back.  Linux looks a bare name up in /usr/bin, /usr/local/bin and /bin;
+*               Windows' own place for "this name is that program" is the machine's App Paths key (HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\
+*               <name>.exe), which only an administrator can write - the user's own HKCU copy is not read.  The path it names still has to pass 'check'.
 * 9 Nov 26 Windows port - from Linux Solo 15767b9 (SOLO 47, the owner: "the windows solo should get pdf").  The test is Windows's: a program is a REGULAR .exe under Program Files, Program Files (x86) or the Windows folder, owned by SYSTEM, the
 *               Administrators or TrustedInstaller, that no ordinary user's group can write; it is made with PowerShell (os.execute, allowed here because this program is $internal).  There is no 'find' (a bare name is not searched
 *               for) and no chmod (the list's folder keeps its own permissions).
@@ -19,6 +22,7 @@
 *     'put'    a = purpose, b = the paths (one to a field)       c = returned 1 when the list was written, else 0.  Replaces that purpose's lines; the lines of other purposes are kept.
 *     'check'  a = a path                           b = returned: null when a program may be on the list, else the reason in words
 *     'native' a = a path in any spelling SD uses   b = returned: the path as Windows writes it (C:/Program Files/x/y.exe), or null when it is not an absolute path of plain characters
+*     'find'   a = a bare name (msedge)             b = returned: the program the machine's App Paths key names for name.exe, as 'native' writes it, else null
 *
 *   THE LIST is the file  viewers  in the SD system directory, one line to an entry:  purpose, a space, the native path.  Lines that are blank or begin with # are
 *   ignored.  It is EMPTY as delivered: nothing is allowed until the administrator names it (SET.VIEWER).
@@ -70,7 +74,27 @@ $include err.h
          gosub check.program
       case op = 'native'
          gosub make.native
+      case op = 'find'
+         gosub find.name
    end case
+   return
+
+* The program the machine's App Paths key names for name.exe, or null (a name of a-z 0-9 . _ + - not starting with a dot).  PowerShell reads the key's default value
+* on one line with single quotes only, as check.program's test does; a value in double quotes (some installers write it so) has them taken off.
+find.name:
+   b = ''
+   nm = downcase(a)
+   if nm = '' or nm[1, 1] = '.' or len(nm) > 60 then return
+   if trim(convert('abcdefghijklmnopqrstuvwxyz0123456789._+-', space(39), nm)) # '' then return
+   ps = "$ErrorActionPreference='Stop'; try { $v=(Get-Item -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\" : nm : ".exe').GetValue(''); "
+   ps := "if ($v) { $v.Trim().Trim([char]34) } } catch { }"
+   os.execute ps capturing so
+   v = trim(convert(char(13) : char(10) : @fm, '   ', so))
+   if v = '' then return
+   a.keep = a
+   a = v
+   gosub make.native
+   a = a.keep
    return
 
 * The path as Windows writes it: C:/dir/file.  The spellings SD answers are C:/x, C:\x, /cygdrive/c/x and /c/x.  Null when it is none of them, or has a character a plain path does not

@@ -11436,7 +11436,7 @@
 "part": "reference/messages.md",
 "since": "-",
 "tier": "reference",
-"words": 26
+"words": 35
 },
 "msg:12905": {
 "kind": "message",
@@ -28187,7 +28187,7 @@
 "part": "reference/tcl-verbs.md",
 "since": "-",
 "tier": "reference",
-"words": 57
+"words": 72
 },
 "tcl:set.xfer.access": {
 "kind": "tcl.verb",
@@ -28531,6 +28531,13 @@
 "since": "-",
 "tier": "reference",
 "words": 129
+},
+"tcl:tool.viewers": {
+"kind": "tcl.verb",
+"part": "reference/tcl-verbs.md",
+"since": "-",
+"tier": "reference",
+"words": 46
 },
 "tcl:tool.voc": {
 "kind": "tcl.verb",
