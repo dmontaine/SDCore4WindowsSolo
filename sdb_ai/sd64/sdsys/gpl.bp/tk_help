@@ -5,7 +5,7 @@
 *
 * START-HISTORY:
 * 12 Nov 26 Windows port - SOLO 56 group 5: Linux Solo 608b511 taken whole, messages renumbered (11xxx + 1005, 14xxx + 1000).  The Documentation button
-*               runs the pdf verb SOLO 47 carried.
+*               runs the pdf verb SOLO 47 carried.  (15 Nov 26: Core's S.230 change here is not taken: Solo's box uses its answer, the Documentation button.)
 * 23 Oct 26 dm  New (S.75, plan section 14.5).
 * 23 Oct 26 dm  SOLO CARRY 14 (Core 72e708e): the file is context.help in the SD system directory, not in a shared account.
 * 30 Oct 26 dm  S.88 F0a: the box shows "Keys in this pane" (message 12249) above the page's help text, a list made from the key table $tk_frame kept; no page's F1 line changes.

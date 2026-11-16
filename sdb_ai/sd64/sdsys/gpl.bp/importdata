@@ -17,6 +17,7 @@
 * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 *
 * START-HISTORY:
+* 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230): removed the unused assignments to kids.
 * 15 Nov 26 SD Core Solo - from Linux Solo 90f6738 (S.234 BASIC review): the !voc_guard call added.  Solo carry 12 (21 Oct 26) left SD Core's
 *               edit_guard call out and put nothing in its place, so IMPORT.CSV / .JSON / .XML into the file VOC wrote VOC records from a session
 *               that had not typed ADMIN: this program is $internal, which the kernel's voc_write_refused() lets through, trusting $internal
@@ -330,8 +331,6 @@ import.xml:
          end
       end
    repeat
-   kids = ''
-   if element.exists(x, 'children') then kids = x{'children'}
    nrec = 0 ; gen = 0
    if element.exists(x, 'children') then nrec = inmat(x{'children'})
    for r = 1 to nrec

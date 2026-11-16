@@ -17,7 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
- * 15 Nov 26 SD Core Solo - from Core (Linux 64561d81, S.230): the UNIX socket path is copied bounded and always terminated.
+ * 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230, RELEASE_1.1 286): socket_byte() gives a NUL on an ended read, the key
+ *            written to a child's pipe is tested, and the Unix-socket path is copied with its terminator always set.
  * 12 Nov 26 Windows port - from Linux e79f6499, as Linux Solo (RELEASE_1.1 252, P-23): a TCP connection to a session that is not the API
  *           server is refused, and a peer whose address cannot be read has port 0.
  * 12 Nov 26 SD Core Solo - as Linux S.125 (RELEASE_1.1 251): keyin()'s t1 starts at 0.
@@ -1017,7 +1018,11 @@ again:
       if (c == inewline)
         c = 10;
       tio_display_string(&c, 1, TRUE, FALSE);
-      write(ChildPipe, &c, 1);
+      /* 14 Nov 26 dm - tested: a failed write means the child closed its input (or ended); the key was for it, so it is
+         dropped, and op_sh.c closes the pipe when the child is reaped.  */
+      if (write(ChildPipe, &c, 1) != 1) {
+        /* dropped: see above */
+      }
     } else {
       /* Pop this character into the ring buffer */
 
@@ -1117,7 +1122,10 @@ int bytes;
 char socket_byte() {
   char c;
 
-  read(0, &c, 1);
+  /* 14 Nov 26 dm - an ended or failed read left c unset and the telnet negotiation read whatever was on the stack; it is
+     now a NUL, which no negotiation step acts on, and the next read of the connection sees the end.  */
+  if (read(0, &c, 1) != 1)
+    c = '\0';
 
   return c;
 }

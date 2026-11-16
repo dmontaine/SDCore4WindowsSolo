@@ -6,6 +6,7 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230, RELEASE_1.1 286): the SCREEN MSGBOX keeps no unused answer.
 * 12 Nov 26 Windows port - SOLO 56 group 5: Linux Solo 608b511 with three Windows differences.  The file shown is the one this SD read, from the kernel
 *               (K$INIPATH: SD_CONFIG, else sd.conf in the Solo folder - which is not in sdsys here); when SD_CONFIG is set the confirm box says that set.config
 *               changes the Solo folder's sd.conf only (gplbld/sd-confset.ps1 writes the file beside it).  The restart command is sd-solo -stop, then
@@ -780,7 +781,7 @@ explain.fixed:
       call $tk_wrap(wh : ' A value SD does not accept stops SD from starting: read the guide first.', 100, pieces)
       body<-1> = pieces
    end
-   screen msgbox body title 'Not changed here' buttons '&Close' default 1 returning bx else bx = 0
+   screen msgbox body title 'Not changed here' buttons '&Close' default 1
    msg = k : ' is not changed from this page; nothing was written'
    return
 

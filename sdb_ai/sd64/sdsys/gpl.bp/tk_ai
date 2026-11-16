@@ -6,6 +6,7 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230): removed the unused assignments to cx.from (the standing text's 'context-from').
 * 15 Nov 26 Windows port - RELEASE_1.1 326 (Core's row; the owner: follow set.ai limit max-tokens): 100000 tokens asked, the kernel's ceiling,
 *               so the administrator's max-tokens decides; say is cut at 65536, not 6000.
 * 15 Nov 26 Windows port - RELEASE_1.1 325 (Core's row; the owner: "it should display the whole response"): message 12640 asks for a full
@@ -448,14 +449,12 @@ run.ask:
    *   to the wall's screen as a typed request is, with the other screens and before anything else is read for the request: SET.AI refuses to keep one that names SD's own code,
    *   and a text that does so all the same is not sent - nor is the request.
    cx.text = ''
-   cx.from = ''
    rp = kernel(K$AI.STATUS, 0)
    if rp<1> = 'D' then
       cxj = jparse(rp<2>)
       if not(status()) then
          if cxj{'t'} = 'status' then
             cx.text = cxj{'context'}
-            cx.from = cxj{'context-from'}
          end
       end
    end

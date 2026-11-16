@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230): tsettermtype(): a short read of the terminal's names is ER_TI_INVHDR
+ *           (it went on with the buffer as it was).
  * 31 Dec 23 SD launch - prior history suppressed
  * END-HISTORY
  *
@@ -230,7 +232,15 @@ bool tsettermtype(termname) char* termname;
 
   /* ---------- Read the name (a null-terminated string) */
 
-  read(fu, buff, min(MAX_NAME_SIZE, (unsigned)name_size));
+  /* 14 Nov 26 dm - a short or failed read is an invalid entry (ER_TI_INVHDR), as a bad header is; it used to go on with
+     whatever was in buff as the terminal's names.  */
+  {
+    unsigned want = min(MAX_NAME_SIZE, (unsigned)name_size);
+    if (read(fu, buff, want) != (ssize_t)want) {
+      process.status = ER_TI_INVHDR;
+      goto exit_settermtype;
+    }
+  }
   buff[MAX_NAME_SIZE] = '\0';
   bytes = strlen(buff) + 1;
   if ((tinfo.term_names = (char*)k_alloc(93, bytes)) == NULL) {

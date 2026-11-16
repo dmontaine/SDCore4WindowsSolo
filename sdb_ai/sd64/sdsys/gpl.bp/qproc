@@ -18,6 +18,7 @@
 * 
 *  
 * START-HISTORY:
+* 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230, RELEASE_1.1 286): the unused sorted.sample.done and json.count are gone.
 * 20 Oct 26 SD Core Solo - RELEASE_1.1 165 (the OS switch, Linux Solo 7c6bbfc): the delimited report's TO pathname asks the OS-access gate (K$PATH.OK) before the file is opened.
 * 18 Oct 26 Windows port - from Linux df5e076 (18 Oct 26): Solo carry A (owner's ruling B): this program is $internal, so the C test lets its writes through, and it
 *               asks !voc_guard itself before it changes a file the user named: REFORMAT and SREFORMAT ask for the TO file (the
@@ -222,7 +223,6 @@ $define MAX.STRINGS    100          ;* For SEARCH command (was 20 until STRINGS 
    absent.ignore = @false        ;* ABSENT.IGNORE
    sorted.sample = @false        ;* SORTED.SAMPLE n: after the sort...
    sorted.sample.count = 0       ;* ...this many records...
-   sorted.sample.done = 0        ;* ...and this many so far
    sample = @false               ;* Process only the first few records...
    sample.count = 0              ;* ...Number of records to process
    
@@ -357,7 +357,6 @@ $define MAX.STRINGS    100          ;* For SEARCH command (was 20 until STRINGS 
    json.report = @false          ;* JSON / JSON.LINES (20 Oct 26): set up as an XML report, written by show.json
    json.lines = @false           ;* ...JSON Lines: one object to a line and no brackets
    json.pending = ''             ;* ...the last record's line, held back until its comma is known
-   json.count = 0                ;* ...records so far
    xml.report = @false           ;* XML (16 Oct 26, QM4 gap 211): an XML report is a delimited report in how it is set up,
    xml.elements = @false         ;* ...ELEMENTS: each field an element, not an attribute
    xml.option = @false           ;* ...one of the options below was given (they need XML)
@@ -6640,7 +6639,6 @@ xml.end:
 json.start:
    gosub xml.prepare
    json.pending = ''
-   json.count = 0
    if not(json.lines) then print on lptr '['
    return
 
@@ -6705,7 +6703,6 @@ show.json:
       if json.pending # '' then print on lptr json.pending : ','
       json.pending = json.line
    end
-   json.count += 1
    return
 
 * XML.DTD.OUT  -  The declarations of the DTD
@@ -7543,13 +7540,11 @@ break.continue.no.conversion:
             conversion = item.conv(item.to.list)
             if item.multivalued(item.to.list) then
                if len(conversion) then bp.data = oconvs(bp.data, conversion)
-               bp.data.conv = bp.data
                if item.justification(item.to.list) # 'U' then
                   bp.data = fmts(bp.data, item.fmt(item.to.list))
                end
             end else
                if len(conversion) then bp.data = oconv(bp.data, conversion)
-               bp.data.conv = bp.data
                if item.justification(item.to.list) # 'U' then
                   bp.data = fmt(bp.data, item.fmt(item.to.list))
                end

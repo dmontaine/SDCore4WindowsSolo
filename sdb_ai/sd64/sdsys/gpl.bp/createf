@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 14 Nov 26 Windows port - from Linux 64561d81 (S.230, RELEASE_1.1 286): the unused no.query is gone.
 * 12 Nov 26 Windows port - from Linux 41d8817d (RELEASE_1.1 252, audit P-22): the name is looked up (as typed, lower, upper) before it is folded.
 * 12 Nov 26 SD Core Solo - SOLO 56 group 8, as Linux Solo b1d823f (SD Core's S.73 item 3, Windows Core's text as it now stands): CREATE.FILE name ... SERVER srv {AS remote}
 *               makes the file on another SD server and writes the N pointer only after the server confirmed it (create.remote.file, messages 12533, 12534, 12538, 12541-12544).
@@ -92,7 +93,6 @@ $define default.split.load 80
    dir.name = ""
    dir.name.with.delimiter = ""
    using.dict = @false
-   no.query = @false
    no.resize = @false
    net.server = ''           ;* 21 Oct 26 dm, S.73 item 3 (carried to Solo 12 Nov 26): SERVER name - create the file on another SD server
    net.as = ''               ;* ... AS name: its name there (the local name when left out)
@@ -210,7 +210,7 @@ $define default.split.load 80
 
          * ---------- NO.QUERY
          case keyword = KW$NO.QUERY
-            no.query = @true
+            null
 
          * ---------- NO.RESIZE
          case keyword = KW$NO.RESIZE

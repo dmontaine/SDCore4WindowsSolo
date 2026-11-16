@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230, RELEASE_1.1 286): the error log's truncate and write results are tested.
  * 12 Nov 26 SD Core Solo - RELEASE_1.1 251: SYS.* names for 12353 and 12360 (Linux 11348 and 11355), which are in use here now.
  * 12 Nov 26 Windows port - from Linux 814c5f07 (RELEASE_1.1 240 c): audit_message() writes a control character, DEL or an SD mark in its text as '?'.
  * 9 Nov 26 Windows port - from Linux 07b4f0cd (S.125, S.194): k_var_name()'s cols starts at 0; an array that
@@ -835,9 +836,12 @@ void log_message(char* msg) {
           p = buff;
         } while (bytes > 0);
 
-        /* Truncate the file */
+        /* Truncate the file.  14 Nov 26 dm - the result is tested: this IS the error log, so a failure has nowhere to be
+           recorded; the log is then longer than ERRLOG until the next trim, which is all it costs.  */
 
-        chsize64(errlog, dst);
+        if (chsize64(errlog, dst) != 0) {
+          /* nothing further: see above */
+        }
       }
 
       Seek(errlog, 0, SEEK_END);
@@ -867,7 +871,10 @@ void log_message(char* msg) {
                         ltime->tm_sec, Newline, msg, Newline);
       }
 
-      Write(errlog, buff, bytes);
+      /* 14 Nov 26 dm - tested, not ignored: a failed write of the error log cannot itself be logged.  */
+      if (Write(errlog, buff, bytes) != bytes) {
+        /* nothing further: this is the error log */
+      }
 
       CloseFile(errlog); /* 0423 */
     }

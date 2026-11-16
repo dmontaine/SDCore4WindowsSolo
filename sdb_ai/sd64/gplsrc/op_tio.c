@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230, RELEASE_1.1 286): the COMO write's result is tested.
  * 20 Oct 26 SD Core Solo - from Linux 1c2d0af (S.71), RELEASE_1.1 163: op_readpkt() and process_client_input() refuse a declared packet
  *           length they cannot accept (apipkt.h) and stop when read_socket() says the connection has gone
  * 18 Oct 26 Windows port - from Linux 7aba47d (16 Oct 26): end_attribute(): @(-6), @(-12), @(-14) and @(-59) use eblink, edim, erev and ebold when the terminfo entry has them
@@ -2543,7 +2544,11 @@ void freescrn(SCREEN_IMAGE *image) {
 
 Private void como_string(char *str, int16_t bytes) {
   if (!tio.suppress_como) {
-    Write(tio.como_file, str, bytes);
+    /* 14 Nov 26 dm - tested: the COMO file is a copy of the screen, so a failed write loses only the copy, and saying so
+       on the screen would itself be written to the COMO file.  */
+    if (Write(tio.como_file, str, bytes) != bytes) {
+      /* the copy is lost: see above */
+    }
   }
 }
 

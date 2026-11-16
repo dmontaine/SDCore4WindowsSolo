@@ -3,6 +3,16 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+15 Nov 26  THE COMPILER WARNS ONLY ABOUT A VALUE AN ASSIGNMENT GAVE; THE WARNINGS IT FOUND ARE FIXED.
+
+             What        - "assigned a value but never used" is given only for a value an ordinary assignment set;
+                           a statement's own target (READU, LOCATE ... SETTING, CAPTURING) is no longer warned about.
+                           The unused assignments it found in SD's own programs are removed, and a failed truncate,
+                           write or daemon start that went unnoticed is now an error or a logged line.
+             Why         - SD Core and SD Core Solo for Linux did the same; a warning that is always there is one
+                           nobody reads.
+             Does NOT    - Change what any program does.  NOT YET TESTED ON AN INSTALLED SYSTEM.
+
 15 Nov 26  FCONTROL DOES FC$SYNC AND FC$CRLF.
 
              What        - fcontrol(f, FC$SYNC, 1 or 0) turns forced writes of a hashed file on or off, and

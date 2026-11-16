@@ -792,6 +792,7 @@ end
 *   in PROJECT_STATUS.md section 6.  (acc.group, read here for the Windows-group
 *   test, went with it - SOLO 3 step 5.)
 account.path = ''
+* 15 Nov 26 SD Core Solo - from Core 8daeff9d (RELEASE_1.1 286): acc.group is gone (assigned, never read; the compiler said so).
 acc.suspended = ''
 * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH (Linux Solo 7c6bbfc, "api should read switches").  The account's SH and
 *   OS.EXECUTE switches are read here from its register record, as LOGIN reads them at sign-on, and are set only once the account has

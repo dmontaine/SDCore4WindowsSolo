@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230, RELEASE_1.1 286): a phantom's failed daemon() is logged.
  * 15 Nov 26 SD Core Solo - from Core 9927feaf / Linux Solo 8ee65fe (S.241): a phantom gives back a pipe its session held on fds 0-2.
  * 15 Nov 26 SD Core Solo - from Core f6c20e51 (Linux Solo 9b69caa, S.242 stage 3, RELEASE_1.1 299): K_XFER (173), the file transfer slot and server (sd_sftp.c k_xfer()).
  * 12 Nov 26 SD Core Solo - SOLO 56 group 9 (RELEASE_1.1 240 e), as Linux: K_INTERNAL is set only by a program flagged HDR_INTERNAL; a read (-1) is unchanged.
@@ -1598,7 +1599,10 @@ void op_phantom() {
     for (i = 3; i < 1024; i++)
       close(i); /* 0401 */
 
-    daemon(1, 1);
+    /* 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230): a failed daemon() (its own fork) leaves the phantom running,
+       attached to this process group; it is now said in the error log rather than ignored.  */
+    if (daemon(1, 1) != 0)
+      log_message("phantom: daemon() failed; the phantom runs without detaching");
     release_pipe_fds(); /* 15 Nov 26 SD Core Solo - S.241 (Core 9927feaf, Linux Solo 8ee65fe): a session run through a pipe must not hand that pipe to its phantom */
 
     /* 06 Oct 26 SD Core Solo - SOLO 26 / multi-user RELEASE_1.1 119.  THIS BUILT

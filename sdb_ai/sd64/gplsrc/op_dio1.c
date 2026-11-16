@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 15 Nov 26 SD Core Solo - Core 11661eb1's S.230 change here (lchown()'s result in inherit_ownership) is not taken: Solo has no
+ *           OPTION INHERIT.OWNERSHIP (owner, 9 Nov 26), so no inherit_ownership().
  * 15 Nov 26 SD Core Solo - from Core b06b5267 (Linux b9c71c3d, RELEASE_1.1 251): OPENTEMP.  op_opentemp() makes a dynamic file at the path
  *           the program names, or under a generated name in TEMPDIR, opens it with P_TEMPFILE so that the file variable is marked FV_TEMP, and
  *           dio_close() deletes it (remove_temp_file) when the last file variable goes.  The OS-access gate is asked for both forms; a name

@@ -17,8 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230, RELEASE_1.1 286): sdwind's failed daemon() is said, not ignored.
  * 15 Nov 26 SD Core Solo - from Core 9927feaf / Linux Solo 8ee65fe (S.241): release_pipe_fds() - sdwind gives back a caller's pipe on fds 0-2.
- *           (Core's S.230 daemon() message, 64561d81, is row 286's Solo half and is not taken here.)
  * 02 Oct 26 SD Core Solo - SOLO 25: start_sd() puts a pending RESTORE.ACCOUNT
  *           in place (apply_pending_restore) before the segment is made
  * 25 Sep 26 SD Core Solo - SOLO 13: stop_sd() asks sdwind through the segment
@@ -855,8 +855,10 @@ bool start_sd() {
   if (cpid == 0) { /* Child process */
     for (i = 3; i < 1024; i++)
       close(i);
-    daemon(1, 1);
-    release_pipe_fds(); /* 15 Nov 26 SD Core Solo - S.241 (Core 9927feaf, Linux Solo 8ee65fe): give back a caller's pipe on 0-2 */
+    /* 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230): a failed daemon() is said, not ignored: sdwind then starts without detaching.  */
+    if (daemon(1, 1) != 0)
+      fprintf(stderr, "%s: daemon() failed (%s); starting it without detaching\n", SDWIND_NAME, strerror(errno));
+    release_pipe_fds(); /* 15 Nov 26 SD Core Solo - S.241 (Core 9927feaf, Linux Solo 8ee65fe): after the message above, which may still need the caller's stderr */
 
     /* 14 Aug 26 Windows port - this built "<sysdir>/bin/sdlnxd", which was
        right while the Linux install kept the executables and the pcode

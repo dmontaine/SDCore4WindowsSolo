@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230, RELEASE_1.1 286): the unused return.key and var.flags are gone.
 * 11 Nov 26 SD Core Solo - SOLO 56 group 4: SD Core for Windows's debugger, with the one hunk it lacks against Linux (S.98 H1, 28ab9cb5): the
 *               first full-screen paint is paint.layout, not the old fill of three areas.  Message 6712 (F1) is Linux's S.186 text.
 * 10 Nov 26 Windows port - level with Linux e3490a7f (S.98 H1-H3, S.179/S.180, S.186; the AI command is there and finds the AI unusable: no helper, RELEASE_1.1 173).
@@ -112,7 +113,6 @@ $define GUTTER.W               2       ;* the source's gutter: a mark (* a break
    msg.prefix = ''
    if data.lines < 5 then data.lines = DATA.AREA.LINES      ;* a common block starts at 0
    gosub set.geometry
-   return.key = seq(pterm(PT$INEWLINE,''))
    phantom = bitand(event, 0x80000000) # 0
 
    * On a terminal that has an ALTERNATE screen the debugger takes the whole of it: the program's own screen is kept
@@ -2097,7 +2097,6 @@ display.variable:
    var.type = var.info<1> + 0   ;* 0554
 
    if var.dim then
-      var.flags = var.info<4>
       if var.info<1> # V$ARRAY then
          message = sysmsg(6719) ;* Index not allowed with scalar variable
          gosub emit.err.msg
@@ -2208,7 +2207,6 @@ display.data.common:
          end case
 
       case var.type = V$ARRAY
-         var.flags = var.info<4>
          message := 'Array: '
          rows = var.info<2> + 0
          cols = var.info<3> + 0
@@ -2538,8 +2536,6 @@ setvar:
    var.type = var.info<1>
 
    if var.dim then
-      var.flags = var.info<4>
-
       if var.type # V$ARRAY then ;* 0530
          message = sysmsg(6719) ;* Index not allowed with scalar variable
          gosub emit.err.msg
