@@ -57,6 +57,9 @@ NOT_HERE = {
     'peer_local':       'never in Solo: removed from Core with the administrator predicate (RELEASE_1.1 64, fdded05a)',
     'tool_viewers':     'the Viewers page; SOLO 47 carried the pdf verbs and not this page, and nothing has decided it: SOLO 54',
     'upgrade_nocase':   'removed with the upgrade it served (SOLO 9, 95c67ce1)',
+    'xfer':             'file transfer (Linux Solo 9b69caa, the Solo carry of Linux S.242) is owed to Windows Solo: RELEASE_1.1 299',
+    'xfersrv':          'file transfer (Linux Solo 9b69caa, the Solo carry of Linux S.242) is owed to Windows Solo: RELEASE_1.1 299',
+    'setxferacc':       'SET.XFER.ACCESS (Linux Solo 9b69caa) is owed to Windows Solo with file transfer: RELEASE_1.1 299',
 }
 
 EVIDENCE = re.compile(r'(RELEASE_1\.1 \d+|SOLO \d+|\b[0-9a-f]{7,8}\b|^OS: )')

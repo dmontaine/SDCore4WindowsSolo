@@ -972,6 +972,25 @@ begin
   end;
 end;
 
+{ 15 Nov 26 - RELEASE_1.1 321 (Core's VM, measured by vm-321-check; the window code is the same here, win32vt.c:441): A FINISHED SD
+  WINDOW OUTLIVES sd -stop.  When a session ends with an error, SD's window host (itself sd-solo.exe) waits at "SD stopped ... Press
+  Enter to close this window" with the runtime's DLLs loaded; no session list holds it, so sd -stop cannot end it, and Setup meets the
+  files-in-use page (Core's named cygsodium-26.dll).  Called only AFTER sd -stop: SD is down, so what is left of BinDir's own SD
+  program is such a window and closing it loses nothing.  sd is the name before the rename.  Returns PowerShell's exit. }
+function CloseLeftoverSdWindows(const BinDir: String): Integer;
+var
+  Bin, Params: String;
+begin
+  Bin := BinDir;
+  StringChangeEx(Bin, '''', '''''', True);
+  Params := '-NoProfile -NonInteractive -Command "Get-Process -Name sd-solo,sd -ErrorAction SilentlyContinue | ' +
+            'Where-Object { $_.Path -like ''' + Bin + '\*'' } | ' +
+            'ForEach-Object { Stop-Process -Id $_.Id -Force; Wait-Process -Id $_.Id -Timeout 5 -ErrorAction SilentlyContinue }"';
+  if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Params, '', SW_HIDE, ewWaitUntilTerminated, Result) then
+    Result := -1;
+  Log('SD Core Solo: leftover SD windows closed after sd -stop, exit ' + IntToStr(Result));
+end;
+
 { An upgrade replaces sd.exe, so a running SD is stopped first. }
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
@@ -987,6 +1006,7 @@ begin
   begin
     Exec(SdExe, '-stop', SoloRoot + '\usr\bin', SW_HIDE, ewWaitUntilTerminated, Code);
     Log('SD Core Solo: sd -stop before copying, exit ' + IntToStr(Code));
+    CloseLeftoverSdWindows(SoloRoot + '\usr\bin');
   end;
   { 06 Oct 26 - SOLO 37: kept data is moved aside, whichever way the user answered - "yes" copies what it
     needs back from there (solo-setup.ps1 -ReloadFrom), "no" leaves it.  It is never deleted (the owner's
@@ -1530,6 +1550,7 @@ begin
     Exec(ExpandConstant('{app}\usr\bin\sd-solo.exe'), '-stop', ExpandConstant('{app}\usr\bin'),
          SW_HIDE, ewWaitUntilTerminated, Code);
     Log('SD Core Solo: sd -stop, exit ' + IntToStr(Code));
+    CloseLeftoverSdWindows(ExpandConstant('{app}\usr\bin'));
     if RunMachineStep('Remove', '') <> 0 then
       MsgBox('The startup task, firewall rule or ssh setting could not be removed.' + #13#10 +
              'Details: ' + ExpandConstant('{app}\install-summary.log'), mbError, MB_OK);
