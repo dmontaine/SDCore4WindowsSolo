@@ -32,6 +32,7 @@ LINUX = os.environ.get('SD_LINUX_SD64') or os.path.normpath(os.path.join(HERE, '
 
 # (Linux id, our id): reason.  Each reason cites its evidence.  Read 12 Nov 2026 (RELEASE_1.1 257), text against text.
 ALLOWED = {
+    ('11635', '12640'): 'Core RELEASE_1.1 325: the owner, 15 Nov 2026, "it should display the whole response" - say is the whole answer here; Linux is mailed to take the same words, and then this goes',
     ('10002', '10002'): 'OS: SD Core Solo for Windows refuses SDSYS in its own words (no sdsys OS user; SOLO 4)',
     ('11904', '11904'): 'sl_put\'s 11904 is a character code (CJK radicals), not a message id; Linux has the same literal (RELEASE_1.1 258)',
     ('10003', '10051'): 'two different refusals on the same LOGIN line; ours says the account must be your own (SOLO 4)',
