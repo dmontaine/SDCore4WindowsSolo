@@ -148,12 +148,16 @@ UninstallDisplayName={#AppName} {#AppVer}
 ; cannot be ticked alone.  The full product has the flag on its parents; Solo's two did not.
 ; "unchecked" stays, or the flag would make the box tick by default.
 Name: "api"; Description: "Provide the SD Core API (port 4249)"; Flags: unchecked checkablealone; Check: ApiAsked
-Name: "api\network"; Description: "Let other computers reach it"; Flags: unchecked dontinheritcheck; Check: ApiAsked
+; 16 Nov 26 - SOLO 69 (owner, 14 Nov: "Solo should follow Core in management of API and SSH access"; "Core's questions, API off"): the
+; children carry SD Core for Windows' wording (sd.iss [Tasks] 2 and 3); the defaults were already Core's and Linux Solo's - the API
+; unticked (off), ssh this computer only.  Windows keeps Core's two-level boxes, which also offer "the API on, this computer only";
+; Linux's two yes/no questions are its terminal form of the same.
+Name: "api\network"; Description: "Let other computers on your network reach it"; Flags: unchecked dontinheritcheck; Check: ApiAsked
 ; 06 Oct 26 - SOLO 36.  Was one box, "Let other computers reach Solo's ssh port (4251)", with Solo's sshd set
 ; up whenever an OpenSSH server was found (SOLO 28).  Now a parent that turns Solo's sshd on, ticked by
 ; default (so test-isstasks-units.py does not list it among the opt-in parents), and the same child as the API.
 Name: "ssh"; Description: "Provide Solo's ssh server (port 4251)"; Flags: checkablealone; Check: SshAskedFound
-Name: "ssh\network"; Description: "Let other computers reach it"; Flags: unchecked dontinheritcheck; Check: SshAskedFound
+Name: "ssh\network"; Description: "Let other computers on your network connect to this one over ssh (port 4251)"; Flags: unchecked dontinheritcheck; Check: SshAskedFound
 ; 25 Sep 26 - RULING 17: the release carries Microsoft's OpenSSH MSI and
 ; python.org's Python .exe beside this installer (ssh-server\, python\) - both
 ; mandatory since ruling 23.  The MSI is installed only when no sshd already is
@@ -164,7 +168,7 @@ Name: "ssh\network"; Description: "Let other computers reach it"; Flags: uncheck
 ; unticked only because its child was unticked (the same automatic rule); with checkablealone it would
 ; have started TICKED and installed OpenSSH on every standalone install.
 Name: "installssh"; Description: "Install the OpenSSH server"; Flags: unchecked checkablealone; Check: SshAskedMsi
-Name: "installssh\network"; Description: "Let other computers reach it"; \
+Name: "installssh\network"; Description: "Let other computers on your network connect to this one over ssh (port 4251)"; \
     Flags: unchecked dontinheritcheck; Check: SshAskedMsi
 ; 25 Sep 26 - NO BOX FOR "ssh lands in SD".  Ruling 5 makes it the product, not
 ; a choice; the box that was here ("Start SD Core Solo when I sign in over
