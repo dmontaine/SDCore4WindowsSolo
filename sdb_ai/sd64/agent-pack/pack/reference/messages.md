@@ -5878,7 +5878,7 @@ cited by: `setai`
 The AI helper could not be reached: it is not running, or it is not installed
 ```
 
-cited by: `ai`, `setai`, `tk_ai`, `tool_ai`
+cited by: `ai`, `setai`, `tk_ai`, `tool_ai`, `tool_gates`
 
 ### msg:12613
 > kind=message tier=reference since=- src=sdsys/messages/12613:1#53bb63db

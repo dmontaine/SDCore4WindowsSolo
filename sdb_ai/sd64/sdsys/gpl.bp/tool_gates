@@ -4,6 +4,9 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 16 Nov 26 SD Core Solo - RELEASE_1.1 246: the AI row, Linux Solo's fourth (set.ai gate on|off, the helper's own setting read with K$AI.STATUS, looked at at each
+*               request), now that the AI is carried; file transfer moves to row 5, as Linux Solo.  The helper here is sd-ai.exe, started by SD for each request,
+*               so the "cannot be read" line says so instead of naming systemd; Linux's 11607 is 12612.
 * 15 Nov 26 SD Core Solo - RELEASE_1.1 299, from Linux Solo 9b69caa (the Solo carry of SD Core's S.242): the file transfer gate, field 22 of the register
 *               (ACC$XFER), which RECEIVE, SEND and the transfer server read each time, so its "this session" is the register, read for every session; Enter runs
 *               set.xfer.access on|off.  Linux Solo's FIFTH row; here the FOURTH, because this tree has no AI row yet (RELEASE_1.1 246's Solo carry puts it
@@ -29,7 +32,7 @@
 *
 *   A full-screen page, in the toolkit's frame (140 columns by 43 lines at least), with three boxes:
 *
-*     Gates of this account   one row for each gate - sh, os, net - with whether it is ON or off FOR THIS SESSION (what LOGIN loaded), what the
+*     Gates of this account   one row for each gate - sh, os, net, ai, xfer - with whether it is ON or off FOR THIS SESSION (what LOGIN loaded; the AI's gate is the helper's own setting), what the
 *                             register says (the administrator only: what the next sign-on will load), how it is delivered (off), whether it reaches beyond SD and when a change reaches you
 *     The row under the cursor  what the gate is, in plain sentences: what ON lets the account do, what it can still do with it off, and the command that changes it
 *     Where this comes from   where each state is read
@@ -37,11 +40,11 @@
 *   Keys: Up, Down, PgUp, PgDn, Home, End move; Enter or the space bar (the administrator only) turns the gate on the cursor's row ON or off through the real verb; F5 reads again; F1 or ? or a click on
 *   the [?] explains the page; Ctrl-Q leaves.  There is NO key that turns everything ON, and no gate is on as delivered.
 *
-*   THE PAGE CHANGES NOTHING ITSELF AND PROBES NOTHING.  What it shows it asks the kernel (kernel(K$SH, -1), K$OS.EXEC, K$NET), and the register (accounts/sduser, the administrator only);
-*   it never tries an operation to learn whether it works.  Enter builds ONE sentence from a table that is in this program (set.os.access sh on, set.os.access os off, set.net.access on
-*   ...), shows it with its effect in a box answered Run or Cancel (Cancel is what Enter chooses) and runs it through $tk_run, which allows only these three commands.  Turning ON a gate asks
+*   THE PAGE CHANGES NOTHING ITSELF AND PROBES NOTHING.  What it shows it asks the kernel (kernel(K$SH, -1), K$OS.EXEC, K$NET), the register (accounts/sduser, the administrator only) and the AI helper's
+*   status (K$AI.STATUS); it never tries an operation to learn whether it works.  Enter builds ONE sentence from a table that is in this program (set.os.access sh on, set.os.access os off, set.net.access on,
+*   set.ai gate on ...), shows it with its effect in a box answered Run or Cancel (Cancel is what Enter chooses) and runs it through $tk_run, which allows only these three commands.  Turning ON a gate asks
 *   for the gate's name to be typed, because every gate here reaches beyond SD.  Each verb asks for the administrator itself and writes its own audit line.  After the command it reads again and shows the
-*   verb's own words; a cell is never changed on the page's say-so.  A change does not reach a session that is already running (the gates are loaded at sign-on).
+*   verb's own words; a cell is never changed on the page's say-so.  A change does not reach a session that is already running (the gates are loaded at sign-on); the AI's gate is looked at by the helper at each request.
 *
 * END-DESCRIPTION
 *
@@ -59,7 +62,7 @@ $include tk.h
 
    prompt ''
 
-   allow = 'set.os.access set.net.access set.xfer.access'       ;* the commands this page may run (15 Nov 26: set.xfer.access, the file transfer switch)
+   allow = 'set.os.access set.net.access set.ai set.xfer.access'   ;* the commands this page may run (15 Nov 26: set.xfer.access, the file transfer switch; 16 Nov 26: set.ai)
    acc.name = 'sduser'                                          ;* Solo's one account (ruling 29); the register record the three verbs write
 
    call $tk_open('tool.gates', '', ctx, err)
@@ -86,24 +89,25 @@ $include tk.h
    call $tk_aipage('init', ctx, keys, '', '', aout)
    if aout then gosub declare.layout                     ;* the AI line took the body's last row: the panes again (as SD Core's pages)
 
-*  The table: one row to a gate, in the order the page shows them.  The words are the verbs' own (set.os.access, set.net.access, set.xfer.access).  Linux Solo's AI row
-*  (its fourth) is not here yet: this tree has no AI helper until RELEASE_1.1 246's Solo carry, so file transfer is row 4 here and row 5 there.
-   gids = 'sh' : @fm : 'os' : @fm : 'net' : @fm : 'xfer'
-   gti = 'Shell' : @fm : 'OS.EXECUTE' : @fm : 'Remote files' : @fm : 'File transfer'
-   gcmd.on = 'set.os.access sh on' : @fm : 'set.os.access os on' : @fm : 'set.net.access on' : @fm : 'set.xfer.access on'
-   gcmd.off = 'set.os.access sh off' : @fm : 'set.os.access os off' : @fm : 'set.net.access off' : @fm : 'set.xfer.access off'
-   gwhen = 'next sign-on' : @fm : 'next sign-on' : @fm : 'next sign-on' : @fm : 'at the next transfer'
+*  The table: one row to a gate, in the order the page shows them.  The words are the verbs' own (set.os.access, set.net.access, set.ai, set.xfer.access).
+   gids = 'sh' : @fm : 'os' : @fm : 'net' : @fm : 'ai' : @fm : 'xfer'
+   gti = 'Shell' : @fm : 'OS.EXECUTE' : @fm : 'Remote files' : @fm : 'AI' : @fm : 'File transfer'
+   gcmd.on = 'set.os.access sh on' : @fm : 'set.os.access os on' : @fm : 'set.net.access on' : @fm : 'set.ai gate on' : @fm : 'set.xfer.access on'
+   gcmd.off = 'set.os.access sh off' : @fm : 'set.os.access os off' : @fm : 'set.net.access off' : @fm : 'set.ai gate off' : @fm : 'set.xfer.access off'
+   gwhen = 'next sign-on' : @fm : 'next sign-on' : @fm : 'next sign-on' : @fm : 'at the next request' : @fm : 'at the next transfer'
    gall = "use the SH verb and ! to run operating-system commands as your Windows user"
    gall<2> = "run OS.EXECUTE, the embedded Python, a print unit's SPOOLER string and the editors that run outside SD, and reach files and directories outside the account by pathname"
    gall<3> = 'open a file on another SD server through a server definition, and have its own files opened over the API by request 29'
    gstill = "do everything inside SD, with the account's own files"
    gstill<2> = 'open and write files inside its own account directory'
    gstill<3> = 'open every file on this computer that its other gates allow'
-   gall<4> = "move plain-text files in and out of its transfer folders with RECEIVE and SEND, over Solo's ssh login, while sd.conf's XFER is 1"
-   gstill<4> = 'do everything else its other gates allow, and sign in over ssh'
-   NG = 4
+   gall<4> = 'use the ai verb and the programs of the screen library that ask the AI; the text they send leaves this machine for the provider you chose'
+   gstill<4> = 'do everything else inside SD'
+   gall<5> = "move plain-text files in and out of its transfer folders with RECEIVE and SEND, over Solo's ssh login, while sd.conf's XFER is 1"
+   gstill<5> = 'do everything else its other gates allow, and sign in over ssh'
+   NG = 5
 
-   VIS = 4                                                      ;* gate rows on the screen (15 Nov 26: four, with file transfer; the box's 11 rows hold them)
+   VIS = 5                                                      ;* gate rows on the screen (16 Nov 26: five, with the AI and file transfer; the box's 11 rows hold them)
    ci = 1                                                       ;* the gate under the cursor
    gen = 0
    msg = (if adm then "Up and Down move; Enter turns the gate on the cursor's row ON or off" else 'Up and Down move; this page only shows what you may do, it cannot alter it')
@@ -177,9 +181,21 @@ read.all:
       close acc.f
    end
 *  15 Nov 26: file transfer is not held by a session - RECEIVE, SEND and the transfer server read the register each time - so "this session"
-*  and the register are the same value, read here for every session (the account's own record, no lock).  Row 4 here (Linux Solo's 5).
-   gnow<4> = (if upcase(trim(xf.rec<ACC$XFER>)) = 'YES' then 1 else 0)
-   if adm then gset<4> = gnow<4>
+*  and the register are the same value, read here for every session (the account's own record, no lock).  Row 5, as Linux Solo (16 Nov 26).
+   gnow<5> = (if upcase(trim(xf.rec<ACC$XFER>)) = 'YES' then 1 else 0)
+   if adm then gset<5> = gnow<5>
+*  16 Nov 26 (RELEASE_1.1 246, Linux Solo): the AI's gate is the helper's own setting, for everyone, read from its status.
+   helper.ok = 0
+   hj = ''
+   reply = kernel(K$AI.STATUS, 0)
+   if reply<1> = 'D' then
+      hj = jparse(reply<2>)
+      if not(status()) and hj{'t'} = 'status' then helper.ok = 1
+   end
+   if helper.ok then
+      gnow<4> = (if hj{'gate'} then 1 else 0)                    ;* (no short-circuit in SD BASIC: the status is only asked of when it was read)
+      gset<4> = gnow<4>
+   end
    return
 
 * ------------------------------------------------------------------------------------------------- drawing
@@ -270,6 +286,9 @@ draw.row:
    k = ci
    if k >= 1 and k <= NG then
       begin case
+         case gids<k> = 'ai' and not(helper.ok)
+            lines<-1> = gti<k> : ' [' : gids<k> : ']  -  cannot be read.  No answer from the AI helper (sd-ai.exe in the usr\bin folder, which SD starts for each request): it is not installed, or it could not be started.'
+            lines<-1> = 'The AI is off as delivered; it needs a provider, a model, a key and this gate turned on (tool.ai).'
          case 1
             if gnow<k> = 1 then
                lines<-1> = gti<k> : ' [' : gids<k> : ']  -  ON for this session.  You can ' : gall<k> : '.'
@@ -292,6 +311,7 @@ draw.row:
             end else
                lines<-1> = 'As delivered it is off.  A change reaches you: ' : gwhen<k> : '.  It does not touch a session that is already running.  This gate reaches BEYOND SD.'
             end
+            if gids<k> = 'ai' then lines<-1> = 'The AI also needs a provider, a model and a key: that is the tool.ai page.'
       end case
    end
    ww = row.w - 4
@@ -304,7 +324,7 @@ draw.row:
 draw.source:
    lines = ''
    lines<-1> = "Every gate is off as delivered and only the administrator turns one on.  What this page says is what this session holds right now, asked of the system - nothing is tried to find out."
-   lines<-1> = "sh, os and net were loaded when you signed on (the administrator passes the first two on its own), so a change by the administrator shows in the This session column after the next sign-on."
+   lines<-1> = "sh, os and net were loaded when you signed on (the administrator passes the first two on its own), so a change by the administrator shows in the This session column after the next sign-on; the AI's gate is the helper's own setting, looked at at each request."
    lines<-1> = "The Register column is the record of this account in the system's register (fields sh, os.exec and net), read for the administrator only."
    ww = src.w - 4
    gosub wrap.lines
@@ -421,10 +441,14 @@ change:
       return
    end
    k = ci
-   if not(reg.ok) then
-      msg = 'the register could not be read, so nothing is changed'
-      return
-   end
+   begin case
+      case gids<k> = 'ai' and not(helper.ok)
+         msg = sysmsg(12612)                                     ;* The AI helper could not be reached
+         return
+      case gids<k> # 'ai' and not(reg.ok)
+         msg = 'the register could not be read, so nothing is changed'
+         return
+   end case
    on.now = (gset<k> = 1)
    sent = (if on.now then gcmd.off<k> else gcmd.on<k>)
    el = ''

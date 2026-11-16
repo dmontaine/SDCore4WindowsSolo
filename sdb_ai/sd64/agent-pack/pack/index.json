@@ -9749,7 +9749,7 @@
 "part": "reference/messages.md",
 "since": "-",
 "tier": "reference",
-"words": 24
+"words": 25
 },
 "msg:12613": {
 "kind": "message",
@@ -28712,7 +28712,7 @@
 "part": "reference/tcl-verbs.md",
 "since": "-",
 "tier": "reference",
-"words": 91
+"words": 95
 },
 "tcl:tool.keys": {
 "kind": "tcl.verb",
