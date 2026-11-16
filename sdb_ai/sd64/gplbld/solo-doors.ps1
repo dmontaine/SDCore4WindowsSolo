@@ -16,7 +16,8 @@
 # gate - from the console or remotely.  It never asks Windows for consent.
 #
 # THE REQUEST AND ITS PROOF.  The verb (gpl.bp/remotedoor) writes doors.request in the Solo folder's sdsys: lines key=value,
-#   version=1  door=api|ssh  mode=off|local|open  nonce=<base64>  time=<seconds>  cred=$ADMIN|$GLOBAL  proof=<base64>
+#   version=1  door=api|ssh  mode=off|local|open  nonce=<base64>  time=<seconds>  cred=$admin|$global  proof=<base64>
+#   (16 Nov 26 - SOLO 60: lower case, as the $cred ids now are; an older verb's $ADMIN|$GLOBAL is accepted too - -contains ignores case)
 # where time is LOCAL seconds since 1 Jan 1970 (SD's date and time are local; this script counts the same way), and
 #   authmsg = 'sd-solo-doors|v1|' + door + '|' + mode + '|' + nonce + '|' + time
 #   proof   = ClientKey XOR HMAC-SHA256(StoredKey, authmsg)        (SCRAM's ClientProof over this message)
@@ -175,7 +176,7 @@ if ($req['version'] -ne '1') { Finish $nonce $false 'unknown request version' }
 $door = [string]$req['door']; $mode = [string]$req['mode']; $cred = [string]$req['cred']; $time = [string]$req['time']
 if (@('api', 'ssh') -notcontains $door) { Finish $nonce $false 'unknown door' }
 if (@('off', 'local', 'open') -notcontains $mode) { Finish $nonce $false 'unknown mode' }
-if (@('$ADMIN', '$GLOBAL') -notcontains $cred) { Finish $nonce $false 'unknown credential' }
+if (@('$admin', '$global') -notcontains $cred) { Finish $nonce $false 'unknown credential' }
 if ($time -notmatch '^\d{1,12}$') { Finish $nonce $false 'the time is malformed' }
 $now = [int64](((Get-Date) - [datetime]'1970-01-01').TotalSeconds)     # LOCAL seconds, as SD counts them
 $age = $now - [int64]$time

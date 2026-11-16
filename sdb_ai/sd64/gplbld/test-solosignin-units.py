@@ -13,8 +13,11 @@ WHAT IT CHECKS, read from sdsys/gpl.bp/apisrvr itself:
   S1  an empty name or one starting with '$' ($admin, $global, $stored are $cred records) is refused before $cred is opened;
   S2  the global-password route under a name with no password of its own excludes SDSYS, case-blind, before the register read;
   S3  that route still reads the register (a name must be an account) and fails closed when it is not one.
+  S4  (16 Nov 2026, Linux mail 2026-11-16T1330) every literal $cred id in the sign-in programs is lower case, as Linux
+      Solo's; cred_set downcase()s its key first, so its "account = '$GLOBAL'" was never true and a $global made after the
+      account's record took a fresh salt, breaking ruling 19's shared salt.
 MUTANTS (each must be flagged, or the checker is reading nothing): the '$' test removed, the SDSYS exclusion removed,
-the exclusion made case-sensitive, the register read dropped.
+the exclusion made case-sensitive, the register read dropped, cred_set's comparison put back in upper case.
 """
 import os
 import re
@@ -90,6 +93,32 @@ for name, old, new, tag in MUTANTS:
     m = text.replace(old, new, 1)
     check('CONTROL: mutant "' + name + '" changed the text', m != text)
     check('MUTANT: ' + name + ' is flagged', any(x.startswith(tag) for x in violations(m)))
+
+# S4: the literal ids, in the programs that read or write $cred.
+GPL = os.path.dirname(SRC)
+IDS = ('cred_set', 'set_password', 'admin', 'login', 'remotedoor', 'settings_os', 'syncgcat', 'solo_password', 'apisrvr')
+
+
+def upper_ids(name, t):
+    return [name + ':' + str(n) for n, line in enumerate(code_only(t).split('\n'), 1)
+            if re.search(r"'\$(ADMIN|GLOBAL|STORED)'", line)]
+
+
+texts = {}
+for n in IDS:
+    p = os.path.join(GPL, n)
+    if not os.path.isfile(p):
+        print('test-solosignin-units: VOID - no ' + p)
+        sys.exit(2)
+    with open(p, 'rb') as fh:
+        texts[n] = fh.read().decode('latin-1').replace('\r\n', '\n')
+up = [x for n in IDS for x in upper_ids(n, texts[n])]
+check("S4 no upper-case '$admin' / '$global' / '$stored' literal in the $cred programs", not up, ', '.join(up))
+check("S4 cred_set compares the downcase()d key with '$global'", "case account = '$global'" in texts['cred_set']
+      and "account = downcase(trim(account))" in texts['cred_set'])
+m = texts['cred_set'].replace("case account = '$global'", "case account = '$GLOBAL'", 1)
+check('CONTROL: mutant "cred_set compares upper case" changed the text', m != texts['cred_set'])
+check('MUTANT: cred_set comparing upper case is flagged', bool(upper_ids('cred_set', m)) and "case account = '$global'" not in m)
 
 print('')
 if passed == 0:

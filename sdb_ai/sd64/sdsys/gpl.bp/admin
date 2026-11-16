@@ -18,6 +18,7 @@
 *
 *
 * START-HISTORY:
+* 16 Nov 26 SD Core Solo - SOLO 60 (Linux mail 2026-11-16T1330): CRED_VERIFY is given '$admin' and '$global', lower case, as the ids are.
 * 12 Nov 26 Windows port - RELEASE_1.1 260: the $cred id read here is '$admin', as Linux Solo (NTFS finds a $ADMIN record stored upper case).
 * 28 Sep 26 SD Core Solo - ruling 33: the global password also sets
 *           K$GLOBAL.SESSION.
@@ -103,12 +104,12 @@ $include err.h
    input pw HIDDEN
 
    ok = @false
-   call !CRED_VERIFY('$ADMIN', pw, ok)
+   call !CRED_VERIFY('$admin', pw, ok)
    via = 'admin'
    if not(ok) then
 *     Managed mode (b): the global password is the other key (ruling 12).  In
 *     standalone mode there is no $GLOBAL record and CRED_VERIFY says no.
-      call !CRED_VERIFY('$GLOBAL', pw, ok)
+      call !CRED_VERIFY('$global', pw, ok)
       via = 'global'
    end
    pw = ''

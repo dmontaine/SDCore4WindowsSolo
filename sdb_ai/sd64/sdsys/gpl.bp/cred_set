@@ -18,6 +18,9 @@
 *
 *
 * START-HISTORY:
+* 16 Nov 26 SD Core Solo - SOLO 60 (Linux mail 2026-11-16T1330): '$global' in lower case, as Linux Solo.  account is downcase()d at the top,
+*           so "account = '$GLOBAL'" could never be true: a $global made when the account's record already existed took a fresh salt
+*           instead of the account's, and ruling 19's shared salt (the global password under the account's name) was lost.
 * 12 Nov 26 Windows port - RELEASE_1.1 260: the $cred id is lower case, as Linux Solo; writing over a record an earlier release stored upper case
 *           keeps its file (NTFS matches names without case).
 * 25 Sep 26 SD Core Solo - ruling 19: the salt and iteration count are the
@@ -110,7 +113,7 @@ deffun ps_script(script) calling '!ps_script'
       iter = ''
       partner = ''
       begin case
-         case account = '$GLOBAL'
+         case account = '$global'
             select cred.f to 9
             loop
                readnext id from 9 else exit
@@ -121,7 +124,7 @@ deffun ps_script(script) calling '!ps_script'
             repeat
             clearselect 9
          case account[1,1] # '$'
-            partner = '$GLOBAL'
+            partner = '$global'
       end case
       if partner # '' then
          read p.rec from cred.f, partner then

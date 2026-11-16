@@ -18,6 +18,7 @@
 *
 *
 * START-HISTORY:
+* 16 Nov 26 SD Core Solo - SOLO 60 (Linux mail 2026-11-16T1330): the $cred id '$global' in lower case, as Linux Solo.
 * 09 Nov 26 SD Core Solo - RELEASE_1.1 204: the * prefix went with S.87 (Linux fb98cfb5), so the server's programs are catalogued under their plain
 *           names, as a global program is on SD Core.  An object whose name begins with a prefix SD still uses, or a retired one, is refused.
 * 08 Oct 26 SD Core Solo - the machine line "sync global catalog done ..." is
@@ -104,7 +105,7 @@ $include err.h
 *  No $GLOBAL credential (no global password): no server and nothing to manage.
    managed = @false
    openpath @sdsys : @ds : '$cred' to cred.f then
-      read g.rec from cred.f, '$GLOBAL' then managed = @true
+      read g.rec from cred.f, '$global' then managed = @true
       close cred.f
    end
    if not(managed) then

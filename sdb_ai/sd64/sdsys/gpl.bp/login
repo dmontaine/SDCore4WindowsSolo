@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 16 Nov 26 SD Core Solo - SOLO 60 (Linux mail 2026-11-16T1330): the $cred id '$global' in lower case, as Linux Solo.
 * 13 Nov 26 Windows port - RELEASE_1.1 266, later the same night (Core's): @PATH is /cygdrive/c/..., so folding case and slashes was not
 *   enough; both sides of the walk's comparison now go through path.key.
 * 13 Nov 26 Windows port - RELEASE_1.1 266: UPDATE.ACCOUNTS ALL's walk compares account paths with the case and the slashes folded (Core's
@@ -1557,7 +1558,7 @@ require.password:
    pw.has.global = @false
    openpath @sdsys:@ds:'$cred' to pw.cred.f then
       read pw.rec from pw.cred.f, initial.account then pw.has.acct = @true
-      read pw.rec from pw.cred.f, '$GLOBAL' then pw.has.global = @true
+      read pw.rec from pw.cred.f, '$global' then pw.has.global = @true
       close pw.cred.f
    end
    pw.has.cred = pw.has.acct or pw.has.global
@@ -1642,7 +1643,7 @@ require.password:
          if pw.match then
             pw.via = 'account'
          end else
-            call !CRED_VERIFY('$GLOBAL', pw.text, pw.match)
+            call !CRED_VERIFY('$global', pw.text, pw.match)
             if pw.match then pw.via = 'global'
          end
       end
@@ -1699,7 +1700,7 @@ set.first.password:
 *     Ruling 19, as the installer's Account page has it: equal to the global
 *     password, the master's logins would land in an ordinary session.
       pf.same = @false
-      call !CRED_VERIFY('$GLOBAL', pf.pw1, pf.same)
+      call !CRED_VERIFY('$global', pf.pw1, pf.same)
       if pf.same then
          display sysmsg(12027) ;* Use a password different from the global password.
          display sysmsg(10921, pf.try, pf.max) ;* That was attempt %1 of %2

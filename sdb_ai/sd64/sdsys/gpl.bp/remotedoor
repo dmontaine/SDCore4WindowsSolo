@@ -4,6 +4,8 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 16 Nov 26 SD Core Solo - SOLO 60 (Linux mail 2026-11-16T1330): '$admin' and '$global' in lower case, as the $cred ids are; the helper
+*           (solo-doors.ps1) compares and opens them without regard to case.
 * 12 Nov 26 SD Core Solo - SOLO 62: the helper task is started by Task Scheduler COM; Start-ScheduledTask (CIM) is refused over ssh.
 * 12 Nov 26 SD Core Solo - SOLO 62: a line before each wait (12982 before the report, about 8 s; 12981 before a change, up to 3 min
 *           when ssh is set up): the owner, 12 Nov 26, "there needs to be a message to the user any time a command is expected to
@@ -179,11 +181,11 @@ change:
    input pw HIDDEN
    cred = ''
    ok = @false
-   call !CRED_VERIFY('$ADMIN', pw, ok)
-   if ok then cred = '$ADMIN'
+   call !CRED_VERIFY('$admin', pw, ok)
+   if ok then cred = '$admin'
    if not(ok) then
-      call !CRED_VERIFY('$GLOBAL', pw, ok)
-      if ok then cred = '$GLOBAL'
+      call !CRED_VERIFY('$global', pw, ok)
+      if ok then cred = '$global'
    end
    if cred = '' then
       pw = ''
@@ -220,7 +222,7 @@ change:
 
 *  The request, the task and the wait, in ONE PowerShell script run as this user (!ps_script_out).  Not OSWRITE and OSREAD: those are
 *  !oswrite and !osread, ordinary programs that ask the account's OS switch, which is off as delivered, and the answer is in
-*  %ProgramData%.  Every value put in the script is base64, a number, a word of this program, '$ADMIN' / '$GLOBAL' or a path of this
+*  %ProgramData%.  Every value put in the script is base64, a number, a word of this program, '$admin' / '$global' or a path of this
 *  SD's own (checked above for a single quote), each inside single quotes, where PowerShell expands nothing.  The answer is
 *  result.txt in the helper's folder, whose first line names THIS request's nonce; setting ssh up can take a minute, so it waits 180 s.
    q = char(39)

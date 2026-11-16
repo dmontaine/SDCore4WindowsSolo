@@ -18,6 +18,7 @@
 *
 *
 * START-HISTORY:
+* 16 Nov 26 SD Core Solo - SOLO 60 (Linux mail 2026-11-16T1330): the $cred id '$global' in lower case, as Linux Solo.
 * 06 Oct 26 SD Core Solo - SOLO 36: [mode] reads "managed (a global password
 *           is set)" or "not managed (no global password)", as on Linux Solo.
 * 01 Oct 26 SD Core Solo - SOLO 25, ported from the multi-user product's
@@ -91,7 +92,7 @@ deffun ps_script_out(script, want.out) calling '!ps_script_out'
 *  mode - whether a $GLOBAL credential exists; nothing of it is printed.
    lines<-1> = '[mode]'
    openpath @sdsys : @ds : '$cred' to cred.f then
-      read g.rec from cred.f, '$GLOBAL' then
+      read g.rec from cred.f, '$global' then
          lines<-1> = 'managed (a global password is set)'
       end else
          lines<-1> = 'not managed (no global password)'

@@ -21,7 +21,8 @@
 * START-HISTORY:
 * 16 Nov 26 SD Core Solo - SOLO 60 (sign-in against Linux Solo): with no account password, the global password is not taken under the name SDSYS
 *           (Linux Solo's "downcase(username) # 'sdsys'"; ruling 11, SDSYS is never an API login); the second '$' test, unreachable after the
-*           first, is gone.  $cred ids stay upper case: NTFS ignores the case, so both spellings name the same record (OS reason, recorded).
+*           first, is gone.  '$global' in lower case, as Linux Solo (Linux mail 2026-11-16T1330); the account-name id is the recorded
+*           upper-case exception for the Windows port's account names.
 * 15 Nov 26 SD Core Solo - S.235 (Linux Solo 113b7e5): an API sign-in writes `api login user= account=` once, at the session's first entry
 *           to its account, before MASTER.LOGIN / LOGIN run.
 * 13 Nov 26 Windows port - SOLO 61: Solo's own messages 12021, 12036 and 12037 are 12930, 12894 and 12884, ids no Windows or Linux tree uses
@@ -1586,9 +1587,9 @@ vb.scram.first:
 *   with $ (solo_account: a letter first), so every such name is refused by the
 *   test above, before the record is read, with the same indistinct answer as a
 *   guess.  (16 Nov 26 - SOLO 60: a second test here repeated it and could never
-*   be reached; it is gone.)  The ids are upper case where Linux Solo's are
-*   lower: NTFS ignores the case of a file name, so either spelling reads the
-*   same record; a case-sensitive filesystem is Linux's reason for lower case.
+*   be reached; it is gone.)  $admin and $global are lower case, as Linux
+*   Solo's; the account's own id is upper case, the recorded exception for the
+*   Windows port's account names (NTFS reads either spelling).
 
                openpath @sdsys:@ds:'$cred' to scram.cred.f else
                   scram.refuse.reason = 'cannot open $cred'
@@ -1616,7 +1617,7 @@ vb.scram.first:
                   scram.cred = ''
                end
                have.global = @false
-               read scram.gcred from scram.cred.f, '$GLOBAL' then
+               read scram.gcred from scram.cred.f, '$global' then
                   if scram.gcred<CRED$VERSION> = SCRAM$CRED.VERSION then have.global = @true
                end else
                   scram.gcred = ''
