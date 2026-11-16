@@ -71,13 +71,14 @@ ssh=
 
 # reload-data
 #   Only where the folder %USERPROFILE%\SDCoreSolo holds data kept by an
-#   earlier uninstall (the account sduser and sd.conf, with a .sdcore-kept
-#   stamp).  yes = reload it into the new installation; no = start clean, and
-#   the kept data is moved aside to SDCoreSolo.kept-<date and time>, never
-#   deleted.  Blank: the installer asks, or - when this file answers everything
-#   else too - reloads.  Where nothing is kept the line does nothing, so one
-#   file can say it for every computer.  The passwords are never in the kept
-#   data: they are asked (or read from this file) either way.
+#   earlier uninstall (the account sduser, sd.conf, the passwords and the
+#   settings, with a .sdcore-kept stamp).  yes = reload it into the new
+#   installation; no = start clean, and the kept data is moved aside to
+#   SDCoreSolo.kept-<date and time>, never deleted.  Blank: the installer asks,
+#   or - when this file answers everything else too - reloads.  Where nothing is
+#   kept the line does nothing, so one file can say it for every computer.  A
+#   reload keeps the kept passwords, unless this file gives a password: then the
+#   passwords here replace them.
 #reload-data=yes
 
 reload-data=

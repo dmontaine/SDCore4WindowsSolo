@@ -195,7 +195,8 @@ def checks(t):
        and "Result := UseControl and (CfOsAccess <> '')" in between(i, "PageID = OsAccessPage.ID", "else if PageID = wpSelectTasks")
        and "DataTreeWasAbsent" not in between(i, "PageID = OsAccessPage.ID", "else if PageID = wpSelectTasks"))
     ck("I3 the answer reaches solo-setup.ps1 for a new tree and an upgrade alike (set before the new-tree branch, cleared after the run)",
-       0 <= i.find("SetEnvironmentVariable('SD_SOLO_OS_ACCESS', OsAccessWord);") < i.find("if DataTreeWasAbsent then\n  begin\n    Params := Params + ' -Passwords';")
+       # 16 Nov 26 - SOLO 72: the new-tree branch now opens with the reload (a reload that keeps the passwords passes no -Passwords).
+       0 <= i.find("SetEnvironmentVariable('SD_SOLO_OS_ACCESS', OsAccessWord);") < i.find("if DataTreeWasAbsent then\n  begin\n    { SOLO 37: reload the kept data")
        and "SetEnvironmentVariable('SD_SOLO_OS_ACCESS', '');" in i)
     st = t["setup"]
     ck("I4 solo-setup.ps1 reads the answer, refuses anything but none, sh, os or both, and clears it before any child starts",

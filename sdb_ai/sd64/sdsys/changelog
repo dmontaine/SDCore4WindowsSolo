@@ -3,6 +3,19 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+16 Nov 26  UNINSTALL'S KEEP KEEPS THE PASSWORDS AND SETTINGS; A RELOAD ASKS NO PASSWORD.
+
+             What        - Keep now also keeps the passwords, the audit trail, the API's TLS key, your ssh key file
+                           and the ssh server's host key, the SDNet logins, newvoc.mods, the saved VOC records and
+                           where sessions start.  The question is asked before anything is removed.  A new
+                           installation that reloads the kept data puts all of it back, joins the audit trail (the
+                           kept lines first) and asks no password and no start question; passwords given in the
+                           control file replace the kept ones.
+             Why         - SD Core keeps all of this when its accounts are kept, and SD Core Solo for Linux does the
+                           same.  Clients that trusted the old TLS or ssh host key now still do.
+             Does NOT    - Change Delete, which still removes the whole folder (and now the host key with it).
+                           NOT YET TESTED ON AN INSTALLED SYSTEM.
+
 15 Nov 26  THE COMPILER WARNS ONLY ABOUT A VALUE AN ASSIGNMENT GAVE; THE WARNINGS IT FOUND ARE FIXED.
 
              What        - "assigned a value but never used" is given only for a value an ordinary assignment set;

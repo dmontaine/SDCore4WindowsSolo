@@ -11,14 +11,20 @@ Keep leaves the account and sd.conf and removes the rest, Delete removes the fol
 2 Sep 2026 incident - the data gone while the owner believed he had kept it - is the failure this stops: a reversed
 Keep/Delete pair, a delete reachable without the question, a Keep that deletes the account.
 
+16 Nov 2026 (SOLO 72, Linux Solo S.234 N9): Keep also keeps what SD Core keeps with its accounts, and the question
+moved to AskDataChoice, asked at usUninstall before anything is removed, because the machine step needs the answer
+(Keep keeps the ssh host key).  OfferDataRemoval acts on the stored answer at usPostUninstall.
+
 THE RULES IT CHECKS, read from sd-solo.iss itself, never from a copy:
-  1. OfferDataRemoval asks only when the uninstall is not silent, and the delete-everything call comes after the
-     answer was tested and the Keep branch has Exit-ed.
+  1. AskDataChoice asks only when the uninstall is not silent and stores the answer in DataChoseDelete;
+     OfferDataRemoval's delete-everything call comes after DataChoseDelete was tested and the Keep branch has Exit-ed;
+     the question is asked at usUninstall, BEFORE the machine Remove step, which gets -KeepHostKey only on Keep.
   2. KeepOrDelete lists Keep first and Delete second, and answers "Delete" only when the dialog returned IDNO - the
      focus follows the first label, so Keep is the default and the inversion lives in one place.
   3. RemoveFolderContents is called from OfferDataRemoval and KeepDataOnly and nowhere else, and DelTree( is called
      only inside RemoveFolderContents - so no other path deletes a tree.
-  4. KeepDataOnly keeps user_accounts, sduser and sd.conf, so Keep cannot take the account.
+  4. KeepDataOnly keeps user_accounts, sduser and sd.conf, so Keep cannot take the account; and (SOLO 72) sdsys
+     with $cred and the audit trail, so Keep cannot take the passwords.
   5. Reload (PrepareToInstall) MOVES the old folder (MoveFileW) and calls nothing that deletes.
   6. The delete helper refuses a reparse point (0x400), so a junction cannot lead it out of the folder.
 
@@ -62,6 +68,8 @@ def strip_comments(t):
 def violations(text):
     bad = []
     offer = strip_comments(body(text, 'procedure', 'OfferDataRemoval'))
+    askp = strip_comments(body(text, 'procedure', 'AskDataChoice'))
+    unst = strip_comments(body(text, 'procedure', 'CurUninstallStepChanged'))
     kod = strip_comments(body(text, 'function', 'KeepOrDelete'))
     helper = strip_comments(body(text, 'function', 'RemoveFolderContents'))
     # KeepDataOnly retries KeepDataPass (9 Oct 2026: a delete held for an instant is not a file that cannot be
@@ -71,15 +79,25 @@ def violations(text):
     code = strip_comments(text)
 
     # 1. asked only when not silent; the delete-everything call is after the Keep branch's Exit
-    ask = offer.find('KeepOrDelete(')
-    guard = re.search(r'if\s+not\s+UninstallSilent\s+then\s+ChoseDelete\s*:=\s*KeepOrDelete\(', offer)
-    if ask < 0 or not guard:
-        bad.append('OfferDataRemoval: KeepOrDelete is not behind "if not UninstallSilent"')
+    ask = askp.find('KeepOrDelete(')
+    guard = re.search(r'ChoseDelete\s*:=\s*False\s*;\s*if\s+not\s+UninstallSilent\s+then\s+ChoseDelete\s*:=\s*KeepOrDelete\(', askp)
+    if ask < 0 or not guard or not re.search(r'DataChoseDelete\s*:=\s*ChoseDelete\s*;', askp):
+        bad.append('AskDataChoice: KeepOrDelete is not behind "if not UninstallSilent", or the answer is not stored')
+    if 'KeepOrDelete(' in offer:
+        bad.append('OfferDataRemoval asks again')
     wipe = offer.find("RemoveFolderContents(Root, '|', '|')")
     ex = offer.find('Exit;')
-    test = offer.find('if not ChoseDelete')
+    test = offer.find('if not DataChoseDelete')
     if wipe < 0 or ex < 0 or test < 0 or not (test < ex < wipe):
         bad.append('OfferDataRemoval: the delete-everything call is not after the Keep branch has Exit-ed')
+    # Read inside the usUninstall branch only: the usPostUninstall branch comes first in the text.
+    ub = re.search(r'if\s+CurUninstallStep\s*=\s*usUninstall\s+then', unst)
+    seg = unst[ub.end():] if ub else ''
+    a = seg.find('AskDataChoice;')
+    rm = seg.find("RunMachineStep('Remove', Extra)")
+    kh = re.search(r"if\s+not\s+DataChoseDelete\s+then\s+Extra\s*:=\s*' -KeepHostKey'", unst)
+    if a < 0 or rm < 0 or not (a < rm) or not kh:
+        bad.append('CurUninstallStepChanged: the question is not asked before the Remove step, or -KeepHostKey is not tied to Keep')
     # 2. Keep first, Delete second, Delete = IDNO
     lab = re.findall(r"Labels\[(\d)\]\s*:=\s*'([A-Za-z]+)'", kod)
     if lab != [('0', 'Keep'), ('1', 'Delete')]:
@@ -97,8 +115,10 @@ def violations(text):
     if deltrees != deltrees_in_helper or deltrees == 0:
         bad.append('DelTree( is called outside RemoveFolderContents (' + str(deltrees) + ' calls, ' + str(deltrees_in_helper) + ' inside it)')
     # 4. Keep cannot take the account or sd.conf
-    if "'|user_accounts|'" not in keep or '|sd.conf|' not in keep or "'|sduser|'" not in keep:
+    if "'|user_accounts|" not in keep or '|sd.conf|' not in keep or "'|sduser|'" not in keep:
         bad.append('KeepDataOnly: the keep lists do not name user_accounts, sduser and sd.conf')
+    if "|sdsys|" not in keep or "'|$cred|" not in keep or "'|audit|audit.*|" not in keep:
+        bad.append('KeepDataOnly: the keep lists do not name sdsys, $cred and the audit trail (SOLO 72)')
     # 5. reload moves, never deletes
     if 'MoveFileW(' not in prep:
         bad.append('PrepareToInstall: the kept data is not moved with MoveFileW')
@@ -117,7 +137,8 @@ if not os.path.isfile(SOLO):
 with open(SOLO, 'rb') as fh:
     text = fh.read().decode('utf-8', 'replace')
 
-for kind, need in (('procedure', 'OfferDataRemoval'), ('function', 'KeepOrDelete'), ('function', 'RemoveFolderContents'),
+for kind, need in (('procedure', 'OfferDataRemoval'), ('procedure', 'AskDataChoice'), ('procedure', 'CurUninstallStepChanged'),
+                   ('function', 'KeepOrDelete'), ('function', 'RemoveFolderContents'),
                    ('function', 'KeepDataPass'), ('function', 'KeepDataOnly'), ('function', 'PrepareToInstall')):
     if not body(text, kind, need):
         print('test-uninstallkeep-units: VOID - no ' + need + ' found; the parse measured nothing.')
@@ -143,9 +164,22 @@ m4 = text.replace('$400', '$0')
 check('CONTROL: mutation 4 changed the text', m4 != text)
 check('MUTANT: no reparse-point check is flagged', any('reparse' in x for x in violations(m4)))
 
-m5 = text.replace("RemoveFolderContents(Root, '|user_accounts|', '|sd.conf|.sdcore-kept|')", "RemoveFolderContents(Root, '|', '|')")
+m5 = text.replace("RemoveFolderContents(Root, '|user_accounts|sdsys|sd-tls|ssh|', '|sd.conf|.sdcore-kept|')", "RemoveFolderContents(Root, '|', '|')")
 check('CONTROL: mutation 5 changed the text', m5 != text)
 check('MUTANT: a Keep that keeps nothing is flagged', any('keep lists' in x for x in violations(m5)))
+
+# SOLO 72's own mutants.
+m6 = text.replace("'|$cred|ai|", "'|ai|", 1)
+check('CONTROL: mutation 6 changed the text', m6 != text)
+check('MUTANT: a Keep that drops the passwords is flagged', any('$cred' in x for x in violations(m6)))
+
+m7 = text.replace("    AskDataChoice;\n", "", 1).replace("    OfferDataRemoval;\n", "    begin AskDataChoice; OfferDataRemoval; end;\n", 1)
+check('CONTROL: mutation 7 changed the text', m7 != text)
+check('MUTANT: the question asked after the Remove step is flagged', any('CurUninstallStepChanged' in x for x in violations(m7)))
+
+m8 = text.replace("if not DataChoseDelete then\n      Extra := ' -KeepHostKey';", "Extra := ' -KeepHostKey';", 1)
+check('CONTROL: mutation 8 changed the text', m8 != text)
+check('MUTANT: -KeepHostKey on Delete too is flagged', any('KeepHostKey' in x for x in violations(m8)))
 
 print('')
 if passed == 0:

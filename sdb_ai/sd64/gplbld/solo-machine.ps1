@@ -86,7 +86,10 @@ param(
     [switch]$SshIntoSd,
     # Ruling 17: Microsoft's OpenSSH MSI from the release folder, installed
     # first so the ssh steps below have a server to work on.  Install only.
-    [string]$SshMsi = ''
+    [string]$SshMsi = '',
+    # 16 Nov 26 - SOLO 72 (Linux Solo 6d53db4, S.234 N9): Remove only.  The uninstaller's Keep was chosen, so Solo's ssh host
+    # key pair stays in the admin-only machine folder for a reinstall (solo-sshd.ps1 -Uninstall -KeepHostKey).
+    [switch]$KeepHostKey
 )
 
 $ErrorActionPreference = 'Stop'
@@ -609,14 +612,24 @@ function Remove-SshTask {
     }
     # Stopping the task need not end the sshd it started; -Uninstall ends Solo's, by command line (never the
     # system sshd), and deletes the admin-only machine folder with its host key and config.
-    $null = Invoke-Shipped 'solo-sshd.ps1' @('-Uninstall')
+    # 16 Nov 26 - SOLO 72: with -KeepHostKey everything there goes but the host key pair.
+    $sshdArgs = @('-Uninstall')
+    if ($KeepHostKey) { $sshdArgs += '-KeepHostKey' }
+    $null = Invoke-Shipped 'solo-sshd.ps1' $sshdArgs
     if (Get-ScheduledTask -TaskName $SshTaskName -ErrorAction SilentlyContinue) {
         Unregister-ScheduledTask -TaskName $SshTaskName -Confirm:$false
     }
     $left = Split-Path -Parent $MachineSshDir
+    $keptKey = Join-Path $MachineSshDir 'ssh_host_ed25519_key'
+    $extra = @()
+    if (Test-Path -LiteralPath $left) {
+        $extra = @(Get-ChildItem -LiteralPath $left -Recurse -Force -File | Where-Object { -not ($KeepHostKey -and (($_.FullName -eq $keptKey) -or ($_.FullName -eq ($keptKey + '.pub')))) })
+    }
     if (Get-ScheduledTask -TaskName $SshTaskName -ErrorAction SilentlyContinue) { Fail 'the ssh startup task is still registered' }
     elseif ((Get-SoloSshd).Count -gt 0) { Fail 'Solo''s sshd is still running after the ssh task was removed' }
-    elseif (Test-Path -LiteralPath $left) { Fail ('the machine ssh folder ' + $left + ' is still there') }
+    elseif ($extra.Count -gt 0) { Fail ('the machine ssh folder ' + $left + ' still holds ' + (($extra | ForEach-Object { $_.Name }) -join ', ')) }
+    elseif ((-not $KeepHostKey) -and (Test-Path -LiteralPath $left)) { Fail ('the machine ssh folder ' + $left + ' is still there') }
+    elseif ($KeepHostKey -and (Test-Path -LiteralPath $keptKey)) { Note ('  PASS  no ssh task, no sshd of Solo''s running; the host key pair is kept in ' + $MachineSshDir) }
     else { Note '  PASS  no ssh task, no sshd of Solo''s running and no machine ssh folder' }
 }
 

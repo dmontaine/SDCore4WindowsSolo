@@ -6,7 +6,7 @@
 #   -Install      (ELEVATED)       make the admin-only machine folder, host key, config; check its permissions
 #   -Stop         (ELEVATED)       end the sshd that was started from Solo's config
 #   -Show         (anyone)         report, change nothing
-#   -Uninstall    (ELEVATED)       -Stop, then delete the machine folder
+#   -Uninstall    (ELEVATED)       -Stop, then delete the machine folder (with -KeepHostKey: all of it but the host key pair)
 #   -PrintConfig  (anyone)         print the sshd_config text for -OsUser, write nothing (the guard uses it)
 # All with: powershell -NoProfile -ExecutionPolicy Bypass -File solo-sshd.ps1 <switch> [-OsUser name] [-AppDir path]
 #
@@ -49,6 +49,12 @@
 # line, so unelevated it finds nothing while the port is held: it looks at who holds the port and REFUSES rather
 # than answer NONE.  Run -Stop elevated, as solo-machine.ps1 does at upgrade and uninstall.
 #
+# KEEPING THE HOST KEY (16 Nov 2026, SOLO 72, Linux Solo 6d53db4 S.234 N9, the owner: "N9 same as core"): when the
+# uninstaller's Keep was chosen it passes -KeepHostKey, and -Uninstall leaves ssh_host_ed25519_key and its .pub in the
+# machine folder, with the ACL -Install gave them, and deletes everything else there (config, pid, log, the doors
+# folder).  A reinstall's -Install finds the pair and uses it, so clients that trusted the old key still do.  Linux
+# keeps its sshd directory inside the kept tree; here the key stays in its admin-only folder, never in the user's.
+#
 # LEGACY: the first build of SOLO 28 ran a per-user sshd from an S4U task out of <app>\ssh.  -Prepare deletes the
 # files that build left there (config, host key, pid, log) and -Stop also ends an sshd started from that config.
 #
@@ -67,6 +73,7 @@ param(
     [switch]$Show,
     [switch]$Uninstall,
     [switch]$PrintConfig,
+    [switch]$KeepHostKey,
     [string]$AppDir = '',
     [string]$OsUser = ''
 )
@@ -420,6 +427,22 @@ if ($Uninstall) {
     $parent = Split-Path -Parent $machineDir
     # A recursive delete as an administrator: refuse unless the folder is exactly ...\SDCoreSolo and its child is ssh.
     if ((Split-Path -Leaf $parent) -ne 'SDCoreSolo' -or (Split-Path -Leaf $machineDir) -ne 'ssh') { Stop-With ('refusing to delete ' + $parent + ' - it is not an SDCoreSolo folder') }
+    # 16 Nov 26 - SOLO 72: -KeepHostKey keeps the pair, and only when both files are there; anything else is removed as before.
+    $keepNames = @('ssh_host_ed25519_key', 'ssh_host_ed25519_key.pub')
+    $havePair = (Test-Path -LiteralPath $hostKey -PathType Leaf) -and (Test-Path -LiteralPath ($hostKey + '.pub') -PathType Leaf)
+    if ($KeepHostKey -and $havePair) {
+        Get-ChildItem -LiteralPath $parent -Force | Where-Object { $_.Name -ne 'ssh' } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        Get-ChildItem -LiteralPath $machineDir -Force | Where-Object { $keepNames -notcontains $_.Name } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        $left = @(Get-ChildItem -LiteralPath $parent -Recurse -Force | ForEach-Object { $_.FullName.Substring($parent.Length + 1) })
+        $want = @('ssh', ('ssh\' + $keepNames[0]), ('ssh\' + $keepNames[1]))
+        $extra = @($left | Where-Object { $want -notcontains $_ })
+        if ($extra.Count -gt 0) { Stop-With ('could not remove from ' + $parent + ': ' + ($extra -join ', ')) }
+        Write-Output ('MACHINEDIR=' + $machineDir + ' exists=True')
+        Write-Output ('HOSTKEY=' + (Get-HostFingerprint) + ' kept')
+        Write-Output 'RESULT=REMOVED'
+        exit 0
+    }
+    if ($KeepHostKey) { Write-Output 'HOSTKEY=none to keep' }
     if (Test-Path -LiteralPath $parent) { Remove-Item -LiteralPath $parent -Recurse -Force -ErrorAction SilentlyContinue }
     if (Test-Path -LiteralPath $parent) { Stop-With ('could not remove ' + $parent) }
     Write-Output ('MACHINEDIR=' + $machineDir + ' exists=False')

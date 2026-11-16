@@ -42,7 +42,10 @@
 ; SOLO 37 (6 Oct 2026): THE UNINSTALLER ASKS KEEP OR DELETE (5.9.1's opt-in data
 ; removal, built).  Keep leaves the account's files and sd.conf with a stamp and
 ; removes the rest; a new install over that folder offers them back (see the
-; comments at CurStepChanged, PrepareToInstall and OfferDataRemoval).
+; comments at CurStepChanged, PrepareToInstall and OfferDataRemoval).  16 Nov 2026,
+; SOLO 72 (Linux Solo S.234 N9): Keep also keeps the passwords, the audit trail,
+; the TLS and ssh keys and the settings SD Core keeps, and a reload that finds the
+; passwords asks none (KeepDataPass, KeptPasswordsUsed).
 ;
 ; WHAT IS NOT HERE YET (SOLO 8 in PROJECT_STATUS.md): ruling 13's deletion
 ; of the gpl.bp source at the end of install, and dropping the multi-user
@@ -313,6 +316,12 @@ var
   KeptWasFound: Boolean;
   ReloadPage: TInputOptionWizardPage;
   KeptFolder, CfReload: String;
+  { 16 Nov 26 - SOLO 72 (Linux Solo 6d53db4, S.234 N9; the owner, 14 Nov: "N9 same as core").  Keep now keeps the passwords
+    ($cred), the audit trail, the API's TLS identity, the AI settings, the SDNet logins and where sessions start, as SD Core does.
+    KeptPwFound: the kept $cred holds all three records a password-asking install writes (sduser, $admin, $stored), so a reload
+    asks no password; KeptGlobalFound: it also holds $global (managed); KeptStartFound: there is a kept start.default.
+    DataChoseDelete is the uninstaller's answer, asked before anything is removed (the ssh host key's step needs it). }
+  KeptPwFound, KeptGlobalFound, KeptStartFound, DataChoseDelete: Boolean;
   { 06 Oct 26 - SOLO 39.  The steps CurStepChanged found not completed, one per line as the
     dialog lists them ('' when all passed).  The finish page reads it: it said "Setup has finished
     installing ..." after a failed step, which the dialog before it contradicted.  Declared here
@@ -587,6 +596,10 @@ begin
   Result := '';
   if not DataTreeWasAbsent then
     Exit;
+  { 16 Nov 26 - SOLO 72 (Linux Solo S.234 N9, SD Core's START-ASK): a reload takes where sessions start from the kept start.default,
+    which solo-setup.ps1 copies back, and asks nothing.  (ReloadChosen's test, written out: that function comes later.) }
+  if KeptWasFound and (ReloadPage.SelectedValueIndex = 0) and KeptStartFound then
+    Exit;
   if UseControl and (CfStart <> '') then
   begin
     Result := CfStart;
@@ -610,7 +623,18 @@ begin
     semaphore names, its own firewall rule names), the one that was left was ssh, and Solo's ssh is its
     own sshd on its own port now.  The owner: the two products are meant to be installed at the same
     time.  NOT YET WITNESSED: both running together on one computer. }
-  DataTreeWasAbsent := not DirExists(SoloRoot + '\sdsys');
+  { SOLO 37: kept data is what the uninstaller's Keep leaves - its stamp, the account, and (SOLO 72) an sdsys holding only the
+    kept items: no catalogue (gcat), which every installed tree has.  Such a folder is a NEW tree: the whole data tree is laid
+    down over it and the kept items are copied back from where PrepareToInstall moves the folder.  A tree that still has its
+    catalogue (an earlier release's uninstall, or one copied from another Windows user) is NOT kept data: it is reinstalled
+    over as before. }
+  KeptWasFound := FileExists(SoloRoot + '\.sdcore-kept') and DirExists(SoloRoot + '\user_accounts\sduser') and
+                  not DirExists(SoloRoot + '\sdsys\gcat');
+  DataTreeWasAbsent := KeptWasFound or not DirExists(SoloRoot + '\sdsys');
+  KeptPwFound := KeptWasFound and FileExists(SoloRoot + '\sdsys\$cred\sduser') and
+                 FileExists(SoloRoot + '\sdsys\$cred\$admin') and FileExists(SoloRoot + '\sdsys\$cred\$stored');
+  KeptGlobalFound := KeptPwFound and FileExists(SoloRoot + '\sdsys\$cred\$global');
+  KeptStartFound := KeptWasFound and FileExists(SoloRoot + '\sdsys\start.default');
   SoloWasInstalled := RegKeyExists(HKCU, SoloKey);
   SshServerWasFound := FileExists(ExpandConstant('{sys}\OpenSSH\sshd.exe')) or
                        FileExists(ExpandConstant('{commonpf64}\OpenSSH\sshd.exe'));
@@ -633,11 +657,6 @@ begin
     Exit;
   end;
   GlobalWasFound := FileExists(SoloRoot + '\sdsys\$cred\$GLOBAL');
-  { SOLO 37: kept data is what the uninstaller's Keep leaves - no sdsys, its stamp, and the account.  A tree
-    that still has sdsys (an earlier release's uninstall, or one copied from another Windows user) is NOT
-    kept data: it is reinstalled over as before. }
-  KeptWasFound := DataTreeWasAbsent and FileExists(SoloRoot + '\.sdcore-kept') and
-                  DirExists(SoloRoot + '\user_accounts\sduser');
   LoadControlFile;
   PythonWasFound := PythonInHive(HKCU) or PythonInHive(HKLM64) or PythonInHive(HKLM32);
   Log('SD Core Solo: beside the installer: msi="' + SshMsiPath + '" python="' +
@@ -646,7 +665,10 @@ begin
       ' installed=' + IntToStr(Ord(SoloWasInstalled)) +
       ' sshd=' + IntToStr(Ord(SshServerWasFound)) +
       ' global=' + IntToStr(Ord(GlobalWasFound)) +
-      ' keptdata=' + IntToStr(Ord(KeptWasFound)));
+      ' keptdata=' + IntToStr(Ord(KeptWasFound)) +
+      ' keptpasswords=' + IntToStr(Ord(KeptPwFound)) +
+      ' keptglobal=' + IntToStr(Ord(KeptGlobalFound)) +
+      ' keptstart=' + IntToStr(Ord(KeptStartFound)));
   Result := True;
 end;
 
@@ -661,13 +683,21 @@ begin
 end;
 
 { 06 Oct 26 - SOLO 37.  Kept data is a folder the uninstaller's Keep left: no
-  sdsys (so the install is a NEW tree, every password asked), the stamp, and the
+  catalogue in sdsys (so the install is a NEW tree), the stamp, and the
   account.  Yes reloads it, No starts clean; both move the old folder aside, so
   nothing is ever deleted.  The answer is read from the page, so going Back and
   changing it works. }
 function ReloadChosen: Boolean;
 begin
   Result := KeptWasFound and (ReloadPage.SelectedValueIndex = 0);
+end;
+
+{ 16 Nov 26 - SOLO 72 (Linux Solo S.234 N9): a reload of kept data whose $cred holds the three records keeps the passwords and
+  asks none (SD Core: "Password exists - not changed").  A control file that gives a password replaces the kept ones, as Linux's
+  password files do: that is how a computer becomes managed after the fact, or a forgotten password is replaced. }
+function KeptPasswordsUsed: Boolean;
+begin
+  Result := ReloadChosen and KeptPwFound and not (UseControl and ((CfAdmin <> '') or (CfGlobal <> '')));
 end;
 
 function SshMsiOffered: Boolean;
@@ -718,7 +748,10 @@ end;
   asks for one - the way to add one later, or to drop one. }
 function Managed: Boolean;
 begin
-  if DataTreeWasAbsent then
+  { 16 Nov 26 - SOLO 72: a reload that keeps the passwords is managed when the kept register has a global password. }
+  if KeptPasswordsUsed then
+    Result := KeptGlobalFound
+  else if DataTreeWasAbsent then
     Result := GlobalPage.Values[0] <> ''
   else
     Result := GlobalWasFound;
@@ -866,20 +899,21 @@ begin
     install, where "no answer" means yes, as on Linux). }
   if PageID = ReloadPage.ID then
     Result := (not KeptWasFound) or (UseControl and ((CfReload <> '') or (CfAdminOk and CfGlobalOk)))
+  { 16 Nov 26 - SOLO 72: none of the three password pages when a reload keeps the passwords. }
   else if PageID = AdminPage.ID then
-    Result := (not DataTreeWasAbsent) or (UseControl and CfAdminOk)
+    Result := (not DataTreeWasAbsent) or KeptPasswordsUsed or (UseControl and CfAdminOk)
   { SOLO 36: the global password is asked on every new tree.  A control file
     settles it when it gives an accepted one or none at all (blank or absent);
     one the rules refuse is asked for. }
   else if PageID = GlobalPage.ID then
-    Result := (not DataTreeWasAbsent) or (UseControl and ((CfGlobal = '') or CfGlobalOk))
+    Result := (not DataTreeWasAbsent) or KeptPasswordsUsed or (UseControl and ((CfGlobal = '') or CfGlobalOk))
   { SOLO 18: not with a control file that gives a global password - the
     owner's ruling is that the user sets the account password at the first
     login, at the console, and that route needs a $GLOBAL.  SOLO 36: with no
     global password (a file with none, a refused one, or no file) the account
     password is asked here, on every route. }
   else if PageID = AccountPage.ID then
-    Result := (not DataTreeWasAbsent) or (UseControl and CfGlobalOk)
+    Result := (not DataTreeWasAbsent) or KeptPasswordsUsed or (UseControl and CfGlobalOk)
   { SOLO 36: the page asks the API and ssh in every install; skipped on an
     upgrade, and when the control file answers both. }
   { 20 Oct 26 - RELEASE_1.1 165: the OS switch question is asked on a new install and on an upgrade, and skipped only when a control
@@ -890,7 +924,7 @@ begin
     Result := SoloWasInstalled or (ApiAnswered and SshAnswered)
   { 12 Nov 26 - SOLO 56 group 6: the start question on a new tree only, skipped when a control file answers it. }
   else if PageID = StartPage.ID then
-    Result := (not DataTreeWasAbsent) or (UseControl and (CfStart <> ''))
+    Result := (not DataTreeWasAbsent) or (ReloadChosen and KeptStartFound) or (UseControl and (CfStart <> ''))
   else if PageID = wpReady then
     Result := UseControl and CfAdminOk and CfGlobalOk;
 end;
@@ -1154,7 +1188,16 @@ begin
   if KeptFolder <> '' then
   begin
     if ReloadChosen then
-      S := S + 'saved data     : RELOAD - the kept data and sd.conf go into the new tree; the old folder is ' + KeptFolder + #13#10
+    begin
+      S := S + 'saved data     : RELOAD - the kept data and sd.conf go into the new tree; the old folder is ' + KeptFolder + #13#10;
+      { 16 Nov 26 - SOLO 72: SD Core's and Linux Solo's wording. }
+      if KeptPasswordsUsed then
+        S := S + 'passwords      : kept from the previous install - not changed' + #13#10
+      else if KeptPwFound then
+        S := S + 'passwords      : given by the control file; they replace the kept ones' + #13#10
+      else
+        S := S + 'passwords      : none were kept; this install set new ones' + #13#10;
+    end
     else
       S := S + 'saved data     : START CLEAN - the kept data was moved to ' + KeptFolder + ', not reloaded' + #13#10;
   end;
@@ -1291,17 +1334,21 @@ begin
   SetEnvironmentVariable('SD_SOLO_START', StartWord);
   if DataTreeWasAbsent then
   begin
-    Params := Params + ' -Passwords';
     { SOLO 37: reload the kept data (moved aside by PrepareToInstall) into this new tree. }
     if ReloadChosen and (KeptFolder <> '') then
       Params := Params + ' -ReloadFrom "' + KeptFolder + '"';
-    SetEnvironmentVariable('SD_SOLO_ADMIN_PW', AdminPage.Values[0]);
-    if Managed then
+    { 16 Nov 26 - SOLO 72: a reload that keeps the passwords gives solo-setup.ps1 none; it copies the kept $cred back. }
+    if not KeptPasswordsUsed then
     begin
-      Params := Params + ' -Global';
-      SetEnvironmentVariable('SD_SOLO_GLOBAL_PW', GlobalPage.Values[0]);
+      Params := Params + ' -Passwords';
+      SetEnvironmentVariable('SD_SOLO_ADMIN_PW', AdminPage.Values[0]);
+      if Managed then
+      begin
+        Params := Params + ' -Global';
+        SetEnvironmentVariable('SD_SOLO_GLOBAL_PW', GlobalPage.Values[0]);
+      end;
+      SetEnvironmentVariable('SD_SOLO_ACCOUNT_PW', AccountPage.Values[0]);
     end;
-    SetEnvironmentVariable('SD_SOLO_ACCOUNT_PW', AccountPage.Values[0]);
     { 28 Sep 26 - ruling 34: the control file's deny-verbs, on a new tree only
       (an existing tree keeps its list; the server changes it with DENY.VERBS). }
     if UseControl and (CfDeny <> '') then
@@ -1415,7 +1462,9 @@ end;
 { Everything inside Root except the uninstaller's own files (unins*, which Setup
   removes after this returns) and the names in KeepDirs and KeepFiles (each is
   '|name|name|', lower case).  A reparse point (a junction, a symbolic link) is
-  never followed and never deleted: it makes the result False. }
+  never followed and never deleted: it makes the result False.
+  16 Nov 26 - SOLO 72: '|audit.*|' in KeepFiles keeps every file whose name begins audit. (the rotated trail), and a reparse
+  point is never KEPT either, whatever its name: only a real folder or file is kept data (Linux Solo's keep_prune). }
 function RemoveFolderContents(const Root, KeepDirs, KeepFiles: String): Boolean;
 var
   FR: TFindRec;
@@ -1435,7 +1484,10 @@ begin
           if IsDirectory then
             Keep := Pos(Tag, KeepDirs) > 0
           else
-            Keep := (Pos(Tag, KeepFiles) > 0) or (CompareText(Copy(FR.Name, 1, 5), 'unins') = 0);
+            Keep := (Pos(Tag, KeepFiles) > 0) or (CompareText(Copy(FR.Name, 1, 5), 'unins') = 0) or
+                    ((Pos('|audit.*|', KeepFiles) > 0) and (CompareText(Copy(FR.Name, 1, 6), 'audit.') = 0));
+          if (FR.Attributes and $400) <> 0 then
+            Keep := False;
           if not Keep then
           begin
             if (FR.Attributes and $400) <> 0 then
@@ -1457,12 +1509,22 @@ begin
 end;
 
 { KEEP: the account's files and sd.conf stay; everything else goes; the stamp is
-  written last, and only when there is an account to keep. }
+  written last, and only when there is an account to keep.
+  16 Nov 26 - SOLO 72 (Linux Solo 6d53db4, S.234 N9; the owner, 14 Nov 2026: "N9 same as core"): what SD Core keeps with its
+  accounts stays too, each in Solo's own place - the API's TLS identity (sd-tls) and the user's ssh keys (ssh) beside the
+  account; in sdsys the passwords ($cred), the AI settings (ai), the SDNet logins (netlogins), the administrator's VOC
+  changes (newvoc.mods) and the saved VOC records (voc_removed.saved), the audit trail with its rotated copies, and where
+  sessions start (start.default).  The rest of sdsys - the system files, the deny list, GLOBAL.BP.OUT - goes with the
+  installation.  The ssh host key is kept by the machine step (solo-sshd.ps1 -KeepHostKey), in its admin-only folder. }
 function KeepDataPass(const Root: String): Boolean;
 begin
-  Result := RemoveFolderContents(Root, '|user_accounts|', '|sd.conf|.sdcore-kept|');
+  Result := RemoveFolderContents(Root, '|user_accounts|sdsys|sd-tls|ssh|', '|sd.conf|.sdcore-kept|');
   if DirExists(Root + '\user_accounts') then
     if not RemoveFolderContents(Root + '\user_accounts', '|sduser|', '|') then
+      Result := False;
+  if DirExists(Root + '\sdsys') then
+    if not RemoveFolderContents(Root + '\sdsys', '|$cred|ai|netlogins|newvoc.mods|voc_removed.saved|',
+                                '|audit|audit.*|start.default|') then
       Result := False;
 end;
 
@@ -1474,6 +1536,16 @@ function KeepDataOnly(const Root: String): Boolean;
 var
   Tries: Integer;
 begin
+  { 16 Nov 26 - SOLO 72, START-SAVE (SD Core's of 14 Nov, Linux Solo S.234 N9): where sessions start is ALWAYS kept.  A tree whose
+    setting was never changed has no start.default; it is written as the tree behaved - the home screen when the tree has it
+    (gpl.bp.out\tool_home, the compiled program), the prompt otherwise. }
+  if DirExists(Root + '\sdsys') and not FileExists(Root + '\sdsys\start.default') then
+  begin
+    if FileExists(Root + '\sdsys\gpl.bp.out\tool_home') then
+      SaveStringToFile(Root + '\sdsys\start.default', 'menu' + #13#10, False)
+    else
+      SaveStringToFile(Root + '\sdsys\start.default', 'terminal' + #13#10, False);
+  end;
   Result := KeepDataPass(Root);
   Tries := 1;
   while (not Result) and (Tries < 5) do
@@ -1488,7 +1560,10 @@ begin
       'kept ' + GetDateTimeString('yyyy-mm-dd hh:nn:ss', '-', ':') + #13#10, False);
 end;
 
-procedure OfferDataRemoval;
+{ 16 Nov 26 - SOLO 72: THE QUESTION IS ASKED FIRST, at usUninstall before anything is removed, because the machine step that
+  runs there needs the answer: Keep keeps Solo's ssh host key (solo-machine.ps1 -KeepHostKey).  OfferDataRemoval acts on it at
+  usPostUninstall, as before.  Keep is the answer until the question is answered. }
+procedure AskDataChoice;
 var
   Root: String;
   ChoseDelete: Boolean;
@@ -1501,18 +1576,26 @@ begin
   if not UninstallSilent then
     ChoseDelete := KeepOrDelete('Keep or delete your SD Core Solo data and configuration?',
       Root + #13#10#13#10 +
-      'Keep leaves your account sduser with its data, and sd.conf, in this folder. A new installation ' +
-      'offers them back.' + #13#10#13#10 +
-      'Keep removes these: every password, the audit trail, the list of denied commands, GLOBAL.BP.OUT, ' +
-      'the API''s TLS key, your ssh key file, the system files and the install logs.' + #13#10#13#10 +
+      'Keep leaves your account sduser with its data, sd.conf, your passwords, the audit trail, the TLS and ssh ' +
+      'keys and your settings. A new installation offers them back.' + #13#10#13#10 +
+      'Keep removes these: the system files, the list of denied commands, GLOBAL.BP.OUT and the install logs.' + #13#10#13#10 +
       'Delete removes the whole folder, for good.');
-  if not ChoseDelete then
+  DataChoseDelete := ChoseDelete;
+  Log('SD Core Solo: data choice: ' + YesNo(ChoseDelete) + ' to delete');
+end;
+
+procedure OfferDataRemoval;
+var
+  Root: String;
+begin
+  Root := ExpandConstant('{app}');
+  if not DataChoseDelete then
   begin
     if KeepDataOnly(Root) then
     begin
-      Log('SD Core Solo: the account and sd.conf are kept in ' + Root);
+      Log('SD Core Solo: the account, sd.conf and the kept settings are in ' + Root);
       if not UninstallSilent then
-        MsgBox('Your account and sd.conf were kept in ' + Root + '.' + #13#10#13#10 +
+        MsgBox('Your account, sd.conf, passwords and settings were kept in ' + Root + '.' + #13#10#13#10 +
                'A new installation offers them back. Deleting the folder removes them for good.',
                mbInformation, MB_OK);
     end
@@ -1541,17 +1624,23 @@ end;
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   Code: Integer;
+  Extra: String;
 begin
   { After Setup has removed what it installed, so what is left is the data. }
   if CurUninstallStep = usPostUninstall then
     OfferDataRemoval;
   if CurUninstallStep = usUninstall then
   begin
+    { 16 Nov 26 - SOLO 72: asked before anything is removed; Keep keeps the ssh host key. }
+    AskDataChoice;
+    Extra := '';
+    if not DataChoseDelete then
+      Extra := ' -KeepHostKey';
     Exec(ExpandConstant('{app}\usr\bin\sd-solo.exe'), '-stop', ExpandConstant('{app}\usr\bin'),
          SW_HIDE, ewWaitUntilTerminated, Code);
     Log('SD Core Solo: sd -stop, exit ' + IntToStr(Code));
     CloseLeftoverSdWindows(ExpandConstant('{app}\usr\bin'));
-    if RunMachineStep('Remove', '') <> 0 then
+    if RunMachineStep('Remove', Extra) <> 0 then
       MsgBox('The startup task, firewall rule or ssh setting could not be removed.' + #13#10 +
              'Details: ' + ExpandConstant('{app}\install-summary.log'), mbError, MB_OK);
     RemoveFromUserPath(ExpandConstant('{app}\usr\bin'));

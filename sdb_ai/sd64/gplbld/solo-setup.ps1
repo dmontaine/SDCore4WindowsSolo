@@ -2,7 +2,7 @@
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -File solo-setup.ps1
 #       -AppDir <install dir> -User <windows user name> -Report <file>
-#       [-Passwords] [-Global] [-Upgrade] [-ReloadFrom <dir>]
+#       [-Passwords] [-Global] [-Upgrade] [-ReloadFrom <dir>]   (-ReloadFrom alone: a reload that keeps the passwords)
 #
 # Run by sd-solo.iss at ssPostInstall, as the user, NOT elevated.  Exit 0 every
 # step passed, 1 a step failed, 2 refused before doing anything.
@@ -14,7 +14,11 @@
 #   3. -Passwords: solo_password ADMIN, and with -Global also GLOBAL  (SOLO 5)
 #      -ReloadFrom <dir> (SOLO 37, the user chose to reload kept data): the kept account's files are copied
 #      into the new account, the kept sd.conf is tried (the default is put back if SD refuses it), and the
-#      account's VOC is refreshed
+#      account's VOC is refreshed.  16 Nov 26 - SOLO 72 (Linux Solo 6d53db4, S.234 N9, the owner: "N9 same as core"): what
+#      the uninstaller's Keep now keeps is put back too - sd-tls and ssh beside the account; in sdsys $cred, ai, netlogins,
+#      newvoc.mods, voc_removed.saved and start.default, each replacing what this install made, and the audit trail JOINED
+#      (the kept lines, then this install's) with its rotated copies.  $cred only without -Passwords: -ReloadFrom alone is
+#      the installer's "kept passwords" case, and passwords given replace the kept ones (Linux's rule)
 #   4. -Upgrade: the dictionaries (SOLO 9, replacing upgrade-dicts.ps1) -
 #      {app}\gplbld\FILES_DICTS placed at sdsys\gplbld, sd -internal RUN gpl.bp
 #      WRITE_INSTALL_DICTS NO.PAGE (merges; every shipped record must be
@@ -141,7 +145,17 @@ if ($Passwords -and -not $adminPw) { $refuse += '-Passwords without an administr
 if ($Global -and -not $Passwords) { $refuse += '-Global without -Passwords' }
 if ($Global -and -not $globalPw) { $refuse += '-Global without a global password' }
 # SOLO 37: a reload goes into a NEW tree, from a folder that holds the kept account.
-if ($ReloadFrom -and -not $Passwords) { $refuse += '-ReloadFrom without -Passwords (it is for a new tree)' }
+# 16 Nov 26 - SOLO 72: -ReloadFrom without -Passwords keeps the kept passwords, so the kept $cred must hold all three records a
+# password-asking install writes (the installer's KeptPwFound); otherwise the new tree would have no password at all.
+$keptCredWhole = $false
+if ($ReloadFrom) {
+    $kc = Join-Path $ReloadFrom 'sdsys\$cred'
+    $keptCredWhole = (Test-Path -LiteralPath (Join-Path $kc 'sduser') -PathType Leaf) -and
+                     (Test-Path -LiteralPath (Join-Path $kc '$admin') -PathType Leaf) -and
+                     (Test-Path -LiteralPath (Join-Path $kc '$stored') -PathType Leaf)
+    Note ('kept passwords: ' + $(if ($keptCredWhole) { 'sduser, $admin and $stored are in ' + $kc } else { 'not all three records are in ' + $kc }))
+}
+if ($ReloadFrom -and -not $Passwords -and -not $keptCredWhole) { $refuse += '-ReloadFrom without -Passwords, and the kept $cred lacks sduser, $admin or $stored' }
 if ($ReloadFrom -and $Upgrade) { $refuse += '-ReloadFrom with -Upgrade (an upgrade already keeps its data)' }
 if ($ReloadFrom -and -not (Test-Path -LiteralPath (Join-Path $ReloadFrom 'user_accounts\sduser'))) { $refuse += ('-ReloadFrom ' + $ReloadFrom + ' holds no user_accounts\sduser') }
 # It reaches sd's command line through cmd.exe, so only verb-name characters,
@@ -350,6 +364,66 @@ try {
                 $script:fails += 'reload: account files'
             }
         }
+
+        # 16 Nov 26 - SOLO 72 (Linux Solo solo-stage.sh RELOAD-KEPT): WHAT SD CORE'S KEEP CYCLE KEEPS IS PUT BACK, each replacing what
+        # this install made; SD is stopped.  Only a real folder or file is taken (a reparse point is skipped and named), and each line
+        # says what it did.  $cred only when no password was given to this run.
+        # RELOAD-KEPT-BEGIN
+        $reparse = [IO.FileAttributes]::ReparsePoint
+        $keptItems = @(
+            @{ Rel = 'sd-tls';                  Dir = $true },
+            @{ Rel = 'ssh';                     Dir = $true },
+            @{ Rel = 'sdsys\$cred';             Dir = $true },
+            @{ Rel = 'sdsys\ai';                Dir = $true },
+            @{ Rel = 'sdsys\netlogins';         Dir = $true },
+            @{ Rel = 'sdsys\newvoc.mods';       Dir = $true },
+            @{ Rel = 'sdsys\voc_removed.saved'; Dir = $true },
+            @{ Rel = 'sdsys\start.default';     Dir = $false })
+        foreach ($k in $keptItems) {
+            $src = Join-Path $ReloadFrom $k.Rel
+            $dst = Join-Path $AppDir $k.Rel
+            if ($k.Rel -eq 'sdsys\$cred' -and $Passwords) { Note '  passwords: set by this install, the kept ones not used'; continue }
+            if (-not (Test-Path -LiteralPath $src)) { Note ('  ' + $k.Rel + ': none was kept'); continue }
+            $item = Get-Item -LiteralPath $src -Force
+            if (($item.Attributes -band $reparse) -or ($item.PSIsContainer -ne $k.Dir)) {
+                Note ('  FAIL  ' + $k.Rel + ': the kept one is a link or not a ' + $(if ($k.Dir) { 'folder' } else { 'file' }) + '; not taken')
+                $script:fails += ('reload: ' + $k.Rel)
+                continue
+            }
+            try {
+                if (Test-Path -LiteralPath $dst) { Remove-Item -LiteralPath $dst -Recurse -Force }
+                Copy-Item -LiteralPath $src -Destination $dst -Recurse -Force
+                $n1 = @(Get-ChildItem -LiteralPath $src -Recurse -Force -File -ErrorAction SilentlyContinue).Count
+                $n2 = @(Get-ChildItem -LiteralPath $dst -Recurse -Force -File -ErrorAction SilentlyContinue).Count
+                if (-not $k.Dir) { $n1 = 1; $n2 = [int](Test-Path -LiteralPath $dst -PathType Leaf) }
+                if ($n1 -eq $n2) { Note ('  PASS  ' + $(if ($k.Rel -eq 'sdsys\$cred') { 'passwords' } else { $k.Rel }) + ': reloaded (' + $n2 + ' file(s))') }
+                else { Note ('  FAIL  ' + $k.Rel + ': ' + $n1 + ' file(s) kept, ' + $n2 + ' copied'); $script:fails += ('reload: ' + $k.Rel) }
+            }
+            catch { Note ('  FAIL  ' + $k.Rel + ': ' + $_.Exception.Message); $script:fails += ('reload: ' + $k.Rel) }
+        }
+        # The audit trail is JOINED: the kept lines, then the lines this install wrote.  Rotated copies go back as they were.
+        $keptAudit = Join-Path $ReloadFrom 'sdsys\audit'
+        $newAudit = Join-Path $sdsys 'audit'
+        if ((Test-Path -LiteralPath $keptAudit -PathType Leaf) -and -not ((Get-Item -LiteralPath $keptAudit -Force).Attributes -band $reparse)) {
+            try {
+                $joined = [IO.File]::ReadAllBytes($keptAudit)
+                $mine = New-Object byte[] 0
+                if (Test-Path -LiteralPath $newAudit) { $mine = [IO.File]::ReadAllBytes($newAudit) }
+                $ms = New-Object IO.MemoryStream
+                $ms.Write($joined, 0, $joined.Length)
+                $ms.Write($mine, 0, $mine.Length)
+                [IO.File]::WriteAllBytes($newAudit, $ms.ToArray())
+                Note ('  PASS  audit trail: reloaded (' + $joined.Length + ' kept bytes, then ' + $mine.Length + ' of this install''s)')
+            }
+            catch { Note ('  FAIL  audit trail: ' + $_.Exception.Message); $script:fails += 'reload: audit' }
+        }
+        else { Note '  audit trail: none was kept' }
+        foreach ($r in @(Get-ChildItem -LiteralPath (Join-Path $ReloadFrom 'sdsys') -Filter 'audit.*' -Force -File -ErrorAction SilentlyContinue)) {
+            if ($r.Attributes -band $reparse) { continue }
+            Copy-Item -LiteralPath $r.FullName -Destination (Join-Path $sdsys $r.Name) -Force
+            Note ('  rotated audit copy reloaded: ' + $r.Name)
+        }
+        # RELOAD-KEPT-END
 
         $keptConf = Join-Path $ReloadFrom 'sd.conf'
         $conf = Join-Path $AppDir 'sd.conf'
