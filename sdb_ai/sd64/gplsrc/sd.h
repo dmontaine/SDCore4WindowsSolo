@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 16 Nov 26 SD Core Solo - RELEASE_1.1 246, from SD Core for Windows: k_ai() (op_ai.c), the AI helper's transport.
  * 11 Nov 26 SD Core Solo - SOLO 56 group 2, from Windows Core (as in Linux Solo): prototypes of show_unsafe_byte(), show_safe_text() and
  *               show_ts_safe() (op_lock.c, S.88 phase 2: the one rule for showing another session's text), sysmsg_arg1() (messages.c),
  *               keyin_idle_ms() (linuxio.c, kernel(K$AUTOLOGOUT, -2)); DIO_OVERWRITE_NOFOLLOW (S.88 A1).
@@ -252,6 +253,7 @@ char * k_var_name(DESCRIPTOR * descr);
 void log_message(char * msg);
 void audit_message(char * msg);
 void audit_rotate(void);
+void k_ai(int action, DESCRIPTOR * descr, DESCRIPTOR * result);   /* op_ai.c: KERNEL(K$AI.START / POLL / CANCEL / STATUS), the in-SD AI helper's transport (16 Nov 26 SD Core Solo, from SD Core for Windows; RELEASE_1.1 246) */
 int log_printf(char * str, ...);
 void log_permissions_error(FILE_VAR * fvar);
 

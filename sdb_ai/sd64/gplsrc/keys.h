@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 16 Nov 26 SD Core Solo - RELEASE_1.1 246: the AI keys' comment says the helper is here (op_ai.c); the numbers are unchanged.
  * 15 Nov 26 SD Core Solo - from Core f6c20e51 (Linux Solo 9b69caa, S.242 stage 3, RELEASE_1.1 299): K_XFER (173), the file transfer slot and server.
  * 11 Nov 26 SD Core Solo - SOLO 56 group 3: K_AI_START, K_AI_POLL, K_AI_CANCEL, K_AI_STATUS (160-163), answered "no helper", as SD Core for
  *           Windows.
@@ -449,9 +450,8 @@
    H<n> that any SD user can write.  Same number as Linux; GPL.BP/INT$KEYS.H carries it. */
 #define K_SHOW_SAFE          151
 /* 11 Nov 26 SD Core Solo - SOLO 56 group 3, as SD Core for Windows (10 Nov 26, from Linux S.69 step 2): the in-SD AI helper's keys, so the
-   screen library's AI routines ($tk_ai, $tk_aipage, $tk_aiwall, $tk_aidocs) carry unchanged.  There is no helper here: op_kernel.c answers
-   each as Linux's op_ai.c does when no helper is running - START 'ERR' FM 'nohelper', POLL and STATUS 'E' FM 'nohelper', CANCEL 'OK' - so
-   the AI is never usable and nothing is sent. */
+   screen library's AI routines ($tk_ai, $tk_aipage, $tk_aiwall, $tk_aidocs) carry unchanged.  16 Nov 26 (RELEASE_1.1 246): the helper is
+   here now (sd-ai.exe, started per request), and op_kernel.c sends all four to k_ai() (op_ai.c), as SD Core for Windows and Linux Solo do. */
 #define K_AI_START           160
 #define K_AI_POLL            161
 #define K_AI_CANCEL          162

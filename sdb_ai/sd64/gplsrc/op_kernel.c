@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 16 Nov 26 SD Core Solo - RELEASE_1.1 246: K_AI_START, POLL, CANCEL and STATUS (160-163) go to k_ai() (op_ai.c, its transport win32ai.c: the helper
+ *           sd-ai.exe started per request), as SD Core for Windows and Linux Solo; the "no helper" answers of 11 Nov are gone.
  * 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230, RELEASE_1.1 286): a phantom's failed daemon() is logged.
  * 15 Nov 26 SD Core Solo - from Core 9927feaf / Linux Solo 8ee65fe (S.241): a phantom gives back a pipe its session held on fds 0-2.
  * 15 Nov 26 SD Core Solo - from Core f6c20e51 (Linux Solo 9b69caa, S.242 stage 3, RELEASE_1.1 299): K_XFER (173), the file transfer slot and server (sd_sftp.c k_xfer()).
@@ -1082,18 +1084,14 @@ void op_kernel() {
       (void)ts_terminate();
     } break;
 
-    /* 11 Nov 26 SD Core Solo - SOLO 56 group 3, as SD Core for Windows: Linux's in-SD AI helper keys (op_ai.c there).  No helper exists
-       here, so each is answered as Linux answers when its helper is not running: the AI routines then find the AI unusable, draw no AI
-       line and send nothing.  The answers are strings of a word, a field mark and a word, as op_ai.c's ai_answer() builds them. */
+    /* 16 Nov 26 SD Core Solo - RELEASE_1.1 246, from SD Core for Windows (13 Nov 26): the in-SD AI helper (op_ai.c), a transport
+       that only a $internal program may use, as Linux Solo's.  The helper is sd-ai.exe --one beside this program, started for each
+       request on anonymous pipes as this session's own user (win32ai.c); Core's is the service on \\.\pipe\sd-ai. */
     case K_AI_START:
-      k_put_c_string("ERR\376nohelper", &result);
-      break;
     case K_AI_POLL:
-    case K_AI_STATUS:
-      k_put_c_string("E\376nohelper", &result);
-      break;
     case K_AI_CANCEL:
-      k_put_c_string("OK", &result);
+    case K_AI_STATUS:
+      k_ai(action, descr, &result);
       break;
 
     case K_PROFILER:
