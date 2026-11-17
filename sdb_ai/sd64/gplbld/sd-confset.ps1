@@ -72,7 +72,8 @@ $Writable = @{
 }
 
 # The other names config.c accepts in [sd] (sdsys\config.table's write=no rows)
-$Fixed = @('APIPORT', 'BACKUPDIR', 'CMDSTACK', 'DEADLOCK', 'DEBUG', 'DUMPDIR', 'ERRLOG', 'FDS',
+#   17 Nov 26 (from Core 8bd42f1a, RELEASE_1.1 317): APILOCAL is REMOTE.API's to change, as APIPORT is.
+$Fixed = @('APILOCAL', 'APIPORT', 'BACKUPDIR', 'CMDSTACK', 'DEADLOCK', 'DEBUG', 'DUMPDIR', 'ERRLOG', 'FDS',
            'FLTDIFF', 'FSYNC', 'GRPDIR', 'INTPREC', 'MAXIDLEN', 'MUSTLOCK', 'NETDIRS', 'NETFILES',
            'NUMFILES', 'NUMUSERS', 'OBJECTS', 'OBJMEM', 'PDUMP', 'PHANTOMS', 'PWDELAY', 'SAFEDIR',
            'SCREENTHEME', 'SDCLIENT', 'SDSYS', 'SH', 'SH1', 'SORTMEM', 'SORTWORK', 'SPOOLER',

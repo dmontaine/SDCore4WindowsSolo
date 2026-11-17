@@ -948,16 +948,21 @@ if ($Action -eq 'Doors') {
         if (@('api', 'ssh') -notcontains $Door -or @('off', 'local', 'open') -notcontains $Mode) { Fail 'give -Door api|ssh and -Mode off|local|open' }
         elseif ($Door -eq 'api') {
             $c = Invoke-Shipped 'solo-api-listener.ps1' @('-Show')
+            # 17 Nov 26 - from Core 8bd42f1a (RELEASE_1.1 317; audit round 1): local binds 127.0.0.1 (-Local), open every interface
+            # (-On), as Linux Solo's LOCAL.  The bind moves only at start-up too, so a move between local and open is a change.
             $wasOn = (@($lines | Where-Object { $_ -match 'state\s*:\s*ON\b' }).Count -gt 0)
+            $wasLocal = (@($lines | Where-Object { $_ -match 'state\s*:\s*ON\b.*APILOCAL' }).Count -gt 0)
+            $wasMode = if (-not $wasOn) { 'off' } elseif ($wasLocal) { 'local' } else { 'open' }
             if ($Mode -eq 'off') {
                 $c = Invoke-Shipped 'api-firewall.ps1' @('-Remove');         if ($c -ne 0) { Fail ('api-firewall.ps1 -Remove exited ' + $c) }
                 $c = Invoke-Shipped 'solo-api-listener.ps1' @('-Off');       if ($c -ne 0) { Fail ('solo-api-listener.ps1 -Off exited ' + $c) }
             } else {
                 $c = Invoke-Shipped 'api-firewall.ps1' @($(if ($Mode -eq 'open') { '-Open' } else { '-Restrict' }))
                 if ($c -ne 0) { Fail ('api-firewall.ps1 exited ' + $c) }
-                $c = Invoke-Shipped 'solo-api-listener.ps1' @('-On');        if ($c -ne 0) { Fail ('solo-api-listener.ps1 -On exited ' + $c) }
+                $lsw = if ($Mode -eq 'open') { '-On' } else { '-Local' }
+                $c = Invoke-Shipped 'solo-api-listener.ps1' @($lsw);         if ($c -ne 0) { Fail ('solo-api-listener.ps1 ' + $lsw + ' exited ' + $c) }
             }
-            if ($wasOn -ne ($Mode -ne 'off')) { Note 'NEXT START   : the API listener changes when SD is next started (sd-solo -stop, then sd-solo -start, or the next boot)' }
+            if ($wasMode -ne $Mode) { Note 'NEXT START   : the API listener changes when SD is next started (sd-solo -stop, then sd-solo -start, or the next boot)' }
         }
         else {
             $have = [bool](Get-ScheduledTask -TaskName $SshTaskName -ErrorAction SilentlyContinue)
@@ -1046,6 +1051,31 @@ try {
         Note '--- API firewall rule port'
         $c = Invoke-Shipped 'api-firewall.ps1' @('-Retarget')
         if ($c -ne 0) { Fail ('api-firewall.ps1 -Retarget exited ' + $c) }
+
+        # 17 Nov 26 - from Core 8bd42f1a (RELEASE_1.1 317, its MatchApiListenerToScope; audit round 1): a kept API that is ON for this
+        # computer only (the rule is not open to any address) listens on 127.0.0.1 from the first start, as Linux Solo's LOCAL.  An
+        # open rule, or an API that is off, is left exactly as the user had it (nothing the user opened is shut).
+        Note ''
+        Note '--- API listener bind'
+        $mark = $lines.Count
+        $c = Invoke-Shipped 'solo-api-listener.ps1' @('-Show')
+        $shown = @($lines | Select-Object -Skip $mark)
+        $onAll = (@($shown | Where-Object { $_ -match 'state\s*:\s*ON\b' -and $_ -notmatch 'APILOCAL' }).Count -gt 0)
+        $scope = ''
+        try {
+            $fw = New-Object -ComObject HNetCfg.FwPolicy2
+            foreach ($x in $fw.Rules) {
+                if ($x.Name -eq 'SD Core Solo API (SDClient)' -and $x.Direction -eq 1) {
+                    $scope = if (@(([string]$x.RemoteAddresses) -split ',') -contains '*') { 'open' } else { 'restricted' }
+                    break
+                }
+            }
+        } catch { $scope = '' }
+        Note ('  listener on every interface: ' + $onAll + '   rule scope: ' + $(if ($scope -eq '') { '(no rule or unreadable)' } else { $scope }))
+        if ($onAll -and $scope -eq 'restricted') {
+            $c = Invoke-Shipped 'solo-api-listener.ps1' @('-Local')
+            if ($c -ne 0) { Fail ('solo-api-listener.ps1 -Local exited ' + $c) }
+        } else { Note '  left as it is' }
     }
 
     # The listener follows the API box, on an install: ON after the rule above exists, OFF when the box is
@@ -1053,7 +1083,8 @@ try {
     if ($Action -eq 'Install') {
         Note ''
         Note '--- API listener switch'
-        $c = Invoke-Shipped 'solo-api-listener.ps1' @($(if ($Api) { '-On' } else { '-Off' }))
+        # 17 Nov 26 (RELEASE_1.1 317 carried): an API for this computer only listens on 127.0.0.1 (-Local); for the network, every interface.
+        $c = Invoke-Shipped 'solo-api-listener.ps1' @($(if ($Api -and $ApiNetwork) { '-On' } elseif ($Api) { '-Local' } else { '-Off' }))
         if ($c -ne 0) { Fail ('solo-api-listener.ps1 exited ' + $c) }
     }
 

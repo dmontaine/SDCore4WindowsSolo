@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - from Core 8bd42f1a (RELEASE_1.1 317; four-version audit round 1): with APILOCAL=1 the API listener binds
+ *           127.0.0.1 only, as Linux Solo's LOCAL; it bound every interface always (INADDR_ANY), the firewall alone narrowing it.
  * 18 Oct 26 Windows port - from Linux 7f7a4fd (sdlnxd.c, 16 Oct 26): the scan for lost
  *                      processes runs every CLEANUP seconds (sd.conf, 30 to 3600,
  *                      default 300); the loop's tick is ten seconds, kept on the clock
@@ -107,7 +109,7 @@ bool terminate = FALSE;
 static int api_listener = -1;
 
 void check_lost_users(void);
-static int open_api_listener(int port);
+static int open_api_listener(int port, bool local_only);
 static void accept_api_session(void);
 
 void signal_handler(int signum);
@@ -187,7 +189,7 @@ int main() {
      arrives, so counting iterations would run check_lost_users() once per
      API connection rather than once every five minutes.  With APIPORT unset
      there is no descriptor to watch and select() is just the old sleep.    */
-  api_listener = open_api_listener((int)sysseg->api_port);
+  api_listener = open_api_listener((int)sysseg->api_port, sysseg->api_local != 0);
 
   next_tick = time(NULL) + TICK_SECONDS;
 
@@ -422,7 +424,10 @@ void check_lost_users() {
    that wants to narrow it uses the firewall rule, which is where a Windows
    administrator expects to look.  gplbld/api-firewall.ps1.                   */
 
-static int open_api_listener(int port) {
+/* 17 Nov 26 SD Core Solo - from Core 8bd42f1a (RELEASE_1.1 317; four-version audit round 1): sd.conf's APILOCAL=1 (written by
+   solo-api-listener.ps1 -Local, i.e. remote.api local) binds 127.0.0.1, as Linux Solo's LOCAL listens on 127.0.0.1 only.  It was
+   every interface with the firewall restricting it.  No address is taken from the file: a switch between the two. */
+static int open_api_listener(int port, bool local_only) {
   int fd;
   int on = 1;
   struct sockaddr_in addr;
@@ -440,9 +445,8 @@ static int open_api_listener(int port) {
 
   memset(&addr, 0, sizeof(addr));
   addr.sin_family = AF_INET;
-  /* EVERY INTERFACE.  See the block above this function for why this changed
-     and what still guards it.                                              */
-  addr.sin_addr.s_addr = htonl(INADDR_ANY);
+  /* EVERY INTERFACE, or with APILOCAL=1 the loopback address only.  See the block above this function. */
+  addr.sin_addr.s_addr = htonl(local_only ? INADDR_LOOPBACK : INADDR_ANY);
   addr.sin_port = htons((u_int16_t)port);
 
   if (bind(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
@@ -465,7 +469,10 @@ static int open_api_listener(int port) {
      administrator finds out what this install actually exposes, and it read
      "127.0.0.1" for as long as that was true - so it must not go on saying so
      now that it is not.                                                     */
-  snprintf(msg, sizeof(msg), "API listener on all interfaces, port %d", port);
+  if (local_only)
+    snprintf(msg, sizeof(msg), "API listener on 127.0.0.1 only (APILOCAL), port %d", port);
+  else
+    snprintf(msg, sizeof(msg), "API listener on all interfaces, port %d", port);
   log_message(msg);
   return fd;
 }

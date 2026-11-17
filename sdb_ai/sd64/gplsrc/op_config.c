@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - from Core 8bd42f1a (RELEASE_1.1 317): CONFIG('APILOCAL') reads the segment, as APIPORT.
  * 11 Nov 26 SD Core Solo - from SD Core / Linux Solo 57a5e8d (S.88 3.7a; SOLO 56): CONFIG() takes a name of up to 16 characters (the
  *               setter is not touched).  SCREENTHEME is 11, so it was never found and the site theme never applied.
  * 8 Nov 26 Windows port - from Linux 2930d92f (S.87): FILERULE is gone, with the Account:File and PATH:pathname forms of file name; the installer strips the line from a restored sd.conf.
@@ -208,6 +209,9 @@ void op_config() {
    PORTMAP above is read the same way and for the same reason.              */
   else if (!strcmp(param, "APIPORT"))
     result.data.value = sysseg->api_port;
+  /* 17 Nov 26 SD Core Solo - from Core 8bd42f1a (RELEASE_1.1 317): APILOCAL, from the segment for APIPORT's reason. */
+  else if (!strcmp(param, "APILOCAL"))
+    result.data.value = sysseg->api_local;
   else if (!strcmp(param, "RECCACHE"))
     result.data.value = pcfg.reccache;
   else if (!strcmp(param, "SAFEDIR"))

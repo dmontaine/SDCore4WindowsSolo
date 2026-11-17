@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - from Core 8bd42f1a (RELEASE_1.1 317): api_local after api_port (APILOCAL); the layout of the shared memory changes,
+ *               so a running SD must be restarted after an upgrade.
  * 15 Nov 26 SD Core Solo - from Core f6c20e51 (Linux Solo 9b69caa, S.242 stage 3, RELEASE_1.1 299): the user table gains the file transfer slot
  *               (xfer_dir, xfer_flags, xfer_files, xfer_opened, xfer_last, xfer_bytes); the layout of the shared memory changes, so a running
  *               SD must be restarted after an upgrade.
@@ -100,6 +102,7 @@ struct SYSSEG {
       onto a running system.  Same trap as the PCFG change of 16 Aug 26 -
       PROJECT_STATUS.md section 7 step 1a and section 6.                     */
    int16_t api_port;           /* APIPORT: API listener port, 0 = off */
+   int16_t api_local;          /* APILOCAL: 1 = the listener binds 127.0.0.1 only (17 Nov 26, from Core 8bd42f1a; a layout change) */
    u_int32_t flags;
      #define SSF_SECURE     0x00000001   /* Secure mode? */
      #define SSF_SUSPEND    0x00000020   /* Suspend writes */

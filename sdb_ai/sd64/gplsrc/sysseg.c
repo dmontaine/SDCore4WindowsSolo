@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - from Core 8bd42f1a (RELEASE_1.1 317): api_local copied to the segment for sdwind.
  * 16 Nov 26 SD Core Solo - from Core 947d83dc (RELEASE_1.1 276): bind_sysseg() gives SHORT_CODE back on every exit taken while it
  *           holds it.  Six exits after LockSemaphore(SHORT_CODE) ("SD has not been started." among them) jumped to exit_bind_sysseg
  *           with it held; a Windows semaphore is not given back when its taker ends (Linux's System V one is, SEM_UNDO), so one sd.exe
@@ -266,6 +267,7 @@ bool bind_sysseg(bool create, char* errmsg) {
   sysseg->netfiles = cfg->netfiles;                   /* NETFILES */
   sysseg->pdump = cfg->pdump;                         /* PDUMP */
   sysseg->api_port = cfg->api_port;                   /* APIPORT */
+  sysseg->api_local = cfg->api_local;                 /* APILOCAL (17 Nov 26, from Core 8bd42f1a) */
   strcpy((char*)(sysseg->sysdir), cfg->sysdir);       /* SDSYS */
   sysseg->userpool = cfg->userpool;                   /* USERPOOL */
   sysseg->usplit = cfg->usplit;                       /* USPLIT */

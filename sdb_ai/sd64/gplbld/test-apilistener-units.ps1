@@ -157,7 +157,8 @@ $regCall = [regex]::Match($mt.Substring($tryAt), '(?m)^\s+(try \{ )?Register-Sol
 $iTask = if ($regCall.Success) { $tryAt + $regCall.Index } else { -1 }
 Write-Host ("  positions in the main flow: rule {0}, listener switch {1}, Register-SoloTask {2}" -f $iRule, $iSwitch, $iTask)
 Check 'solo-machine.ps1 makes the firewall rule, then switches the listener, and only then registers the startup task' ($iRule -gt 0 -and $iSwitch -gt $iRule -and $iTask -gt $iSwitch)
-Check 'the listener switch follows the API box: -On with -Api, -Off without' ($mt -match "solo-api-listener\.ps1'\s+@\(\`$\(if \(\`$Api\) \{ '-On' \} else \{ '-Off' \}\)\)")
+# 17 Nov 26 (RELEASE_1.1 317 carried, audit round 1): an API for this computer only is -Local (127.0.0.1), for the network -On.
+Check 'the listener switch follows the API box: -On with -Api and -ApiNetwork, -Local with -Api alone, -Off without' ($mt -match "solo-api-listener\.ps1'\s+@\(\`$\(if \(\`$Api -and \`$ApiNetwork\) \{ '-On' \} elseif \(\`$Api\) \{ '-Local' \} else \{ '-Off' \}\)\)")
 
 # ---- 15. the script ships --------------------------------------------------------------------------------
 $sp = [IO.File]::ReadAllText($stagepy)
