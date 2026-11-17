@@ -64,7 +64,9 @@ $stale = 0
 while ($true) {
     try { Stop-Transcript -ErrorAction Stop | Out-Null; $stale++ } catch { break }
 }
-if ($stale -gt 0) { Write-Host ("closed $stale transcript(s) this window had left open") }
+if ($stale -gt 0) {
+    Write-Host ("closed $stale transcript(s) this window had left open")
+}
 try { Start-Transcript -Path $script:CycleLog -Force | Out-Null } catch { }
 Write-Host "transcript: $script:CycleLog"
 function StopCycleTranscript { try { Stop-Transcript | Out-Null } catch { } }
@@ -99,7 +101,9 @@ if (-not (Test-Path -LiteralPath $Iscc)) {
         'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1',
         'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1',
         'HKCU:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1')) {
-        try { $loc = (Get-ItemProperty -LiteralPath $k -ErrorAction Stop).InstallLocation } catch { continue }
+        try {
+            $loc = (Get-ItemProperty -LiteralPath $k -ErrorAction Stop).InstallLocation
+        } catch { continue }
         if ([string]::IsNullOrWhiteSpace($loc)) { continue }
         $cand = Join-Path $loc 'ISCC.exe'
         if (Test-Path -LiteralPath $cand) { $Iscc = $cand; break }
@@ -162,7 +166,9 @@ foreach ($p in @($Iscc, $Bash, $Iss)) {
 }
 foreach ($n in 'Stage', 'Out') {
     $v = (Get-Variable -Name $n).Value
-    if (-not [System.IO.Path]::IsPathRooted($v)) { Fail "-$n must be an absolute path, and '$v' is not." }
+    if (-not [System.IO.Path]::IsPathRooted($v)) {
+        Fail "-$n must be an absolute path, and '$v' is not."
+    }
     Set-Variable -Name $n -Value ([System.IO.Path]::GetFullPath($v))
 }
 # THE DELETE TARGET, PINNED.  Step 6 removes it recursively, so it must be
@@ -239,17 +245,21 @@ Step 0 "Building the C, if source has moved past bin\"
 . (Join-Path $Gplbld 'stale-binaries.ps1')
 $binState = Get-BinaryStaleness $Sd64
 if (-not $binState.ok) {
-    Write-Host ("   $($binState.reason) - building all of it")
+    Write-Host ("   $($binState.reason)")
+    Write-Host "   building all of it"
     $mustBuild = $true
 } elseif ($binState.stale) {
-    Write-Host ("   {0} source file(s) newer than bin\{1} ({2}):" -f $binState.uncompiled.Count,
-                $binState.oldest.Name, $binState.oldest.LastWriteTime.ToString('dd MMM HH:mm:ss'))
+    Write-Host ("   {0} source file(s) newer than bin\{1} ({2}):" -f
+                $binState.uncompiled.Count, $binState.oldest.Name,
+                $binState.oldest.LastWriteTime.ToString('dd MMM HH:mm:ss'))
     $binState.uncompiled | Select-Object -First 10 | ForEach-Object {
-        Write-Host ("       {0}  {1}" -f $_.LastWriteTime.ToString('dd MMM HH:mm:ss'), $_.FullName.Substring($Sd64.Length + 1))
+        Write-Host ("       {0}  {1}" -f $_.LastWriteTime.ToString('dd MMM HH:mm:ss'),
+                    $_.FullName.Substring($Sd64.Length + 1))
     }
     $mustBuild = $true
 } else {
-    Write-Host ("   bin\ built {0}, no source newer - nothing to compile" -f $binState.oldest.LastWriteTime.ToString('dd MMM HH:mm:ss'))
+    Write-Host ("   bin\ built {0}, no source newer - nothing to compile" -f
+                $binState.oldest.LastWriteTime.ToString('dd MMM HH:mm:ss'))
     $mustBuild = $false
 }
 if ($mustBuild) {
@@ -268,7 +278,8 @@ if ($mustBuild) {
         Fail ("make sd exited 0 but {0} source file(s) are STILL newer than bin\{1} - assert-current would refuse after the install, so this stops now." -f
               $binState.uncompiled.Count, $binState.oldest.Name)
     }
-    Write-Host ("   built: bin\ now {0}, no source newer" -f $binState.oldest.LastWriteTime.ToString('dd MMM HH:mm:ss'))
+    Write-Host ("   built: bin\ now {0}, no source newer" -f
+                $binState.oldest.LastWriteTime.ToString('dd MMM HH:mm:ss'))
 }
 
 # ---------------------------------------------------------------------------
@@ -466,18 +477,22 @@ Write-Host "   $SoloRoot gone"
 # the staged ones, then until they stop moving.
 Step 7 "Installing - answer the wizard"
 Start-Process -FilePath $setup.FullName -Wait
-$igcat = Join-Path $SoloRoot 'sdsys\gcat'
-$iout  = Join-Path $SoloRoot 'sdsys\gpl.bp.out'
-function Cnt($d) { if (Test-Path -LiteralPath $d) { (Get-ChildItem -LiteralPath $d -File -ErrorAction SilentlyContinue).Count } else { 0 } }
+# 17 Nov 26 - audit P-4225, P-4237: SD Core's names.  PowerShell variable names ignore case, so the old $igcat (a path) and
+# $iGcat (a count, below) were ONE variable; the path was overwritten by the count after its last use.
+$igcatDir = Join-Path $SoloRoot 'sdsys\gcat'
+$ioutDir  = Join-Path $SoloRoot 'sdsys\gpl.bp.out'
+function InstalledCount($d) {
+    if (Test-Path -LiteralPath $d) { (Get-ChildItem -LiteralPath $d -File -ErrorAction SilentlyContinue).Count } else { 0 }
+}
 $deadline = (Get-Date).AddSeconds(300)
 while ((Get-Date) -lt $deadline) {
-    if (((Cnt $igcat) -ge $nGcat) -and ((Cnt $iout) -ge $nOut)) { break }
+    if (((InstalledCount $igcatDir) -ge $nGcat) -and ((InstalledCount $ioutDir) -ge $nOut)) { break }
     Start-Sleep -Seconds 1
 }
 $before = -1
 $deadline = (Get-Date).AddSeconds(60)
 while ((Get-Date) -lt $deadline) {
-    $now = (Cnt $igcat) + (Cnt $iout)
+    $now = (InstalledCount $igcatDir) + (InstalledCount $ioutDir)
     if ($now -eq $before) { break }
     $before = $now
     Start-Sleep -Seconds 2
@@ -486,9 +501,9 @@ while ((Get-Date) -lt $deadline) {
 # ---------------------------------------------------------------------------
 # STEP 8 - WHAT WAS INSTALLED, against the stage rather than a constant.
 Step 8 "What was installed"
-if (-not (Test-Path -LiteralPath $igcat)) { Fail "no $igcat after the install - it did not complete" }
-$iGcat = Cnt $igcat
-$iOut  = Cnt $iout
+if (-not (Test-Path -LiteralPath $igcatDir)) { Fail "no $igcatDir after the install - it did not complete" }
+$iGcat = InstalledCount $igcatDir
+$iOut  = InstalledCount $ioutDir
 Write-Host ("   gcat {0} (staged {1})   gpl.bp.out {2} (staged {3})" -f $iGcat, $nGcat, $iOut, $nOut)
 if (($iGcat -lt $nGcat) -or ($iOut -lt $nOut)) {
     Fail ("the install is SHORT of the staged tree - gcat {0}/{1}, gpl.bp.out {2}/{3}." -f $iGcat, $nGcat, $iOut, $nOut)

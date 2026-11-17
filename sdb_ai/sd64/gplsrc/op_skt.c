@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4307): no (int) cast of skt for sd_tls_client_start(); SOCKET is int here (sdnet.h).
  * rev 0.9-3 SIGPIPE Error in op_writeskt() (WRITE.SOCKET)  issue #89 / ScarletDME 
  * 20 Oct 26 Windows port - from Linux 1f5f703 - SDNet carry 9 (SD Core's S.65 slice 2, 6815cdc): SOCKET.INFO(SKT$INFO.TLS.SPKI), the hash of the server's public key.
  * 20 Oct 26 Windows port - from Linux 1f5f703 - Solo OS switch (S.63 carried): SKT$INFO.TRACE asks the account's OS-access gate (os_path_ok_for_account) for the log's path
@@ -616,7 +617,7 @@ void op_openskt() {
 
       /* 20 Oct 26 dm - S.73 item 2: the fourth argument (seconds to wait for the connection; NETWAIT for every SDNet caller) bounds the
          handshake too, as it was said to ("the connection"); it was 15 seconds fixed.  Without the argument it is still 15. */
-      sock->tls = sd_tls_client_start((int)skt, (connect_timeout > 0) ? (connect_timeout * 1000) : (SD_TLS_HANDSHAKE_MS + 5000),
+      sock->tls = sd_tls_client_start(skt,(connect_timeout > 0) ? (connect_timeout * 1000) : (SD_TLS_HANDSHAKE_MS + 5000),
                                       tls_err, sizeof(tls_err));
       if (sock->tls == NULL) {
         process.status = ER_CONNECT;

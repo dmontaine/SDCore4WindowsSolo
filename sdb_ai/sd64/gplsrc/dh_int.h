@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4284, P-4285): dh_seq_key() declared in the template's place; no change.
  * 12 Nov 26 Windows port - from Linux 3d3890e3 (25 Oct 26; RELEASE_1.1 240 a): DEFAULT_GROUP_SIZE 1 -> 4 (kb), for NEW files only.  Linux measured
  *               200,000 records of 130 bytes at the default 80% split load: 12-24% of the groups overflowed with 1 kb groups, 0.1-1.7% with 4 kb; a
  *               write took 18% less, a read 7% more, the file the same size (not measured on Windows).  A file made before keeps the group size in its
@@ -130,9 +131,9 @@ bool dh_write_group(DH_FILE* dh_file,
                     char* buff,
                     int16_t bytes);
 int32_t dh_get_overflow(DH_FILE* dh_file, bool have_group_lock);
+int32_t dh_seq_key(DH_FILE* dh_file, int action, int32_t n); /* dh_misc.c: the sequential id counter (15 Oct 26; Solo 11 Nov 26, SOLO 53) */
 void dh_free_overflow(DH_FILE* dh_file, int32_t ogrp);
 bool dh_flush_header(DH_FILE* dh_file);
-int32_t dh_seq_key(DH_FILE* dh_file, int action, int32_t n); /* dh_misc.c: the sequential id counter (15 Oct 26; Solo 11 Nov 26, SOLO 53) */
 int16_t dh_get_group_lock(DH_FILE* dh_file, int32_t group, bool write_lock);
 void dh_free_group_lock(int16_t slot);
 bool FDS_open(DH_FILE* dh_file, int16_t subfile);

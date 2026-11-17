@@ -18,6 +18,7 @@
 * 
 *
 * START-HISTORY:
+* 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4407): the CATALOG command line spaced as Linux Solo's; no behaviour change.
 * 12 Nov 26 SD Core Solo - SOLO 56 group 7 (P-11), from SD Core for Windows (Linux 8fc6b4e1, S.96; as Linux Solo): BASIC ... NO.CATALOG compiles and does
 *           not run the program's catalog directive (message 12250 says so); keyword 239 in syscom parser.h.
 * 18 Oct 26 Windows port - from Linux df5e076 (18 Oct 26): Solo carry A (owner's ruling B): the object file asks !voc_guard before any object or listing record is deleted or written.
@@ -380,7 +381,7 @@ compile:
       if catalogue.name # '' and no.catalog then
          display sysmsg(12250, record.name)   ;* %1 compiled; its catalog directive was not run (no.catalog)
       end else if catalogue.name # '' then
-         cat.cmd = 'CATALOG ' : source.file.name : ' ' : catalogue.name : ' ' : record.name : ' ' : catalogue.mode
+         cat.cmd ='CATALOG ' : source.file.name : ' ' : catalogue.name : ' ' : record.name : ' ' : catalogue.mode
          * NO.QUERY on the BASIC command, or on the $CATALOG directive or
          * the CATALOGUE entry of $BASIC.OPTIONS (it is then in catalogue.mode)
          if no.query and not(index(upcase(catalogue.mode), 'NO.QUERY', 1)) then cat.cmd := ' NO.QUERY'

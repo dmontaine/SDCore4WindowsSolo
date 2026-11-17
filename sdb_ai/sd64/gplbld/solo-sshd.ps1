@@ -55,6 +55,11 @@
 # folder).  A reinstall's -Install finds the pair and uses it, so clients that trusted the old key still do.  Linux
 # keeps its sshd directory inside the kept tree; here the key stays in its admin-only folder, never in the user's.
 #
+# THE LOCK-OUT (17 Nov 2026, four-version audit D1, Linux Solo's solo-sshguard.py): -Install also copies
+# solo-sshguard.ps1 from the Solo folder into the machine folder (permissions read back with the rest), because the
+# task "SD Core Solo SSH Guard" (solo-machine.ps1) runs it as SYSTEM.  Three wrong passwords from one address in ten
+# minutes lock that address for ten minutes; see that script's header.
+#
 # LEGACY: the first build of SOLO 28 ran a per-user sshd from an S4U task out of <app>\ssh.  -Prepare deletes the
 # files that build left there (config, host key, pid, log) and -Stop also ends an sshd started from that config.
 #
@@ -115,6 +120,7 @@ $cfg     = Join-Path $machineDir 'sshd_config'
 $hostKey = Join-Path $machineDir 'ssh_host_ed25519_key'
 $pidFile = Join-Path $machineDir 'sshd.pid'
 $logFile = Join-Path $machineDir 'sshd.log'
+$guardFile = Join-Path $machineDir 'solo-sshguard.ps1'     # 17 Nov 26 - D1: the lock-out guard the SYSTEM task runs
 
 function Test-Elevated {
     return ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -336,9 +342,16 @@ function Invoke-Install {
     [IO.File]::WriteAllText($cfg, $want, (New-Object Text.UTF8Encoding($false)))
     Invoke-Icacls @($cfg, '/setowner', ('*' + $SidAdmins))
 
-    # THE READ-BACK: every file the SYSTEM sshd will trust.
+    # 17 Nov 26 - four-version audit D1 (Linux Solo's solo-sshguard.py, LSOLO 29): the lock-out guard.  Its task runs as
+    # SYSTEM, so it runs THIS copy, made here by the elevated step from the one in the Solo folder, and never the user's.
+    $guardSrc = Join-Path $AppDir 'solo-sshguard.ps1'
+    if (-not (Test-Path -LiteralPath $guardSrc -PathType Leaf)) { Stop-With ('no ' + $guardSrc + ' to copy - the ssh lock-out guard') }
+    [IO.File]::WriteAllBytes($guardFile, [IO.File]::ReadAllBytes($guardSrc))
+    Invoke-Icacls @($guardFile, '/setowner', ('*' + $SidAdmins))
+
+    # THE READ-BACK: every file the SYSTEM sshd and the SYSTEM guard will trust.
     $problems = @()
-    foreach ($p in @($parent, $machineDir, $cfg, ($hostKey + '.pub'))) { $problems += @(Get-AclProblems $p $false) }
+    foreach ($p in @($parent, $machineDir, $cfg, ($hostKey + '.pub'), $guardFile)) { $problems += @(Get-AclProblems $p $false) }
     $problems += @(Get-AclProblems $hostKey $true)
     if ($problems.Count -gt 0) {
         foreach ($p in $problems) { Write-Output ('PROBLEM=' + $p) }

@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4300, P-4302): extern txn_nondurable in SD Core's place; no change.
  * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-3509..P-3514): K_WINPID (59), K_INTERACTIVE (64) and K_OS_ELEVATED (65) retired,
  *           as 61, 62, 66 and 67 were: no Solo program asks them (SD Core's elevate, LOGIN and CPROC do).
  * 16 Nov 26 SD Core Solo - RELEASE_1.1 247, from Windows Core f43a0a43 / Linux Solo: K_LOCK_TRACE (115), LOCK.TRACER; the file is made
@@ -102,6 +103,8 @@
 
 void kr_wipe(void); /* sd_keyring.c: empty the key ring of the XE conversion */
 
+extern int txn_nondurable; /* txn.c: the next COMMIT is non-durable (K_NON_DURABLE_TXN) */
+
 #include <sys/wait.h>
 /* 16 Aug 26 Windows port - cygwin_conv_path(), for K_WINPATH.  sysseg.c
    includes this too, for CW_CYGWIN_PID_TO_WINPID.                        */
@@ -168,7 +171,6 @@ void phantom_nonce_import(void) {
    (its strings are this process's own and BUF), or NULL if it could not be made.                                                      */
 
 extern char **environ;
-extern int txn_nondurable; /* txn.c: the next COMMIT is non-durable (K_NON_DURABLE_TXN) */
 
 Private char **phantom_child_environment(const char *nonce, char *buf, size_t bufsz) {
   size_t count = 0;

@@ -17,6 +17,8 @@
 * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 *
 * START-HISTORY:
+* 17 Nov 26 SD Core Solo - from Linux Solo 04d8c8d5 (S.62, P-1905): the output pathname is asked K$EDIT.OS.OK with the OS gate, before
+*           anything is read, as SD Core asks it.
 * 20 Oct 26 dm  New.  The owner's CSV / JSON / XML task: "a format-to-format convert verb (CSV, JSON, XML)".
 * END-HISTORY
 *
@@ -107,6 +109,13 @@ $include parser.h
          return
       end
    next p
+* 17 Nov 26 SD Core Solo - from Linux Solo 04d8c8d5 (S.62, P-1905): the VOC rule's pathname form, asked before anything is read or made,
+*   as SD Core asks its edit gates here (the write was refused later as "Cannot open"; now it is refused first, and in the VOC rule's words).
+   if not(kernel(K$EDIT.OS.OK, outpath)) then
+      @system.return.code = -ER$PERM
+      display sysmsg(15897) ;* The VOC can only be changed after admin (the administrator password)
+      return
+   end
 
    osread text from inpath else
       display sysmsg(1427, inpath)

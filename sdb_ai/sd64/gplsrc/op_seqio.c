@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4305, P-4306): op_openseq()'s locals in the template's order; no change.
  * 15 Nov 26 SD Core Solo - from Core e861651e (RELEASE_1.1 279, 236): WRITESEQ writes LF for an explicit FC$CRLF mode 0, 2 or 3; CR LF stays
  *               for mode 1 and a file with no mode (Core's OS deviation, RELEASE_1.1 271).
  * 11 Nov 26 SD Core Solo - SOLO 56 group 4, from Linux Solo carry 19 (38d522a): OPENSEQ opens read only, and cannot create, a file under a VOC,
@@ -460,6 +461,10 @@ Private void openseq(bool map_name) {
   bool read_only = FALSE;
   int16_t blocking_user;
   bool record_locked = FALSE; /* 14 Sep 26 - lock_record() succeeded */
+  bool edit_blocked = FALSE;  /* 11 Nov 26 SOLO 56 group 4 (Linux Solo carry 19): a path in a VOC, which the session may not change */
+  bool leaf_is_link = FALSE; /* 30 Oct 26 S.88 E2: the name given is itself a symbolic link (fullpath() follows it below) */
+  struct stat leaf_stat_buf;
+  bool create_after_lock = FALSE; /* 02 Nov 26 S.88 A3: CREATING of a name that is not there: the file is made once the SD lock is held */
   int status;
   u_int16_t flags = 0;
   char* p;
@@ -467,10 +472,6 @@ Private void openseq(bool map_name) {
   u_int32_t inode = 0;
   struct stat stat_buf;
   char vflags[VOC_FLAGS_LEN + 1] = ""; /* Field 6 of the F-type VOC entry, in capitals: its L C B X choose the line terminator mode */
-  bool leaf_is_link = FALSE; /* 30 Oct 26 S.88 E2: the name given is itself a symbolic link (fullpath() follows it below) */
-  struct stat leaf_stat_buf;
-  bool create_after_lock = FALSE; /* 02 Nov 26 S.88 A3: CREATING of a name that is not there: the file is made once the SD lock is held */
-  bool edit_blocked = FALSE;      /* 11 Nov 26 SOLO 56 group 4 (Linux Solo carry 19): a path in a VOC, which the session may not change */
 
   op_flags = process.op_flags;
 

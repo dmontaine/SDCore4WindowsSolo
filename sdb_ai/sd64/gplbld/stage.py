@@ -1661,6 +1661,11 @@ def main():
                    # ssh-firewall.ps1, which is retired (PF_RETIRED).
                    'solo-sshd.ps1',
                    'solo-ssh-firewall.ps1',
+                   # 17 Nov 26 - four-version audit D1: the ssh lock-out guard
+                   # (Linux Solo's solo-sshguard.py).  solo-sshd.ps1 -Install copies
+                   # it into the admin-only machine folder, whose copy the SYSTEM
+                   # task runs; this one is only the source.
+                   'solo-sshguard.ps1',
                    # 21 Aug 26 - the API faces the network now, so who may
                    # reach the port is a firewall rule SD owns.  Shipped, so
                    # it is watched by assert-current like the rest of these -

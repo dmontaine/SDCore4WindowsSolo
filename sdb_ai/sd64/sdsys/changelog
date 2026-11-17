@@ -3,6 +3,17 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+17 Nov 26  THREE WRONG SSH PASSWORDS LOCK THE ADDRESS FOR TEN MINUTES.
+
+             What        - where Solo's ssh is set up, three wrong passwords from one address within ten minutes lock
+                           that address out of Solo's ssh (port 4251) for ten minutes.  Only a wrong password counts;
+                           a sign-in from the address clears its count; the Windows account itself is never locked.
+                           solo-sshguard.ps1 -List shows the locked addresses and -Unlock <address|all> (elevated)
+                           frees them.  As SD Core Solo for Linux.
+             Also        - the API, a report written TO a pathname with DELIMITER, and CONVERT.DATA's output may no
+                           longer write a VOC entry without the administrator; the first WRITELIST in the account
+                           works without it; a -TERM value longer than 32 characters is refused.
+
 17 Nov 26  THE FOUR-VERSION PARITY AUDIT, ROUND 1: SD CORE'S LATEST FIXES, AND LINUX SOLO'S WORDS.
 
              What        - a path is refused to an account rooted at a drive root ("C:\") or "/", as SD Core and Linux

@@ -10363,7 +10363,7 @@ cited by: `admin`
 The VOC can only be changed after admin (the administrator password)
 ```
 
-cited by: `cproc`
+cited by: `convertdata`, `cproc`, `qproc`
 
 ### msg:15898
 > kind=message tier=reference since=- src=sdsys/messages/15898:1#f49d6790

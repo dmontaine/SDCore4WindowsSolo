@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - from Linux Solo 04d8c8d5 (S.62, SD Core's fix): -TERM's value is bounded (longer than 32 is refused by name).
  * 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230, RELEASE_1.1 286): a failed getcwd() leaves cwd empty, not unset.
  * 15 Nov 26 SD Core Solo - from Core f6c20e51 (Linux Solo 9b69caa, S.242 stage 3, RELEASE_1.1 299): main() calls xfer_detect() first; an sftp
  *           request Solo's own sshd sent here is the file transfer server (sd_sftp.c), and it never opens SD's own window.
@@ -419,8 +420,15 @@ Private bool comlin(int argc, char *argv[]) {
     } else if (!stricmp(argv[arg], "-QUIET")) {
       command_options |= CMD_QUIET;
     } else if (!stricmp(argv[arg], "-TERM")) {
-      if (++arg < argc)
+      if (++arg < argc) {
+        /* 17 Nov 26 SD Core Solo - from Linux Solo 04d8c8d5 (S.62, SD Core's fix): bounded; an unbounded strcpy into the
+           32 + 1 byte term_type overran struct tio. */
+        if (strlen(argv[arg]) > sizeof(tio.term_type) - 1) {
+          fprintf(stderr, "sd: the terminal type is longer than %d characters\n", (int)(sizeof(tio.term_type) - 1));
+          exit(1);
+        }
         strcpy(tio.term_type, argv[arg]);
+      }
     } else if (!stricmp(argv[arg], "-I")) {    
 /* 20240702 mab Bootstrap build arg must be exactly "-I" */		  
         /* Bootstrap Install*/

@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4309, P-4310): pub_fcontrol/pub_ospath declared in SD Core's place; no change.
  * 12 Nov 26 Windows port - RELEASE_1.1 264: the 18 Oct line's "XF_FCONTROL 29 ... NOT carried" is wrong: pub_fcontrol() (dh_misc.c) is the public
  *           FCONTROL, carried before it.
  * 12 Nov 26 SD Core Solo - RELEASE_1.1 241, as Linux Solo and SD Core for Windows: XF_OSPATH 31, OSPATH() for a program that is not internal
@@ -147,13 +148,13 @@ void sd_xf_salt(void);
 void sd_xf_key(void);
 void sd_xf_randkey(void);
 void op_get_device(void);
-void pub_fcontrol(void);
-void pub_ospath(void); /* op_dio2.c, RELEASE_1.1 241 */
 void x_sort(void);
 void x_sortadd(void);
 void x_sortclear(void);
 void x_sortdata(void);
 void x_sortnext(void);
+void pub_fcontrol(void);
+void pub_ospath(void); /* op_dio2.c, RELEASE_1.1 241 */
 
 void op_dcount(void);
 void op_field(void);

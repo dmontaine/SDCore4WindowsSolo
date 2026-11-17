@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4324): apply_pending_restore() is declared at the top, as Linux Solo's.
  * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4323): a restore that failed is said in Linux Solo's words, with the status.
  * 17 Nov 26 SD Core Solo - from Core 8bd42f1a (RELEASE_1.1 317): api_local copied to the segment for sdwind.
  * 16 Nov 26 SD Core Solo - from Core 947d83dc (RELEASE_1.1 276): bind_sysseg() gives SHORT_CODE back on every exit taken while it
@@ -96,6 +97,7 @@ void UnlockSemaphore(int semno);
 #include <errno.h>
 
 void dump_config(void);
+Private void apply_pending_restore(void);
 
 Private bool create_shared_segment(int32_t bytes,
                                    struct CONFIG* cfg,

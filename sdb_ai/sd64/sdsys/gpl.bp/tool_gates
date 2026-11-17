@@ -4,6 +4,7 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4453, P-4454): gall<4> in Linux Solo's place; no behaviour change.
 * 16 Nov 26 Windows port - from Linux Solo 2d3db81 (S.247): the scheduled jobs gate, a sixth row: field 23 of the register, which SET.JOB and RUN.JOB read
 *               each time, so it is read for every session as file transfer is; Enter runs set.jobs.access on|off, with the word jobs typed (it reaches beyond
 *               SD: Task Scheduler runs the jobs, signed in or not).  The first box one row taller, the explanation one shorter, as Linux Solo.
@@ -101,10 +102,10 @@ $include tk.h
    gall = "use the SH verb and ! to run operating-system commands as your Windows user"
    gall<2> = "run OS.EXECUTE, the embedded Python, a print unit's SPOOLER string and the editors that run outside SD, and reach files and directories outside the account by pathname"
    gall<3> = 'open a file on another SD server through a server definition, and have its own files opened over the API by request 29'
+   gall<4> = 'use the ai verb and the programs of the screen library that ask the AI; the text they send leaves this machine for the provider you chose'
    gstill = "do everything inside SD, with the account's own files"
    gstill<2> = 'open and write files inside its own account directory'
    gstill<3> = 'open every file on this computer that its other gates allow'
-   gall<4> = 'use the ai verb and the programs of the screen library that ask the AI; the text they send leaves this machine for the provider you chose'
    gstill<4> = 'do everything else inside SD'
    gall<5> = "move plain-text files in and out of its transfer folders with RECEIVE and SEND, over Solo's ssh login, while sd.conf's XFER is 1"
    gstill<5> = 'do everything else its other gates allow, and sign in over ssh'

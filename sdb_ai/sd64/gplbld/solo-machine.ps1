@@ -91,6 +91,11 @@
 #   no job starts while SD is being taken down.  $jobs is the user's data: the uninstaller's Keep keeps it (sd-solo.iss KeepDataPass).
 # NOT MEASURED when written: that SYSTEM (the doors helper) can register an S4U task for the Solo user; that the user can read a task in a
 # folder it cannot write; a job's task firing with the user signed out.  A sitting owes them.
+#
+# 17 Nov 26 SD Core Solo - four-version audit D1, from Linux Solo's solo-sshguard.py (LSOLO 29): THE ssh LOCK-OUT.  Wherever Solo's
+# ssh is set up (Register-SshTask: install, upgrade, the doors helper), a SYSTEM task "SD Core Solo SSH Guard" runs the admin-only
+# copy of solo-sshguard.ps1; three wrong passwords from one address in ten minutes block that address on 4251 for ten minutes
+# (a Windows Firewall rule per address).  Remove-SshTask takes the task and every lock-out rule away first.
 
 param(
     [ValidateSet('Install', 'Upgrade', 'Remove', 'Doors', 'Job')] [string]$Action = 'Install',
@@ -522,6 +527,9 @@ function Register-SshTask {
     $c = Invoke-Shipped 'solo-sshd.ps1' @('-Install', '-OsUser', $login, '-AppDir', $AppDir)
     if ($c -ne 0) { Fail ('solo-sshd.ps1 -Install exited ' + $c + ' - the ssh task was not registered'); return }
 
+    # 17 Nov 26 - D1: the lock-out guard runs BEFORE the sshd it watches starts.
+    Register-SshGuardTask
+
     # The task runs sshd.exe ITSELF, as SYSTEM, against the admin-only config.  Never a script of the user's.
     $cfgPath = Join-Path $MachineSshDir 'sshd_config'
     $logPath = Join-Path $MachineSshDir 'sshd.log'
@@ -630,7 +638,57 @@ function Register-SshTask {
     Fail ('the host key served on port ' + $SshPort + ' is not Solo''s (' + $keyscan + ' read "' + $seen + '", exit ' + $kexit + ', stderr "' + $errText.Trim() + '")')
 }
 
+# ---- 17 Nov 26 - four-version audit D1: the ssh lock-out guard (Linux Solo's solo-sshguard.py, LSOLO 29) ---------------
+# A third SYSTEM task, "SD Core Solo SSH Guard", at startup, no time limit, restarted on failure: PowerShell running the copy
+# of solo-sshguard.ps1 that solo-sshd.ps1 -Install put in the ADMIN-ONLY machine folder (never the one in the user's Solo
+# folder).  It reads sshd.log, and a locked address gets a Windows Firewall block rule SD-Solo-SSH-Guard-<address> on 4251
+# (group "SD Core Solo ssh lock-out") for ten minutes.  It ships ON wherever Solo's ssh is set up, as Linux Solo's guard is
+# part of its ssh unit.  Remove takes the task and every such rule away.  NOT MEASURED: the task running, a real lock.
+$SshGuardTaskName = 'SD Core Solo SSH Guard'
+$SshGuardRulePrefix = 'SD-Solo-SSH-Guard-'      # solo-sshguard.ps1 $RulePrefix
+
+function Register-SshGuardTask {
+    $guard = Join-Path $MachineSshDir 'solo-sshguard.ps1'
+    if (-not (Test-Path -LiteralPath $guard)) { Fail ('the ssh lock-out guard is not in the machine folder (' + $guard + ')'); return }
+    if (Get-ScheduledTask -TaskName $SshGuardTaskName -ErrorAction SilentlyContinue) {
+        Stop-ScheduledTask -TaskName $SshGuardTaskName -ErrorAction SilentlyContinue
+        Unregister-ScheduledTask -TaskName $SshGuardTaskName -Confirm:$false
+    }
+    $arg = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $guard + '" -Serve'
+    Register-ScheduledTask -TaskName $SshGuardTaskName `
+        -Action (New-ScheduledTaskAction -Execute $Ps -Argument $arg) `
+        -Principal (New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest) `
+        -Trigger (New-ScheduledTaskTrigger -AtStartup) `
+        -Settings (New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+                       -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) `
+                       -MultipleInstances IgnoreNew) | Out-Null
+    $t = Get-ScheduledTask -TaskName $SshGuardTaskName -ErrorAction SilentlyContinue
+    if (-not $t) { Fail 'the ssh lock-out task was not registered'; return }
+    Start-ScheduledTask -TaskName $SshGuardTaskName
+    $running = $false
+    for ($k = 0; $k -lt 20 -and -not $running; $k++) {
+        if ((Get-ScheduledTask -TaskName $SshGuardTaskName).State -eq 'Running') { $running = $true } else { Start-Sleep -Milliseconds 500 }
+    }
+    Note ('  task "' + $SshGuardTaskName + '" as ' + $t.Principal.UserId + ', at startup, runs ' + $t.Actions[0].Execute + ' ' + $t.Actions[0].Arguments)
+    if ($running) { Note '  PASS  the ssh lock-out guard is running (three wrong passwords from one address in ten minutes lock it for ten minutes)' }
+    else { Fail ('the ssh lock-out task is not running (state ' + (Get-ScheduledTask -TaskName $SshGuardTaskName).State + ')') }
+}
+
+function Remove-SshGuardTask {
+    if (Get-ScheduledTask -TaskName $SshGuardTaskName -ErrorAction SilentlyContinue) {
+        Stop-ScheduledTask -TaskName $SshGuardTaskName -ErrorAction SilentlyContinue
+        Unregister-ScheduledTask -TaskName $SshGuardTaskName -Confirm:$false
+    }
+    Get-NetFirewallRule -Name ($SshGuardRulePrefix + '*') -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue
+    $leftRules = @(Get-NetFirewallRule -Name ($SshGuardRulePrefix + '*') -ErrorAction SilentlyContinue)
+    if (Get-ScheduledTask -TaskName $SshGuardTaskName -ErrorAction SilentlyContinue) { Fail 'the ssh lock-out task is still registered' }
+    elseif ($leftRules.Count -gt 0) { Fail ('ssh lock-out rules are still there: ' + (($leftRules | ForEach-Object { $_.Name }) -join ', ')) }
+    else { Note '  PASS  no ssh lock-out task and no lock-out rule' }
+}
+
 function Remove-SshTask {
+    # 17 Nov 26 - D1: the guard first - it runs from the machine folder that -Uninstall deletes.
+    Remove-SshGuardTask
     if (Get-ScheduledTask -TaskName $SshTaskName -ErrorAction SilentlyContinue) {
         Stop-ScheduledTask -TaskName $SshTaskName -ErrorAction SilentlyContinue
     }
@@ -989,6 +1047,9 @@ if ($Action -eq 'Doors') {
                     if ($fails.Count -eq 0) { Register-SshTask }
                 } else {
                     Enable-ScheduledTask -TaskName $SshTaskName | Out-Null
+                    # 17 Nov 26 - D1: the lock-out guard runs whenever ssh does.
+                    $g = Get-ScheduledTask -TaskName $SshGuardTaskName -ErrorAction SilentlyContinue
+                    if (-not $g) { Register-SshGuardTask } elseif ($g.State -ne 'Running') { Start-ScheduledTask -TaskName $SshGuardTaskName }
                     if (-not (Test-SshPortListening)) { Start-ScheduledTask -TaskName $SshTaskName }
                     $ok = $false
                     for ($k = 0; $k -lt 30 -and -not $ok; $k++) { if (Test-SshPortListening) { $ok = $true } else { Start-Sleep -Seconds 1 } }

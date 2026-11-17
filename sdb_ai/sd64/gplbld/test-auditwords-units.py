@@ -181,7 +181,9 @@ def selftest():
         # no equivalent here.
         mutant("event-name-upper", "login", "'login account=' : audit.account)", "'LOGIN account=' : audit.account)")
         mutant("command-upper", "restorea", "'restore.account account='", "'RESTORE.ACCOUNT account='")
-        mutant("label-half-upper", "login", "'elevation granted account=SDSYS'", "'ELEVATION granted account=SDSYS'")
+        # 17 Nov 26 - P-4657 took the "elevation granted account=SDSYS" line out of login (dead code); the same half-upper
+        # mutant is made on a two-word label that is still there.
+        mutant("label-half-upper", "login", "'internal session admitted account='", "'INTERNAL session admitted account='")
         mutant("variable-not-downcased", "solo_password", "'solo password set ' : downcase(which))", "'solo password set ' : which)")
         mutant("variable-not-downcased-2", "apisrvr", "'api sshkey ' : downcase(sk.verb) : ' refused - '", "'api sshkey ' : sk.verb : ' refused - '")
         mutant("inline-if-branch-upper", "setmcp", "(if which = 'door' then '' else 'write ')", "(if which = 'door' then '' else 'WRITE ')")

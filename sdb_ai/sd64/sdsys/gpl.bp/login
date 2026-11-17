@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4657): the dead admin.login block (the elevation grant
+*           for an SDSYS landing, which ruling 11 removed) and its variable are gone; nothing set admin.login true.
 * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4425, P-4426, P-4431, P-4433, P-4435): the first password's prompts and refusals
 *           are Linux Solo's 14898, 14899, 14900 (then 10921), 14905, 14923 and 14924, here 15898-15924; SD Core's 10090-10095 are gone.
 * 16 Nov 26 Windows port - from Linux Solo 2d3db81 (S.247, scheduled jobs): require.password's RUN-JOB-IDENTITY block - a one-shot that is
@@ -351,7 +353,6 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
 deffun pw_complex(pw) calling '!pw_complex'
 
    ok = @false
-   admin.login = @false
 
 * 16 Aug 26 Windows port - PROJECT_STATUS.md 7 step 4.  Every refusal below
 *   leaves through terminate.connection, so the audit record is written there
@@ -1087,32 +1088,10 @@ deffun pw_complex(pw) calling '!pw_complex'
    who = initial.account
    void kernel(K$SET.ACCOUNT, who)      ;* 14 Oct 26 - the user table's account (LISTU, sheet 24 and 29)
 
-* 29 Aug 26 Windows port - PRE_RELEASE_FIXES 56.  AFTER THE MOVE, NOT INSIDE
-*   THE CASE, and for the reason CPROC:2723 gives at the same moment: the
-*   directory change above can still fail, and the flag must not outlive a
-*   move that did not happen.  The elevation is obtained early because the
-*   case has to know whether it succeeded; the RIGHTS are granted here.
-   if admin.login then
-*     31 Aug 26 Windows port - TAKE THE ANSWER.  op_kernel.c:395 sets or
-*     clears USR_ADMIN only under HDR_INTERNAL and then reports the flag AS IT
-*     ACTUALLY STANDS, under its own comment: "a caller that tried to grant
-*     itself rights is simply told it has none."  That return is BY DESIGN the
-*     only signal there is, and all three call sites discarded it.  LOGIN
-*     carries $internal at :122 so the gate is not reachable today - but a
-*     login that did not get the rights must not carry on as though it had.
-      admin.granted = kernel(K$ADMINISTRATOR, 1)
-      if not(admin.granted) then
-         display sysmsg(10002) ;* SDSYS Account access is restricted to privileged users
-         audit.reason = 'the elevation was not granted'
-         goto terminate.connection
-      end
-
-*     AND THE RECORD IS WRITTEN HERE, after the rights exist, which is what
-*     CPROC:2868 already says out loud: "written after the move has actually
-*     happened ... and after the administrator flag is set, so the record and
-*     the rights it describes cannot disagree."  PRE_RELEASE_FIXES.md 98.
-      void kernel(K$AUDIT, 'elevation granted account=SDSYS')
-   end
+* 17 Nov 26 SD Core Solo - P-4657: the multi-user product's "elevation granted
+*   account=SDSYS" block that stood here is gone.  It ran only when admin.login
+*   was true, and nothing set it (SDSYS is never a login target here, ruling
+*   11); Solo grants the administrator on the global password.
    close acc.f
 
    * Set @TTY

@@ -18,6 +18,8 @@
 * 
 *  
 * START-HISTORY:
+* 17 Nov 26 SD Core Solo - from Linux Solo 04d8c8d5 (S.62, P-1908, P-1909): a delimited report TO a pathname asks K$EDIT.OS.OK before
+*           the open (15897), and AS asks !voc_guard of the file as opened, as SD Core asks its edit gates there.
 * 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230, RELEASE_1.1 286): the unused sorted.sample.done and json.count are gone.
 * 20 Oct 26 SD Core Solo - RELEASE_1.1 165 (the OS switch, Linux Solo 7c6bbfc): the delimited report's TO pathname asks the OS-access gate (K$PATH.OK) before the file is opened.
 * 18 Oct 26 Windows port - from Linux df5e076 (18 Oct 26): Solo carry A (owner's ruling B): this program is $internal, so the C test lets its writes through, and it
@@ -3549,11 +3551,20 @@ open.csv.to:
 * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH (Linux Solo 7c6bbfc).  This program is $internal, so the kernel does not ask the
 *   OS-access gate for the OPENSEQ below, and the report is written, or appended, wherever the name points.  Asked here, as the session,
 *   BEFORE the file is opened, so a refusal has created, truncated and locked nothing (the overwrite question below is only reached by a
-*   path that passed).  APPENDING is the same open, so it is covered by the same test.  (SD Core also asks its S.64 edit gates here;
-*   Solo has none.)
+*   path that passed).  APPENDING is the same open, so it is covered by the same test.  (SD Core also asks its S.64 edit gates here,
+*   and Solo its VOC rule, below.)
    if not(kernel(K$PATH.OK, csv.pathname)) then
       @system.return.code = -ER$PERM
       display sysmsg(12185, @who) ;* %1 has no OS access, so a file or directory outside its own account cannot be reached by pathname
+      goto exit.qproc
+   end
+
+* 17 Nov 26 SD Core Solo - from Linux Solo 04d8c8d5 (S.62, P-1908): the pathname form of the VOC rule, as SD Core asks here.  The OPENSEQ
+*   below is this $internal program's, so the kernel's own test of a user's OPENSEQ is not made for it, and a report written TO
+*   <account>\voc\<id> changed the VOC without ADMIN.  Asked before the open, so a refusal has touched nothing.
+   if not(kernel(K$EDIT.OS.OK, csv.pathname)) then
+      @system.return.code = -ER$PERM
+      display sysmsg(15897) ;* The VOC can only be changed after admin (the administrator password)
       goto exit.qproc
    end
 
@@ -3573,7 +3584,7 @@ open.csv.to:
 * ======================================================================
 * OPEN.CSV.AS  -  Open the record named by AS file id for a delimited report (20 Oct 26 dm, openQM 4: CSV and DELIMITER).  The file
 * is a directory file and the record is a file of it, so the report is written the way TO writes a file, with OPENSEQ.
-*   - (SD Core asks its S.64 and S.66 edit gates of the file here, with !edit_guard; Solo has no edit gates, so nothing is asked.)
+*   - SD Core asks its S.64 and S.66 edit gates of the file here, with !edit_guard; Solo asks its VOC rule, with !voc_guard (17 Nov 26).
 *   - OPENSEQ takes the record's update lock, as any write does.  A record another session holds is not waited for: it is named
 *     with the holder (message 1433) and nothing is written.  The lock goes when the file is closed at the end of the command.
 *   - A record that is there asks first (7305), unless NO.QUERY or APPENDING was given.
@@ -3591,6 +3602,12 @@ open.csv.as:
    end
    if fileinfo(csv.as.f, FL$TYPE) # FL$TYPE.DIR then
       display sysmsg(12856, csv.as.file) ;* AS needs a directory file: %1 is not one
+      goto exit.qproc
+   end
+* 17 Nov 26 SD Core Solo - from Linux Solo 04d8c8d5 (S.62, P-1909): the file as opened is asked the VOC rule (voc_guard, as REFORMAT's
+*   target and PAGESEQ are), where SD Core asks !edit_guard.  The reason is displayed there.
+   if not(voc_guard(csv.as.f)) then
+      @system.return.code = -ER$PERM
       goto exit.qproc
    end
 

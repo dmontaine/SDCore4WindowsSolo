@@ -19,6 +19,9 @@
 *
 *
 * START-HISTORY:
+* 17 Nov 26 SD Core Solo - from Linux Solo 04d8c8d5 (S.62, P-1904): an OPENSEQ by pathname asks K$EDIT.OS.OK, so an API client
+*           without ADMIN opens a VOC record named by its path for reading only (it set the answer true).  Audit P-4396, P-4398, P-4402,
+*           P-4403: four lines in Linux Solo's order (the sshkey refusal's audit after error.msg; file.names, scram.fail.delay); no change.
 * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4399, P-4406), as Linux Solo: the salt note's audit line names $global in lower case
 *           and drops "(ruling 19)"; a login by the account's own password is audited (via=account).
 * 16 Nov 26 Windows port - from Linux Solo c8dac7a: the SDConnectLocal refusal is message 15910 (was 12930; Linux Solo 14910), and
@@ -377,8 +380,8 @@ if not(kernel(K$CPROC.LEVEL,0)) then
    abort.code = 0
 
    tty = 'apisrvr'
-   master.login.done = @false      ;* MASTER.LOGIN is run once, at the first entry to an account
    file.names = ''            ;* 12 Nov 26, SD Core's S.73 item 3 (SOLO 56 group 8): no file is open yet
+   master.login.done = @false      ;* MASTER.LOGIN is run once, at the first entry to an account
 
    openpath "voc" to voc else
       abort.message = sysmsg(2026) ;* Cannot open VOC
@@ -455,9 +458,9 @@ scram.via = ''         ;* 'user' or 'global': which record the proof matched
 * once at exit.vb.scram.fail.  Keeping it here with the rest of the state is
 * what makes a refusal impossible to leave unlogged - every path out of both
 * handlers goes through that one exit.
-scram.fail.delay = 0    ;* A credential failure: sleep PWDELAY s (3 by default) AFTER the audit record is written (05 Oct 26; named as Linux's)
 scram.audit.name = ''   ;* Name as PRESENTED, sanitised - see scram.clean.name
 scram.refuse.reason = '';* Why this exchange was refused; '' = not refused
+scram.fail.delay = 0    ;* A credential failure: sleep PWDELAY s (3 by default) AFTER the audit record is written (05 Oct 26; named as Linux's)
 * (scram.handoff, RELEASE_1.1 55's flag, is gone: SD Core Solo has no handover.)
 
 loop
@@ -2663,9 +2666,9 @@ vb.revision:
 
 vb.sshkey:
                                                                      if not(kernel(K$GLOBAL.SESSION, -1)) then
-                                                                        void kernel(K$AUDIT, 'api sshkey refused - not a global session peer=' : system(42))
                                                                         server.error = SV$ERROR
                                                                         error.msg = sysmsg(12894) ;* Only the SD Core server may manage ssh keys
+                                                                        void kernel(K$AUDIT, 'api sshkey refused - not a global session peer=' : system(42))
                                                                         return
                                                                      end
 
@@ -3085,7 +3088,7 @@ if os.id = '' then
       error.msg = sysmsg(12350, os.name) ;* %1 is not a file this account may open
       return
    end
-   os.edit.ok = @true   ;* Solo: there is no pathname form of !voc_refusal (SD Core asks K$EDIT.OS.OK here); see below
+   os.edit.ok = kernel(K$EDIT.OS.OK, os.name)   ;* 17 Nov 26, from Linux Solo 04d8c8d5 (S.62, P-1904): the pathname form of the VOC rule, as SD Core asks it
 end else
    os.path = @false
    open os.name to os.tf else
@@ -3113,7 +3116,8 @@ end case
 *   asked here: a record of a file that !voc_refusal will not let this session change (the VOC without ADMIN; SDSYS's gcat,
 *   global.bp.out and solo.policy without the global session) is opened for reading only - nothing is made and nothing written (a
 *   write then takes the ELSE case).  Reading is not refused, because the default mode is read and write.  A bare pathname is held
-*   only to the OS switch (K$PATH.OK above), as a user program's OPENSEQ of a pathname is.
+*   to the OS switch (K$PATH.OK above) and, since 17 Nov 26 (Linux Solo S.62, P-1904), to the VOC rule's pathname form
+*   (K$EDIT.OS.OK): this program is $internal, so the kernel's own test of a user program's OPENSEQ is not made for it.
 if not(os.edit.ok) then os.m = 1
 
 loop
