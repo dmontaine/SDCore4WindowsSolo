@@ -351,6 +351,10 @@ SDSYS_SHIP = [
     # 26 Oct 26 - the context help text for the [?] buttons; LOAD.HELP (run by solo-setup.ps1) reads it.  Carried to Solo without its list entry on
     # 25 Oct, so assert-current found eleven source files missing from the install.
     ('helptext',      'context help text for the [?] buttons; LOAD.HELP reads it'),
+    # 16 Nov 26 - RELEASE_1.1 335 (Linux Solo S.261 fb685f0).  The example programs, one file to a
+    # program, that gpl.bp/solo_examples (run by solo-setup.ps1 on every install, reload and upgrade)
+    # copies into the account's examples.bp and compiles there.  Replaced on upgrade.
+    ('examples',      'the example programs solo_examples puts into the account (S.261)'),
     # 12 Nov 26 - SOLO 56 group 5 (Linux Solo S.117, SD Core for Windows RELEASE_1.1 218).  What each sd.conf
     # parameter is, for TOOL.CONFIG; a file, replaced on upgrade.  Display only: the helper (sd-confset.ps1)
     # holds its own list and ranges, and test-confset-units.ps1 holds the two to each other.
@@ -534,6 +538,7 @@ SDSYS_MIRROR = [
     # ships would make "installed but not in source" mean the wrong thing.
     ('messages',     'sysmsg text'),
     ('voc_removed',  'the VOC deletion list; nothing writes it at runtime (7 Nov 26)'),
+    ('examples',     'the example programs; solo_examples only reads them (16 Nov 26, S.261)'),
     # 25 Aug 26 - bp IS NO LONGER A MIRROR, and it stopped qualifying the
     # moment SD stopped shipping into it.
     #

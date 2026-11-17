@@ -1,0 +1,248 @@
+* SOLO_EXAMPLES
+* Put the shipped example programs into the file examples.bp of Solo's one account, and compile them there.  Install-only.
+* Copyright (c) 2026, SD Core for Linux.  This program is free software; you can redistribute
+* it and/or modify it under the terms of the GNU General Public License, version 3 or later.
+*
+* START-HISTORY:
+* 16 Nov 26 Windows port - from Linux Solo fb685f0 (S.261), RELEASE_1.1 335.  Three changes, each from SD Core for Windows' loadexamples (9ba9d612):
+*               the account's directory is taken from the register in forward slashes whatever form the record holds (@USRDIR token, drive path with
+*               either slash); the two temporary pointers for the compiler are written into the VOC of the SESSION (open 'VOC'), which is the VOC
+*               BASIC reads, rather than into @sdsys/voc by path, and are named solo.examples.src and solo.examples.src.out, so an entry examples.bp
+*               of the system VOC is never overwritten or deleted; they are removed before as well as after, so a run that was cut short leaves
+*               nothing behind for the next.  The account's VOC is opened by its backslash path, as loadexamples does.  Messages: none, as on
+*               Linux Solo and as solo_account (install-only, its words are read only by solo-setup.ps1).
+* 17 Nov 26 dm  New (S.261, the owner, 17 Nov 2026: "there should be a examples.bp file available to all users that contains those programs and a set of
+*               training programs typical for a Computer Science 101 course"; for Solo: "just include examples.bp in the single account, no need to load or
+*               remove").  SD Core's gpl.bp/loadexamples does this for every account with LOGTO and is a verb; Solo has no LOGTO (LSOLO 30) and one
+*               account, and the owner wants no verb, so this is the installer's program, as solo_account is, and has no VOC entry.
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*    sd-solo -internal RUN gpl.bp solo_examples
+*
+*    Every file of the examples directory of the SD system directory is one program, the FILE NAME its record id (the rule of SD Core's LOAD.EXAMPLES: a
+*    lower case letter first, then a-z 0-9 dot dash underscore, up to 80 characters): the five programs of the SD Text User Interface - Programmer's Guide
+*    (hello, menus, notes, browse, stock) and the training programs cs01 to cs23.  They go into examples.bp, a directory file of the account sduser (made,
+*    with its VOC entries examples.bp and examples.bp.out, when it is not there); a record that is already the same is not written, a program under an
+*    id that is not shipped is KEPT, a shipped one is replaced.  Then each program that is new, changed or has no object yet is compiled, and the object
+*    goes into examples.bp.out of the account.
+*
+*    THE COMPILE IS MADE FROM THE INSTALLER'S SESSION, which is SDSYS's, not sduser's (Solo has no LOGTO): BASIC finds its source and its object file
+*    through the VOC of the session, so two temporary F entries solo.examples.src and solo.examples.src.out are written into that VOC, naming the
+*    account's two files by their full paths, and are deleted when the compiling is over.  Nothing else of the account is read or changed, and no gate
+*    is touched: examples.bp is an ordinary program file of the account.
+*
+*    Only the installer's internal session may run it (the marker, as solo_account).  RE-RUNNABLE: solo-setup.ps1 runs it on every install - a new
+*    tree, a reload of kept data and an upgrade - and it refreshes the shipped programs.  The last line on success is
+*       solo_examples: examples.bp ready: N new, N changed, N the same, compiled N of N, N failed
+*    with 0 failed; a caller anchors on it.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+program solo_examples
+
+$include keys.h
+$include int$keys.h
+$include err.h
+
+   @system.return.code = -ER$ARGS
+
+   if not(kernel(K$INTERNAL, -1)) then
+      display 'solo_examples: only the installer may run this.'
+      stop
+   end
+
+   keychars = 'abcdefghijklmnopqrstuvwxyz0123456789._-'
+   bs = char(92)
+   src = @sdsys : @ds : 'examples'
+   entries = dir(src)
+   if entries = '' then
+      display 'solo_examples: the example programs directory is missing or empty: ' : src
+      stop
+   end
+
+*  The account: sduser, from the register
+   openpath @sdsys : @ds : 'accounts' to acc.f else
+      display 'solo_examples: cannot open the account register.'
+      stop
+   end
+   read acc.rec from acc.f, 'sduser' else
+      close acc.f
+      display 'solo_examples: sduser is not in the register.'
+      stop
+   end
+   close acc.f
+   gosub account.dir
+   if acct.dir = '' then
+      display 'solo_examples: the register holds no usable path for sduser: ' : acc.rec<ACC$PATH>
+      stop
+   end
+   if not(ospath(acct.dir, OS$EXISTS)) then
+      display 'solo_examples: the account directory is missing: ' : acct.dir
+      stop
+   end
+   xpath = acct.dir : '/examples.bp'
+   opath = xpath : '.out'
+
+*  The two files and their VOC entries in the account
+   for f = 1 to 2
+      fp = (if f = 1 then xpath else opath)
+      if not(ospath(fp, OS$EXISTS)) then
+         create.file fp directory on error
+            display 'solo_examples: cannot create ' : fp
+            stop
+         end
+      end
+   next f
+   openpath convert('/', bs, acct.dir) : bs : 'voc' to avoc else
+      display 'solo_examples: cannot open the account VOC.'
+      stop
+   end
+   for f = 1 to 2
+      fn = (if f = 1 then 'examples.bp' else 'examples.bp.out')
+      read vrec from avoc, fn else
+         vrec = 'F ' : (if f = 1 then 'The example programs' else 'The compiled example programs')
+         vrec<2> = fn
+         write vrec to avoc, fn
+      end
+   next f
+   close avoc
+
+   openpath xpath to xf else
+      display 'solo_examples: cannot open ' : xpath
+      stop
+   end
+   openpath opath to of else
+      display 'solo_examples: cannot open ' : opath
+      stop
+   end
+
+*  The programs: written when new or changed; compiled when new, changed or without an object
+   n.new = 0 ; n.changed = 0 ; n.same = 0 ; n.bad = 0
+   todo = ''
+   for i = 1 to dcount(entries, @fm)
+      name = entries<i, 1>
+      if entries<i, 2> # 'F' then continue
+      gosub read.one
+      if not(got) then continue
+      old = ''
+      read old from xf, name then
+         if old = rec then
+            n.same += 1
+            obj = ''
+            read obj from of, name else obj = ''
+            if obj = '' then todo<-1> = name
+            continue
+         end
+         n.changed += 1
+      end else
+         n.new += 1
+      end
+      wok = @true
+      write rec to xf, name on error wok = @false
+      if wok then
+         todo<-1> = name
+      end else
+         display 'solo_examples: ' : name : ' could not be written.'
+         n.bad += 1
+      end
+   next i
+   close xf
+   close of
+
+*  Compiling: BASIC reads the account's two files through the session's VOC, by two temporary entries that are removed again
+   n.compiled = 0 ; n.tried = 0
+   if todo # '' then
+      open 'VOC' to svoc else
+         display 'solo_examples: cannot open the VOC of this session.'
+         stop
+      end
+      src.voc = 'solo.examples.src'
+      gosub drop.pointers
+      tmp = 'F The example programs (temporary, solo_examples)' ; tmp<2> = convert('/', bs, xpath)
+      write tmp to svoc, src.voc
+      tmp = 'F The compiled example programs (temporary, solo_examples)' ; tmp<2> = convert('/', bs, opath)
+      write tmp to svoc, src.voc : '.out'
+      for p = 1 to dcount(todo, @fm)
+         n.tried += 1
+         execute 'basic ' : src.voc : ' ' : todo<p> capturing out
+         if index(out, 'Compiled 1 program(s) with no errors', 1) then
+            n.compiled += 1
+         end else
+            display 'solo_examples: ' : todo<p> : ' did not compile.'
+            n.bad += 1
+         end
+      next p
+      gosub drop.pointers
+      close svoc
+   end
+
+   @system.return.code = (if n.bad then -ER$FAILED else 0)
+   display 'solo_examples: examples.bp ready: ' : n.new : ' new, ' : n.changed : ' changed, ' : n.same : ' the same, compiled ' : n.compiled : ' of ' : n.tried : ', ' : n.bad : ' failed'
+   stop
+
+* ------------------------------------------------------------------------------------------------- the account's directory, from its register record
+
+*  The register holds @USRDIR/sduser (solo_account), or an older absolute path with either slash; the answer is in forward slashes, without a trailing
+*  one, or a null string when it is not an absolute path.  As SD Core for Windows' loadexamples.
+account.dir:
+   acct.dir = trim(acc.rec<ACC$PATH>)
+   if acct.dir[1, 1] = '@' then acct.dir = parse.pathname.tokens(acct.dir)
+   acct.dir = convert(bs, '/', acct.dir)
+   loop
+   while len(acct.dir) > 3 and acct.dir[1] = '/' do
+      acct.dir = acct.dir[1, len(acct.dir) - 1]
+   repeat
+   if len(acct.dir) < 2 or not(acct.dir[2, 1] = ':' or acct.dir[1, 1] = '/') then acct.dir = ''
+   return
+
+* ------------------------------------------------------------------------------------------------- the session's two pointers for the compiler
+
+drop.pointers:
+   for di = 1 to 2
+      did = (if di = 1 then src.voc else src.voc : '.out')
+      read drec from svoc, did then delete svoc, did
+   next di
+   return
+
+* ------------------------------------------------------------------------------------------------- one shipped file
+
+read.one:
+   got = 0
+   ok = (len(name) >= 1 and len(name) <= 80 and index('abcdefghijklmnopqrstuvwxyz', name[1, 1], 1) > 0)
+   if ok then
+      for ci = 2 to len(name)
+         if index(keychars, name[ci, 1], 1) = 0 then ok = 0
+      next ci
+   end
+   if not(ok) then
+      display 'solo_examples: ' : name : ' is not a name this takes.'
+      n.bad += 1
+      return
+   end
+   rec = ''
+   nf = 0
+   openseq src : @ds : name readonly to sf then
+      got = 1
+      loop
+         readseq ln from sf else exit
+         nf += 1
+         rec<nf> = trimb(ln)
+      repeat
+      close sf
+   end
+   if not(got) or nf = 0 then
+      got = 0
+      display 'solo_examples: ' : name : ' cannot be read.'
+      n.bad += 1
+      return
+   end
+   return
+
+end
+
+* END-CODE

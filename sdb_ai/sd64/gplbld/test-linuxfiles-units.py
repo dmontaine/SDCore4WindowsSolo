@@ -53,8 +53,7 @@ NOT_HERE = {
     'setmode':          'OS: SET.MODE (Linux 3b435253) sets POSIX permission bits; Windows files have ACLs, not mode bits (agreed with Linux, mail 2026-11-11T0630)',
     'peer_local':       'never in Solo: removed from Core with the administrator predicate (RELEASE_1.1 64, fdded05a)',
     'upgrade_nocase':   'removed with the upgrade it served (SOLO 9, 95c67ce1)',
-    # 16 Nov 26: Linux Solo's examples.bp (S.261, fb685f0) is owed here, not yet carried (the scheduled jobs, S.247, are carried: SOLO 74).
-    'solo_examples':    'carry owed: examples.bp, RELEASE_1.1 335',
+    # 16 Nov 26: Linux Solo's examples.bp (S.261, fb685f0) is carried (solo_examples, RELEASE_1.1 335), so it is no longer listed here.
 }
 
 EVIDENCE = re.compile(r'(RELEASE_1\.1 \d+|SOLO \d+|\b[0-9a-f]{7,8}\b|^OS: )')

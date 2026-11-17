@@ -31,6 +31,10 @@
 #      (kernel.c), which is exactly what LOGIN's mode-4 walk gates on
 #      ("@who = 'SDSYS' and kernel(K$ADMINISTRATOR,-1)", gpl.bp/login:364) -
 #      the same mechanism the retired script drove, called the same way.
+#   4a. (16 Nov 26, RELEASE_1.1 335, Linux Solo S.261 fb685f0) sd -internal RUN gpl.bp solo_examples: the account's examples.bp, from
+#      sdsys\examples, compiled.  EVERY install path - a new tree, a reload of kept data and an upgrade - so an existing account gains
+#      the file on its first upgrade and has the shipped programs refreshed on every later one.  A failure is a WARNING line in the
+#      report and does not fail the install (Linux Solo's EXAMPLES block; SD Core for Windows' LoadExamples never stops one either).
 #   5. sd -internal DELETE VOC gpl.bp   (ruling 26 - no system BASIC source
 #      in the installed tree; every install and upgrade), then
 #      sd -internal SYNC.GLOBAL.CATALOG  (ruling 33 - the server's programs in
@@ -199,7 +203,8 @@ $secrets = @($adminPw, $globalPw, $accountPw) | Where-Object { $_ }
 # input, which is then closed so a read at end of input cannot wait forever.
 # Returns the output with every password masked; sets $script:leaked when one
 # was found.
-function Invoke-Sd([string]$SdArgs, [string]$InputText) {
+# 16 Nov 26 - RELEASE_1.1 335: $WaitMs, for solo_examples, which compiles 28 programs on a first run; every other call keeps 120 s.
+function Invoke-Sd([string]$SdArgs, [string]$InputText, [int]$WaitMs = 120000) {
     $script:n++
     $out = Join-Path $work ('sd-' + $script:n + '.txt')
     $internal = $SdArgs -match '^-internal\b'
@@ -240,9 +245,9 @@ function Invoke-Sd([string]$SdArgs, [string]$InputText) {
         [Array]::Clear($bytes, 0, $bytes.Length)
     }
     $p.StandardInput.Close()
-    if (-not $p.WaitForExit(120000)) {
+    if (-not $p.WaitForExit($WaitMs)) {
         try { $p.Kill() } catch { }
-        Note '  TIMED OUT after 120 s'
+        Note ('  TIMED OUT after ' + [int]($WaitMs / 1000) + ' s')
     }
     else { Note ('  exit ' + $p.ExitCode) }
     if ($internal) { [void](Remove-SdInternalMarker -SdsysDir $sdsys) }
@@ -594,6 +599,20 @@ try {
         $t = Invoke-Sd '-internal UPDATE.ACCOUNTS ALL' ''
         Judge 'reloaded account VOC refreshed' $t '(?m)^[1-9]\d* account\(s\) had their VOC updated'
     }
+
+    # 16 Nov 26 - RELEASE_1.1 335 (Linux Solo S.261 fb685f0; the owner: "just include examples.bp in the single account, no need to load
+    # or remove").  THE EXAMPLE PROGRAMS: solo_examples gives sduser its examples.bp from sdsys\examples, compiled; a shipped program is
+    # replaced and one the user added is kept.  OUTSIDE every if: a new tree, a reload of kept data and an upgrade all reach it, so an
+    # existing account gains the file on upgrade (Linux Solo's stage runs it after a new account and a reload only).  After the reload
+    # and UPDATE.ACCOUNTS, before DELETE VOC gpl.bp (the last RUN gpl.bp step stays the last).  Judged on its own last line with
+    # 0 failed; anything else is a WARNING in the report and the install goes on, as on Linux Solo.
+    # EXAMPLES-BEGIN
+    $t = Invoke-Sd '-internal RUN gpl.bp solo_examples' '' 600000
+    $exOk = [regex]::IsMatch($t, '(?m)^solo_examples: examples\.bp ready: \d+ new, \d+ changed, \d+ the same, compiled \d+ of \d+, 0 failed\s*$')
+    $exBad = @($disqualify | Where-Object { $t.IndexOf($_, [StringComparison]::OrdinalIgnoreCase) -ge 0 })
+    if ($exOk -and $exBad.Count -eq 0) { Note '  PASS  example programs in examples.bp' }
+    else { Note '  WARNING  the example programs were not put into the account (solo_examples did not report 0 failed); run the installer again over this installation (an upgrade) to try again' }
+    # EXAMPLES-END
 
     # 28 Sep 26 - RULING 26: NO SYSTEM BASIC SOURCE IN THE INSTALLED TREE.  The
     # gpl.bp directory no longer ships (stage.py SDSYS_BUILD_SEED; an upgrade
