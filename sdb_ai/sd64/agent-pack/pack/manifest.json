@@ -1,5 +1,5 @@
 {
- "chunk_count": 4175,
+ "chunk_count": 4199,
  "development": "the changelog's 'Next release - in progress' section is part of this tree",
  "gaps": {
   "basic_names_without_a_docs_syntax_line": [
@@ -38,7 +38,7 @@
   },
   "core.digest": {
    "chunks": 5,
-   "sha256": "9494c9dba5620d5f1f0612007d918c0a7a3c69c5f7f15ff04c2adc8a54db6f1c"
+   "sha256": "cd531681969a35c5645975531ec2102e0d4a000ba8fe052d69be54a0f647c52b"
   },
   "core.start": {
    "chunks": 1,
@@ -81,16 +81,16 @@
    "sha256": "f8f7e8bad58d56ed8c8d1f5a500d1e52f99b0733d33a251e1d987471d86fc157"
   },
   "message": {
-   "chunks": 2937,
-   "sha256": "f992cdc8be9c99ed0728bbf680df0dceb865b43bfa4adecb3e0870794a58b219"
+   "chunks": 2957,
+   "sha256": "89011d74a99d2ec14c71708554f43dd974016fca297b33fbb0755f0f187b0c28"
   },
   "sys.keys": {
    "chunks": 41,
-   "sha256": "41d448c735095d45f60378ab917aee660a9a1f28e2757c287ad93d2d8ce7c606"
+   "sha256": "1fd98d3f1fd2f82465fdb1b319501835e15cc652b39014e61dc08e1ad9a9e3bb"
   },
   "sys.param": {
    "chunks": 59,
-   "sha256": "f886cadb4a568b23b0ad0cd95fb77583bd489654d7b287380b0688d4e1153eb2"
+   "sha256": "c46a7e5033d1cf01044935209adb8f94b09673aa26fe0aa2f207463038c1063f"
   },
   "sys.releases": {
    "chunks": 1,
@@ -101,8 +101,8 @@
    "sha256": "00462f8c14146109816f5fe33947d308d43e79cdc646210f54b60de6ba538c54"
   },
   "tcl.verb": {
-   "chunks": 207,
-   "sha256": "4e9ce3f9d837fcf5576480fe62ac6a1b4cc15504b7c42a7fcb64b9d75a54fc73"
+   "chunks": 211,
+   "sha256": "848006b7bda5a6009bd3b1cb3ea446e4ad4b514749404868ea7f72ffe436583a"
   },
   "tcl.verb+keyword": {
    "chunks": 4,
@@ -114,7 +114,7 @@
   },
   "voc.layer": {
    "chunks": 2,
-   "sha256": "58c125ec8de9752716524a13848d7370f60b039737d412b015c0735acf43fc30"
+   "sha256": "349d86599e600611d2b3b54d8664b0dbb5d622ca85cc44417d8b8bcae7f0144a"
   },
   "voc.type": {
    "chunks": 9,
@@ -130,8 +130,8 @@
  "parts": {
   "core.md": {
    "chunks": 6,
-   "sha256": "fae3f4323e0ba41435e7dbfa9740c3994d406e3f78430d922c1c04e53c5d4847",
-   "words": 2137
+   "sha256": "1413aa832fd46a4eeb75d63ecf9ded9c2924e43c8bd08e9dc99e79083c484ae0",
+   "words": 2311
   },
   "examples/dictionary-items.md": {
    "chunks": 69,
@@ -144,7 +144,7 @@
    "words": 627
   },
   "index.json": {
-   "sha256": "c262f94e8a5988a0f299205ecb3ce76c23ee127b239d2dee59b201147070fe2e"
+   "sha256": "9a566c841ccdb20ea6f410f326be3f1313483e84a19c3ae598a24ae75878c59f"
   },
   "reference/basic-functions.md": {
    "chunks": 267,
@@ -167,18 +167,18 @@
    "words": 5601
   },
   "reference/messages.md": {
-   "chunks": 2937,
-   "sha256": "46175d094203dec11e5b64ab9ac00ff2be112a1270bfd68360b255c168871799",
-   "words": 39290
+   "chunks": 2957,
+   "sha256": "4574c97ef0baedb99c5220b769284b310164fa6f8cec3f4c4dda518bf5292fa4",
+   "words": 39617
   },
   "reference/system-keys.md": {
    "chunks": 41,
-   "sha256": "0fa7afff1ce50e18679daa7e527458e7756e0a80357794c049e1943a760f2407",
-   "words": 9905
+   "sha256": "52965206bb6ec2f2a88e640d536d061e942c46a93ff0a14f431cd0eda794540b",
+   "words": 9924
   },
   "reference/system.md": {
    "chunks": 60,
-   "sha256": "b626e584a53e5e2c9f37453056c8d893419671dee4aaa20a9ac97f460b4074ba",
+   "sha256": "1bb0864c2357cc53683a0d8ef0d8e53d22456ac0e7b32bd0747990101f829c39",
    "words": 1159
   },
   "reference/tcl-keywords.md": {
@@ -187,13 +187,13 @@
    "words": 10222
   },
   "reference/tcl-verbs.md": {
-   "chunks": 211,
-   "sha256": "b355b4424f1762944c2a5b7069a3954138fcd8965c407f87a9c610d67ef02d04",
-   "words": 9549
+   "chunks": 215,
+   "sha256": "c251f3801b4b932ac2771cab96f5ef3bbb2302996b847766eb05cc35ff45aa66",
+   "words": 9838
   },
   "reference/voc.md": {
    "chunks": 12,
-   "sha256": "88882d9516609ec2982f5e8ee4a957ce2cc330ccfb24f9b69f1893a1f676db2f",
+   "sha256": "3df12f34ee5c9a53109924c61b483427eddb5f6c6339fec07c6d072493f58bc1",
    "words": 1856
   }
  },

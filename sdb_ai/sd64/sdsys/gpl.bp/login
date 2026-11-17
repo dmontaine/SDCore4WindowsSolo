@@ -18,6 +18,12 @@
 * 
 * 
 * START-HISTORY:
+* 16 Nov 26 Windows port - from Linux Solo 2d3db81 (S.247, scheduled jobs): require.password's RUN-JOB-IDENTITY block - a one-shot that is
+*           exactly "run.job <name>", whose $stored cannot be decrypted, is admitted by the process's Windows identity (SD_FILE_PRIVATE on
+*           $cred: owned by this process's user, nobody but that user, SYSTEM and Administrators allowed).  MEASURED on a VM, 16 Nov 2026: a job
+*           task (S4U) run with the user signed out cannot decrypt $stored ("Key not valid for use in specified state"); signed in it can.  The
+*           owner chose option 1, run.job proving itself by its Windows identity.  Every other one-shot is unchanged.  Linux needs no such
+*           route (its timers run in the user's own manager, where the kept password opens); a Windows deviation forced by DPAPI.
 * 16 Nov 26 Windows port - from Linux Solo c8dac7a: Solo's password messages 12017-12020, 12022 and 12025-12027 are 15906-15909,
 *           15911 and 15912-15914 (Linux Solo 14906-14909, 14911, 14912-14914), text unchanged; SD Core uses the old numbers
 *           for other messages.  The Linux history lines below cite Linux Solo's new numbers, as there.
@@ -1607,6 +1613,7 @@ require.password:
 *  because a scheduled job with its password on the input must still work.
 *  It proves the account password, never the global one, so it never unlocks
 *  ADMIN.
+   pw.dpapi.fail = @false
    if not(pw.interactive) then
       openpath @sdsys:@ds:'$cred' to pw.cred.f then
          read pw.rec from pw.cred.f, '$stored' else pw.rec = ''
@@ -1614,6 +1621,7 @@ require.password:
       end
       if pw.rec<1> = upcase(initial.account) and pw.rec<2> # '' then
          pw.text = SDEXT(pw.rec<2>, @false, SD_DPAPI_UNPROTECT)
+         if pw.text = '' then pw.dpapi.fail = @true       ;* 16 Nov 26: the kept copy is there and DPAPI would not open it (RUN-JOB-IDENTITY, below)
          if pw.text # '' then
             pw.match = @false
             call !CRED_VERIFY(initial.account, pw.text, pw.match)
@@ -1628,6 +1636,43 @@ require.password:
          return
       end
    end
+
+*  16 Nov 26 Windows port - S.247, scheduled jobs.  RUN-JOB-IDENTITY-BEGIN
+*  A SCHEDULED JOB SIGNS IN BY ITS WINDOWS IDENTITY, AND NOTHING ELSE DOES.  A job is a Task Scheduler task that runs
+*  "<Solo folder>\usr\bin\sd-solo.exe run.job <name>" as the Solo user, LogonType S4U ("do not store password"), so that it runs while the
+*  user is signed out.  MEASURED on a VM, 16 Nov 2026: such a task, with the user signed out, cannot decrypt $stored - DPAPI answers "Key not
+*  valid for use in specified state" - and with the user signed in it can.  So the kept password above fails for every job that runs while
+*  nobody is signed in.  THE OWNER'S RULING, 16 Nov 2026, option 1: run.job proves itself by its Windows identity.
+*  THE ROUTE IS NARROW: the one-shot's whole command is two words, run.job and a name that passes the job name rule; the kept copy is there
+*  for this account and DPAPI would not open it (pw.dpapi.fail, not a wrong or missing copy); and SD_FILE_PRIVATE says the tree's $cred is
+*  OWNED by the Windows user this process runs as (by SID, from the process token) and allows nobody but that user, SYSTEM and Administrators.
+*  (SD_FILE_PRIVATE also takes the token's default owner as the owner, which for an elevated token is Administrators: a $cred owned by
+*  Administrators would admit any elevated administrator, who can read and change the whole tree already.)  Every other one-shot keeps the
+*  behaviour above and below.  RUN.JOB then checks again that it is that one-shot, the job exists in $jobs, and the switch (field 23) is on.
+*  IT ADDS NO WAY IN: while the user is signed in, any process of this user can open $stored and sign in exactly as a one-shot does; while
+*  the user is signed out, a process can run as this user only from a task registered with administrator rights - an unelevated session cannot
+*  register an S4U task (measured: "Access is denied"), which is why the jobs' tasks are registered by the doors helper (solo-doors.ps1).
+*  It proves the account, never the global password, so it never unlocks ADMIN.
+   if not(pw.interactive) and pw.dpapi.fail then
+      rj.cmd = batch.command
+      rj.name = field(rj.cmd, ' ', 2)
+      rj.ok = @false
+      if dcount(rj.cmd, ' ') = 2 and downcase(field(rj.cmd, ' ', 1)) = 'run.job' then
+         if len(rj.name) >= 1 and len(rj.name) <= 32 and rj.name[len(rj.name), 1] # '-' then
+            if index('abcdefghijklmnopqrstuvwxyz', rj.name[1, 1], 1) > 0 and convert('abcdefghijklmnopqrstuvwxyz0123456789-', '', rj.name) = '' then rj.ok = @true
+         end
+      end
+      if rj.ok then
+         if SDEXT(@sdsys : @ds : '$cred' : @FM : 'DIR', @TRUE, SD_FILE_PRIVATE) = '1' then
+            pw.via = 'windows-user'
+            void kernel(K$AUDIT, 'login password account=' : initial.account : ' via=windows-user command=run.job ' : rj.name)
+            pw.ok = @true
+            return
+         end
+         void kernel(K$AUDIT, 'login refused account=' : initial.account : ' - run.job ' : rj.name : " - $cred is not this windows user's own")
+      end
+   end
+*  RUN-JOB-IDENTITY-END
 
    if not(pw.interactive) and pw.on.tty then
       display sysmsg(15906) ;* A command given on the sd command line needs the password on its input

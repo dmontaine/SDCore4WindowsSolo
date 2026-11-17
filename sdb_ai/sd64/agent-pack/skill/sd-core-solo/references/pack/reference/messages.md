@@ -493,7 +493,7 @@ Insufficient memory to reallocate array chunk
 %1 already had that access; nothing changed
 ```
 
-cited by: `setnetacc`, `setosacc`, `setxferacc`
+cited by: `setjobsacc`, `setnetacc`, `setosacc`, `setxferacc`
 
 ### msg:10081
 > kind=message tier=reference since=- src=sdsys/messages/10081:1#cb0ce2a0
@@ -730,7 +730,7 @@ You cannot suspend your own account or the one you are standing in
 Unable to change the state of %1; its state in the register is unchanged
 ```
 
-cited by: `setnetacc`, `setosacc`, `setxferacc`
+cited by: `setjobsacc`, `setnetacc`, `setosacc`, `setxferacc`
 
 ### msg:10115
 > kind=message tier=reference since=- src=sdsys/messages/10115:1#d7b96b21
@@ -7397,7 +7397,7 @@ cited by: `tk_explain`
 nothing was run
 ```
 
-cited by: `tk_confirm`, `tool_remote`
+cited by: `tk_confirm`, `tool_remote`, `tool_solojobs`
 
 ### msg:12827
 > kind=message tier=reference since=- src=sdsys/messages/12827:1#bca2b715
@@ -8241,6 +8241,15 @@ Account %1 has NET %2
 
 cited by: `setnetacc`
 
+### msg:12934
+> kind=message tier=reference since=- src=sdsys/messages/12934:1#5c5de680
+
+```
+The doors helper is changing the job's task (a few seconds)...
+```
+
+cited by: `solojob`
+
 ### msg:12938
 > kind=message tier=reference since=- src=sdsys/messages/12938:1#45af3bfa
 
@@ -8645,7 +8654,7 @@ cited by: `remotedoor`
 The doors helper is not installed on this computer: run the SD Core Solo installer again to add it
 ```
 
-cited by: `remotedoor`
+cited by: `remotedoor`, `solojob`
 
 ### msg:12986
 > kind=message tier=reference since=- src=sdsys/messages/12986:1#ae70c420
@@ -8654,7 +8663,7 @@ cited by: `remotedoor`
 The doors helper gave no answer within %1 seconds; nothing is known to have changed
 ```
 
-cited by: `remotedoor`
+cited by: `remotedoor`, `solojob`
 
 ### msg:12987
 > kind=message tier=reference since=- src=sdsys/messages/12987:1#68276272
@@ -10042,7 +10051,7 @@ cited by: `tk_findrow`
 No row holds %1.
 ```
 
-cited by: `mymenu`, `tool_sessions`
+cited by: `mymenu`, `tool_sessions`, `tool_solojobs`
 
 ### msg:15047
 > kind=message tier=reference since=- src=sdsys/messages/15047:1#4ec1b295
@@ -10729,7 +10738,7 @@ cited by: `login`
 Password:
 ```
 
-cited by: `login`
+cited by: `login`, `solojob`
 
 ### msg:15908
 > kind=message tier=reference since=- src=sdsys/messages/15908:1#fc2066fe
@@ -10901,6 +10910,177 @@ The permission to add programs to the home screen could not be written
 ```
 
 cited by: `setpins`
+
+### msg:15930
+> kind=message tier=reference since=- src=sdsys/messages/15930:1#16216284
+
+```
+The job definitions could not be read or written (%1); nothing was changed
+```
+
+cited by: `solojob`
+
+### msg:15931
+> kind=message tier=reference since=- src=sdsys/messages/15931:1#cd4cf4c5
+
+```
+   next run: %1; last run: %2
+```
+
+cited by: `solojob`
+
+### msg:15932
+> kind=message tier=reference since=- src=sdsys/messages/15932:1#c3129eb6
+
+```
+run.job runs only as a job's own command, started by its task or by set.job run
+```
+
+cited by: `runjob`
+
+### msg:15933
+> kind=message tier=reference since=- src=sdsys/messages/15933:1#ba38af65
+
+```
+Task Scheduler did not do it: %1
+```
+
+cited by: `solojob`
+
+### msg:15934
+> kind=message tier=reference since=- src=sdsys/messages/15934:1#4e6c41eb
+
+```
+No scheduled job is defined
+```
+
+cited by: `solojob`
+
+### msg:15935
+> kind=message tier=reference since=- src=sdsys/messages/15935:1#e478bf6e
+
+```
+Job %1 is started
+```
+
+cited by: `solojob`
+
+### msg:15936
+> kind=message tier=reference since=- src=sdsys/messages/15936:1#1262470d
+
+```
+Job %1 is deleted
+```
+
+cited by: `solojob`
+
+### msg:15937
+> kind=message tier=reference since=- src=sdsys/messages/15937:1#1336484b
+
+```
+Job %1 is scheduled: %2
+```
+
+cited by: `solojob`
+
+### msg:15938
+> kind=message tier=reference since=- src=sdsys/messages/15938:1#e6adc3c2
+
+```
+No job is named %1; nothing was changed
+```
+
+cited by: `runjob`, `solojob`
+
+### msg:15939
+> kind=message tier=reference since=- src=sdsys/messages/15939:1#c88a1bee
+
+```
+A job named %1 already exists; nothing was changed
+```
+
+cited by: `solojob`
+
+### msg:15940
+> kind=message tier=reference since=- src=sdsys/messages/15940:1#aae209ad
+
+```
+Wrong password - no job was changed
+```
+
+cited by: `solojob`
+
+### msg:15941
+> kind=message tier=reference since=- src=sdsys/messages/15941:1#878ec041
+
+```
+Making or changing a job needs the account password, typed at a terminal
+```
+
+cited by: `solojob`
+
+### msg:15942
+> kind=message tier=reference since=- src=sdsys/messages/15942:1#6f793ca3
+
+```
+A job's command is one line of printable characters, at most 500 of them, and is not itself run.job or set.job
+```
+
+cited by: `solojob`, `tool_solojobs`
+
+### msg:15943
+> kind=message tier=reference since=- src=sdsys/messages/15943:1#e00382e3
+
+```
+The schedule is none of: every 5|10|15|20|30 minutes, hourly, daily hh:mm, weekly mon..sun hh:mm, monthly 1..28 hh:mm
+```
+
+cited by: `solojob`
+
+### msg:15944
+> kind=message tier=reference since=- src=sdsys/messages/15944:1#75192e8b
+
+```
+%1 is not a job name: 1 to 32 characters, a lower-case letter first, then lower-case letters, digits and dashes, not ending in a dash
+```
+
+cited by: `runjob`, `solojob`
+
+### msg:15945
+> kind=message tier=reference since=- src=sdsys/messages/15945:1#b6d90c0e
+
+```
+Syntax: set.job   or   set.job add|change name schedule command   or   set.job delete|run name
+```
+
+cited by: `solojob`
+
+### msg:15946
+> kind=message tier=reference since=- src=sdsys/messages/15946:1#aba220b2
+
+```
+Syntax: set.jobs.access   or   set.jobs.access on|off
+```
+
+cited by: `setjobsacc`
+
+### msg:15947
+> kind=message tier=reference since=- src=sdsys/messages/15947:1#60165795
+
+```
+SD's scheduled jobs (set.job, run.job) may be made and run: %1
+```
+
+cited by: `setjobsacc`, `solojob`
+
+### msg:15948
+> kind=message tier=reference since=- src=sdsys/messages/15948:1#7fee15dc
+
+```
+Scheduled jobs are off on this computer; the administrator turns them on with set.jobs.access on
+```
+
+cited by: `runjob`, `solojob`, `tool_solojobs`
 
 ### msg:15949
 > kind=message tier=reference since=- src=sdsys/messages/15949:1#2edd407f
@@ -11457,7 +11637,7 @@ User is not an administrator
 Command requires administrator privileges
 ```
 
-cited by: `apndpath`, `audit_read`, `backupa`, `cleanac`, `config`, `cproc`, `deleteserver`, `docsinst` and 26 more
+cited by: `apndpath`, `audit_read`, `backupa`, `cleanac`, `config`, `cproc`, `deleteserver`, `docsinst` and 27 more
 
 ### msg:2002
 > kind=message tier=reference since=- src=sdsys/messages/2002:1#b8493524

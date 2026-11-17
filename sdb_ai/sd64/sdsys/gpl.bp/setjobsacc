@@ -1,0 +1,123 @@
+* SETJOBSACC
+* SET.JOBS.ACCESS verb
+* Copyright (c) String Database
+*
+* START-HISTORY:
+* 17 Nov 26 SD Core Solo for Linux - written (S.247, scheduled jobs for Solo; owner, 15 Nov 2026: "since scheduled jobs is in core and useful in
+*           solo it should be in this release", and of the plan, "your plan is fine": off as delivered, a job made only with the password typed,
+*           its command fixed then, the user's own timers).  The shape of SET.XFER.ACCESS: SD Core for Linux has no such switch (its jobs are the
+*           administrator's, through the root helper, and need none), so this verb is Solo's own and is listed for the parity audit.
+* 16 Nov 26 Windows port - from Linux Solo 2d3db81 (S.247): carried as it is; messages 15946 and 15947 (Linux's 14946 and 14947 + 1000).
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*    SET.JOBS.ACCESS          shows whether SD's scheduled jobs may be made and run, and changes nothing
+*    SET.JOBS.ACCESS ON       lets SET.JOB make jobs and RUN.JOB run them
+*    SET.JOBS.ACCESS OFF      takes that back: no job can be made, and every job is refused at its next run (its task stays; SET.JOB DELETE removes it)
+*
+*    An administrator verb (ADMIN first), and ONE word per command.  The switch is OFF as delivered.  It is field 23 of the register record
+*    accounts/sduser (ACC$JOBS), 'yes' or 'no'; ONLY 'yes' is on, so a blank field, or a record with fewer fields, is off.  SET.JOB and RUN.JOB
+*    read the record at every use.
+*
+*    The answer is the state afterwards (15947).  The change is written to the audit trail in lower case.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+program $set.jobs.access
+$catalog $SETJOBSACC
+
+$include keys.h
+$include int$keys.h
+$include parser.h
+$include err.h
+
+   prompt ''
+   @system.return.code = -ER$ARGS
+
+   if not(kernel(K$ADMINISTRATOR, -1)) then
+      stop sysmsg(2001)  ;* Command requires administrator privileges
+   end
+
+*  Solo's one account is always sduser (ruling 29).
+   acc.name = 'sduser'
+
+   parser = "!PARSER"
+   call @parser(PARSER$RESET, 0, @sentence, 0)
+   call @parser(PARSER$GET.TOKEN, token.type, token, keyword)   ;* the verb
+   word.1 = '' ; word.2 = ''
+   call @parser(PARSER$GET.TOKEN, token.type, token, keyword)
+   if token.type # PARSER$END then
+      word.1 = token
+      call @parser(PARSER$GET.TOKEN, token.type, token, keyword)
+      if token.type # PARSER$END then word.2 = token      ;* a second word is always the syntax message
+   end
+
+   openpath @sdsys:@ds:'accounts' to acc.f else
+      @system.return.code = -ER$FAILED
+      stop sysmsg(10114, acc.name)  ;* Unable to change the state of %1; its state in the register is unchanged
+   end
+
+   if word.1 = '' then
+      read acc.rec from acc.f, acc.name else acc.rec = ''
+      close acc.f
+      jb.now = 'no'
+      if upcase(trim(acc.rec<ACC$JOBS>)) = 'YES' then jb.now = 'yes'
+      @system.return.code = 0
+      crt sysmsg(15947, jb.now)  ;* SD's scheduled jobs (set.job, run.job) may be made and run: %1
+      stop
+   end
+
+   jb.ok = @true ; jb.want = @false
+   begin case
+      case upcase(word.1) = 'ON'  ; jb.want = @true
+      case upcase(word.1) = 'OFF' ; jb.want = @false
+      case 1 ; jb.ok = @false
+   end case
+   if not(jb.ok) or word.2 # '' then
+      close acc.f
+      crt sysmsg(15946)  ;* Syntax: set.jobs.access   or   set.jobs.access on|off
+      stop
+   end
+
+   readu acc.rec from acc.f, acc.name else
+      release acc.f, acc.name
+      close acc.f
+      @system.return.code = -ER$FAILED
+      stop sysmsg(10114, acc.name)
+   end
+   jb.was = (upcase(trim(acc.rec<ACC$JOBS>)) = 'YES')
+   if jb.was = jb.want then
+      release acc.f, acc.name
+      close acc.f
+      @system.return.code = 0
+      crt sysmsg(10080, acc.name)  ;* %1 already had that access; nothing changed
+      stop
+   end
+
+   acc.new = acc.rec
+   if jb.want then acc.new<ACC$JOBS> = 'yes' else acc.new<ACC$JOBS> = 'no'
+   acc.written = @true
+   write acc.new to acc.f, acc.name on error acc.written = @false
+   if not(acc.written) then
+      release acc.f, acc.name
+      close acc.f
+      @system.return.code = -ER$FAILED
+      stop sysmsg(10114, acc.name)
+   end
+   release acc.f, acc.name
+   close acc.f
+
+   @system.return.code = 0
+   jb.now = 'no'
+   if upcase(trim(acc.new<ACC$JOBS>)) = 'YES' then jb.now = 'yes'
+   void kernel(K$AUDIT, 'set.jobs.access ' : downcase(word.1) : ' account=' : acc.name)
+   crt sysmsg(15947, jb.now)  ;* SD's scheduled jobs (set.job, run.job) may be made and run: %1
+   stop
+
+end
+
+* END-CODE

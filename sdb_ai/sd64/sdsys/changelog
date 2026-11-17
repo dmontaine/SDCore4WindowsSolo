@@ -3,6 +3,38 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+16 Nov 26  SCHEDULED JOBS: SET.JOB, RUN.JOB, SET.JOBS.ACCESS AND THE TOOL.JOBS PAGE.
+
+             What        - SD can now keep jobs of its own: SD commands of yours that run on a schedule, unattended,
+                           whether or not you are signed in to Windows.
+                             set.job                                    lists the jobs, with each one's next and last run
+                             set.job add <name> <schedule> <command>    makes a job
+                             set.job change <name> <schedule> <command> changes one
+                             set.job delete <name>                      removes one
+                             set.job run <name>                         starts one now
+                           A schedule is every 5, 10, 15, 20 or 30 minutes, hourly, daily hh:mm, weekly mon..sun hh:mm or
+                           monthly 1..28 hh:mm, in the computer's time; the command is the rest of the line, as you would
+                           type it at the prompt.  Making or changing a job asks for your account password, typed at the
+                           terminal, every time.  Each job is a Task Scheduler task (in the folder SD Core Solo Jobs) that
+                           runs sd-solo.exe run.job <name> as your Windows user without a stored password, and run.job
+                           runs the command the job was given, which is kept in SD and never in the task.  The tasks are
+                           made, changed and removed by the installer's helper (the SD Core Solo Doors task), because only
+                           an administrator can make a task that runs while you are signed out.  The page tool.jobs shows
+                           the same list and does the same with N, C, D and R; its form has a masked field for the
+                           password.  A run missed while the computer was off is not made up.
+                           OFF AS DELIVERED: the administrator turns jobs on with set.jobs.access on (or the new Scheduled
+                           jobs row of tool.gates); while they are off no job can be made or run, and every job is refused
+                           at its next run.  The uninstaller removes the tasks; when it keeps your data it keeps the job
+                           definitions too, and a reinstall that reloads them gives the jobs their tasks back.
+             Why         - the owner: "since scheduled jobs is in core and useful in solo it should be in this release".
+             Does NOT    - Change how any other one-shot sd-solo command signs in.  While you are signed out Windows will
+                           not open the kept copy of your password, so run.job, and only run.job given exactly a job's
+                           name, signs in by being your own Windows user (the owner of SD's password folder).  This adds
+                           no way in: while you are signed in any program of yours can already sign in with the kept
+                           copy, and a program can run as you while you are signed out only from a task that an
+                           administrator registered.  Run anything as another user, or keep a password anywhere new.
+                           NOT YET TESTED ON AN INSTALLED SYSTEM.
+
 16 Nov 26  SOLO'S MESSAGE NUMBERS NO LONGER CLASH WITH SD CORE'S.
 
              What        - 36 messages that only Solo has used numbers SD Core for Windows gives to other messages (for

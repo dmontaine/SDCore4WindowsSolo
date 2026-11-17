@@ -1,0 +1,105 @@
+* RUNJOB
+* RUN.JOB verb: runs one of SD's scheduled jobs for SD Core Solo - the command its definition holds - as the one-shot its task starts.
+* Copyright (c) 2026, SD Core for Linux Solo.  This program is free software; you can redistribute
+* it and/or modify it under the terms of the GNU General Public License, version 3 or later.
+*
+* START-HISTORY:
+* 17 Nov 26 dm  New (S.247, with SET.JOB; see solojob for the owner's words and the design).
+* 17 Nov 26 dm  The return code is set to 0 before the EXECUTE, so a command that sets none is reported as status 0, not as this program's -1 (witness-s247 J4b).
+* 16 Nov 26 Windows port - from Linux Solo 2d3db81 (S.247) and 72c2457 (the zeroed return code): carried as it is, the messages + 1000 (15932, 15938,
+*           15944, 15948).  What starts it here is a Task Scheduler task, "\SD Core Solo Jobs\sd-solo-job-<name>", which runs
+*           <Solo folder>\usr\bin\sd-solo.exe run.job <name> as the Solo user whether or not that user is signed in (S4U, no stored password).
+*           THE SIGN-IN IN FRONT OF IT is the ordinary one-shot sign-in ($stored) while the user is signed in; while the user is signed out
+*           DPAPI cannot open $stored (measured on a VM, 16 Nov 2026: "Key not valid for use in specified state"), and login then admits
+*           exactly "run.job <name>" by the process's Windows identity (the owner's ruling, 16 Nov 2026, option 1; gpl.bp/login, the
+*           RUN-JOB-IDENTITY block, says why it adds no way in).  So the checks below are the whole of what decides a run.
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*   RUN.JOB name        the whole of a job task's command line: <Solo folder>\usr\bin\sd-solo.exe run.job <name>
+*
+*   ONLY AS THAT ONE-SHOT: the session's single command (system(1026)) must be exactly "run.job <name>", so RUN.JOB is never a step inside a
+*   paragraph, a typed command at the prompt, or a second command of a one-shot.  The sign-in in front of it is the ordinary one-shot sign-in
+*   (login's require.password: the kept copy of the account password, $stored), or, while the user is signed out, the Windows identity route
+*   that login keeps for this one command.
+*
+*   THE SWITCH IS READ AT EVERY RUN: with SET.JOBS.ACCESS OFF the job is refused and the refusal is audited, so turning jobs off stops every task's
+*   next run.  A name with no definition is refused the same way.  Then the definition's command - fixed when SET.JOB was given the password - is
+*   EXECUTEd as typed, and its result written to the audit trail.  What it prints goes nowhere: a task has no one to show it to.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+program run.job
+$catalog $runjob
+
+$include int$keys.h
+$include keys.h
+$include err.h
+
+   @system.return.code = -ER$ARGS
+   acc.name = 'sduser'
+
+   jname = downcase(trim(field(trim(@sentence), ' ', 2)))
+   one = trim(system(1026))
+   ok.call = @false
+   if dcount(trim(@sentence), ' ') = 2 and downcase(field(one, ' ', 1)) = 'run.job' and dcount(one, ' ') = 2 then
+      if downcase(field(one, ' ', 2)) = jname then ok.call = @true
+   end
+   if not(ok.call) then
+      void kernel(K$AUDIT, 'run.job refused name=' : jname[1, 40] : ' reason=not the job one-shot')
+      stop sysmsg(15932)                       ;* run.job runs only as a job's own command, started by its task or by set.job run
+   end
+
+   ok = @false
+   if len(jname) >= 1 and len(jname) <= 32 then
+      if index('abcdefghijklmnopqrstuvwxyz', jname[1, 1], 1) > 0 and jname[len(jname), 1] # '-' then
+         if convert('abcdefghijklmnopqrstuvwxyz0123456789-', '', jname) = '' then ok = @true
+      end
+   end
+   if not(ok) then
+      void kernel(K$AUDIT, 'run.job refused name=' : jname[1, 40] : ' reason=not a job name')
+      stop sysmsg(15944, jname[1, 40])         ;* %1 is not a job name ...
+   end
+
+*  The switch, read now.
+   sw.on = @false
+   openpath @sdsys : @ds : 'accounts' to sw.f then
+      read sw.rec from sw.f, acc.name then
+         if upcase(trim(sw.rec<ACC$JOBS>)) = 'YES' then sw.on = @true
+      end
+      close sw.f
+   end
+   if not(sw.on) then
+      @system.return.code = -ER$PERM
+      void kernel(K$AUDIT, 'run.job refused name=' : jname : ' reason=jobs are off')
+      stop sysmsg(15948)                       ;* Scheduled jobs are off on this computer ...
+   end
+
+   jcmd = ''
+   openpath @sdsys : @ds : '$jobs' to jobs.f then
+      read rec from jobs.f, jname then jcmd = rec<3>
+      close jobs.f
+   end
+   if jcmd = '' then
+      @system.return.code = -ER$FAILED
+      void kernel(K$AUDIT, 'run.job refused name=' : jname : ' reason=no definition')
+      stop sysmsg(15938, jname)                ;* No job is named %1; nothing was changed
+   end
+
+   void kernel(K$AUDIT, 'run.job start name=' : jname : ' command=' : jcmd)
+*  17 Nov 26: zero first.  A command that sets no return code of its own (WHO, a paragraph) leaves the value standing, and it was this program's -ER$ARGS:
+*  the real-install witness saw "run.job end name=wjob status=-1" for a WHO that had run (witness-s247 J4b).
+   @system.return.code = 0
+   execute jcmd
+   rc = @system.return.code
+   void kernel(K$AUDIT, 'run.job end name=' : jname : ' status=' : rc)
+   @system.return.code = rc
+   stop
+
+end
+
+* END-CODE

@@ -387,6 +387,7 @@ try {
             @{ Rel = 'sdsys\netlogins';         Dir = $true },
             @{ Rel = 'sdsys\newvoc.mods';       Dir = $true },
             @{ Rel = 'sdsys\voc_removed.saved'; Dir = $true },
+            @{ Rel = 'sdsys\$jobs';             Dir = $true },      # 16 Nov 26 - S.247: the jobs' definitions; solo-machine.ps1 gives them their tasks
             @{ Rel = 'sdsys\start.default';     Dir = $false })
         foreach ($k in $keptItems) {
             $src = Join-Path $ReloadFrom $k.Rel

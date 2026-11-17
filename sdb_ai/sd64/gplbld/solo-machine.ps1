@@ -72,11 +72,34 @@
 # is made by the same steps an install makes (one copy of each): the API's listener switch and rule; ssh's task (Register-SshTask
 # when it was never set up - the owner's "set it up from the page") and rule.  The API listener only moves when SD next starts;
 # nothing here restarts SD.
+#
+# 16 Nov 26 Windows port - from Linux Solo 2d3db81 (S.247), SCHEDULED JOBS (the owner's decisions of 16 Nov 2026).  A job is a task
+# "\SD Core Solo Jobs\sd-solo-job-<name>": the Solo user (-ForUser, by SID), LogonType S4U ("do not store password") so that it runs while
+# the user is signed out, the least privilege, and ONE action, fixed here: <Solo folder>\usr\bin\sd-solo.exe run.job <name>.  The
+# trigger is one of SD Core's five schedule shapes (SD Core's sd-jobs.ps1 Get-JobSchedule, copied); no missed run is made up
+# (StartWhenAvailable false, Linux's Persistent=false) and a run still going is not doubled (IgnoreNew).  The command a job runs is never
+# here: it is in the user's $jobs, which RUN.JOB reads.  THE FOLDER is SYSTEM and Administrators only, as SD Core's \SD is, for SD Core's
+# measured reason (sd-taskfolder.ps1: the root gives Authenticated Users write, so anyone could make the folder first or plant a task
+# in it); it is "SD Core Solo Jobs" and not "SD Core Solo" because the startup task has that name in the root, and a task and a folder
+# are a file and a directory in the same System32\Tasks folder (not measured; the layout).  Each task also lets -ForUser READ it, so
+# SET.JOB's list can show the next and the last run; nothing lets the user change one.
+#   -Action Job -JobOp set|delete|run -JobName <name> [-JobSchedule <schedule>]   is what the doors helper runs for a checked job
+# request (solo-doors.ps1): set registers the task (only when $jobs\<name> already holds that schedule: SET.JOB writes the definition
+# first), delete stops and removes it, run starts it now.  The verdict line names the result: "JOB RESULT   : set|deleted|absent|started".
+#   Install and Upgrade give every definition in $jobs its task (a reload's kept $jobs, which solo-setup.ps1 copied back before this step;
+#   one that fails is said and the rest go on, as Linux's JOBS-RESTORE); Remove takes every job task and the folder away FIRST, so that
+#   no job starts while SD is being taken down.  $jobs is the user's data: the uninstaller's Keep keeps it (sd-solo.iss KeepDataPass).
+# NOT MEASURED when written: that SYSTEM (the doors helper) can register an S4U task for the Solo user; that the user can read a task in a
+# folder it cannot write; a job's task firing with the user signed out.  A sitting owes them.
 
 param(
-    [ValidateSet('Install', 'Upgrade', 'Remove', 'Doors')] [string]$Action = 'Install',
+    [ValidateSet('Install', 'Upgrade', 'Remove', 'Doors', 'Job')] [string]$Action = 'Install',
     [ValidateSet('', 'api', 'ssh')] [string]$Door = '',
     [ValidateSet('', 'off', 'local', 'open')] [string]$Mode = '',
+    # 16 Nov 26 - S.247: -Action Job only (the doors helper's job requests).  Each is checked again below.
+    [ValidateSet('', 'set', 'delete', 'run')] [string]$JobOp = '',
+    [string]$JobName = '',
+    [string]$JobSchedule = '',
     [string]$ForUser = '',
     [string]$AppDir = '',
     [string]$Result = '',
@@ -148,6 +171,7 @@ function Get-SectionLabel([string]$heading) {
     if ($heading -like '--- the old ssh route*')      { return 'ssh' }
     if ($heading -like '--- ssh:*')                   { return 'ssh' }
     if ($heading -like '--- doors*')                  { return 'doors' }
+    if ($heading -like '--- scheduled jobs*')         { return 'scheduled jobs' }
     return 'setup'
 }
 function Note([string]$s) {
@@ -687,6 +711,235 @@ function Remove-DoorsTask {
     else { Note '  PASS  no doors task and no doors folder' }
 }
 
+# ---- 16 Nov 26 - S.247: the scheduled jobs' tasks (see the header) -----------------------------------------------------------
+# BEGIN solo_jobs_functions
+$JobFolderName = 'SD Core Solo Jobs'
+$JobTaskPath = '\' + $JobFolderName + '\'
+$JobPrefix = 'sd-solo-job-'
+$JobFolderSddl = 'O:BAG:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)'      # SD Core's \SD folder (sd-taskfolder.ps1): SYSTEM and Administrators
+
+function Test-JobName([string]$n) { return ($n -cmatch '^[a-z]([a-z0-9-]{0,30}[a-z0-9])?$') }
+function Test-JobTime([string]$t) { return ($t -cmatch '^([01][0-9]|2[0-3]):[0-5][0-9]$') }
+
+# SD Core's sd-jobs.ps1 Get-JobSchedule, word for word but for taking the schedule as one string: the trigger XML of one of the five
+# shapes, or $null for anything else.  The machine's own time; StartBoundary is a fixed day in the past.
+function Get-JobTrigger([string]$sched) {
+    $w = @(([string]$sched).Split(' ') | Where-Object { $_ -ne '' })
+    $start = '2026-01-01T'
+    $on = '<Enabled>true</Enabled>'
+    if ($w.Count -lt 1) { return $null }
+    switch -CaseSensitive ($w[0]) {
+        'every' {
+            if ($w.Count -ne 3 -or $w[2] -cne 'minutes' -or ($w[1] -cnotmatch '^(5|10|15|20|30)$')) { return $null }
+            return "<TimeTrigger><Repetition><Interval>PT$($w[1])M</Interval><StopAtDurationEnd>false</StopAtDurationEnd></Repetition><StartBoundary>${start}00:00:00</StartBoundary>$on</TimeTrigger>"
+        }
+        'hourly' {
+            if ($w.Count -ne 1) { return $null }
+            return "<TimeTrigger><Repetition><Interval>PT1H</Interval><StopAtDurationEnd>false</StopAtDurationEnd></Repetition><StartBoundary>${start}00:00:00</StartBoundary>$on</TimeTrigger>"
+        }
+        'daily' {
+            if ($w.Count -ne 2 -or -not (Test-JobTime $w[1])) { return $null }
+            return "<CalendarTrigger><StartBoundary>$start$($w[1]):00</StartBoundary>$on<ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay></CalendarTrigger>"
+        }
+        'weekly' {
+            $days = @{ mon = 'Monday'; tue = 'Tuesday'; wed = 'Wednesday'; thu = 'Thursday'; fri = 'Friday'; sat = 'Saturday'; sun = 'Sunday' }
+            if ($w.Count -ne 3 -or ($w[1] -cnotmatch '^(mon|tue|wed|thu|fri|sat|sun)$') -or -not (Test-JobTime $w[2])) { return $null }
+            return "<CalendarTrigger><StartBoundary>$start$($w[2]):00</StartBoundary>$on<ScheduleByWeek><DaysOfWeek><$($days[$w[1]]) /></DaysOfWeek><WeeksInterval>1</WeeksInterval></ScheduleByWeek></CalendarTrigger>"
+        }
+        'monthly' {
+            if ($w.Count -ne 3 -or ($w[1] -cnotmatch '^([1-9]|1[0-9]|2[0-8])$') -or -not (Test-JobTime $w[2])) { return $null }
+            $months = '<January /><February /><March /><April /><May /><June /><July /><August /><September /><October /><November /><December />'
+            return "<CalendarTrigger><StartBoundary>$start$($w[2]):00</StartBoundary>$on<ScheduleByMonth><DaysOfMonth><Day>$($w[1])</Day></DaysOfMonth><Months>$months</Months></ScheduleByMonth></CalendarTrigger>"
+        }
+    }
+    return $null
+}
+
+# The task.  Nothing in it comes from a request but the name (checked) and the trigger (made from a checked schedule above); the
+# program, its folder and the user are this script's own.
+function Get-JobTaskXml([string]$n, [string]$sched, [string]$trigger, [string]$userSid) {
+    $e = { param($t) [Security.SecurityElement]::Escape($t) }
+    return @"
+<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo><Description>SD Core Solo scheduled job $n ($sched); written by SET.JOB through the doors helper, changed only by SET.JOB; the command is in SD (sdsys\`$jobs)</Description></RegistrationInfo>
+  <Triggers>$trigger</Triggers>
+  <Principals><Principal id="Author"><UserId>$(& $e $userSid)</UserId><LogonType>S4U</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>false</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <WakeToRun>false</WakeToRun>
+    <ExecutionTimeLimit>PT72H</ExecutionTimeLimit>
+  </Settings>
+  <Actions Context="Author"><Exec><Command>$(& $e $sdexe)</Command><Arguments>run.job $n</Arguments><WorkingDirectory>$(& $e (Split-Path $sdexe))</WorkingDirectory></Exec></Actions>
+</Task>
+"@
+}
+
+# SD Core's Test-SdAdminOwner (sd-taskfolder.ps1): SYSTEM, Administrators, or a member of Administrators.  Any doubt: false.
+function Test-JobFolderOwner([string]$sid) {
+    if (@('S-1-5-18', 'S-1-5-32-544') -contains $sid) { return $true }
+    try {
+        $name = (New-Object Security.Principal.SecurityIdentifier('S-1-5-32-544')).Translate([Security.Principal.NTAccount]).Value.Split('\')[-1]
+        $grp = [ADSI]("WinNT://./$name,group")
+        foreach ($m in @($grp.psbase.Invoke('Members'))) {
+            $bytes = $m.GetType().InvokeMember('objectSid', 'GetProperty', $null, $m, $null)
+            if ($null -ne $bytes -and (New-Object Security.Principal.SecurityIdentifier([byte[]]$bytes, 0)).Value -eq $sid) { return $true }
+        }
+    } catch { return $false }
+    return $false
+}
+
+# SD Core's Initialize-SdTaskFolder for "\SD Core Solo Jobs": made with its SDDL when missing; one that exists is used only when its
+# owner is SYSTEM, Administrators or a member, and is given the SDDL again.  Throws on any doubt.
+function Initialize-JobFolder($svc) {
+    try { $f = $svc.GetFolder($JobTaskPath.TrimEnd('\')) } catch { return $svc.GetFolder('\').CreateFolder($JobFolderName, $JobFolderSddl) }
+    $owner = (New-Object Security.AccessControl.RawSecurityDescriptor($f.GetSecurityDescriptor(0x1))).Owner
+    if ($null -eq $owner -or -not (Test-JobFolderOwner $owner.Value)) {
+        throw ('the task folder ' + $JobTaskPath + ' is owned by ' + $(if ($null -eq $owner) { 'nobody' } else { $owner.Value }) + ', which is not SYSTEM, Administrators or one of its members, so it is not used')
+    }
+    $f.SetSecurityDescriptor($JobFolderSddl, 0)
+    return $f
+}
+
+# The schedule a definition in $jobs holds (its first field), or '' when there is no such plain file.  A directory file's record keeps
+# its fields on separate lines.  SYSTEM only READS the user's folder here; it never writes there.
+function Read-JobSchedule([string]$n) {
+    $p = Join-Path (Join-Path (Join-Path $AppDir 'sdsys') '$jobs') $n
+    $it = Get-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue
+    if ($null -eq $it -or $it.PSIsContainer -or ($it.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $it.Length -gt 4096) { return '' }
+    $raw = ([IO.File]::ReadAllText($p, [Text.Encoding]::GetEncoding(28591))) -replace "`r`n", "`n"
+    return ([string]@($raw -split ("[`n" + [char]254 + "]"))[0]).Trim()
+}
+
+function Get-ForUserSid { return (New-Object Security.Principal.NTAccount($ForUser)).Translate([Security.Principal.SecurityIdentifier]).Value }
+
+# One job's task, registered whole (any task of that name is deleted first, never updated in place) and read back.  Returns '' when
+# it is in place, else why not; the caller says it (Fail for a request, a line for a restore).  May throw.
+function Register-JobTask([string]$n, [string]$sched) {
+    if (-not (Test-JobName $n)) { return ('job "' + $n + '": not a job name') }
+    $trigger = Get-JobTrigger $sched
+    if ($null -eq $trigger) { return ('job ' + $n + ': "' + $sched + '" is none of the five schedules') }
+    $sid = Get-ForUserSid
+    $svc = New-Object -ComObject Schedule.Service
+    $svc.Connect()
+    $f = Initialize-JobFolder $svc
+    try { $f.DeleteTask($JobPrefix + $n, 0) } catch { }
+    Register-ScheduledTask -TaskName ($JobPrefix + $n) -TaskPath $JobTaskPath -Xml (Get-JobTaskXml $n $sched $trigger $sid) -Force -ErrorAction Stop | Out-Null
+    $task = $svc.GetFolder($JobTaskPath.TrimEnd('\')).GetTask($JobPrefix + $n)
+    # Who may read it: the user (so SET.JOB can list its next and last run), and nothing more; SYSTEM and Administrators full.
+    $task.SetSecurityDescriptor(('D:(A;;FA;;;SY)(A;;FA;;;BA)(A;;GR;;;' + $sid + ')'), 0)
+    $t = Get-ScheduledTask -TaskPath $JobTaskPath -TaskName ($JobPrefix + $n) -ErrorAction Stop
+    $a = $t.Actions[0]
+    if ([string]$t.Principal.LogonType -ne 'S4U' -or $a.Execute -ne $sdexe -or $a.Arguments -cne ('run.job ' + $n) -or $t.Principal.UserId -notmatch ('(^|\\)' + [regex]::Escape(($ForUser.Split('\'))[-1]) + '$|^' + [regex]::Escape($sid) + '$')) {
+        return ('job ' + $n + ': the task read back is not the one written (' + $t.Principal.UserId + ', ' + $t.Principal.LogonType + ', ' + $a.Execute + ' ' + $a.Arguments + ')')
+    }
+    Note ('  PASS  task ' + $JobTaskPath + $JobPrefix + $n + ': ' + $t.Principal.UserId + ', ' + $t.Principal.LogonType + ', ' + $sched + ', runs ' + $a.Execute + ' ' + $a.Arguments)
+    return ''
+}
+
+# One job's task stopped (a running one first: an unregistered task leaves its process running, SD Core's RELEASE_1.1 291) and removed.
+# Returns 'deleted', 'absent' (there was none), or '' when it is still there.
+function Remove-JobTask([string]$n) {
+    $t = Get-ScheduledTask -TaskPath $JobTaskPath -TaskName ($JobPrefix + $n) -ErrorAction SilentlyContinue
+    if ($null -eq $t) { Note ('  no task ' + $JobTaskPath + $JobPrefix + $n); return 'absent' }
+    if ([string]$t.State -eq 'Running') {
+        Stop-ScheduledTask -TaskPath $JobTaskPath -TaskName ($JobPrefix + $n) -ErrorAction SilentlyContinue
+        Start-Sleep -Milliseconds 1500
+    }
+    Unregister-ScheduledTask -TaskPath $JobTaskPath -TaskName ($JobPrefix + $n) -Confirm:$false -ErrorAction Stop
+    if (Get-ScheduledTask -TaskPath $JobTaskPath -TaskName ($JobPrefix + $n) -ErrorAction SilentlyContinue) { Fail ('job ' + $n + ': its task is still registered'); return '' }
+    Note ('  PASS  task ' + $JobTaskPath + $JobPrefix + $n + ' removed')
+    return 'deleted'
+}
+
+# The uninstaller's: every job task, then the folder when nothing is left in it.  $jobs itself is the user's data and is not touched.
+function Remove-AllJobTasks {
+    $all = @(Get-ScheduledTask -TaskPath $JobTaskPath -ErrorAction SilentlyContinue)
+    foreach ($t in $all) {
+        if ($t.TaskName -like ($JobPrefix + '*')) { $null = Remove-JobTask $t.TaskName.Substring($JobPrefix.Length) }
+        else { Note ('  ' + $JobTaskPath + $t.TaskName + ' is not a job task; left as it is') }
+    }
+    try {
+        $svc = New-Object -ComObject Schedule.Service
+        $svc.Connect()
+        $tf = $svc.GetFolder($JobTaskPath.TrimEnd('\'))
+        if ($tf.GetTasks(1).Count -eq 0 -and $tf.GetFolders(0).Count -eq 0) { $svc.GetFolder('\').DeleteFolder($JobFolderName, 0) }
+    } catch { }
+    if (@(Get-ScheduledTask -TaskPath $JobTaskPath -TaskName ($JobPrefix + '*') -ErrorAction SilentlyContinue).Count -gt 0) { Fail 'a job task is still registered' }
+    else { Note ('  PASS  no job task (' + $all.Count + ' found)') }
+}
+
+# Install and Upgrade: every definition in $jobs gets its task.  One that cannot is said, and the rest go on (Linux's JOBS-RESTORE).
+function Restore-JobTasks {
+    $dir = Join-Path (Join-Path $AppDir 'sdsys') '$jobs'
+    $d = Get-Item -LiteralPath $dir -Force -ErrorAction SilentlyContinue
+    if ($null -eq $d) { Note '  no job definitions ($jobs): nothing to schedule'; return }
+    if (-not $d.PSIsContainer -or ($d.Attributes -band [IO.FileAttributes]::ReparsePoint)) { Note ('  ' + $dir + ' is a link or not a folder: no job was scheduled'); return }
+    $n = 0; $bad = 0
+    foreach ($it in @(Get-ChildItem -LiteralPath $dir -Force -File | Sort-Object Name)) {
+        if (-not (Test-JobName $it.Name)) { continue }
+        $sched = Read-JobSchedule $it.Name
+        if ($null -eq (Get-JobTrigger $sched)) { Note ('  NOT SCHEDULED  job ' + $it.Name + ': its schedule "' + $sched + '" is none of the five'); $bad++; continue }
+        # Said, and not a failure of the install: the definition is kept, and set.job lists the job not scheduled.
+        try { $why = Register-JobTask $it.Name $sched } catch { $why = $_.Exception.Message.Trim() }
+        if ($why -ne '') { Note ('  NOT SCHEDULED  ' + $why); $bad++; continue }
+        $n++
+    }
+    Note ('  ' + $n + ' job(s) given their tasks from the definitions in $jobs' + $(if ($bad) { '; ' + $bad + ' not (set.job lists them not scheduled)' } else { '' }))
+}
+# END solo_jobs_functions
+
+# 16 Nov 26 - S.247.  -Action Job: one job's task, asked for by solo-doors.ps1 after it checked the request.  The same functions as an
+# install's.  Every value is checked again here; the verdict and "JOB RESULT   : <what>" are what the helper reads.
+if ($Action -eq 'Job') {
+    $jres = ''
+    try {
+        Note ''
+        Note ('--- scheduled jobs: ' + $JobOp + ' ' + $JobName + $(if ($JobSchedule) { ' (' + $JobSchedule + ')' } else { '' }))
+        if (@('set', 'delete', 'run') -cnotcontains $JobOp -or -not (Test-JobName $JobName)) { Fail 'give -JobOp set|delete|run and -JobName with a job name' }
+        elseif ($JobOp -eq 'set') {
+            $have = Read-JobSchedule $JobName
+            if ($have -cne $JobSchedule) { Fail ('the definition of ' + $JobName + ' in $jobs does not hold the schedule "' + $JobSchedule + '" (it holds "' + $have + '")') }
+            else {
+                $why = Register-JobTask $JobName $JobSchedule
+                if ($why -ne '') { Fail $why } else { $jres = 'set' }
+            }
+        }
+        elseif ($JobOp -eq 'delete') {
+            $jres = Remove-JobTask $JobName
+        }
+        else {
+            if ((Read-JobSchedule $JobName) -eq '') { Fail ('there is no definition of ' + $JobName + ' in $jobs; nothing was started') }
+            elseif ($null -eq (Get-ScheduledTask -TaskPath $JobTaskPath -TaskName ($JobPrefix + $JobName) -ErrorAction SilentlyContinue)) { Fail ('job ' + $JobName + ' has no task; set.job change gives it one') }
+            else {
+                # Through the Task Scheduler's COM object, as the doors verb starts the helper (Start-ScheduledTask is CIM).
+                $svc = New-Object -ComObject Schedule.Service
+                $svc.Connect()
+                $null = $svc.GetFolder($JobTaskPath.TrimEnd('\')).GetTask($JobPrefix + $JobName).Run($null)
+                Note ('  PASS  task ' + $JobTaskPath + $JobPrefix + $JobName + ' started')
+                $jres = 'started'
+            }
+        }
+    }
+    catch {
+        Fail ('ERROR ' + $_.Exception.Message)
+        Note $_.ScriptStackTrace
+    }
+    Note ''
+    if ($fails.Count -eq 0 -and $jres -ne '') { Note ('JOB RESULT   : ' + $jres); Note 'VERDICT      : PASS'; $dc = 0 }
+    else { Note ('VERDICT      : FAIL - ' + ($fails -join '; ')); $dc = 1 }
+    Save-Report
+    exit $dc
+}
+
 # -Action Doors: one change, asked for by solo-doors.ps1 after it checked the request.  The same scripts and functions as an install.
 if ($Action -eq 'Doors') {
     try {
@@ -760,6 +1013,13 @@ try {
     # first listening start used to be solo-setup.ps1's unelevated "sd -start" in the user's session.  That start now
     # listens on nothing (sd.conf ships with APIPORT commented out), and the only start that listens is this
     # task's, in session 0, which cannot show an alert, with the rule already made.  A REMOVE keeps its old order.
+    # 16 Nov 26 - S.247: the scheduled jobs' tasks go FIRST on a removal, so that no job starts while SD is being taken down.
+    if ($Action -eq 'Remove') {
+        Note ''
+        Note '--- scheduled jobs (their tasks; the definitions in $jobs are the user''s data)'
+        try { Remove-AllJobTasks } catch { Fail ('ERROR ' + $_.Exception.Message.Trim()) }
+    }
+
     if ($Action -eq 'Remove') {
         Note ''
         Note '--- startup task'
@@ -875,6 +1135,13 @@ try {
     Note ''
     Note '--- doors helper'
     if ($Action -eq 'Remove') { Remove-DoorsTask } else { Register-DoorsTask }
+
+    # 16 Nov 26 - S.247: every definition in $jobs gets its task (a reload's kept ones; on an upgrade, the tasks are made again whole).
+    if ($Action -ne 'Remove') {
+        Note ''
+        Note '--- scheduled jobs (a task for each definition in $jobs)'
+        Restore-JobTasks
+    }
 }
 catch {
     Fail ('ERROR ' + $_.Exception.Message)

@@ -1643,7 +1643,9 @@ end;
   account; in sdsys the passwords ($cred), the AI settings (ai), the SDNet logins (netlogins), the administrator's VOC
   changes (newvoc.mods) and the saved VOC records (voc_removed.saved), the audit trail with its rotated copies, and where
   sessions start (start.default).  The rest of sdsys - the system files, the deny list, GLOBAL.BP.OUT - goes with the
-  installation.  The ssh host key is kept by the machine step (solo-sshd.ps1 -KeepHostKey), in its admin-only folder. }
+  installation.  The ssh host key is kept by the machine step (solo-sshd.ps1 -KeepHostKey), in its admin-only folder.
+  16 Nov 26 - from Linux Solo 2d3db81 (S.247): the scheduled jobs' definitions ($jobs) are kept too.  Their tasks were removed by the
+  machine step (solo-machine.ps1 Remove-AllJobTasks); a reinstall that reloads the kept data gives them back (Restore-JobTasks). }
 function KeepDataPass(const Root: String): Boolean;
 begin
   Result := RemoveFolderContents(Root, '|user_accounts|sdsys|sd-tls|ssh|', '|sd.conf|.sdcore-kept|');
@@ -1651,7 +1653,7 @@ begin
     if not RemoveFolderContents(Root + '\user_accounts', '|sduser|', '|') then
       Result := False;
   if DirExists(Root + '\sdsys') then
-    if not RemoveFolderContents(Root + '\sdsys', '|$cred|ai|netlogins|newvoc.mods|voc_removed.saved|',
+    if not RemoveFolderContents(Root + '\sdsys', '|$cred|ai|netlogins|newvoc.mods|voc_removed.saved|$jobs|',
                                 '|audit|audit.*|start.default|') then
       Result := False;
 end;

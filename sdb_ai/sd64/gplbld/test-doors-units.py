@@ -122,6 +122,9 @@ def chk_task(doors, machine, verb):
     return probs
 
 
+JOB_ONLY_KEYS = {"kind", "op", "name", "sched"}
+
+
 def verb_keys(verb):
     """The request keys the verb writes and the BASIC variable behind each."""
     keys = set(re.findall(r"q : '([a-z]+)=", verb))
@@ -130,7 +133,8 @@ def verb_keys(verb):
 
 
 def chk_authmsg(doors, verb):
-    m_ps = re.search(r"^\$authmsg\s*=\s*('[^']*'(?:\s*\+\s*(?:\$\w+|'[^']*'))*)", doors, re.M)
+    # 16 Nov 26 (S.247): the helper's door message may be indented (it is built inside the proof's block, which the job requests share).
+    m_ps = re.search(r"^\s*\$authmsg\s*=\s*('sd-solo-doors[^']*'(?:\s*\+\s*(?:\$\w+|'[^']*'))*)", doors, re.M)
     m_bb = re.search(r"^\s*authmsg\s*=\s*('[^']*'(?:\s*:\s*(?:[\w.]+|'[^']*'))*)", verb, re.M)
     if not (m_ps and m_bb):
         return ["authmsg not found (helper %s, verb %s)" % (bool(m_ps), bool(m_bb))]
@@ -143,7 +147,8 @@ def chk_authmsg(doors, verb):
 
 def chk_request(doors, verb):
     wrote, _ = verb_keys(verb)
-    read = set(re.findall(r"req\['([a-z]+)'\]", doors))
+    # 16 Nov 26 (S.247): the helper also reads a job request's own keys, which SET.JOB writes and test-solojobs-units.py holds.
+    read = set(re.findall(r"req\['([a-z]+)'\]", doors)) - JOB_ONLY_KEYS
     if not wrote or not read:
         return ["no request keys found (verb %s, helper %s)" % (sorted(wrote), sorted(read))]
     return [] if wrote == read else ["verb writes %s, helper reads %s" % (sorted(wrote), sorted(read))]

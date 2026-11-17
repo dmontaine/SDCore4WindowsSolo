@@ -45,6 +45,27 @@
 #
 # NOT MEASURED when written (12 Nov 2026): that the Solo user can start a SYSTEM task whose security descriptor grants it read and
 # execute (solo-machine.ps1 sets it), and the whole path end to end.  A sitting owes both.
+#
+# 16 Nov 26 Windows port - from Linux Solo 2d3db81 (S.247), SCHEDULED JOBS: THE SAME HELPER REGISTERS, DELETES AND STARTS THEIR TASKS.
+# WHY HERE: a job is a Task Scheduler task that runs as the Solo user with LogonType S4U, so that it runs while the user is signed out,
+# and an unelevated session cannot register an S4U task (MEASURED: "Access is denied").  This helper is already the elevated door a Solo
+# session has - registered by the installer, startable by the user alone, -AppDir and -ForUser fixed in its definition, a request file,
+# a proof, an answer in the admin-only folder - so the jobs take a second KIND of request rather than a second SYSTEM task, folder,
+# installer step and removal (the smaller change).  A job request is:
+#   version=1  kind=job  op=set|delete|run  name=<job name>  [sched=<schedule>]  nonce=<base64>  time=<seconds>  [proof=<base64>]
+# (a request with no kind is a door request, as before).  name passes SD Core's job name rule; sched (op=set only) is one of the five
+# shapes, spelt as SET.JOB spells it; nothing else is read.  THE COMMAND IS NEVER IN THE REQUEST: it stays in the user's $jobs, and the
+# task runs only <Solo folder>\usr\bin\sd-solo.exe run.job <name>, the program path from -AppDir and the user from -ForUser, both fixed
+# by this task's definition.  op=set carries a proof made from the ACCOUNT password the person typed into SET.JOB (or the tool.jobs
+# form), checked against $cred\sduser's StoredKey exactly as a door's is against $admin's, over
+#   authmsg = 'sd-solo-jobs|v1|set|' + name + '|' + sched + '|' + nonce + '|' + time
+# and the definition $jobs\<name> must already hold that schedule (SET.JOB writes it first).  op=delete and op=run carry no proof, as
+# Linux's set.job delete and run ask no password: delete only takes a task away, and run starts a task that runs the user's own fixed
+# command, which any process of the user could start as sd-solo.exe run.job <name> itself.  The same time window and nonce list apply.
+# The work is solo-machine.ps1 -Action Job (one copy, which the installer's Install and Remove steps use too).  The success line is
+# "SOLO JOB SET <name>", "SOLO JOB DELETED <name>", "SOLO JOB ABSENT <name>" (there was no task) or "SOLO JOB STARTED <name>".
+# NOT MEASURED when written: that SYSTEM can register an S4U task for the Solo user (an elevated administrator can: the startup task),
+# and any of it end to end.
 param(
     [switch]$Show,
     [switch]$Serve,
@@ -173,10 +194,26 @@ foreach ($l in ($text -split "[`r`n]+")) {
 $nonce = [string]$req['nonce']
 if ($nonce -notmatch '^[A-Za-z0-9+/=]{16,88}$') { Finish '' $false 'the nonce is missing or malformed' }
 if ($req['version'] -ne '1') { Finish $nonce $false 'unknown request version' }
-$door = [string]$req['door']; $mode = [string]$req['mode']; $cred = [string]$req['cred']; $time = [string]$req['time']
-if (@('api', 'ssh') -notcontains $door) { Finish $nonce $false 'unknown door' }
-if (@('off', 'local', 'open') -notcontains $mode) { Finish $nonce $false 'unknown mode' }
-if (@('$admin', '$global') -notcontains $cred) { Finish $nonce $false 'unknown credential' }
+# 16 Nov 26 - S.247: a job request (kind=job) or a door request (no kind, or kind=door).
+$kind = [string]$req['kind']
+if ($kind -eq '') { $kind = 'door' }
+if (@('door', 'job') -cnotcontains $kind) { Finish $nonce $false 'unknown kind of request' }
+$time = [string]$req['time']
+if ($kind -eq 'job') {
+    $op = [string]$req['op']; $jname = [string]$req['name']; $sched = [string]$req['sched']
+    if (@('set', 'delete', 'run') -cnotcontains $op) { Finish $nonce $false 'unknown job operation' }
+    if ($jname -cnotmatch '^[a-z]([a-z0-9-]{0,30}[a-z0-9])?$') { Finish $nonce $false 'not a job name' }
+    $hm = '([01][0-9]|2[0-3]):[0-5][0-9]'
+    $shapes = '^(every (5|10|15|20|30) minutes|hourly|daily ' + $hm + '|weekly (mon|tue|wed|thu|fri|sat|sun) ' + $hm + '|monthly ([1-9]|1[0-9]|2[0-8]) ' + $hm + ')$'
+    if ($op -eq 'set' -and $sched -cnotmatch $shapes) { Finish $nonce $false 'the schedule is none of the five shapes' }
+    if ($op -ne 'set') { $sched = '' }
+    $cred = 'sduser'
+} else {
+    $door = [string]$req['door']; $mode = [string]$req['mode']; $cred = [string]$req['cred']
+    if (@('api', 'ssh') -notcontains $door) { Finish $nonce $false 'unknown door' }
+    if (@('off', 'local', 'open') -notcontains $mode) { Finish $nonce $false 'unknown mode' }
+    if (@('$admin', '$global') -notcontains $cred) { Finish $nonce $false 'unknown credential' }
+}
 if ($time -notmatch '^\d{1,12}$') { Finish $nonce $false 'the time is malformed' }
 $now = [int64](((Get-Date) - [datetime]'1970-01-01').TotalSeconds)     # LOCAL seconds, as SD counts them
 $age = $now - [int64]$time
@@ -186,26 +223,52 @@ if (Test-Path -LiteralPath $Used) { $seen = @([IO.File]::ReadAllLines($Used)) }
 if ($seen -contains $nonce) { Finish $nonce $false 'the nonce was used before' }
 [IO.File]::WriteAllLines($Used, [string[]](@($seen | Select-Object -Last 199) + $nonce))
 
-# The verifier: field 5 of $cred's record (StoredKey, base64).  A directory file's record keeps its fields on separate lines.
-$credFile = Join-Path (Join-Path (Join-Path $AppDir 'sdsys') '$cred') $cred
-if (-not (Test-Path -LiteralPath $credFile -PathType Leaf)) { Finish $nonce $false ('no ' + $cred + ' credential') }
-$raw = ([IO.File]::ReadAllText($credFile, [Text.Encoding]::GetEncoding(28591))) -replace "`r`n", "`n"
-$fields = @($raw -split ("[`n" + [char]254 + "]"))     # one field per line (or per field mark, if the record kept them)
-if ($fields.Count -lt 5 -or $fields[0].Trim() -ne '2') { Finish $nonce $false ('the ' + $cred + ' record is not a version 2 (SCRAM) record') }
-try {
-    $stored = [Convert]::FromBase64String($fields[4].Trim())
-    $proof = [Convert]::FromBase64String([string]$req['proof'])
-} catch { Finish $nonce $false 'the proof or the verifier is not base64' }
-if ($stored.Length -ne 32 -or $proof.Length -ne 32) { Finish $nonce $false 'the proof or the verifier is not 32 bytes' }
-$authmsg = 'sd-solo-doors|v1|' + $door + '|' + $mode + '|' + $nonce + '|' + $time
-$hmac = New-Object Security.Cryptography.HMACSHA256 (, $stored)
-$sig = $hmac.ComputeHash([Text.Encoding]::ASCII.GetBytes($authmsg))
-$ck = New-Object byte[] 32
-for ($k = 0; $k -lt 32; $k++) { $ck[$k] = $proof[$k] -bxor $sig[$k] }
-$h = ([Security.Cryptography.SHA256]::Create()).ComputeHash($ck)
-$diff = 0
-for ($k = 0; $k -lt 32; $k++) { $diff = $diff -bor ($h[$k] -bxor $stored[$k]) }
-if ($diff -ne 0) { Finish $nonce $false 'the proof does not match the administrator password' }
+# The proof: the verifier is field 5 of $cred's record (StoredKey, base64).  A directory file's record keeps its fields on separate lines.
+# A door's is over $admin (or $global); a job set's is over the account's own record, sduser (16 Nov 26 - S.247).  A job delete or run
+# carries none (the header says why).
+$needProof = -not ($kind -eq 'job' -and $op -ne 'set')
+if ($needProof) {
+    $credFile = Join-Path (Join-Path (Join-Path $AppDir 'sdsys') '$cred') $cred
+    if (-not (Test-Path -LiteralPath $credFile -PathType Leaf)) { Finish $nonce $false ('no ' + $cred + ' credential') }
+    $raw = ([IO.File]::ReadAllText($credFile, [Text.Encoding]::GetEncoding(28591))) -replace "`r`n", "`n"
+    $fields = @($raw -split ("[`n" + [char]254 + "]"))     # one field per line (or per field mark, if the record kept them)
+    if ($fields.Count -lt 5 -or $fields[0].Trim() -ne '2') { Finish $nonce $false ('the ' + $cred + ' record is not a version 2 (SCRAM) record') }
+    try {
+        $stored = [Convert]::FromBase64String($fields[4].Trim())
+        $proof = [Convert]::FromBase64String([string]$req['proof'])
+    } catch { Finish $nonce $false 'the proof or the verifier is not base64' }
+    if ($stored.Length -ne 32 -or $proof.Length -ne 32) { Finish $nonce $false 'the proof or the verifier is not 32 bytes' }
+    $authmsg = 'sd-solo-doors|v1|' + $door + '|' + $mode + '|' + $nonce + '|' + $time
+    if ($kind -eq 'job') { $authmsg = 'sd-solo-jobs|v1|set|' + $jname + '|' + $sched + '|' + $nonce + '|' + $time }
+    $hmac = New-Object Security.Cryptography.HMACSHA256 (, $stored)
+    $sig = $hmac.ComputeHash([Text.Encoding]::ASCII.GetBytes($authmsg))
+    $ck = New-Object byte[] 32
+    for ($k = 0; $k -lt 32; $k++) { $ck[$k] = $proof[$k] -bxor $sig[$k] }
+    $h = ([Security.Cryptography.SHA256]::Create()).ComputeHash($ck)
+    $diff = 0
+    for ($k = 0; $k -lt 32; $k++) { $diff = $diff -bor ($h[$k] -bxor $stored[$k]) }
+    if ($diff -ne 0) { Finish $nonce $false $(if ($kind -eq 'job') { 'the proof does not match the account password' } else { 'the proof does not match the administrator password' }) }
+}
+
+if ($kind -eq 'job') {
+    Log ('accepted job op=' + $op + ' name=' + $jname + $(if ($sched) { ' sched=' + $sched } else { '' }))
+    # The work, through solo-machine.ps1 -Action Job (one copy: the installer's Install, Upgrade and Remove use the same functions).
+    # Only the checked words reach its command line: the operation, the name and the schedule.
+    $res = [IO.Path]::GetTempFileName()
+    $jargs = @('-Action', 'Job', '-JobOp', $op, '-JobName', $jname)
+    if ($op -eq 'set') { $jargs += @('-JobSchedule', $sched) }
+    $r = & $Ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $AppDir 'solo-machine.ps1') @jargs -ForUser $ForUser -AppDir $AppDir -Result $res 2>&1
+    $code = $LASTEXITCODE
+    $report = @()
+    if (Test-Path -LiteralPath $res) { $report = @([IO.File]::ReadAllLines($res)); Remove-Item -LiteralPath $res -ErrorAction SilentlyContinue }
+    foreach ($l in $report) { [void]$lines.Add($l) }
+    $pass = ($code -eq 0) -and (@($report | Where-Object { $_ -eq 'VERDICT      : PASS' }).Count -gt 0)
+    $said = @($report | Where-Object { $_ -cmatch '^JOB RESULT   : (set|deleted|absent|started)$' })
+    if (-not $pass -or $said.Count -ne 1) { Finish $nonce $false ('solo-machine.ps1 -Action Job exited ' + $code) }
+    [void]$lines.Add(('SOLO JOB ' + $said[0].Substring(15).ToUpper() + ' ' + $jname))
+    Finish $nonce $true ('job op=' + $op + ' name=' + $jname)
+}
+
 Log ('accepted door=' + $door + ' mode=' + $mode + ' cred=' + $cred)
 
 # The change, through the installer's own steps (solo-machine.ps1 -Action Doors), one copy of each.

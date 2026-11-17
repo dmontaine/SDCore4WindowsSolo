@@ -47,6 +47,7 @@ ALLOWED = {
     ('11609', '12614'): 'OS: SET.AI CA takes a Windows path, written C:/... (a set.ai word cannot hold a backslash) (RELEASE_1.1 246)',
     ('11899', '12904'): 'OS: a viewer is a full Windows path to an .exe, not a name looked up in /usr/bin (SOLO 47)',
     ('11983', '12988'): 'OS: Windows has no file-permission refusal of that kind here; the upgrade updates every account (SOLO 9)',
+    ('14932', '15932'): 'OS: a job is started by its Task Scheduler task, not a systemd timer (SOLO 74, Linux Solo 2d3db81)',
 }
 
 MSG = re.compile(r'\b1[0-5]\d{3}\b')

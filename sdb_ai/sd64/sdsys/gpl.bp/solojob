@@ -1,0 +1,680 @@
+* SOLOJOB
+* SET.JOB verb: SD's own scheduled jobs for SD Core Solo - defined, changed, deleted and started as Task Scheduler tasks.
+* Copyright (c) 2026, SD Core for Linux Solo.  This program is free software; you can redistribute
+* it and/or modify it under the terms of the GNU General Public License, version 3 or later.
+*
+* START-HISTORY:
+* 17 Nov 26 dm  New (S.247; owner, 15 Nov 2026: "since scheduled jobs is in core and useful in solo it should be in this release", and of the plan
+*               .claude/plan-s247-solo-jobs.md, "your plan is fine": off as delivered, a job made only with the password typed, its command fixed
+*               then, the user's own timers).  SD Core for Linux's SET.JOB is the template for the verb's words (list, add, change, delete, run), the
+*               name rule, the five schedules and their OnCalendar; what differs is forced by Solo having no root and one user: a job's command is the
+*               user's own SD command, not an id from the root helper's list, the units are the user's own (~/.config/systemd/user), and the
+*               definitions are a private file of the tree ($jobs) rather than root's.  Listed for the parity audit.
+* 16 Nov 26 Windows port - from Linux Solo 2d3db81 (S.247) and c8dac7a (the password prompt is 15907): the verb's words, the name rule, the five
+*               schedules, the password typed at a terminal every time, the hand-over and the definitions in $jobs are Linux's; the messages + 1000
+*               (15930-15948).  WHAT A JOB IS HERE (the owner's decisions of 16 Nov 2026): a Task Scheduler task, "\SD Core Solo Jobs\sd-solo-job-
+*               <name>", that runs <Solo folder>\usr\bin\sd-solo.exe run.job <name> as the Solo user with LogonType S4U, so that it runs while the user
+*               is signed out.  An unelevated session cannot register an S4U task (MEASURED: "Access is denied"), so the task is registered, deleted
+*               and started by the doors helper (solo-doors.ps1, the SYSTEM task "SD Core Solo Doors"), through a request in sdsys\doors.request.
+*               The request names only the operation, the name and the schedule; ADD and CHANGE also carry a SCRAM proof made from the account
+*               password just typed.  The command never leaves $jobs.  SET.JOB RESTORE is not carried: a reload's tasks are given back by the
+*               installer's elevated step itself (solo-machine.ps1 Restore-JobTasks), which needs no SD session; 14929 has no Windows message.
+*               A deviation from the Linux Solo template forced by the operating system (Task Scheduler and DPAPI), listed for the parity audit.
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*   SET.JOB                                   lists the jobs, each with its schedule, its command, its next run and its last run
+*   SET.JOB ADD name schedule command         defines a new job (refused when a job of that name exists)
+*   SET.JOB CHANGE name schedule command      changes an existing job (refused when there is none)
+*   SET.JOB DELETE name                       stops and removes a job
+*   SET.JOB RUN name                          starts a job now, exactly as its task would
+*   SET.JOB HANDOVER                          (the scheduled jobs page, tool.jobs) ADD or CHANGE from the page's hand-over file, read and removed here:
+*                                             the command and the password the person typed in the page's form, checked exactly as typed ones are
+*
+*     name       1 to 32 characters: a lower case letter first, then lower case letters, digits and dashes, not ending in a dash
+*     schedule   every 5|10|15|20|30 minutes, hourly, daily hh:mm, weekly mon..sun hh:mm, monthly 1..28 hh:mm (the machine's time; hh.mm is taken too)
+*     command    the rest of the line: the SD command the job runs, as typed - one line of printable characters, at most 500, not RUN.JOB or SET.JOB
+*
+*   OFF AS DELIVERED: ADD, CHANGE and RUN need the register's jobs switch (field 23, ACC$JOBS), which the administrator turns on with
+*   SET.JOBS.ACCESS ON.  The list and DELETE work with it off, so a job can always be seen and taken away.
+*
+*   THE PASSWORD, TYPED: ADD and CHANGE ask for the account password at a terminal, every time, even in a session that has signed in; a one-shot
+*   "sd-solo set.job add ..." and a session with no terminal are refused (15941).  So a job's command is fixed by the person who knows the password,
+*   at the moment it is set, and nothing that only runs as the user unattended can make one.  The same password makes the proof the doors helper
+*   checks before it registers the task (solo-doors.ps1's header has the form).
+*
+*   WHAT A JOB IS: its definition, $jobs/<name> (schedule, task, command, date, time), and its task, which runs the one-shot
+*   <Solo folder>\usr\bin\sd-solo.exe run.job <name> as the Solo user whether or not that user is signed in.  RUN.JOB reads the command from the
+*   definition and runs it.  The command is never in the task.  A run missed while the computer was off is not made up.  Jobs need SD running
+*   (its startup task starts it at boot).
+*
+*   NOT A WALL AGAINST THE USER: the definitions ($jobs, a folder of the user's alone, as the tree is) belong to the user, who can edit them, as
+*   they can edit the BASIC.  A job adds no way in that a one-shot does not already have (gpl.bp/login, RUN-JOB-IDENTITY, says why on Windows).
+*
+*   Every change asked for is written to the audit trail with its result, in lower case; the command as typed.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+program set.job
+$catalog $solojob
+
+$include int$keys.h
+$include keys.h
+$include err.h
+
+deffun ps_script_out(script, want.out) calling '!ps_script_out'
+
+$define MAX.CMD    500
+$define TASK.PFX   'sd-solo-job-'
+$define TASK.DIR   '\SD Core Solo Jobs'
+$define HELPER.WAIT 120
+
+   @system.return.code = -ER$ARGS
+   acc.name = 'sduser'          ;* Solo's one account (ruling 29)
+   client.key = ''
+   h.stored = ''
+
+   sent = @sentence
+   gosub split.words
+   action = downcase(wd<2>)
+   jname = downcase(wd<3>)
+
+   gosub paths.ok
+   if not(ok) then
+      @system.return.code = -ER$FAILED
+      stop sysmsg(15930, why)                                    ;* The job definitions could not be read or written (%1); nothing was changed
+   end
+
+   if n.words = 1 then
+      gosub list.jobs
+      @system.return.code = 0
+      stop
+   end
+
+   ok.form = @false
+   if (action = 'delete' or action = 'run') and n.words = 3 then ok.form = @true
+   if (action = 'add' or action = 'change') and n.words >= 5 then ok.form = @true
+   if action = 'handover' and n.words = 2 then ok.form = @true
+   if not(ok.form) then stop sysmsg(15945)                       ;* Syntax: set.job ...
+
+*  HANDOVER: the scheduled jobs page (tool.jobs) cannot pass a command with spaces and quotes, or a password, on a $tk_run line, so it writes them to
+*  its hand-over file and runs SET.JOB HANDOVER; the file is read and removed here, whatever happens, and everything in it is checked exactly as if it
+*  had been typed - the password included, which the person typed in the page's masked field.
+   ho = @false
+   ho.pw = ''
+   if action = 'handover' then
+      gosub read.handover
+      if not(ho.ok) then
+         @system.return.code = -ER$FAILED
+         stop sysmsg(15930, 'the hand-over file')
+      end
+      ho = @true
+      action = ho.action
+      jname = ho.name
+   end
+
+   gosub name.ok
+   if not(ok) then stop sysmsg(15944, jname[1, 40])              ;* %1 is not a job name ...
+
+   if action # 'delete' then
+      gosub switch.on
+      if not(sw.on) then
+         @system.return.code = -ER$PERM
+         stop sysmsg(15948)                                       ;* Scheduled jobs are off on this computer ...
+      end
+   end
+
+   gosub open.jobs
+   if not(ok) then
+      @system.return.code = -ER$FAILED
+      stop sysmsg(15930, why)
+   end
+   there = @false
+   read old.rec from jobs.f, jname then
+      there = @true
+   end else
+      old.rec = ''
+   end
+
+   begin case
+      case action = 'add' or action = 'change'
+         gosub do.set
+      case action = 'delete'
+         gosub do.delete
+      case action = 'run'
+         gosub do.run
+   end case
+   client.key = ''
+   close jobs.f
+   @system.return.code = (if done then 0 else -ER$FAILED)
+   stop
+
+* ------------------------------------------------------------------------------------------------- the actions
+
+* ADD and CHANGE.  The words after the name are the schedule (its first word says how many words it has) and then the command, as typed.
+do.set:
+   done = @false
+   jcmd = ''
+   if ho then
+      sched = ho.sched
+      jcmd = ho.cmd
+   end else
+      s1 = downcase(wd<4>)
+      begin case
+         case s1 = 'every'   ; ns = 3
+         case s1 = 'hourly'  ; ns = 1
+         case s1 = 'daily'   ; ns = 2
+         case s1 = 'weekly'  ; ns = 3
+         case s1 = 'monthly' ; ns = 3
+         case 1              ; ns = 0
+      end case
+      if ns = 0 or n.words < 3 + ns + 1 then
+         crt sysmsg(15943)                                       ;* The schedule is none of: ...
+         return
+      end
+      sched = ''
+      for i = 4 to 3 + ns
+         sched := (if sched = '' then '' else ' ') : downcase(wd<i>)
+      next i
+      skip.n = 3 + ns
+      gosub rest.after
+      jcmd = rest
+   end
+   gosub sched.ok
+   if not(ok) then
+      crt sysmsg(15943)
+      return
+   end
+   gosub cmd.ok
+   if not(ok) then
+      crt sysmsg(15942)                                          ;* A job's command is one line of printable characters ...
+      return
+   end
+
+   if action = 'add' and there then
+      crt sysmsg(15939, jname)                                   ;* A job named %1 already exists; nothing was changed
+      return
+   end
+   if action = 'change' and not(there) then
+      crt sysmsg(15938, jname)                                   ;* No job is named %1; nothing was changed
+      return
+   end
+
+   gosub ask.password
+   if not(pw.ok) then
+      void kernel(K$AUDIT, 'set.job ' : action : ' name=' : jname : ' result=refused reason=' : pw.why)
+      return
+   end
+
+*  The definition first: the doors helper registers a task only for a definition that holds the schedule it is asked for.
+   new.rec = sched : @fm : TASK.DIR : '\' : TASK.PFX : jname : @fm : jcmd : @fm : date() : @fm : time()
+   wrote = @true
+   write new.rec to jobs.f, jname on error wrote = @false
+   if not(wrote) then
+      crt sysmsg(15930, 'the definition')
+      gosub audit.set
+      return
+   end
+
+   h.op = 'set' ; h.sched = sched
+   gosub helper.req
+   if h.ok then
+      done = @true
+      crt sysmsg(15937, jname, sched)                            ;* Job %1 is scheduled: %2
+   end else
+*     Put back what was there: a new job leaves nothing; a changed one is given its old definition and task again.
+      if there then
+         write old.rec to jobs.f, jname on error null
+         h.why.first = h.why
+         h.op = 'set' ; h.sched = old.rec<1>
+         gosub helper.req
+         h.why = h.why.first
+      end else
+         delete jobs.f, jname on error null
+         h.op = 'delete' ; h.sched = ''
+         h.why.first = h.why
+         gosub helper.req
+         h.why = h.why.first
+      end
+      crt sysmsg(15933, h.why)                                   ;* Task Scheduler did not do it: %1
+   end
+   gosub audit.set
+   return
+
+audit.set:
+   void kernel(K$AUDIT, 'set.job ' : action : ' name=' : jname : ' schedule=' : sched : ' result=' : (if done then 'done' else 'failed') : ' command=' : jcmd)
+   return
+
+* DELETE: the task first (a task left by a definition that is gone can still be deleted), then the definition.
+do.delete:
+   done = @false
+   h.op = 'delete' ; h.sched = ''
+   gosub helper.req
+   if h.ok and not(there) and h.said = 'ABSENT' then
+      crt sysmsg(15938, jname)
+      void kernel(K$AUDIT, 'set.job delete name=' : jname : ' result=failed')
+      return
+   end
+   del.ok = @true
+   if h.ok and there then delete jobs.f, jname on error del.ok = @false
+   if h.ok and del.ok then
+      done = @true
+      crt sysmsg(15936, jname)                                   ;* Job %1 is deleted
+   end else
+      if not(del.ok) then crt sysmsg(15930, 'the definition') else crt sysmsg(15933, h.why)
+   end
+   void kernel(K$AUDIT, 'set.job delete name=' : jname : ' result=' : (if done then 'done' else 'failed'))
+   return
+
+do.run:
+   done = @false
+   if not(there) then
+      crt sysmsg(15938, jname)
+      return
+   end
+   h.op = 'run' ; h.sched = ''
+   gosub helper.req
+   if h.ok then
+      done = @true
+      crt sysmsg(15935, jname)                                   ;* Job %1 is started
+   end else
+      crt sysmsg(15933, h.why)
+   end
+   void kernel(K$AUDIT, 'set.job run name=' : jname : ' result=' : (if done then 'done' else 'failed reason=' : h.why))
+   return
+
+* ------------------------------------------------------------------------------------------------- the list
+
+list.jobs:
+   gosub switch.on
+   crt sysmsg(15947, (if sw.on then 'yes' else 'no'))            ;* SD's scheduled jobs (set.job, run.job) may be made and run: %1
+   gosub open.jobs
+   if not(ok) then
+      crt sysmsg(15934)                                          ;* No scheduled job is defined
+      return
+   end
+   names = ''
+   r.sched = '' ; r.cmd = ''
+   sselect jobs.f to 11
+   loop
+      readnext jname from 11 else exit
+      gosub name.ok
+      if ok then
+         read rec from jobs.f, jname then
+            names<-1> = jname
+            r.sched<-1> = rec<1>
+            r.cmd<-1> = rec<3>                                   ;* one line of printable characters (cmd.ok), so it holds no mark
+         end
+      end
+   repeat
+   close jobs.f
+   if names = '' then
+      crt sysmsg(15934)
+      return
+   end
+   gosub job.states
+   for li = 1 to dcount(names, @fm)
+      jname = names<li>
+      crt 'job ' : jname : ': ' : r.sched<li> : ': ' : r.cmd<li>
+      crt sysmsg(15931, st.next<li>, st.last<li>)                ;* next run: %1; last run: %2
+   next li
+   return
+
+* names in (checked); st.next and st.last out, one field a job: what Task Scheduler says of each task, read through its COM object in ONE
+* PowerShell run.  Read only.  Each task lets the Solo user read it (solo-machine.ps1); a folder or a task that this session may not read is
+* "not known", a task that is not there is "not scheduled" and "never".  NOT MEASURED: that an unelevated session can read them.
+job.states:
+   st.next = '' ; st.last = ''
+   q = char(39)
+   ps = 'try { $ts = New-Object -ComObject Schedule.Service; $ts.Connect(); $f = $ts.GetFolder(' : q : TASK.DIR : q : ') } catch { $f = $null }'
+   ps<-1> = 'foreach ($n in @(' : q : change(names, @fm, q : ', ' : q) : q : ')) {'
+   ps<-1> = '   if ($null -eq $f) { Write-Output ("state " + $n + " unread"); continue }'
+   ps<-1> = '   try { $t = $f.GetTask(' : q : TASK.PFX : q : ' + $n) } catch { Write-Output ("state " + $n + " none"); continue }'
+   ps<-1> = '   $nx = "not scheduled"; if ($t.NextRunTime.Year -gt 2000) { $nx = $t.NextRunTime.ToString("yyyy-MM-dd HH:mm") }'
+   ps<-1> = '   $lr = "never"; if ($t.State -eq 4) { $lr = "running now" } elseif ($t.LastRunTime.Year -gt 2000 -and $t.LastTaskResult -ne 267011) { $lr = $t.LastRunTime.ToString("yyyy-MM-dd HH:mm") + " (result " + $t.LastTaskResult + ")" }'
+   ps<-1> = '   Write-Output ("state " + $n + " ok|" + $nx + "|" + $lr)'
+   ps<-1> = '}'
+   both = ps_script_out(ps, @true)
+   out = field(both, @fm, 2, 99999)
+   for li = 1 to dcount(names, @fm)
+      st.next<li> = 'not known' ; st.last<li> = 'not known'
+      for oi = 1 to dcount(out, @fm)
+         ln = trim(out<oi>)
+         if field(ln, ' ', 1) = 'state' and field(ln, ' ', 2) = names<li> then
+            sv = field(ln, ' ', 3, 999)
+            begin case
+               case sv = 'none'
+                  st.next<li> = 'not scheduled' ; st.last<li> = 'never'
+               case sv[1, 3] = 'ok|'
+                  st.next<li> = field(sv, '|', 2) ; st.last<li> = field(sv, '|', 3)
+            end case
+         end
+      next oi
+   next li
+   return
+
+* ------------------------------------------------------------------------------------------------- the doors helper
+
+* h.op (set|delete|run), h.sched (set only), jname in; client.key in for set (ask.password made it); h.ok, h.said (SET, DELETED, ABSENT,
+* STARTED) and h.why out.  ONE request to the doors helper, the SYSTEM task "SD Core Solo Doors", in ONE PowerShell script run as this user
+* (!ps_script_out), as REMOTE.API sends its own: the request file, the task started through the Task Scheduler's COM object (CIM is refused in
+* an ssh logon), and the wait for result.txt in the helper's admin-only folder, whose first line names THIS request's nonce.  Every value put
+* in the script is base64, a number, a word this program checked (the operation, the name, the schedule) or the Solo folder (checked for a
+* single quote by paths.ok), each inside single quotes, where PowerShell expands nothing.  The command is never in it.  Success is only the
+* helper's own line "SOLO JOB <what> <name>", never an exit status.
+helper.req:
+   h.ok = @false
+   h.said = ''
+   h.why = ''
+   nonce = ''
+   call !SD_GET_SALT(nonce)
+   now = (date() - 732) * 86400 + int(time())                     ;* LOCAL seconds since 1 Jan 1970: day 732 is that date
+   proof = ''
+   if h.op = 'set' then
+      authmsg = 'sd-solo-jobs|v1|set|' : jname : '|' : h.sched : '|' : nonce : '|' : now
+      sig = SDEXT(h.stored : @FM : authmsg, @TRUE, SD_HMACSHA256)
+      proof = SDEXT(client.key : @FM : sig, @TRUE, SD_XORBYTES)
+      if sig = '' or proof = '' then
+         h.why = 'the request could not be signed'
+         return
+      end
+   end
+   if nonce = '' then
+      h.why = 'the request could not be made'
+      return
+   end
+   q = char(39)
+   ps = '$req = (' : q : 'version=1' : q : ', ' : q : 'kind=job' : q : ', ' : q : 'op=' : h.op : q : ', ' : q : 'name=' : jname : q
+   if h.op = 'set' then ps := ', ' : q : 'sched=' : h.sched : q : ', ' : q : 'proof=' : proof : q
+   ps := ', ' : q : 'nonce=' : nonce : q : ', ' : q : 'time=' : now : q : ') -join "`n"'
+   ps<-1> = '[IO.File]::WriteAllText(' : q : app.dir : '\sdsys\doors.request' : q : ', $req + "`n", [Text.Encoding]::ASCII)'
+   ps<-1> = 'try { $ts = New-Object -ComObject Schedule.Service; $ts.Connect(); $null = $ts.GetFolder(' : q : '\' : q : ').GetTask(' : q : 'SD Core Solo Doors' : q : ').Run($null) } catch { Write-Output ("cannot start the helper: " + $_.Exception.Message); exit 4 }'
+   ps<-1> = '$res = Join-Path $env:ProgramData ' : q : 'SDCoreSolo\doors\result.txt' : q
+   ps<-1> = 'for ($i = 0; $i -lt ' : HELPER.WAIT : '; $i++) {'
+   ps<-1> = '   Start-Sleep -Seconds 1'
+   ps<-1> = '   if (Test-Path -LiteralPath $res) {'
+   ps<-1> = '      $l = @([IO.File]::ReadAllLines($res))'
+   ps<-1> = '      if ($l.Count -gt 0 -and $l[0] -eq ' : q : 'nonce=' : nonce : q : ') { $l | ForEach-Object { Write-Output $_ }; exit 0 }'
+   ps<-1> = '   }'
+   ps<-1> = '}'
+   ps<-1> = 'exit 3'
+   crt sysmsg(12934)                                             ;* The doors helper is changing the job's task (a few seconds)...
+   both = ps_script_out(ps, @true)
+   proof = '' ; sig = ''
+   rc = field(both, @fm, 1)
+   answer = field(both, @fm, 2, 99999)
+   if rc = 4 then
+      h.why = trim(answer<1>) : ' - ' : sysmsg(12985)            ;* The doors helper is not installed on this computer ...
+      return
+   end
+   if rc # 0 then
+      h.why = sysmsg(12986, HELPER.WAIT)                         ;* The doors helper gave no answer within %1 seconds ...
+      return
+   end
+   lastl = ''
+   for i = 2 to dcount(answer, @fm)
+      ln = trim(answer<i>)
+      if field(ln, ' ', 1) = 'SOLO' and field(ln, ' ', 2) = 'JOB' and field(ln, ' ', 4) = jname and dcount(ln, ' ') = 4 then
+         w3 = field(ln, ' ', 3)
+         if (h.op = 'set' and w3 = 'SET') or (h.op = 'delete' and (w3 = 'DELETED' or w3 = 'ABSENT')) or (h.op = 'run' and w3 = 'STARTED') then h.said = w3
+      end
+      if ln[1, 8] = 'REFUSED:' or index(ln, 'FAIL', 1) then lastl = ln
+   next i
+   if h.said # '' and lastl = '' then
+      h.ok = @true
+   end else
+      h.said = ''
+      h.why = (if lastl = '' then 'the helper did not confirm it' else lastl)
+   end
+   return
+
+* ------------------------------------------------------------------------------------------------- the checks
+
+* jname in; ok out.  SD Core's rule (set_job name.ok), word for word.
+name.ok:
+   ok = @false
+   if len(jname) < 1 or len(jname) > 32 then return
+   if index('abcdefghijklmnopqrstuvwxyz', jname[1, 1], 1) = 0 then return
+   if jname[len(jname), 1] = '-' then return
+   if convert('abcdefghijklmnopqrstuvwxyz0123456789-', '', jname) # '' then return
+   ok = @true
+   return
+
+* sched in (lower case); sched out with hh.mm made hh:mm; ok out.  SD Core's five shapes, the words checked here and again by the doors helper,
+* which makes the Task Scheduler trigger from them (solo-machine.ps1 Get-JobTrigger, SD Core's sd-jobs.ps1 Get-JobSchedule).
+sched.ok:
+   ok = @false
+   sched = change(sched, '.', ':')
+   if convert('abcdefghijklmnopqrstuvwxyz0123456789: ', '', sched) # '' then return
+   ns2 = dcount(sched, ' ')
+   s1 = field(sched, ' ', 1)
+   s2 = field(sched, ' ', 2)
+   s3 = field(sched, ' ', 3)
+   begin case
+      case s1 = 'every'
+         if ns2 = 3 and s3 = 'minutes' and (s2 = '5' or s2 = '10' or s2 = '15' or s2 = '20' or s2 = '30') then ok = @true
+      case s1 = 'hourly'
+         if ns2 = 1 then ok = @true
+      case s1 = 'daily'
+         tm = s2
+         gosub time.ok
+         if ns2 = 2 and tok then ok = @true
+      case s1 = 'weekly'
+         tm = s3
+         gosub time.ok
+         dpos = index(' mon tue wed thu fri sat sun ', ' ' : s2 : ' ', 1)
+         if ns2 = 3 and tok and dpos > 0 and len(s2) = 3 then ok = @true
+      case s1 = 'monthly'
+         tm = s3
+         gosub time.ok
+         dd = (if s2 matches '1N' or s2 matches '2N' then s2 else '')
+         if ns2 = 3 and tok and dd # '' then
+            if dd[1, 1] # '0' and dd >= 1 and dd <= 28 then ok = @true
+         end
+   end case
+   return
+
+* tm in; tok out: hh:mm, 00:00 to 23:59
+time.ok:
+   tok = @false
+   if len(tm) # 5 or tm[3, 1] # ':' then return
+   hh = tm[1, 2]
+   mm = tm[4, 2]
+   if not(hh matches '2N') or not(mm matches '2N') then return
+   if hh > 23 or mm > 59 then return
+   tok = @true
+   return
+
+* jcmd in; ok out.  One line of printable ASCII (32 to 126), not empty, at most MAX.CMD characters, and not a job verb itself.
+cmd.ok:
+   ok = @false
+   if jcmd = '' or len(jcmd) > MAX.CMD then return
+   for ci = 1 to len(jcmd)
+      cc = seq(jcmd[ci, 1])
+      if cc < 32 or cc > 126 then return
+   next ci
+   cw = downcase(field(trim(jcmd), ' ', 1))
+   if cw = 'run.job' or cw = 'set.job' then return
+   ok = @true
+   return
+
+* sw.on out: the register's field 23 is 'yes'.  Read at every use.
+switch.on:
+   sw.on = @false
+   openpath @sdsys : @ds : 'accounts' to sw.f then
+      read sw.rec from sw.f, acc.name then
+         if upcase(trim(sw.rec<ACC$JOBS>)) = 'YES' then sw.on = @true
+      end
+      close sw.f
+   end
+   return
+
+* pw.ok and pw.why out; client.key and h.stored out when it passed (the proof the doors helper checks is made from them).  The account password,
+* typed now, at a terminal; one try.  Never shown, stored or logged.
+ask.password:
+   pw.ok = @false
+   pw.why = ''
+   if ho then
+*     From the page's masked field, through the hand-over file (removed already).  The same check, the same refusal.
+      pw.text = ho.pw
+      ho.pw = ''
+   end else
+      if kernel(K$TTY, 0) = '' or trim(system(1026)) # '' then
+         crt sysmsg(15941)                                       ;* Making or changing a job needs the account password, typed at a terminal
+         pw.why = 'no terminal'
+         return
+      end
+      crt sysmsg(15907) : ' ' :                                  ;* Password:
+      input pw.text HIDDEN
+      crt
+   end
+   pw.match = @false
+   if pw.text # '' then call !CRED_VERIFY(acc.name, pw.text, pw.match)
+   if not(pw.match) then
+      pw.text = ''
+      crt sysmsg(15940)                                          ;* Wrong password - no job was changed
+      pw.why = 'wrong password'
+      return
+   end
+*  ClientKey from the password and the record's salt, as REMOTE.API makes its own; the password goes no further.
+   h.stored = ''
+   openpath @sdsys : @ds : '$cred' to cred.f then
+      read cred.rec from cred.f, acc.name else cred.rec = ''
+      close cred.f
+      salted = SDEXT(pw.text : @FM : cred.rec<CRED$SALT> : @FM : cred.rec<CRED$ITER> : @FM : SCRAM$KEY.LEN, @TRUE, SD_PBKDF2)
+      client.key = SDEXT(salted : @FM : 'Client Key', @TRUE, SD_HMACSHA256)
+      h.stored = cred.rec<CRED$STOREDKEY>
+      salted = '' ; cred.rec = ''
+   end
+   pw.text = ''
+   if client.key = '' or h.stored = '' then
+      crt sysmsg(15930, 'the account password record')
+      pw.why = 'no password record'
+      return
+   end
+   pw.ok = @true
+   return
+
+* ok and why out; jobs.dir and app.dir out.  The Solo folder is the folder of the doors helper, which the installer puts in it (as REMOTE.API
+* finds it); it goes inside single quotes in a PowerShell script, so one with a single quote is refused.
+paths.ok:
+   ok = @false
+   why = ''
+   jobs.dir = @sdsys : @ds : '$jobs'
+   script = kernel(K$WINPATH, '/solo-doors.ps1')
+   tail = '\solo-doors.ps1'
+   if downcase(script[len(script) - len(tail) + 1, len(tail)]) # tail then
+      why = 'the doors helper path is not one this verb understands: ' : script
+      return
+   end
+   app.dir = script[1, len(script) - len(tail)]
+   if index(app.dir, "'", 1) then
+      why = 'the Solo folder has a single quote in its name'
+      return
+   end
+   ok = @true
+   return
+
+* ok and why out; jobs.f open.  Makes $jobs the first time (it takes the tree's ACL: the user, SYSTEM and Administrators); refuses a link, or one that
+* is not this user's alone (SD_FILE_PRIVATE: owned by this Windows user, nobody else allowed anything).
+open.jobs:
+   ok = @false
+   why = 'the definitions file'
+   if not(ospath(jobs.dir, OS$EXISTS)) then void ospath(jobs.dir, OS$MKDIR)
+   if SDEXT(jobs.dir : @FM : 'DIR', @TRUE, SD_FILE_PRIVATE) # '1' then
+      why = "the definitions folder is a link, or is not this Windows user's alone"
+      return
+   end
+   openpath jobs.dir to jobs.f else return
+   ok = @true
+   return
+
+* ho.ok, ho.action, ho.name, ho.sched, ho.cmd, ho.pw out.  The page's hand-over file, @sdsys/$jobsho/req (a folder of the user's alone): five lines -
+* add or change, the name, the schedule, the command, the password.  Read, then REMOVED before anything is decided; a link, a missing file or any
+* other first line is refused.  The values are checked by the caller as typed values are.
+read.handover:
+   ho.ok = @false
+   ho.action = '' ; ho.name = '' ; ho.sched = '' ; ho.cmd = '' ; ho.pw = ''
+   ho.file = @sdsys : @ds : '$jobsho' : @ds : 'req'
+   if SDEXT(ho.file : @FM : 'FILE', @TRUE, SD_FILE_PRIVATE) # '1' then
+      deleteseq ho.file else null
+      return
+   end
+   ho.lines = ''
+   openseq ho.file readonly to ho.f then
+      for hl = 1 to 5
+         readseq ln from ho.f then ho.lines<hl> = ln else exit
+      next hl
+      close ho.f
+   end else
+      if not(unassigned(ho.f)) then close ho.f
+   end
+   deleteseq ho.file else null
+   ho.action = downcase(trim(ho.lines<1>))
+   if ho.action # 'add' and ho.action # 'change' then return
+   ho.name = downcase(trim(ho.lines<2>))
+   ho.sched = downcase(trim(ho.lines<3>))
+   ho.cmd = trimb(trimf(ho.lines<4>))
+   ho.pw = ho.lines<5>
+   ho.lines = ''
+   ho.ok = @true
+   return
+
+* ------------------------------------------------------------------------------------------------- helpers
+
+* sent in; wd (one word a field) and n.words out.  Words are separated by runs of spaces; the sentence itself is not changed, so rest.after can
+* give the command exactly as typed.
+split.words:
+   wd = ''
+   n.words = 0
+   w = ''
+   for ci = 1 to len(sent)
+      ch = sent[ci, 1]
+      if ch = ' ' then
+         if w # '' then
+            n.words += 1
+            wd<n.words> = w
+            w = ''
+         end
+      end else
+         w := ch
+      end
+   next ci
+   if w # '' then
+      n.words += 1
+      wd<n.words> = w
+   end
+   return
+
+* sent and skip.n in; rest out: the sentence after its first skip.n words and the spaces after them, as typed (trailing spaces dropped).
+rest.after:
+   rest = ''
+   seen = 0
+   inw = @false
+   for ci = 1 to len(sent)
+      ch = sent[ci, 1]
+      if ch = ' ' then
+         if inw then
+            inw = @false
+            seen += 1
+         end
+      end else
+         if not(inw) then
+            if seen = skip.n then
+               rest = sent[ci, len(sent)]
+               exit
+            end
+            inw = @true
+         end
+      end
+   next ci
+   rest = trimb(rest)
+   return
+
+end
+
+* END-CODE

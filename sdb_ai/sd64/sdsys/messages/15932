@@ -1,0 +1,1 @@
+run.job runs only as a job's own command, started by its task or by set.job run

@@ -4,6 +4,9 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 16 Nov 26 Windows port - from Linux Solo 2d3db81 (S.247): the scheduled jobs gate, a sixth row: field 23 of the register, which SET.JOB and RUN.JOB read
+*               each time, so it is read for every session as file transfer is; Enter runs set.jobs.access on|off, with the word jobs typed (it reaches beyond
+*               SD: Task Scheduler runs the jobs, signed in or not).  The first box one row taller, the explanation one shorter, as Linux Solo.
 * 16 Nov 26 SD Core Solo - RELEASE_1.1 246: the AI row, Linux Solo's fourth (set.ai gate on|off, the helper's own setting read with K$AI.STATUS, looked at at each
 *               request), now that the AI is carried; file transfer moves to row 5, as Linux Solo.  The helper here is sd-ai.exe, started by SD for each request,
 *               so the "cannot be read" line says so instead of naming systemd; Linux's 11607 is 12612.
@@ -32,7 +35,7 @@
 *
 *   A full-screen page, in the toolkit's frame (140 columns by 43 lines at least), with three boxes:
 *
-*     Gates of this account   one row for each gate - sh, os, net, ai, xfer - with whether it is ON or off FOR THIS SESSION (what LOGIN loaded; the AI's gate is the helper's own setting), what the
+*     Gates of this account   one row for each gate - sh, os, net, ai, xfer, jobs - with whether it is ON or off FOR THIS SESSION (what LOGIN loaded; the AI's gate is the helper's own setting), what the
 *                             register says (the administrator only: what the next sign-on will load), how it is delivered (off), whether it reaches beyond SD and when a change reaches you
 *     The row under the cursor  what the gate is, in plain sentences: what ON lets the account do, what it can still do with it off, and the command that changes it
 *     Where this comes from   where each state is read
@@ -62,7 +65,7 @@ $include tk.h
 
    prompt ''
 
-   allow = 'set.os.access set.net.access set.ai set.xfer.access'   ;* the commands this page may run (15 Nov 26: set.xfer.access, the file transfer switch; 16 Nov 26: set.ai)
+   allow = 'set.os.access set.net.access set.ai set.xfer.access set.jobs.access'   ;* the commands this page may run (15 Nov 26: set.xfer.access; 16 Nov 26: set.ai, set.jobs.access)
    acc.name = 'sduser'                                          ;* Solo's one account (ruling 29); the register record the three verbs write
 
    call $tk_open('tool.gates', '', ctx, err)
@@ -90,11 +93,11 @@ $include tk.h
    if aout then gosub declare.layout                     ;* the AI line took the body's last row: the panes again (as SD Core's pages)
 
 *  The table: one row to a gate, in the order the page shows them.  The words are the verbs' own (set.os.access, set.net.access, set.ai, set.xfer.access).
-   gids = 'sh' : @fm : 'os' : @fm : 'net' : @fm : 'ai' : @fm : 'xfer'
-   gti = 'Shell' : @fm : 'OS.EXECUTE' : @fm : 'Remote files' : @fm : 'AI' : @fm : 'File transfer'
-   gcmd.on = 'set.os.access sh on' : @fm : 'set.os.access os on' : @fm : 'set.net.access on' : @fm : 'set.ai gate on' : @fm : 'set.xfer.access on'
-   gcmd.off = 'set.os.access sh off' : @fm : 'set.os.access os off' : @fm : 'set.net.access off' : @fm : 'set.ai gate off' : @fm : 'set.xfer.access off'
-   gwhen = 'next sign-on' : @fm : 'next sign-on' : @fm : 'next sign-on' : @fm : 'at the next request' : @fm : 'at the next transfer'
+   gids = 'sh' : @fm : 'os' : @fm : 'net' : @fm : 'ai' : @fm : 'xfer' : @fm : 'jobs'
+   gti = 'Shell' : @fm : 'OS.EXECUTE' : @fm : 'Remote files' : @fm : 'AI' : @fm : 'File transfer' : @fm : 'Scheduled jobs'
+   gcmd.on = 'set.os.access sh on' : @fm : 'set.os.access os on' : @fm : 'set.net.access on' : @fm : 'set.ai gate on' : @fm : 'set.xfer.access on' : @fm : 'set.jobs.access on'
+   gcmd.off = 'set.os.access sh off' : @fm : 'set.os.access os off' : @fm : 'set.net.access off' : @fm : 'set.ai gate off' : @fm : 'set.xfer.access off' : @fm : 'set.jobs.access off'
+   gwhen = 'next sign-on' : @fm : 'next sign-on' : @fm : 'next sign-on' : @fm : 'at the next request' : @fm : 'at the next transfer' : @fm : 'at the next job run'
    gall = "use the SH verb and ! to run operating-system commands as your Windows user"
    gall<2> = "run OS.EXECUTE, the embedded Python, a print unit's SPOOLER string and the editors that run outside SD, and reach files and directories outside the account by pathname"
    gall<3> = 'open a file on another SD server through a server definition, and have its own files opened over the API by request 29'
@@ -105,9 +108,11 @@ $include tk.h
    gstill<4> = 'do everything else inside SD'
    gall<5> = "move plain-text files in and out of its transfer folders with RECEIVE and SEND, over Solo's ssh login, while sd.conf's XFER is 1"
    gstill<5> = 'do everything else its other gates allow, and sign in over ssh'
-   NG = 5
+   gall<6> = 'make jobs that Task Scheduler runs on a schedule as your Windows user, signed in or not (set.job, with the account password typed), and have them run (run.job)'
+   gstill<6> = 'run SD commands from a Windows task of its own, as any one-shot sd-solo command can while you are signed in'
+   NG = 6
 
-   VIS = 5                                                      ;* gate rows on the screen (16 Nov 26: five, with the AI and file transfer; the box's 11 rows hold them)
+   VIS = 6                                                      ;* gate rows on the screen (16 Nov 26: six, with the AI, file transfer and jobs; the box's 12 rows hold them)
    ci = 1                                                       ;* the gate under the cursor
    gen = 0
    msg = (if adm then "Up and Down move; Enter turns the gate on the cursor's row ON or off" else 'Up and Down move; this page only shows what you may do, it cannot alter it')
@@ -184,6 +189,9 @@ read.all:
 *  and the register are the same value, read here for every session (the account's own record, no lock).  Row 5, as Linux Solo (16 Nov 26).
    gnow<5> = (if upcase(trim(xf.rec<ACC$XFER>)) = 'YES' then 1 else 0)
    if adm then gset<5> = gnow<5>
+*  16 Nov 26 (S.247, Linux Solo 2d3db81): scheduled jobs, field 23, read by SET.JOB and RUN.JOB at every use - the same as file transfer.
+   gnow<6> = (if upcase(trim(xf.rec<ACC$JOBS>)) = 'YES' then 1 else 0)
+   if adm then gset<6> = gnow<6>
 *  16 Nov 26 (RELEASE_1.1 246, Linux Solo): the AI's gate is the helper's own setting, for everyone, read from its status.
    helper.ok = 0
    hj = ''
@@ -205,8 +213,8 @@ read.all:
 * Out: gat (the gates), row (the row under the cursor), src (where this comes from), each .x .y .w .h.
 declare.layout:
    ld = ''
-   ld<1> = 'gates' : @vm : 1 : @vm : 1 : @vm : 11 : @vm : 138 : @vm : '' : @vm : '' : @vm : '' : @vm : 'stretch' : @vm : 1
-   ld<2> = 'row' : @vm : 2 : @vm : 1 : @vm : 14 : @vm : 138 : @vm : '' : @vm : 'stretch' : @vm : 1 : @vm : 'stretch' : @vm : 1
+   ld<1> = 'gates' : @vm : 1 : @vm : 1 : @vm : 12 : @vm : 138 : @vm : '' : @vm : '' : @vm : '' : @vm : 'stretch' : @vm : 1   ;* 16 Nov 26: 12 rows (six gates), the explanation 13
+   ld<2> = 'row' : @vm : 2 : @vm : 1 : @vm : 13 : @vm : 138 : @vm : '' : @vm : 'stretch' : @vm : 1 : @vm : 'stretch' : @vm : 1
    ld<3> = 'source' : @vm : 3 : @vm : 1 : @vm : 9 : @vm : 138 : @vm : '' : @vm : '' : @vm : '' : @vm : 'stretch' : @vm : 1
    call $tk_layout('declare', ctx, ld, perr)
    if perr # '' then
@@ -269,14 +277,14 @@ draw.list:
       if gnow<k> = 1 then n.on += 1
    next k
    s = 'Signed on as ' : @logname : ' in the account ' : @who : '.  ' : n.on : ' of ' : NG : ' gates are on for this session.'
-   screen text fmt(s, tw : 'L') at tx,gat.y + 7 attr 'bold' width tw
+   screen text fmt(s, tw : 'L') at tx,gat.y + 8 attr 'bold' width tw
    if adm then
       s = "You are the administrator: Enter turns the gate on the cursor's row ON or off through its verb, after a box you answer Run or Cancel."
    end else
       s = 'Only the administrator can change a gate (type admin).  Nothing on this page can.'
    end
-   screen text fmt(s, tw : 'L') at tx,gat.y + 8 width tw
-   screen text fmt((if adm then 'The Register column is what the next sign-on will load.' else 'The Register column is shown to the administrator only.'), tw : 'L') at tx,gat.y + 9 width tw
+   screen text fmt(s, tw : 'L') at tx,gat.y + 9 width tw
+   screen text fmt((if adm then 'The Register column is what the next sign-on will load.' else 'The Register column is shown to the administrator only.'), tw : 'L') at tx,gat.y + 10 width tw
    call $tk_help('mark', gat.x + gat.w - 5, gat.y + 1, 0, 0)
    return
 
@@ -305,12 +313,16 @@ draw.row:
             end else
                lines<-1> = 'The administrator changes it with: ' : (if gnow<k> = 1 then gcmd.off<k> else gcmd.on<k>)
             end
-            if gids<k> = 'xfer' then
-               lines<-1> = 'As delivered it is off.  A change reaches you at the next transfer: it is read each time, not at sign-on.  This gate reaches BEYOND SD.'
-               lines<-1> = "It also needs XFER=1 in sd.conf (Solo reads that when it starts); then RECEIVE or SEND opens one transfer at a time, from your own session."
-            end else
-               lines<-1> = 'As delivered it is off.  A change reaches you: ' : gwhen<k> : '.  It does not touch a session that is already running.  This gate reaches BEYOND SD.'
-            end
+            begin case
+               case gids<k> = 'xfer'
+                  lines<-1> = 'As delivered it is off.  A change reaches you at the next transfer: it is read each time, not at sign-on.  This gate reaches BEYOND SD.'
+                  lines<-1> = "It also needs XFER=1 in sd.conf (Solo reads that when it starts); then RECEIVE or SEND opens one transfer at a time, from your own session."
+               case gids<k> = 'jobs'
+                  lines<-1> = 'As delivered it is off.  A change reaches you at the next job run: it is read each time, not at sign-on.  This gate reaches BEYOND SD.'
+                  lines<-1> = 'With it on, set.job makes a job only with the account password typed; off, every job is refused at its next run and its task stays until set.job delete.'
+               case 1
+                  lines<-1> = 'As delivered it is off.  A change reaches you: ' : gwhen<k> : '.  It does not touch a session that is already running.  This gate reaches BEYOND SD.'
+            end case
             if gids<k> = 'ai' then lines<-1> = 'The AI also needs a provider, a model and a key: that is the tool.ai page.'
       end case
    end

@@ -1,0 +1,1 @@
+Syntax: set.job   or   set.job add|change name schedule command   or   set.job delete|run name

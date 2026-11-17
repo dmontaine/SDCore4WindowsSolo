@@ -24,7 +24,8 @@ THE RULES IT CHECKS, read from sd-solo.iss itself, never from a copy:
   3. RemoveFolderContents is called from OfferDataRemoval and KeepDataOnly and nowhere else, and DelTree( is called
      only inside RemoveFolderContents - so no other path deletes a tree.
   4. KeepDataOnly keeps user_accounts, sduser and sd.conf, so Keep cannot take the account; and (SOLO 72) sdsys
-     with $cred and the audit trail, so Keep cannot take the passwords.
+     with $cred and the audit trail, so Keep cannot take the passwords; and (16 Nov 2026, S.247) $jobs, the scheduled
+     jobs' definitions.
   5. Reload (PrepareToInstall) MOVES the old folder (MoveFileW) and calls nothing that deletes.
   6. The delete helper refuses a reparse point (0x400), so a junction cannot lead it out of the folder.
 
@@ -119,6 +120,9 @@ def violations(text):
         bad.append('KeepDataOnly: the keep lists do not name user_accounts, sduser and sd.conf')
     if "|sdsys|" not in keep or "'|$cred|" not in keep or "'|audit|audit.*|" not in keep:
         bad.append('KeepDataOnly: the keep lists do not name sdsys, $cred and the audit trail (SOLO 72)')
+    # 16 Nov 26 (S.247, Linux Solo 2d3db81): the scheduled jobs' definitions are kept with the data.
+    if not re.search(r"RemoveFolderContents\(Root \+ '\\sdsys', '\|[^']*\|\$jobs\|", keep):
+        bad.append('KeepDataOnly: the sdsys keep list does not name $jobs, the scheduled jobs (S.247)')
     # 5. reload moves, never deletes
     if 'MoveFileW(' not in prep:
         bad.append('PrepareToInstall: the kept data is not moved with MoveFileW')
@@ -180,6 +184,10 @@ check('MUTANT: the question asked after the Remove step is flagged', any('CurUni
 m8 = text.replace("if not DataChoseDelete then\n      Extra := ' -KeepHostKey';", "Extra := ' -KeepHostKey';", 1)
 check('CONTROL: mutation 8 changed the text', m8 != text)
 check('MUTANT: -KeepHostKey on Delete too is flagged', any('KeepHostKey' in x for x in violations(m8)))
+
+m9 = text.replace("voc_removed.saved|$jobs|'", "voc_removed.saved|'", 1)
+check('CONTROL: mutation 9 changed the text', m9 != text)
+check('MUTANT: a Keep that drops the scheduled jobs is flagged', any('$jobs' in x for x in violations(m9)))
 
 print('')
 if passed == 0:

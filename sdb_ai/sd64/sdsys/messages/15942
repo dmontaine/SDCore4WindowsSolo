@@ -1,0 +1,1 @@
+A job's command is one line of printable characters, at most 500 of them, and is not itself run.job or set.job
