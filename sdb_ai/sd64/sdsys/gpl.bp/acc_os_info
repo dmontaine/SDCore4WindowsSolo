@@ -18,6 +18,8 @@
 *
 *
 * START-HISTORY:
+* 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4394): the refusal is SD Core's 12005 in SD Core's words ("Windows could not answer
+*           for %1 (%2)"); it was 12041, which SD Core for Windows uses for another text.
 * 01 Oct 26 SD Core Solo - SOLO 25, ported from the multi-user product's
 *           RELEASE_1.1 116.
 * 01 Oct 26 SD Core Solo - USRDIR's backslashes are made @ds (which is "/")
@@ -75,7 +77,7 @@ $catalog !acc_os_info
       repeat
       n = count(usr.dir, @ds)
       if usr.dir = '' or n = 0 then
-         err = 12041 : @vm : 'USRDIR' : @vm : usr.dir
+         err = 12005 : @vm : 'USRDIR' : @vm : usr.dir   ;* 12041 until 17 Nov 26
          return
       end
       info<1> = 'product: windows-solo'

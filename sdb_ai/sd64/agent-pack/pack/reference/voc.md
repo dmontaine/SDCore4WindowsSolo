@@ -17,7 +17,7 @@ The one account's VOC (`sduser`) is `newvoc` in full: `gpl.bp/solo_account` copi
 SDSYS's own VOC is `voc_template` in full: a superset of `newvoc`. The records only SDSYS has (11): `$hold`, `accounts`, `bp`, `bp.out`, `first.compile`, `gpl.bp`, `gpl.bp.out`, `messages`, `qfile`, `second.compile`, `third.compile`.
 
 ### voc:type:F
-> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:75#98baf5a6
+> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:78#98baf5a6
 
 **The F record — a file**
 
@@ -42,8 +42,8 @@ dictionary.
 **The pointers into @SDSYS**
 
 Seven of the shipped `F` records have a data path that begins `@SDSYS/`. They
-point at files in the system directory that the account needs; the eighth,
-`$acc`, is the account itself:
+point at files in the system directory — on Solo, the `sdsys` directory of the
+installation — that the account needs:
 
 | VOC id | Field 2 | Field 3 |
 |---|---|---|
@@ -54,11 +54,9 @@ point at files in the system directory that the account needs; the eighth,
 | `dict.dict` | `@SDSYS/dict.dic` | `@SDSYS/dict.dic` |
 | `global.bp.out` | `@SDSYS/global.bp.out` | |
 
-These are **read-only to a network session**. The account-root gate in the
-file engine allows them on read paths but sets `FV_RDONLY` on the file
-variable, so every write path in the engine refuses them. `global.bp.out` is
-the server's file on a managed computer — see *Managed computers* in the
-GettingStarted set.
+`global.bp.out` is the SD Core for Linux server's directory of compiled programs
+on a managed computer, and is empty otherwise; you cannot write to it, `admin` or
+not. See *Managed mode* in the GettingStarted set.
 
 **The $ACC record**
 
@@ -74,7 +72,7 @@ name rather than by path.
 
 
 ### voc:type:K
-> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:255#4f0b8cdd
+> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:260#4f0b8cdd
 
 **The K record — a keyword**
 
@@ -101,18 +99,18 @@ if it had been typed instead:
 005  /cygdrive/c/Users/pat/SDCoreSolo/user_accounts/sduser/bp.out/report
 ```
 
-This works for a locally catalogued subroutine too. The object is found by the
-last part of the pathname in field 5, which is the name it was catalogued
-under, so a program catalogued under a call name different from its program
+This works for a locally cataloged subroutine too. The object is found by the
+last part of the pathname in field 5, which is the name it was cataloged
+under, so a program cataloged under a call name different from its program
 name is not reached this way.
 
-The 249 K-records in a stock VOC are the query processor's vocabulary,
+The 218 K-records in the shipped VOC are the query processor's vocabulary,
 and they are what makes a sentence like `list stock with qty > 100 by
 supplier` parse.
 
 
 ### voc:type:PA
-> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:220#9486a7c4
+> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:225#9486a7c4
 
 **The PA record — a paragraph**
 
@@ -152,7 +150,7 @@ in the command instead.
 
 
 ### voc:type:PH
-> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:237#7acc327c
+> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:242#7acc327c
 
 **The PH record — a phrase**
 
@@ -175,7 +173,7 @@ in the command instead.
 
 
 ### voc:type:Q
-> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:177#b10fccd2
+> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:182#b10fccd2
 
 **The Q record — an indirect pointer**
 
@@ -189,11 +187,11 @@ in the command instead.
 This is `sd.accounts`. Field 2 is the account name, field 3 is the file
 name in that account. `set.file` writes Q-pointers; see below. Since 16 Oct 2026 the
 target of `set.file` may itself be a Q-pointer, which makes a chain (not recommended, but it opens): each link is
-followed with the same account test, so a chain cannot reach where its links alone could not.
+followed under the same rules, so a chain cannot reach where its links alone could not.
 
 
 ### voc:type:R
-> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:190#7919279b
+> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:195#7919279b
 
 **The R record — a remote record reference**
 
@@ -217,7 +215,7 @@ keywords, `"PA"` paragraphs, `"PH"` phrases, `"Q"` Q-pointers, `"R"` R-records,
 
 
 ### voc:type:S
-> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:209#e478fff6
+> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:214#e478fff6
 
 **The S record — a sentence**
 
@@ -233,7 +231,7 @@ command with its first arguments filled in.
 
 
 ### voc:type:V
-> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:127#770e48c1
+> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:128#770e48c1
 
 **The V record — a verb**
 
@@ -250,21 +248,25 @@ target, and the remaining fields carry options.
 
 | Field 2 | Field 3 | What it does |
 |---|---|---|
-| `CA` | *catalogue name* | a catalogued program — 161 of the shipped verbs |
+| `CA` | *catalog name* | a cataloged program — 174 of the shipped verbs |
 | `IN` | *number* | internal verb *n*, handled by the command processor itself — 36 verbs |
 | `OS` | *text* | an operating-system command — `sh`, and nothing else |
-| `CS` | *path* | a locally catalogued function |
+| `CS` | *path* | a locally cataloged function |
 
-The first three rows account for all 142 shipped `V` records; none is `CS`.
-The four keyword records described above — `break`, `count`, `display` and
-`off` — are `K` records in which field 2 holds a keyword number rather than a
+The first three rows account for all 211 of Solo's `V` records. The
+remaining four verbs are the keyword records described above — `break`,
+`count`, `display` and `off` — where field 2 holds a keyword number rather than a
 dispatch type, and it is field 3 that marks the record as a verb.
 
 Field 4 carries dispatch options and **field 5 names a security subroutine**.
-If field 5 is present, that subroutine is called before the verb runs and
-can refuse it. **None of the shipped verbs uses field 5** — what needs `admin`
-is checked by the verb's own program, not by a security subroutine — but the
+If field 5 is present, that subroutine is called before the verb runs and can
+refuse it. **None of the shipped verbs uses field 5** — what needs `admin` is
+checked by the verb's own code, not by a security subroutine — but the
 mechanism is there for a site that wants a verb guarded rather than absent.
+
+**Field 4 does matter to the deny list** (see *Managed mode* in the
+GettingStarted set): SD denies a verb by what it runs — the same field 2, field 3
+and field 4 — so two names that dispatch identically are denied together.
 
 **Internal verbs**
 
@@ -288,23 +290,26 @@ a marginal verb.
 
 
 ### voc:type:X
-> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:288#f1c700c1
+> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:293#f1c700c1
 
 **The X record — text**
 
 
 ```
 001  X
-002  SD, including the API, is licensed under the GPL v3.0.
+002  WS2.0-0
 ```
 
-This is `$licence`. An X-record is **not a command** — it is miscellaneous
-data the VOC holds so that a program or a user can read it by name.
-`$contrib` and `$RELEASE` are also X-records. Nobody dispatches them; they
-are read with `read` from BASIC or with `ct` from the command line.
+This is `$release`, and it is the shipped VOC's **only** X-record. An X-record is
+**not a command** — it is miscellaneous data the VOC holds so that a program
+can read it by name with `read` from BASIC or `ct` from the command line.
 Two X-records that an account may add are read by SD itself and change what
 a command line does: `$private.voc` and `$voc.parser`, described on the next
 pages.
+
+**The license and the contributor list are not VOC records at all**, despite
+looking like the obvious candidates. They are two plain files in the system
+directory, `licence` and `contrib`, in `%USERPROFILE%\SDCoreSolo\sdsys`.
 
 
 ### voc:types

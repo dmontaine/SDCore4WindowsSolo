@@ -6,6 +6,8 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4334): set.config now changes the file SD_CONFIG names (as Linux Solo), so the box
+*               no longer says it changes the Solo folder's sd.conf only.
 * 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230, RELEASE_1.1 286): the SCREEN MSGBOX keeps no unused answer.
 * 12 Nov 26 Windows port - SOLO 56 group 5: Linux Solo 608b511 with three Windows differences.  The file shown is the one this SD read, from the kernel
 *               (K$INIPATH: SD_CONFIG, else sd.conf in the Solo folder - which is not in sdsys here); when SD_CONFIG is set the confirm box says that set.config
@@ -819,9 +821,7 @@ change.param:
    typed = ''
    el = ''
    el<-1> = 'Sets ' : k : ' to ' : nv : ' in ' : conf.path : ' (now ' : old.f : '; the default is ' : (if pdef<i> = '' then 'none' else pdef<i>) : '). The line is replaced where it is, every other line is kept, and the file as it is now is kept beside it as sd.conf.bak.'
-   if env('SD_CONFIG') # '' then
-      el<-1> = 'This session reads ' : conf.path : ' (SD_CONFIG), but set.config changes the sd.conf in the Solo folder only.'
-   end
+*  17 Nov 26 (audit P-4334): set.config changes the file SD_CONFIG names, as Linux Solo's does, so the note that it did not is gone.
    if peff<i> = 'restart' then
       el<-1> = 'It takes effect when SD is next stopped and started (sd-solo -stop, then sd-solo -start). Until then SD, and every session, keeps running with ' : fo : '.'
    end else

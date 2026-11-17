@@ -666,11 +666,20 @@ Write-Host '=== 2. every retired phrase is GONE, and its replacement is present 
 $ReplacementGone = @('130d', '70', '70b', '70c', '139', '139b', '129', '129b', '117',
                      'R1.1-64b', 'R1.1-64c', 'R1.1-64d', 'R1.1-64e', 'R1.1-64f',
                      'R1.1-64g', 'R1.1-64h', 'R1.1-64i', 'R1.1-64j', '20Sep-a', '20Sep-b')
+# 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4350..P-4385): these rows' REPLACEMENT wording was in
+# SD Core's own messages (10089, 10101, 10148 and the other multi-user account, ssh-server and Windows-user
+# texts) that no Solo program named; they were removed from Solo's tree as orphans.  The RETIRED half is still
+# checked.
+$ReplacementOrphaned = @('130b', '130e', 'R1.1-69', 'R1.1-69b', '121', '124')
 foreach ($e in $RETIRED) {
     $bad  = Find-Any $e.Retired ([bool]$e.NoBasic)
     Check ("[$($e.Ref)] retired phrase absent: `"$($e.Retired)`"") ($bad.Count -eq 0) ("still in " + ($bad -join ', '))
     if ($ReplacementGone -contains $e.Ref) {
         Write-Host ("  [skip] [$($e.Ref)] replacement lived only in the deleted multi-user installer (SOLO 9)")
+        continue
+    }
+    if ($ReplacementOrphaned -contains $e.Ref) {
+        Write-Host ("  [skip] [$($e.Ref)] replacement lived only in SD Core messages no Solo program named, removed 17 Nov 26")
         continue
     }
     $good = Find-Any $e.Replacement

@@ -18,6 +18,8 @@
 *
 *
 * START-HISTORY:
+* 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4334): the file SD_CONFIG names is the one changed, as Linux Solo's setconfig
+*           does; with no SD_CONFIG, sd.conf in the Solo folder as before (the helper's -ConfPath).
 * 12 Nov 26 SD Core Solo - SOLO 56 group 5: SD Core for Windows' program, for Linux Solo's set.config (S.117).  Two Solo differences.
 *           The usage and name messages are 15973 and 15972, Linux Solo's 14973 and 14972 (+1000): 12936 and 12937 are SET.PINS's here, as
 *           11931 and 11932 are in Linux Solo.  And the helper runs as the user who runs SD, not elevated: Solo's sd.conf is <home>\sd.conf,
@@ -35,7 +37,7 @@
 *    SET.CONFIG parameter value          (the administrator's: ADMIN first)
 *
 *    Changes one of the 14 tuning parameters that config.c range-checks (CLEANUP DHCACHE GRPSIZE LGNWAIT LPTRHIGH LPTRWIDE MAXCALL
-*    MAXRLOCK NETREPLY NETWAIT NUMLOCKS RECCACHE SORTMRG USPLIT) in sd.conf in the Solo folder.  The name and the value are checked here
+*    MAXRLOCK NETREPLY NETWAIT NUMLOCKS RECCACHE SORTMRG USPLIT) in the file SD_CONFIG names, else sd.conf in the Solo folder.  The name and the value are checked here
 *    for their characters only; the helper owns the list and the ranges, refuses everything else, keeps the old file as sd.conf.bak and
 *    reads the file back.  One line goes to the audit trail, on success and on refusal.  TOOL.CONFIG runs this verb for its E key.
 *
@@ -83,6 +85,13 @@ deffun ps_script_out(script, want.out) calling '!ps_script_out'
 *  The name and the value are letters and digits only, so they cannot end the quoted argument they are put in
    q = char(39)
    script = '& ' : q : kernel(K$WINPATH, '/sd-confset.ps1') : q : ' -Name ' : q : pname : q : ' -Value ' : q : pval : q
+*  17 Nov 26 (audit P-4334, as Linux Solo's setconfig): the file SD_CONFIG names, else sd.conf in the Solo folder (the helper's default).
+*  A name holding a quote could end the argument it is put in, so it is refused rather than escaped.
+   conf.env = env('SD_CONFIG')
+   if conf.env # '' then
+      if index(conf.env, q, 1) then stop sysmsg(12939, 'SD_CONFIG holds a quote character, so the file it names is not changed')
+      script := ' -ConfPath ' : q : conf.env : q
+   end
    script := '; exit $LASTEXITCODE'
    both = ps_script_out(script, @true)
    stat = both<1>

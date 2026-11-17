@@ -17,6 +17,9 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4277..P-4281), from SD Core e3ed33ff (RELEASE_1.1 302 (b)): cleanup() writes a run
+ *               that removed nothing to the error log; SD Core's two refusal lines are not carried (log_message() needs the segment and
+ *               ERRLOG_SEM, which those two cases do not have).
  * 18 Oct 26 Windows port - from Linux ff49d57 (15 Oct 26): show_status(): the buffer for the start time was one byte short for its "not recorded" text (gcc warned on every
  *               build); 64 bytes now.
  * 18 Oct 26 Windows port - from Linux 3b43525 (15 Oct 26): pid_is_alive(): process_exists() for kernel(K_PID_ALIVE) (QM4 gaps Q-8, INHIBIT.LOGIN).
@@ -363,7 +366,12 @@ void cleanup() {
   int pid;
   char username[MAX_USERNAME_LEN + 1]; /* Login user name */
   char errmsg[80 + 1];
+  int removed = 0;
 
+  /* 17 Nov 26 SD Core Solo - four-version audit P-4277..P-4281, from SD Core e3ed33ff (RELEASE_1.1 302 (b)): a run that found no slot
+     to remove is written to the error log, so sdwind's "running sd -cleanup" line is followed by what happened.  SD Core also logs the
+     two refusals below; NOT CARRIED, because the error log is reached through log_message(), which reads sysseg (still NULL when the
+     attach failed) and takes ERRLOG_SEM (not there when the semaphores could not be had). */
   if (!attach_shared_memory()) {
     fprintf(stderr, "SD is not active.\n");
     return;
@@ -406,6 +414,7 @@ void cleanup() {
         remove_user(uptr);
         log_printf("Cleanup removed user %d (pid %d, %s).\n", (int)user_no, pid,
                    username);
+        removed++;
       }
     }
   }
@@ -414,6 +423,9 @@ void cleanup() {
   EndExclusive(GROUP_LOCK_SEM);
   EndExclusive(REC_LOCK_SEM);
   EndExclusive(FILE_TABLE_LOCK);
+
+  if (removed == 0)
+    log_printf("Cleanup found no lost session: every user table slot's process answered.\n");   /* 17 Nov 26, SD Core RELEASE_1.1 302 (b) */
 
   unbind_sysseg();
 }

@@ -5,6 +5,8 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4455): the API door's local line says SD listens on 127.0.0.1 only (APILOCAL, as
+*           Linux Solo's LOCAL); open says every address.  The ssh door's local is still the firewall rule.
 * 12 Nov 26 SD Core Solo - SOLO 62: read.all puts "Reading the doors (a few seconds)..." (12982) on the status line before the reports.
 * 12 Nov 26 SD Core Solo - SOLO 62, from SD Core for Windows' page with Linux Solo's shape (S.117, the owner's "Yes, that shape"): four views, keys 1 to 4: doors,
 *               servers, connected, TLS.  The routes view is not offered (Solo has one account); its code (read.accounts, route.line, the case of view 2) is left
@@ -700,14 +702,17 @@ do.door:
    begin case
       case aw = 'open'
          typed = 'open'
-         el<-1> = 'SD listens on port ' : door.port : ' and the firewall rule lets other computers on the network connect to ' : door.what : ' of this computer.'
+         el<-1> = 'SD listens on port ' : door.port : ' on EVERY address and the firewall rule lets other computers on the network connect to ' : door.what : ' of this computer.'
+      case aw = 'local' and door.verb = 'remote.api'
+*        17 Nov 26 (audit P-4455): the API listener binds 127.0.0.1 for local (APILOCAL, c838ece3), as Linux Solo's LOCAL.
+         el<-1> = 'SD listens on 127.0.0.1:' : door.port : ' only: only this computer may connect.'
       case aw = 'local'
          el<-1> = 'SD listens on port ' : door.port : ' and the firewall rule lets only this computer connect.'
       case 1
          el<-1> = 'SD has no listener for ' : door.what : ' at all.'
    end case
    el<-1> = 'The terminal is given to ' : upcase(door.verb) : ', which asks for the administrator password again and has the doors helper make the change. ssh that was never set up is set up by local or open.'
-   if door.verb = 'remote.api' then el<-1> = 'The API socket opens or closes only when SD starts, so a change to or from off takes effect at the next sd-solo -stop and -start (or the next boot); the firewall part at once.'
+   if door.verb = 'remote.api' then el<-1> = 'The API socket is opened only when SD starts, so any change of this door takes effect at the next sd-solo -stop and -start (or the next boot); the firewall part at once.'
    gosub confirm.and.hand.over
    return
 

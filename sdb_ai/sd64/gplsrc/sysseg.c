@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4323): a restore that failed is said in Linux Solo's words, with the status.
  * 17 Nov 26 SD Core Solo - from Core 8bd42f1a (RELEASE_1.1 317): api_local copied to the segment for sdwind.
  * 16 Nov 26 SD Core Solo - from Core 947d83dc (RELEASE_1.1 276): bind_sysseg() gives SHORT_CODE back on every exit taken while it
  *           holds it.  Six exits after LockSemaphore(SHORT_CODE) ("SD has not been started." among them) jumped to exit_bind_sysseg
@@ -735,10 +736,11 @@ Private void apply_pending_restore(void) {
   }
 
   if (!WIFEXITED(status) || (WEXITSTATUS(status) != 0)) {
+    /* 17 Nov 26 (audit P-4323): Linux Solo's words; the path is a Windows one (OS) */
     fprintf(stderr,
-            "The restore was not put in place, and SD starts with the account "
-            "as it was.  See %s\\sdrestore.log\n",
-            winroot);
+            "The waiting restore was NOT applied (status %d); SD starts on the "
+            "account as it was. See %s\\sdrestore.log\n",
+            WIFEXITED(status) ? WEXITSTATUS(status) : -1, winroot);
   }
 }
 

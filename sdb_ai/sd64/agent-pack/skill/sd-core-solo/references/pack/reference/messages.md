@@ -31,10 +31,10 @@ Invalid Create-Account argument %1
 ```
 
 ### msg:10002
-> kind=message tier=reference since=- src=sdsys/messages/10002:1#9a3ccb69
+> kind=message tier=reference since=- src=sdsys/messages/10002:1#40f35309
 
 ```
-SDSYS Account access is restricted to privileged users
+The SDSYS account is not entered in SD Core Solo for Windows - type admin for the administrator commands
 ```
 
 cited by: `login`
@@ -258,20 +258,6 @@ Entering SDSYS requires your own password
 Incorrect password
 ```
 
-### msg:10034
-> kind=message tier=reference since=- src=sdsys/messages/10034:1#379ba821
-
-```
-%1 is denied sign-in at the console and over Remote Desktop. The next line says which ways in it has.
-```
-
-### msg:10035
-> kind=message tier=reference since=- src=sdsys/messages/10035:1#bdc36615
-
-```
-Unable to restrict %1 to ssh, status: %2
-```
-
 ### msg:10036
 > kind=message tier=reference since=- src=sdsys/messages/10036:1#22e587e5
 
@@ -305,13 +291,6 @@ Cannot create user %1 with no.query: setting its password needs a prompt
 
 ```
 Insufficient memory for program variables
-```
-
-### msg:10040
-> kind=message tier=reference since=- src=sdsys/messages/10040:1#fa60d805
-
-```
-%1 keeps the Windows sign-in rights it already had
 ```
 
 ### msg:10041
@@ -416,13 +395,6 @@ cited by: `cproc`
 %s is not permitted to use OS.EXECUTE
 ```
 
-### msg:10055
-> kind=message tier=reference since=- src=sdsys/messages/10055:1#f62c71d7
-
-```
-Could not secure account directory %1 (%2)
-```
-
 ### msg:1006
 > kind=message tier=reference since=- src=sdsys/messages/1006:1#2e947f51
 
@@ -442,13 +414,6 @@ Cannot open password file
 
 ```
 %1 is not permitted to use the API
-```
-
-### msg:10075
-> kind=message tier=reference since=- src=sdsys/messages/10075:1#76ac2430
-
-```
-Note: the Windows profile for %1 could not be removed yet, and SD has kept it.\n\nWindows still has the profile's registry hive mounted, which locks a file\ninside the directory, and nothing can delete OR rename it until that is\nreleased. Only a restart releases it.\n\nSD has kept the profile's registry entry with the directory rather than\nremoving one half of a pair, and has recorded both. THE NEXT TIME THIS\nCOMPUTER STARTS, the SD service removes them; nothing else has to be done.\n\nUntil then the name is taken. An account created as %1 before that restart\nwill NOT get the old home back: Windows will not put a new profile where one\nalready sits, and gives it a suffixed home instead, so anything kept in the\nold one - ssh keys included - will not be found there. CREATE.ACCOUNT refuses\nrather than let that happen quietly.
 ```
 
 ### msg:10076
@@ -537,80 +502,12 @@ An account must have a password. Nothing was created.
 %1 is a group account and has no remote access; reach it with logto
 ```
 
-### msg:10088
-> kind=message tier=reference since=- src=sdsys/messages/10088:1#c3033774
-
-```
-Cannot open the credential register, so no password could be set for this account.
-```
-
-### msg:10089
-> kind=message tier=reference since=- src=sdsys/messages/10089:1#7ffd6187
-
-```
-Account %1 needs a password.\n\nWhen you sign in to this computer at the keyboard you need only your\nWindows password.  When you connect from another computer, over ssh or\nthrough the SD API, you need only this password.\n\nYou will be asked to type it twice.  What you type is not shown - each\ncharacter appears as a star - and Backspace corrects a mistake.\n\nA password is required.  Pressing Enter on an empty line does not give\nyou an account without one - it ends this session, and you are asked\nagain the next time you sign in.  Until this account has a password it\ncannot be reached from another computer: not over ssh, and not through\nthe SD API.  It still works here at the keyboard.
-```
-
 ### msg:1009
 > kind=message tier=reference since=- src=sdsys/messages/1009:1#ffdae9f6
 
 ```
 Insufficient memory to allocate new array chunk
 ```
-
-### msg:10090
-> kind=message tier=reference since=- src=sdsys/messages/10090:1#f49d6790
-
-```
-New password: 
-```
-
-cited by: `login`
-
-### msg:10091
-> kind=message tier=reference since=- src=sdsys/messages/10091:1#c10d17af
-
-```
-Repeat new password: 
-```
-
-cited by: `login`
-
-### msg:10092
-> kind=message tier=reference since=- src=sdsys/messages/10092:1#f0842e18
-
-```
-The passwords do not match.  That was attempt %1 of %2.
-```
-
-cited by: `login`
-
-### msg:10093
-> kind=message tier=reference since=- src=sdsys/messages/10093:1#11bbad47
-
-```
-Password set for account %1.
-```
-
-cited by: `login`
-
-### msg:10094
-> kind=message tier=reference since=- src=sdsys/messages/10094:1#c779ef1a
-
-```
-Unable to set the password, status %1
-```
-
-cited by: `login`
-
-### msg:10095
-> kind=message tier=reference since=- src=sdsys/messages/10095:1#f86f43fb
-
-```
-No password was set, and one is required, so this session cannot go on.\n\nYou are asked again the next time you sign in.
-```
-
-cited by: `login`
 
 ### msg:10096
 > kind=message tier=reference since=- src=sdsys/messages/10096:1#f899b188
@@ -624,13 +521,6 @@ cited by: `login`
 
 ```
 A command run from the command line must be a single name with nothing\nafter it.  Put anything the job needs to vary inside the paragraph or\nsentence being run.
-```
-
-### msg:10098
-> kind=message tier=reference since=- src=sdsys/messages/10098:1#e8227258
-
-```
-%1 has to be a paragraph or a sentence in this account to be run from the\ncommand line, and it is neither.
 ```
 
 ### msg:10099
@@ -649,13 +539,6 @@ cited by: `cproc`
 Illegal action key
 ```
 
-### msg:10101
-> kind=message tier=reference since=- src=sdsys/messages/10101:1#56434ffb
-
-```
-%1 attempts, and the passwords never matched.  No password was set and\nthis session cannot go on.\n\nSign in again and you will be asked once more.  Until this account has\na password it cannot be reached from another computer: not over ssh,\nand not through the SD API.  It still works here at the keyboard.
-```
-
 ### msg:10102
 > kind=message tier=reference since=- src=sdsys/messages/10102:1#c79eaec2
 
@@ -670,13 +553,6 @@ cited by: `setosacc`
 
 ```
 %1 already has an os.users record, so it was left exactly as it was
-```
-
-### msg:10104
-> kind=message tier=reference since=- src=sdsys/messages/10104:1#e688a815
-
-```
-Unable to change operating-system access for %1; os.users could not be\nupdated, so nothing has changed.
 ```
 
 ### msg:10105
@@ -739,13 +615,6 @@ cited by: `setjobsacc`, `setnetacc`, `setosacc`, `setxferacc`
 os.users: the record for %1 is removed
 ```
 
-### msg:10116
-> kind=message tier=reference since=- src=sdsys/messages/10116:1#8b285a4e
-
-```
-Note: the Windows profile registry entry for %1 could not be removed yet.\n\nThe profile DIRECTORY is gone. Windows still holds the registry record of it,\nand if an account called %1 is created again before that record clears,\nWindows honors it and gives the account a DIFFERENT home directory -\nC:\Users\%1 with a suffix added - so anything expected in the old one, ssh\nkeys included, will not be found there.\n\nSD has recorded it. THE NEXT TIME THIS COMPUTER STARTS, the SD service\nremoves the record; nothing else has to be done. CREATE.ACCOUNT refuses the\nname in the meantime rather than let the wrong home be assigned quietly.\n\nAn administrator can also clear it now: "Get-CimInstance Win32_UserProfile"\nfrom an elevated prompt lists the orphaned profile, and "Remove-CimInstance"\non the entry whose LocalPath is the old home directory removes it.
-```
-
 ### msg:10117
 > kind=message tier=reference since=- src=sdsys/messages/10117:1#ca57bb67
 
@@ -754,20 +623,6 @@ no.query was given and the %1 part of this file is in the system account, so the
 ```
 
 cited by: `deletef`
-
-### msg:10118
-> kind=message tier=reference since=- src=sdsys/messages/10118:1#8dec5e4b
-
-```
-The two passwords did not match, or none was entered.
-```
-
-### msg:10119
-> kind=message tier=reference since=- src=sdsys/messages/10119:1#fcd36e31
-
-```
-Windows refused that password for %1 - it did not meet this machine's policy for length, complexity or reuse. A different password may be accepted.
-```
 
 ### msg:1012
 > kind=message tier=reference since=- src=sdsys/messages/1012:1#00901da4
@@ -790,34 +645,6 @@ SD is not running elevated, so it cannot set a password. Retrying will not help 
 The password could not be set (status %1).
 ```
 
-### msg:10122
-> kind=message tier=reference since=- src=sdsys/messages/10122:1#d39fdb7e
-
-```
-The Windows password was set, but SD's own credential for %1 could not be written. ssh would admit this account and the API would refuse it, so it is not finished.
-```
-
-### msg:10123
-> kind=message tier=reference since=- src=sdsys/messages/10123:1#ab22ed87
-
-```
-WARNING: the Windows profile for %1 was left behind and nothing will remove it.\n\nWindows still has the profile's registry hive mounted, which locks a file\ninside the directory, so neither the directory nor its registry entry could be\nremoved. SD keeps the two together in that case and records them so that the\nservice can clear them at the next restart - AND THE RECORD COULD NOT BE\nWRITTEN, so that will not happen.\n\nThis one needs a person. Restart this computer, then, from an elevated prompt,\ndelete C:\Users\%1 and remove the profile that "Get-CimInstance\nWin32_UserProfile" still lists for it.\n\nUntil that is done the name is taken: an account created as %1 gets a suffixed\nhome and will not find anything kept in the old one, ssh keys included.\n\nC:\ProgramData\SD\profile-reclaim is where the record should have gone. If it\nis missing, or SD cannot write to it, that is what to repair.
-```
-
-### msg:10124
-> kind=message tier=reference since=- src=sdsys/messages/10124:1#1487ead5
-
-```
-Cannot create %1: a Windows profile directory is already there.\n\n    %2\n\nWindows will not put a new profile where one already sits. It would give %1 a\nsuffixed home instead - the same name with the computer name added - and\nanything expected in the directory above, ssh keys included, would not be\nfound there. That is a wrong answer nothing says out loud, so this is refused\ninstead.\n\nIt is almost always the profile of an account of this name that was deleted\nwhile Windows still had its registry hive mounted. SD cannot clear it from\nhere - the hive is still up, and only a restart releases it.\n\nIf SD deleted that account, it recorded the directory and the SD service\nremoves it at the next restart of this computer: restart, then create the\naccount. Otherwise delete the directory from an elevated prompt first.
-```
-
-### msg:10125
-> kind=message tier=reference since=- src=sdsys/messages/10125:1#f6b01f5a
-
-```
-Cannot create %1: the check for a leftover Windows profile did not run (%2).\n\nBefore creating an account SD tests whether a profile directory of that name\nis already sitting under C:\Users. If one is, Windows silently gives the new\naccount a suffixed home and anything expected in the old directory - ssh keys\nincluded - is not found there.\n\nThat test could not be made, so this creation is refused rather than made\nblind. It is the one thing here that cannot be put right afterwards.\n\nStatus 1 means PowerShell could not be run at all; status 2 means the account\nname was rejected before anything was measured.
-```
-
 ### msg:1013
 > kind=message tier=reference since=- src=sdsys/messages/1013:1#c3120e30
 
@@ -833,10 +660,10 @@ The Windows account %1 was created, and removing it again FAILED - so it is stil
 ```
 
 ### msg:10131
-> kind=message tier=reference since=- src=sdsys/messages/10131:1#c05b4ce5
+> kind=message tier=reference since=- src=sdsys/messages/10131:1#ac6687f7
 
 ```
-remote.api on | local | off\n\nON     SD listens on port 4249 and other computers may connect.\nLOCAL  SD listens on port 4249 and only this computer may connect.\nOFF    SD opens no API socket at all.\n\nWith no keyword it reports the current setting and changes nothing.\n\nON and OFF change whether SD opens a socket, which it decides when it starts,\nso they offer to restart SD. LOCAL and ON differ only in the firewall and take\neffect at once.
+remote.api on | local | off\n\nON     SD listens on port 4249 on every address and the firewall allows it:\n       other computers may connect.\nLOCAL  SD listens on port 4249 at 127.0.0.1 only: only this computer may connect.\nOFF    SD opens no API socket at all.\n\nWith no keyword it reports the current setting and changes nothing.\n\nSD opens its socket when it starts, so a move between ON, LOCAL and OFF\ntakes effect when SD is next started; the firewall part at once.
 ```
 
 ### msg:10132
@@ -851,27 +678,6 @@ The SD API is now %1.
 
 ```
 Could not set the SD API to %1 (status %2). Nothing was changed.\n\nStatus 1 means sd.conf could not be written; status 2 means the question could\nnot be answered - the file is missing, unreadable, or carries no APIPORT line\nfor SD to recognize. Status -1 means the helper could not be run at all.\n\nsd.conf is in C:\ProgramData\SD and only administrators may write it.
-```
-
-### msg:10134
-> kind=message tier=reference since=- src=sdsys/messages/10134:1#3b887f26
-
-```
-The API listener was set to %1, but the firewall rule was NOT changed (status %2).\n\nSD will open the port when it next starts, and who may reach it is whatever\nthe firewall already said. Run "remote.api %1" again, or set the rule by hand:\n\n    powershell -ExecutionPolicy Bypass -File "C:\Program Files\SD\api-firewall.ps1" -Open\n    powershell -ExecutionPolicy Bypass -File "C:\Program Files\SD\api-firewall.ps1" -Restrict
-```
-
-### msg:10135
-> kind=message tier=reference since=- src=sdsys/messages/10135:1#0649fc10
-
-```
-Restart SD now? Every SD session ends, including this one (y/<n>)?
-```
-
-### msg:10136
-> kind=message tier=reference since=- src=sdsys/messages/10136:1#98d23188
-
-```
-SD was not restarted. The setting is written and takes effect when SD is next\nstarted.
 ```
 
 ### msg:10137
@@ -902,69 +708,6 @@ Could not set remote ssh access to %1 (status %2). Nothing was changed.\n\nStatu
 Error %d redirecting stderr
 ```
 
-### msg:10140
-> kind=message tier=reference since=- src=sdsys/messages/10140:1#e6bf1c48
-
-```
-There is no ssh server on this machine, so there is nothing to open or shut.\n\nWindows registers a firewall rule for its OpenSSH server when the server is\ninstalled, and none is there. Install one with:\n\n    ssh.server install\n\nUntil then no SD account can sign in, including at this keyboard - accounts SD\ncreates reach SD over ssh and nothing else.
-```
-
-### msg:10141
-> kind=message tier=reference since=- src=sdsys/messages/10141:1#bc883d71
-
-```
-ssh.server install | remove\n\nINSTALL  add the Windows OpenSSH server to this machine.\nREMOVE   take it away.\n\nWith no keyword it reports whether one is present and changes nothing.\n\nINSTALL comes from Windows Update and CAN TAKE SEVERAL MINUTES with nothing on\nscreen. REMOVE asks first, because accounts SD creates sign in over ssh and\nnothing else, and completes when Windows next restarts.\n\nThis is about reaching THIS machine. The ssh client - ssh, scp and sftp - is a\nseparate part of Windows and is not touched either way.
-```
-
-### msg:10142
-> kind=message tier=reference since=- src=sdsys/messages/10142:1#06add5b1
-
-```
-The OpenSSH server was installed, and Windows needs a restart before it runs.\n\nUntil this computer is restarted the ssh service does not exist, so no SD\naccount can sign in yet. Nothing else needs doing afterwards.
-```
-
-### msg:10143
-> kind=message tier=reference since=- src=sdsys/messages/10143:1#40ca4bfb
-
-```
-Could not %1 the ssh server (status %2). Nothing was changed.\n\nStatus 1 means Windows refused the change or SD is not running elevated;\nstatus -1 means the helper could not be run at all. A Windows capability\ncannot be added or removed without administrator rights.
-```
-
-### msg:10144
-> kind=message tier=reference since=- src=sdsys/messages/10144:1#cb401ba1
-
-```
-Accounts SD creates sign in over ssh, or over the API. Removing the ssh server\ntakes away the ssh way in - and for an account that has only ssh, including at\nthis keyboard where it arrives by "ssh localhost", that is its only way in.\n\nRemove the OpenSSH server (y/<n>)?
-```
-
-### msg:10145
-> kind=message tier=reference since=- src=sdsys/messages/10145:1#c60d5d2a
-
-```
-Nothing was changed.
-```
-
-### msg:10146
-> kind=message tier=reference since=- src=sdsys/messages/10146:1#104341fb
-
-```
-There is no OpenSSH server on this machine, so there was nothing to remove.
-```
-
-### msg:10147
-> kind=message tier=reference since=- src=sdsys/messages/10147:1#14f69d4b
-
-```
-The OpenSSH server is installed and running.\n\nWho may reach it is a separate setting - use "remote.ssh" to see or change it.
-```
-
-### msg:10148
-> kind=message tier=reference since=- src=sdsys/messages/10148:1#bbf6a177
-
-```
-Removal accepted, and it completes when Windows next restarts.\n\nUNTIL YOU RESTART, THE ssh SERVER IS STILL HERE AND STILL RUNNING. Windows\nstages the removal rather than doing it at once, so ssh going on working now is\nexpected and is not a fault.\n\nC:\ProgramData\ssh is left in place. It holds the host keys and sshd_config,\nand Windows does not remove it with the capability. That matters for ONE thing:\nrunning the SD INSTALLER on this machine again. Setup compares sshd_config\nagainst the copy Windows ships, sshd_config_default, and that copy went with the\ncapability, so Setup cannot tell whether the configuration has been edited and\nstops rather than guess. "ssh.server install" is NOT affected: it puts the\nserver back, and sshd_config_default comes back with it. Remove that directory\ntoo if you do not intend to run an ssh server on this machine again.
-```
-
 ### msg:10149
 > kind=message tier=reference since=- src=sdsys/messages/10149:1#9f7e64fd
 
@@ -979,13 +722,6 @@ cited by: `cproc`
 
 ```
 Error %d creating stdin pipe
-```
-
-### msg:10150
-> kind=message tier=reference since=- src=sdsys/messages/10150:1#f3cbfaee
-
-```
-The grant is in place, but this sign-in cannot use it yet.\n\nWindows fixes your group membership when you sign in. If the grant was added\nafter that - which is exactly what create.account does - the machine says you\nare a member of the account's group and your current sign-in does not.\n\nSign out and back in, then try again. Nothing needs to be changed.\n\nIf signing in again does not help, the account directory itself may be missing\nor unreadable. SD tried: %1
 ```
 
 ### msg:10151
@@ -1090,13 +826,6 @@ cited by: `apisrvr`
 
 ```
 %1 is set up to use the API, but this machine provides no API listener yet. The account cannot connect until it is turned on (remote.api on) - the grant is already in place and takes effect then.
-```
-
-### msg:10163
-> kind=message tier=reference since=- src=sdsys/messages/10163:1#d6e9e77c
-
-```
-Installing the OpenSSH server downloads it from Windows Update, which can take several minutes - up to about an hour on a slow machine or connection - with little on screen while it runs. Install it now (y/<n>)?
 ```
 
 ### msg:10164
@@ -1304,13 +1033,6 @@ cited by: `copy`
 
 ```
 Account %1 could not be opened to check for references to the account being deleted, so it was skipped. The deletion continues.
-```
-
-### msg:10189
-> kind=message tier=reference since=- src=sdsys/messages/10189:1#6773c549
-
-```
-Authentication succeeded but the session could not determine its own user name
 ```
 
 ### msg:1019
@@ -1680,11 +1402,11 @@ Internal session admitted (opened by %1)
 
 cited by: `login`
 
-### msg:12001
-> kind=message tier=reference since=- src=sdsys/messages/12001:1#20e4c930
+### msg:12005
+> kind=message tier=reference since=- src=sdsys/messages/12005:1#f44b61fa
 
 ```
-Remote access is never available to SDSYS; it is administered at this computer
+Windows could not answer for %1 (%2)
 ```
 
 ### msg:1201
@@ -1729,13 +1451,6 @@ cited by: `acc_archive`
 
 ```
 %1 is not a full path
-```
-
-### msg:12041
-> kind=message tier=reference since=- src=sdsys/messages/12041:1#87a57cbe
-
-```
-Could not read %1 for the backup (%2)
 ```
 
 ### msg:12042
@@ -5582,6 +5297,15 @@ Cannot be imported into the text: %1 %2 holds value marks, subvalue marks, text 
 
 cited by: `ide`
 
+### msg:12598
+> kind=message tier=reference since=- src=sdsys/messages/12598:1#68276272
+
+```
+Wrong password - nothing was changed
+```
+
+cited by: `remotedoor`
+
 ### msg:12602
 > kind=message tier=reference since=- src=sdsys/messages/12602:1#bb1ca89d
 
@@ -8665,20 +8389,11 @@ The doors helper gave no answer within %1 seconds; nothing is known to have chan
 
 cited by: `remotedoor`, `solojob`
 
-### msg:12987
-> kind=message tier=reference since=- src=sdsys/messages/12987:1#68276272
-
-```
-Wrong password - nothing was changed
-```
-
-cited by: `remotedoor`
-
 ### msg:12988
-> kind=message tier=reference since=- src=sdsys/messages/12988:1#c4aab862
+> kind=message tier=reference since=- src=sdsys/messages/12988:1#b533e116
 
 ```
-%1: this session cannot write the VOC of that account, so it was left as it was. The installer's upgrade updates every account.
+%1: this session cannot write that VOC, so it was left as it was. The installer's upgrade updates it.
 ```
 
 cited by: `login`
@@ -10657,7 +10372,7 @@ cited by: `cproc`
 New password:
 ```
 
-cited by: `set_password`
+cited by: `login`, `set_password`
 
 ### msg:15899
 > kind=message tier=reference since=- src=sdsys/messages/15899:1#2b66867b
@@ -10666,7 +10381,7 @@ cited by: `set_password`
 Confirm the new password:
 ```
 
-cited by: `set_password`
+cited by: `login`, `set_password`
 
 ### msg:15900
 > kind=message tier=reference since=- src=sdsys/messages/15900:1#51076185
@@ -10675,7 +10390,7 @@ cited by: `set_password`
 The passwords do not match - the password is unchanged
 ```
 
-cited by: `set_password`
+cited by: `login`, `set_password`
 
 ### msg:15901
 > kind=message tier=reference since=- src=sdsys/messages/15901:1#092a16e7
@@ -10720,7 +10435,7 @@ cited by: `set_password`
 The password could not be stored (status %1)
 ```
 
-cited by: `set_password`
+cited by: `login`, `set_password`
 
 ### msg:15906
 > kind=message tier=reference since=- src=sdsys/messages/15906:1#54c8bdac
@@ -10874,6 +10589,24 @@ The global password must differ from the account and administrator passwords - t
 ```
 
 cited by: `set_password`
+
+### msg:15923
+> kind=message tier=reference since=- src=sdsys/messages/15923:1#99b77027
+
+```
+Password set for account %1
+```
+
+cited by: `login`
+
+### msg:15924
+> kind=message tier=reference since=- src=sdsys/messages/15924:1#630b16f9
+
+```
+No password was set, and one is required. Start SD again to choose it.
+```
+
+cited by: `login`
 
 ### msg:15925
 > kind=message tier=reference since=- src=sdsys/messages/15925:1#bc5b8856
@@ -11297,6 +11030,15 @@ set.config parameter value (for example set.config cleanup 600); tool.config sho
 ```
 
 cited by: `setconfig`
+
+### msg:15983
+> kind=message tier=reference since=- src=sdsys/messages/15983:1#70816855
+
+```
+Not in the backup: %1
+```
+
+cited by: `acc_archive`
 
 ### msg:15995
 > kind=message tier=reference since=- src=sdsys/messages/15995:1#32ac8f74

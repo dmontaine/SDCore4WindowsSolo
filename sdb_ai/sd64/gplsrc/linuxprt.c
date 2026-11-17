@@ -17,6 +17,9 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4290..P-4292), from SD Core 8c6871b9 and 661b728c (RELEASE_1.1 219): sd.conf's
+ *           SPOOLER is the printer a job goes to when SETPTR names none (Linux: the lp command; here a printer NAME for Out-Printer), quoted
+ *           exactly as an AT name is, so it is never a command; a refused job names the printer it was sent to (qprinter).
  * 17 Sep 26 Windows port - RELEASE_1.1 54: spool_print_job() hands the job
  *           to WINDOWS PRINTING through PowerShell's Out-Printer - the
  *           session user's default printer, or the one SETPTR named with AT
@@ -165,6 +168,12 @@ void spool_print_job(PRINT_UNIT* pu) {
       tio_printf("Print job not sent: the printer name is too long\n");
       return;
     }
+  } else if (pcfg.spooler[0] != '\0') {
+    /* 17 Nov 26 (SD Core RELEASE_1.1 219): sd.conf's SPOOLER, the printer SD uses when SETPTR names none */
+    if (ps_quote(qprinter, sizeof(qprinter), pcfg.spooler) < 0) {
+      tio_printf("Print job not sent: the SPOOLER printer name is too long\n");
+      return;
+    }
   }
 
   /* The job text is read once; each copy is one Out-Printer.  With no -Name
@@ -215,7 +224,7 @@ void spool_print_job(PRINT_UNIT* pu) {
       tio_printf("Print job not sent: PowerShell did not start (%s)\n", psh);
     else if (qprinter[0])
       tio_printf("Print job not sent: Windows refused it for printer %s (exit %d) - is the name right?\n",
-                 pu->printer_name, WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+                 qprinter, WIFEXITED(status) ? WEXITSTATUS(status) : -1);
     else
       tio_printf("Print job not sent: Windows refused it for the default printer (exit %d) - is one set for this user?\n",
                  WIFEXITED(status) ? WEXITSTATUS(status) : -1);

@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-3512..P-3514): K_WINPID (59), K_INTERACTIVE (64) and K_OS_ELEVATED (65) retired;
+ *           no Solo program asks them.  Keep the numbers unused.
  * 16 Nov 26 SD Core Solo - RELEASE_1.1 247, from Windows Core f43a0a43 (Linux 7f7a4fd4): K_LOCK_TRACE (115), LOCK.TRACER.
  * 16 Nov 26 SD Core Solo - RELEASE_1.1 246: the AI keys' comment says the helper is here (op_ai.c); the numbers are unchanged.
  * 15 Nov 26 SD Core Solo - from Core f6c20e51 (Linux Solo 9b69caa, S.242 stage 3, RELEASE_1.1 299): K_XFER (173), the file transfer slot and server.
@@ -236,7 +238,7 @@
 #define K_RUNEXE             56
 #define K_AUDIT              57
 #define K_WINPATH            58
-#define K_WINPID             59
+/* 59 (K_WINPID): retired 17 Nov 26 (SD Core's elevate asks it; Solo has none).  Keep the number unused. */
 /* 17 Aug 26 Windows port - a SEPARATE key rather than making K_USERNAME
    settable.  K_USERNAME is read as kernel(K$USERNAME, 0) in two places, and
    k_get_c_string() renders that integer 0 as the string "0" - so overloading
@@ -268,54 +270,9 @@
    is not optional.                                                          */
 #define K_OS_ADMINISTRATOR   63
 
-/* 05 Sep 26 Windows port - PRE_RELEASE_FIXES.md 167.  DOES THIS SESSION HAVE A
-   DESKTOP UAC COULD RENDER ON?  The third question about a session, and it is
-   about the ROUTE where the two above are about the person and the process:
-
-     K_ADMINISTRATOR     the SESSION flag, USR_ADMIN - elevated, and settable
-                         $internal.  What this session may DO.
-     K_OS_ADMINISTRATOR  the PERSON, asked of Windows every time.  WHO signed
-                         in.  A LOGTO does not move it.
-     K_INTERACTIVE       the ROUTE.  How the session ARRIVED - console or a
-                         service-installed remote desktop, versus ssh, the API
-                         or an unattended scheduled task.
-
-   ***IT IS DELIBERATELY INDEPENDENT OF ELEVATION, AND THAT IS THE WHOLE REASON
-   IT IS A SEPARATE KEY.***  An administrator sitting at an UNELEVATED console
-   must still be admitted - they log in to their own account and reach SDSYS
-   with LOGTO, which asks UAC.  Folding the route into the seed would refuse
-   them, because the seed also requires IsElevated().  Measured 5 Sep 2026:
-   INTERACTIVE is TRUE in the filtered token and TRUE in the linked one, so it
-   answers the same either side of a UAC prompt.
-
-   IT CARRIES CN_SOCKET AS WELL AS THE SID, so one key answers for both of the
-   routes the owner's ruling names.  A socket session is the API and has no
-   desktop by construction; op_kernel.c has the reasoning.
-
-   Read-only, so NOT gated on HDR_INTERNAL, for K_OS_ADMINISTRATOR's reason:
-   it reports a fact about the session that grants nothing.  BCOMP refuses
-   KERNEL to anything not $internal in any case.                             */
-#define K_INTERACTIVE        64
-
-/* 15 Sep 26 Windows port - RELEASE_1.1 45, the owner's "elevation is the only
-   door to SDSYS" model.  DID THIS PROCESS START ELEVATED?  The fourth question,
-   completing the table above: the PROCESS's own elevation, as IsElevated()
-   answers it.
-
-     K_ADMINISTRATOR     the SESSION flag, USR_ADMIN.  Set on entering SDSYS,
-                         cleared on the way out.  A LOGTO moves it.
-     K_OS_ADMINISTRATOR  the PERSON.  A LOGTO does not move it.
-     K_INTERACTIVE       the ROUTE.  A LOGTO does not move it.
-     K_OS_ELEVATED       the PROCESS's elevation.  IMMUTABLE for the process
-                         life, so a LOGTO does not move it either - which is why
-                         it, not the seed above, gates re-entry to SDSYS.
-
-   CN_SOCKET as well as the token check, for K_OS_ADMINISTRATOR's reason: an API
-   session is fork()ed by the elevated LocalSystem service, so IsElevated() is
-   TRUE for it without the guard.  Read-only, so NOT gated on HDR_INTERNAL.   */
-#define K_OS_ELEVATED        65
-
-/* 66 (K_HANDOFF) and 67 (K_API_PREAUTH): retired, see the note at 61. */
+/* 64 (K_INTERACTIVE, the route) and 65 (K_OS_ELEVATED, the process's elevation): retired 17 Nov 26 (four-version audit P-3512, P-3513).
+   SD Core's LOGIN and CPROC ask them; no Solo program does.  Keep the numbers unused.
+   66 (K_HANDOFF) and 67 (K_API_PREAUTH): retired, see the note at 61. */
 
 /* 17 Sep 26 Windows port - RELEASE_1.1 55.  IS A NAMED USER IN A NAMED LOCAL
    GROUP?  A live SAM query with no child process (win32group.c).

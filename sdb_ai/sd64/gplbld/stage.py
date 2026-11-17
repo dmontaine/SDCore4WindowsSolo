@@ -379,7 +379,19 @@ SDSYS_SHIP = [
     # had, so that an update removes it only from an account where it is still SD's own
     # record.  Shipped and REPLACED on upgrade (a later release adds to it).
     ('voc_removed',   'VOC records SD no longer ships; an update removes them (S.87)'),
+    # 17 Nov 26 SD Core Solo - four-version audit P-4270/P-4272/P-4274, from SD Core 2f5f9ab5 (RELEASE_1.1 253a; Linux S.69 rows 1
+    # and 1b; Linux Solo installs it too, installsdsolo.sh AGENTPACK).  TEXT ONLY: the SD BASIC guide and the knowledge pack generated
+    # from this tree (agent-pack/mkpack.py), for the user to copy to where an AI agent works.  Nothing in SD reads it.  Its source is
+    # sd64/agent-pack/{guide,pack}, not sdsys (SDSYS_SHIP_SOURCE below); replaced on upgrade like every ship name.
+    ('agent-pack',    'the AI guide and the knowledge pack of this version, as text'),
 ]
+
+# 17 Nov 26 (SD Core 13 Nov) - A SHIP NAME WHOSE SOURCE IS NOT sdsys/<name>.  Each entry is the staged name and the (source,
+# staged sub-path) pairs that make it.  agent-pack takes only guide/ and pack/: the skill, the templates, the recipe, the
+# generator and the notes stay in the repository, as on Linux.
+SDSYS_SHIP_SOURCE = {
+    'agent-pack': [('agent-pack/guide', 'guide'), ('agent-pack/pack', 'pack')],
+}
 
 # 21 Sep 26 - INPUTS TO THE BOOTSTRAP THAT MUST NOT REACH THE INSTALL.  Copied into
 # the staged tree so BBPROC can read them, and DELETED from it once the bootstrap has
@@ -1456,6 +1468,9 @@ def main():
     ap.add_argument('--list-retired', action='store_true',
                     help='print the sdsys names that no longer ship into the '
                          'data tree, one per line, and exit')
+    ap.add_argument('--list-stripped', action='store_true',
+                    help='print the voc_template records the staging removes, '
+                         'as voc_template/<name>, one per line, and exit')
     args = ap.parse_args()
 
     # ANSWERED BEFORE ANY OTHER CHECK, DELIBERATELY.  assert-current.ps1 asks
@@ -1484,6 +1499,14 @@ def main():
     if args.list_retired:
         for name, _why in SDSYS_RETIRED:
             print(name)
+        return 0
+
+    # 17 Nov 26 SD Core Solo - four-version audit P-4273, from SD Core 3142bb50 (RELEASE_1.1 266): THE STRIPPED
+    # voc_template RECORDS, for the same reader.  They are in source and deliberately absent from the install,
+    # and the retired list cannot hold them: it matches a FIRST path segment, and these are under voc_template.
+    if args.list_stripped:
+        for rec in VOC_TEMPLATE_STRIP:
+            print('voc_template/' + rec)
         return 0
 
     # 25 Sep 26 SD Core Solo (SOLO 4) - --bootstrap no longer needs an elevated
@@ -1849,6 +1872,12 @@ def main():
     # SDSYS_BUILD_SEED is copied like a ship name - BBPROC reads it during the
     # bootstrap below - and deleted again once that has finished.
     for name, _why in SDSYS_SHIP + SDSYS_BUILD_SEED:
+        if name in SDSYS_SHIP_SOURCE:   # 17 Nov 26: staged from elsewhere in the tree (agent-pack), as SD Core
+            for s, d in SDSYS_SHIP_SOURCE[name]:
+                if not os.path.isdir(s):
+                    die('%s is the source of the ship name %s but is not in the tree' % (s, name))
+                copy_tree(s, os.path.join(sdsys, name, d), staged, stage)
+            continue
         src = os.path.join('sdsys', name)
         if not os.path.exists(src):
             die('sdsys/%s is on the ship or seed list but is not in the tree' % name)

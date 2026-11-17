@@ -509,4 +509,21 @@ $(OBJS): $(SDHDRS)
 .c.o:
 	@echo Compiling $@, $(BITSIZE) bit target.
 	@$(COMP) $(C_FLAGS) -c $< -o $(GPLOBJ)$@
+
+# 17 Nov 26 SD Core Solo - four-version audit P-4389, from Linux Solo's Makefile: clean and check-includes.
+# The SD BASIC include records generated from C headers (SYSCOM/ERR.H, GPL.BP/ERRTEXT.H, GPL.BP/REVSTAMP.H,
+# GPL.BP/OPCODES.H) must match their gplsrc sources.  --check writes nothing and exits non-zero on any drift;
+# regenerate with:  python3 gplbld/gen_includes.py
+# clean takes the objects and the programs built into bin\ (every .exe and .dll there; bin\README stays) and
+# the compiled terminfo.  Windows: the programs carry .exe and the client library is a .dll.
+.PHONY: clean check-includes
+
+check-includes:
+	@python3 gplbld/gen_includes.py --check
+
+clean:
+	@echo Cleaning build files
+	@$(RM) -f $(GPLOBJ)*.o
+	@$(RM) -f $(GPLBIN)*.exe $(GPLBIN)*.dll
+	@$(RM) -Rf $(TERMINFO)
 	

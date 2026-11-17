@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4282): the STARTUP refusal says "it never ran on Windows", as SD Core's.
  * 17 Nov 26 SD Core Solo - from Core 8bd42f1a (RELEASE_1.1 317; audit round 1): APILOCAL=1 (the API listener binds the loopback address only).
  * 15 Nov 26 SD Core Solo - from Core (Linux 64561d81, S.230): copy_section_name() bounds and terminates a [section] name.
  * 12 Nov 26 SD Core Solo - as Linux (RELEASE_1.1 251): an empty TMP is treated as unset, and TEMPDIR's default is copied with a bound.
@@ -441,7 +442,7 @@ struct CONFIG* read_config(char* errmsg) {
          it never ran here.  A line still carrying it is refused BY NAME, not as an unknown
          word, so whoever wrote it is told what to do rather than left to guess. */
       else if (strncmp(rec, "STARTUP=", 8) == 0) {
-        sprintf(errmsg, "STARTUP is no longer supported (it never ran). "
+        sprintf(errmsg, "STARTUP is no longer supported (it never ran on Windows). "   /* 17 Nov 26: SD Core's words (audit P-4282) */
                         "Remove the STARTUP line from sd.conf.");
         goto exit_read_config;
       }

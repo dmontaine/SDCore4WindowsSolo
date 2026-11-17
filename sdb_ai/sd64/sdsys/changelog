@@ -3,6 +3,42 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+17 Nov 26  THE FOUR-VERSION PARITY AUDIT, ROUND 1: SD CORE'S LATEST FIXES, AND LINUX SOLO'S WORDS.
+
+             What        - a path is refused to an account rooted at a drive root ("C:\") or "/", as SD Core and Linux
+                           refuse one that would hold the whole machine.
+                         - the audit trail's rotation is refused when the trail's rights cannot be read, keeps a record
+                           written at the moment of the rotation, and is undone when the new trail cannot be made or
+                           given the old one's rights; it used to leave a trail with the folder's rights.
+                         - SELECT of a directory file gives back a record id holding a byte 128-255 that is not UTF-8
+                           as it was written (it came back changed).
+                         - sd.conf's SPOOLER names the Windows printer a print job goes to when SETPTR names none
+                           (empty, as delivered: the Windows default printer), and a refused job names the printer it
+                           was sent to.
+                         - BACKUP.ACCOUNT skips a link (a junction) in the account and names it ("Not in the backup:
+                           ..."); it used to stop the whole backup.
+                         - SYNC.GLOBAL.CATALOG removes only catalogued programs that are no longer wanted; it used to
+                           remove the README in gcat too.
+                         - SD's background process takes the system folder from where it is installed, not from the
+                           shared memory, and "sd-solo -cleanup" says in the error log when it found no lost session.
+                         - the first-password prompts and refusals at sign-in, the SDSYS refusal (type admin) and the
+                           "cannot write that VOC" message are Linux Solo's words; the API door's local line and REMOTE.API's
+                           help say that local listens on 127.0.0.1; set.config changes the file SD_CONFIG names, when
+                           it is set; the gates help names the AI's dash; a sign-in to the API with the account's own
+                           password is audited (via=account).
+                         - CONFIG GPL and CONFIG CONTRIB show the files licence and contrib of the Solo folder's sdsys,
+                           as Linux Solo does; since 16 Nov they looked for two VOC records that are no longer there.
+                         - the AI guide and the knowledge pack are installed, as text, in agent-pack in the Solo folder's
+                           sdsys, for the user to give to an AI agent; nothing in SD reads them.
+                         - message numbers: "Wrong password - nothing was changed" is 12598 and the backup's "Windows
+                           could not answer" is 12005, so no number means two things across SD Core and SD Core Solo
+                           for Windows; about forty messages nothing used are gone.
+             Why         - the owner's rule: SD Core for Linux is the template, and a Windows version differs only where
+                           Windows or Solo's one-user design forces it.  These are the round's findings for Solo.
+             Does NOT    - Make an upgrade convert case-sensitive files (upgrade_nocase): the owner ruled on 27 Sep 2026
+                           that Solo does not need it, since no Solo tree holds a file made before files ignored case.
+                           NOT YET TESTED ON AN INSTALLED SYSTEM.
+
 17 Nov 26  AN API FOR THIS COMPUTER ONLY LISTENS ON 127.0.0.1.
 
              What        - with the API set to local (the installer's API box without "reach from other computers", or

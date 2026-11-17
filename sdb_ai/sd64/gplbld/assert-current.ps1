@@ -200,7 +200,7 @@ Note ("  installed at: {0}" -f $installed.ToString('dd MMM HH:mm:ss'))
 # names present in gplsrc, sdsys and gplbld with the same ship evidence: ZERO files
 # that were exempt became watched, and nine probe .c files that were watched
 # (and so could have raised a false stale) became exempt.
-$harnessFamily = '^(verify|test|probe|check|clean)-'
+$harnessFamily = '^(verify|test|probe|check|clean|witness|sandbox)-'   # 17 Nov 26: witness and sandbox, as SD Core (audit P-4216)
 # 26 Sep 26 SD Core Solo - SOLO 9: the deleted suite's names are out of this list
 # (VerifyInstall1/2, suite-only, elevate-once, sdtestuser*, sdsys-seat/-run,
 # interop-account, stage-apiremote, apiadminprobe/apiosexecprobe.sb, testsdcli.bp,
@@ -491,6 +491,24 @@ if ($retiredErr) {
     Note ("  {0} retired name(s) excluded from the rename walk: {1}" -f $retired.Count, ($retired -join ' '))
 }
 
+# 17 Nov 26 SD Core Solo - four-version audit P-4217..P-4219, from SD Core 3142bb50 (RELEASE_1.1 266): THE STRIPPED
+# voc_template RECORDS, asked of stage.py for the same reason.  Matched on the WHOLE relative path, since they sit
+# under voc_template and the retired match is on the first segment.
+$stripped = @()
+if (-not $retiredErr) {
+    $strippedRaw = & $python.Source $stagePy --list-stripped 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Note ("  could not read the stripped list (stage.py --list-stripped exited {0}) - a stripped voc_template record will report STALE" -f $LASTEXITCODE)
+    } else {
+        $stripped = @($strippedRaw | ForEach-Object { "$_".Trim() } |
+                      Where-Object { $_ -match '^voc_template/[A-Za-z0-9._$-]+$' } |
+                      ForEach-Object { $_.Replace('/', '\').ToLowerInvariant() })
+    }
+}
+if ($stripped.Count -gt 0) {
+    Note ("  {0} stripped voc_template record(s) excluded from the rename walk: {1}" -f $stripped.Count, ($stripped -join ' '))
+}
+
 $srcSys  = Join-Path $sd64 'sdsys'
 $instSys = $instTree
 if ((Test-Path $srcSys) -and (Test-Path $instSys)) {
@@ -511,6 +529,7 @@ if ((Test-Path $srcSys) -and (Test-Path $instSys)) {
             # retired file matches itself.  changelog is the only one today.
             $seg = $rel.Split([char]'\')[0]
             if ($retired -contains $seg) { return }
+            if ($stripped -contains $key) { return }
             if ($instByLower.ContainsKey($key)) {
                 # -cne is the whole point: -ne would call these equal.
                 if ($instByLower[$key] -cne $rel) {

@@ -18,6 +18,8 @@
 *
 *
 * START-HISTORY:
+* 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4446..P-4448), as Linux Solo: the sweep deletes only catalogue objects (magic
+*           test), so the shipped README in gcat stays; gcat is read with mark mapping off from the start; the refusal names $ ! _ * and -.
 * 16 Nov 26 Windows port - from Linux Solo c8dac7a: messages 12028 and 12029 are 15915 and 15916, text unchanged.
 * 16 Nov 26 SD Core Solo - SOLO 60 (Linux mail 2026-11-16T1330): the $cred id '$global' in lower case, as Linux Solo.
 * 09 Nov 26 SD Core Solo - RELEASE_1.1 204: the * prefix went with S.87 (Linux fb98cfb5), so the server's programs are catalogued under their plain
@@ -125,6 +127,7 @@ $include err.h
    openpath @sdsys : @ds : 'gcat' to gcat.f else
       stop sysmsg(3022) ;* Cannot open global catalogue directory
    end
+   mark.mapping gcat.f, off     ;* object code is read whole (the sweep below tests its magic byte)
 
    magic = if system(1009) then HDR.MAGIC.NO.B else HDR.MAGIC.NO.L
 
@@ -134,7 +137,7 @@ $include err.h
       readnext id from 11 else exit
       call.name = downcase(id)
       if index('$!_*-', call.name[1, 1], 1) then
-         display 'sync.global.catalog: ' : id : ' begins with a character SD keeps for its own programs - refused'
+         display 'sync.global.catalog: ' : id : ' begins with $ ! _ * or - - refused'
          n.bad += 1
          continue
       end
@@ -172,6 +175,11 @@ $include err.h
    loop
       readnext id from 12 else exit
       if not(index('$!_', id[1, 1], 1)) then
+*        17 Nov 26 (audit P-4446, Linux Solo): only an object record is a catalogue entry: gcat also
+*        holds the shipped README, which has no prefix and must stay.
+         read obj from gcat.f, id else continue
+         if obj[hdr.magic, 1] # char(magic) then continue
+*        downcase(id): NTFS ignores case, so "FOO" and the "foo" just written are one file (OS).
          locate downcase(id) in want<1> setting pos else gone<-1> = id
       end
    repeat

@@ -17,6 +17,10 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4317, P-4318, P-4320), from SD Core f026b93f (W.11 F1, RELEASE_1.1 249): the
+ *           system directory is no longer taken from the shared segment: own_sysdir() takes <home>\sdsys from this program's own place,
+ *           as Linux Solo's daemon does, or the configuration file's SDSYS= line, at start-up (exit 3 with neither), and the error log
+ *           is opened under it with a bounded snprintf.
  * 17 Nov 26 SD Core Solo - from Core 8bd42f1a (RELEASE_1.1 317; four-version audit round 1): with APILOCAL=1 the API listener binds
  *           127.0.0.1 only, as Linux Solo's LOCAL; it bound every interface always (INADDR_ANY), the firewall alone narrowing it.
  * 18 Oct 26 Windows port - from Linux 7f7a4fd (sdlnxd.c, 16 Oct 26): the scan for lost
@@ -108,6 +112,44 @@ bool terminate = FALSE;
    one place to change it. */
 static int api_listener = -1;
 
+/* 17 Nov 26 SD Core Solo - four-version audit P-4317, from SD Core f026b93f (W.11 F1, RELEASE_1.1 249; Linux 12615e80): the system
+   directory, NOT from the shared segment.  Linux Solo's daemon finds it from its own path; Solo does the same as sd does (config.c):
+   <home>\sdsys from this executable's own place (GetDefaultSysdir(), <home>\usr\bin\sdwind), then the SDSYS= line of the [sd] section
+   of the configuration file, the last one, when there is one.  Solo's sdwind runs as the one user over an owner-only segment, so the
+   weight is less than on SD Core, where it runs as LocalSystem; the rule is the same. */
+static char own_sysdir_path[MAX_PATHNAME_LEN + 1];
+
+static bool own_sysdir(void) {
+  char conf[MAX_PATHNAME_LEN + 1];
+  char rec[MAX_PATHNAME_LEN + 32];
+  char* p;
+  bool in_sd = FALSE;
+  bool found = FALSE;
+  FILE* fu;
+
+  if (GetDefaultSysdir(own_sysdir_path, sizeof(own_sysdir_path)))
+    found = TRUE;
+  else
+    own_sysdir_path[0] = '\0';
+  if (!GetConfigPath(conf) || ((fu = fopen(conf, "r")) == NULL))
+    return found;
+  while (fgets(rec, sizeof(rec), fu) != NULL) {
+    if ((p = strpbrk(rec, "\r\n")) != NULL)
+      *p = '\0';
+    if ((rec[0] == '#') || (rec[0] == '\0'))
+      continue;
+    if (rec[0] == '[') {
+      in_sd = (strncasecmp(rec, "[sd]", 4) == 0);
+      continue;
+    }
+    if (in_sd && (strncmp(rec, "SDSYS=", 6) == 0) && (rec[6] != '\0') &&
+        (snprintf(own_sysdir_path, sizeof(own_sysdir_path), "%s", rec + 6) < (int)sizeof(own_sysdir_path)))
+      found = TRUE;
+  }
+  fclose(fu);
+  return found;
+}
+
 void check_lost_users(void);
 static int open_api_listener(int port, bool local_only);
 static void accept_api_session(void);
@@ -127,6 +169,12 @@ int main() {
   time_t next_tick;
 
   process.user_no = -2; /* Mark as sdwind for semaphore table */
+
+  /* 17 Nov 26 W.11 F1: the system directory from this program's own place or the configuration file, before anything else. */
+  if (!own_sysdir()) {
+    fprintf(stderr, "sdwind: cannot find the system directory: not in a <home>\\usr\\bin folder and no SDSYS= line in the [sd] section of the configuration file\n");
+    exit(3);
+  }
 
   signal(SIGTERM, signal_handler);
 
@@ -709,8 +757,11 @@ void log_message(char* msg) {
   if (sysseg->errlog) {
     StartExclusive(ERRLOG_SEM, 71);
 
-    sprintf(buff, "%s%cerrlog", sysseg->sysdir, DS);
-    errlog = open(buff, O_RDWR | O_CREAT | O_BINARY, 0777);
+    /* 17 Nov 26 W.11 F1 (SD Core f026b93f, Linux 12615e80): not the segment's copy, and snprintf. */
+    if (snprintf(buff, BUFF_SIZE, "%s%cerrlog", own_sysdir_path, DS) >= BUFF_SIZE)
+      errlog = -1;
+    else
+      errlog = open(buff, O_RDWR | O_CREAT | O_BINARY, 0777);
 
     /* Modified by Composer AI - 2026/06/10.
        If the open() failed, "bytes" was used uninitialized and write()/

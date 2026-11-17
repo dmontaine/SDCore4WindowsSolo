@@ -17,6 +17,9 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4293, P-4294, P-4295): from SD Core b04ec733 (RELEASE_1.1 254, Linux path_inside_dir):
+ *               os_path_inside() (K_PATH_IN) refuses a directory that is not absolute and one that holds the whole machine (a drive root, or "/");
+ *               os_path_ok_for_account() refuses such an account root too.
  * 12 Nov 26 SD Core Solo - RELEASE_1.1 241: pub_ospath(), the public OSPATH() (Linux Solo's x_ospath) with openQM's keys and Linux Solo's gates
  *               (the OS switch; the VOC-only edit gate; no shared account), and Windows path rules as SD Core for Windows has them.
  * 11 Nov 26 SD Core Solo - SOLO 56 group 4, from Linux Solo carry 19 (38d522a): edit_os_path_refusal() and edit_leaf_counts(), the OS-path
@@ -2219,6 +2222,8 @@ bool net_path_permitted(char* path,     /* Absolute, as left by fullpath() */
    account that points out of it is followed by sdrealpath() as far as the runtime resolves it, which is also how the network gate
    behaves; the containment is the operating system's for anything the runtime cannot see.                                         */
 
+Private bool os_root_whole_machine(const char* root);   /* below, with os_path_inside() */
+
 bool os_path_ok_for_account(const char* name) {
   char resolved[MAX_PATHNAME_LEN + 1];
   char cand[MAX_PATHNAME_LEN + 1];
@@ -2245,7 +2250,8 @@ bool os_path_ok_for_account(const char* name) {
   if (process.syscom != NULL) {
     descr = Element(process.syscom, SYSCOM_ACCOUNT_PATH);
     if (k_get_c_string(descr, item, MAX_PATHNAME_LEN) > 0) {
-      if (net_normalise(item, root) && path_within(cand, root))
+      /* 17 Nov 26 (audit P-4293, SD Core RELEASE_1.1 254): an account at "/" or a drive root would hold the whole machine */
+      if (net_normalise(item, root) && !os_root_whole_machine(root) && path_within(cand, root))
         return TRUE;
     }
   }
@@ -2262,6 +2268,35 @@ bool os_path_open_ok(const char* name) {
 /* os_path_inside()  -  is name at or below rootdir?  Geometry only (Linux Solo's K_PATH_IN, S.73 item 1; 25 Oct 26 Windows port): both are resolved as an
    open would resolve them, folded into one namespace, and a surviving ".." refuses.  It does not ask the OS gate.                                    */
 
+/* 17 Nov 26 SD Core Solo (four-version audit P-4294, from SD Core b04ec733, RELEASE_1.1 254; Linux op_sh.c path_inside_dir()): the directory
+   must be absolute - a relative one would be resolved against whatever the working directory is - and a directory that holds the whole
+   machine is refused.  Linux refuses "/"; here that is a drive root ("C:\", "/c") and "/" itself, which is the runtime's root, SD's folder.  */
+
+Private bool os_root_absolute(const char* d) {
+  if ((d[0] == '/') || (d[0] == '\\'))
+    return TRUE;
+  return (((d[0] >= 'A') && (d[0] <= 'Z')) || ((d[0] >= 'a') && (d[0] <= 'z'))) && (d[1] == ':') && ((d[2] == '/') || (d[2] == '\\'));
+}
+
+Private bool os_root_whole_machine(const char* root) {   /* ROOT has been through net_normalise() */
+  char r[MAX_PATHNAME_LEN + 1];
+  char w[MAX_PATHNAME_LEN + 1];
+  size_t n;
+
+  snprintf(r, sizeof(r), "%s", root);
+  n = strlen(r);
+  while ((n > 1) && (r[n - 1] == '/'))
+    r[--n] = '\0';
+  if (strcmp(r, "/") == 0)
+    return TRUE;
+  if (cygwin_conv_path(CCP_POSIX_TO_WIN_A, r, w, sizeof(w)) != 0)
+    return TRUE;   /* cannot say what it is: refuse, as net_normalise() does */
+  n = strlen(w);
+  while ((n > 2) && ((w[n - 1] == '\\') || (w[n - 1] == '/')))
+    w[--n] = '\0';
+  return (n == 2) && (w[1] == ':');
+}
+
 bool os_path_inside(const char* rootdir, const char* name) {
   char rr[MAX_PATHNAME_LEN + 1];
   char cc[MAX_PATHNAME_LEN + 1];
@@ -2272,11 +2307,15 @@ bool os_path_inside(const char* rootdir, const char* name) {
     return FALSE;
   if ((strlen(rootdir) > MAX_PATHNAME_LEN) || (strlen(name) > MAX_PATHNAME_LEN))
     return FALSE;
+  if (!os_root_absolute(rootdir))
+    return FALSE;
   strcpy(rr, rootdir);
   strcpy(cc, name);
   if (!fullpath(rr, rr) || !fullpath(cc, cc))
     return FALSE;
   if (!net_normalise(rr, root) || !net_normalise(cc, cand))
+    return FALSE;
+  if (os_root_whole_machine(root))
     return FALSE;
   if (has_parent_ref(cand))
     return FALSE;

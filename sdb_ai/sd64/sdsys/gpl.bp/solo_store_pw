@@ -18,6 +18,7 @@
 *
 *
 * START-HISTORY:
+* 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4444): the record is cleared after the write, as Linux Solo.
 * 12 Nov 26 Windows port - RELEASE_1.1 260: the record id is '$stored', as Linux Solo; writing it over a $STORED an earlier release made keeps that file (NTFS).
 * 26 Sep 26 SD Core Solo - new, SOLO 15 piece 4 (ruling 21).
 * END-HISTORY
@@ -86,6 +87,7 @@ $include err.h
       write.ok = @false
    end
    close cred.f
+   rec = ''                       ;* 17 Nov 26 (audit P-4444): not kept past the write, as Linux Solo
    if not(write.ok) then
       set.status ER$PERM
       return

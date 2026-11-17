@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-3509..P-3514): K_WINPID (59), K_INTERACTIVE (64) and K_OS_ELEVATED (65) retired,
+ *           as 61, 62, 66 and 67 were: no Solo program asks them (SD Core's elevate, LOGIN and CPROC do).
  * 16 Nov 26 SD Core Solo - RELEASE_1.1 247, from Windows Core f43a0a43 / Linux Solo: K_LOCK_TRACE (115), LOCK.TRACER; the file is made
  *           here and appended to by the session (op_lock.c), as Linux Solo does - Solo has no service and one Windows user.
  * 16 Nov 26 SD Core Solo - RELEASE_1.1 246: K_AI_START, POLL, CANCEL and STATUS (160-163) go to k_ai() (op_ai.c, its transport win32ai.c: the helper
@@ -935,69 +937,9 @@ void op_kernel() {
       }
       break;
 
-    /* 05 Sep 26 Windows port - PRE_RELEASE_FIXES.md 167.  HOW DID THIS SESSION
-       ARRIVE?  keys.h has the three-way table this completes.
-
-       WHY IT EXISTS.  Owner's ruling, 5 Sep 2026: remote ssh and API access is
-       TOTALLY DENIED to administrators - administration happens at the console
-       or through a remote-control product or single-user remote desktop.  That
-       is a refusal of the SESSION, not a narrowing of its rights, so LOGIN
-       needs to ask the question before it chooses an account.  Nothing in the
-       BASIC layer could ask it before this key.
-
-       BOTH TERMS, BECAUSE THE RULING NAMES BOTH ROUTES.  IsInteractive() reads
-       S-1-5-4 from the token and answers for ssh, RDP, the console and an
-       unattended scheduled task.  It cannot answer for the API: an API session
-       is fork()ed by the LocalSystem service and AssumeUserIdentity() changes
-       only the EFFECTIVE uid, so the token walked here is the service's, not
-       the caller's - the identical trap K_OS_ADMINISTRATOR's CN_SOCKET guard
-       above exists for.  CN_SOCKET is the reliable discriminator there, and
-       using the SAME one keeps the two keys from drifting apart.
-
-       FAIL-CLOSED, AND THE UNDETERMINED CASE IS A REFUSAL.  IsInteractive()
-       returns FALSE when it could not read the token at all; that answers
-       "no desktop", which costs a local administrator a login they can retry
-       and costs a remote one nothing they were entitled to.  The log line says
-       which, so the refusal does not state a reason nobody established -
-       PRE_RELEASE 96's rule.                                                */
-
-    case K_INTERACTIVE: {
-      PRIV_WHY why;
-      bool has_desktop = IsInteractive(&why);
-
-      if (why != PRIV_ANSWERED)
-        priv_log_undetermined("K$INTERACTIVE", why);
-
-      result.data.value =
-          (has_desktop && (connection_type != CN_SOCKET)) ? TRUE : FALSE;
-    } break;
-
-    /* 15 Sep 26 Windows port - RELEASE_1.1 45, the owner's "elevation is the
-       only door to SDSYS" model.  DID THIS PROCESS START ELEVATED?  The fourth
-       session question, beside K_OS_ADMINISTRATOR (the person) and
-       K_INTERACTIVE (the route): the PROCESS's own elevation.
-
-       WHY A KEY AND NOT THE SEED.  K_ADMINISTRATOR (USR_ADMIN) is set on
-       entering SDSYS and CLEARED on the way out (CPROC's LOGTO), so it cannot
-       answer "may this session return to SDSYS" after a LOGTO down to a personal
-       account.  A process's elevation is IMMUTABLE for its life, so IsElevated()
-       asked fresh at any LOGTO is the same as at start - it survives a LOGTO for
-       free, which is exactly what the re-entry gate needs.
-
-       CN_SOCKET, for K_OS_ADMINISTRATOR's reason: an API session is fork()ed by
-       the LocalSystem service, whose token is elevated, so IsElevated() answers
-       TRUE for every remote client without this guard - the kernel.c:240 trap.
-       Read-only, so not gated on HDR_INTERNAL. */
-    case K_OS_ELEVATED: {
-      PRIV_WHY why;
-      bool elevated = IsElevated(&why);
-
-      if (why != PRIV_ANSWERED)
-        priv_log_undetermined("K$OS.ELEVATED", why);
-
-      result.data.value =
-          (elevated && (connection_type != CN_SOCKET)) ? TRUE : FALSE;
-    } break;
+    /* 17 Nov 26 SD Core Solo - four-version audit P-3509..P-3514: K_INTERACTIVE (64) and K_OS_ELEVATED (65) are RETIRED here, as 61, 62,
+       66 and 67 were: SD Core's LOGIN and CPROC ask them (the administrator's route and elevation), and no Solo program does.  Keep the
+       numbers unused; keys.h and int$keys.h agree. */
 
     case K_FILESTATS:
       GetInt(descr);
@@ -1473,19 +1415,8 @@ void op_kernel() {
       }
       break;
 
-    /* 16 Aug 26 Windows port - this session's pid AS WINDOWS COUNTS IT.
-       getpid() answers with the MSYS2 runtime's own number, which is not what
-       Get-Process or Task Manager use - the daemon that called itself pid 87
-       was 14712 to Windows (sysseg.c, win_pid()).  The elevated helper watches
-       its owning session with Get-Process, so it needs the Windows number;
-       given the runtime's, it would decide the session had gone at once, or
-       worse, watch an unrelated process that happened to hold it.
-       Answers 0 if the runtime cannot translate.                          */
-
-    case K_WINPID:
-      result.data.value =
-          (int32_t)cygwin_internal(CW_CYGWIN_PID_TO_WINPID, getpid());
-      break;
+    /* 17 Nov 26 SD Core Solo - four-version audit P-3511/P-3514: K_WINPID (59) is RETIRED here: SD Core's elevated helper (elevate) asks
+       it, and Solo has no elevate.  Keep the number unused. */
 
     /* 15 Nov 26 SD Core Solo - from Core f6c20e51 (Linux Solo 9b69caa, S.242 stage 3, RELEASE_1.1 299): the file transfer slot (RECEIVE /
        SEND) and the transfer server's side of it; $internal only (sd_sftp.c). */

@@ -12,7 +12,7 @@
 #            needs no restart and no new session.  (SD Core also has session: there a session reads sd.conf itself when it starts.  A Solo session does not - it takes its
 #            settings from the shared segment that sd-solo -start filled, gplsrc/sysseg.c - so every such parameter is restart here, as in Linux Solo's table, S.221.)
 #   status   live (something acts on it), file (read from sd.conf by a program each time it is used, not by the kernel), inert (accepted, and nothing on Windows acts on
-#            it yet: SPOOLER, whose Linux reader is lp)
+#            it; none since 17 Nov 26, when SPOOLER became the default printer's name, as SD Core's RELEASE_1.1 219)
 #   text     one sentence, plain, no vertical bar
 #   write    yes: the page and the verb set.config may change it, through gplbld/sd-confset.ps1, run as the user who runs SD (Solo's sd.conf is that user's file); no: they may not, and the page shows the line to add
 #            by hand.  ONLY A PARAMETER THAT CONFIG.C RANGE-CHECKS CAN BE yes, and the range above is then the range the helper enforces (test-confset-units.ps1 holds the
@@ -21,7 +21,7 @@
 #   why      for a no, one sentence of at most 100 characters, plain, no vertical bar: why this page does not change it; blank for a yes
 #
 # A line beginning with # is a comment.  Alphabetical by key.  Windows differs from Linux's table in: APIPORT and NETDIRS (Windows parameters), no STARTUP (refused by
-# name on Windows), the Windows paths and defaults (the PowerShell shell commands, TEMPDIR from TMP), and SPOOLER inert.
+# name on Windows), the Windows paths and defaults (the PowerShell shell commands, TEMPDIR from TMP), and SPOOLER a printer name (Linux: a command).
 # SD Core Solo (12 Nov 2026, SOLO 56 group 5): SD Core for Windows' table, with every session effect restart (above) and GRPDIR and USRDIR defaulting to folders of the
 # Solo folder (gplsrc/config.c).
 #
@@ -70,7 +70,7 @@ SH1|text||||restart|live|The command sh followed by a command line uses; when it
 SORTMEM|int|4096|||restart|live|Kilobytes of data above which a sort works on disk instead of in memory.|no|A size in kilobytes that SD does not check, so a mistake shows only when a sort runs.
 SORTMRG|int|4|2|10|restart|live|How many work files a disk sort merges at once.|yes|
 SORTWORK|path||||restart|live|The directory for the work files of a sort that does not fit in memory; when it is not set, or does not exist, SD uses TEMPDIR.|no|A directory: the work files of a large sort are written there.
-SPOOLER|text||||restart|inert|Accepted and reported by CONFIG, and nothing on Windows reads it: SD prints through Windows printing, to the default printer or the one SETPTR names.|no|Nothing on Windows acts on it.
+SPOOLER|text||||restart|live|The Windows printer a print job goes to when SETPTR names none (Linux: the spooler command). Empty: the Windows default printer.|no|Text that names a printer; check the printer's exact name in Windows first.
 TEMPDIR|path||||restart|live|The directory for temporary files; when it is not set, or does not exist, SD uses the TMP environment variable.|no|A directory: temporary files are written there.
 TERMINFO|path||||restart|live|An extra directory of terminfo definitions. The shipped definitions are found without it.|no|A directory: terminal definitions are read from there.
 USERPOOL|int|1023|0|16383|restart|live|The highest user number handed out; user numbers rotate through 1 to this value.|no|The highest user number: PHANTOMS is checked against it; a mistake stops SD.

@@ -42,8 +42,12 @@
 # writes them; Extract and Place count the tree on disk afterwards.  The verb
 # compares them with the manifest and refuses on a mismatch.
 #
-# A REPARSE POINT IS REFUSED, never followed.  A junction inside an account would
-# put another directory's contents - or a loop - into the backup.
+# A REPARSE POINT IS SKIPPED AND NAMED, never followed.  A junction inside an
+# account would put another directory's contents - or a loop - into the backup.
+# 17 Nov 26 (four-version audit P-4259, from SD Core's RELEASE_1.1 289): it was
+# REFUSED, which stopped the whole backup.  Linux Solo's archiver skips a symlink
+# and names it (acc_archive, 14983); Create now prints "ACC-ARCHIVE SKIPPED
+# <path>" for each, and acc_archive shows 15983 "Not in the backup: %1".
 
 param(
     [Parameter(Mandatory = $true)] [ValidateSet('Create', 'Extract', 'Count', 'Place', 'AkPath', 'Manifest')] [string]$Mode,
@@ -83,8 +87,11 @@ function Test-EntryName([string]$name) {
 }
 
 # Every directory and file under $root, depth first, as objects with Rel ("/"
-# separated, relative to $root), IsDir, Full and Length.  Refuses a reparse point.
+# separated, relative to $root), IsDir, Full and Length.  A reparse point is
+# left out, not followed, and its path added to $script:Skipped (once).
+$script:Skipped = New-Object System.Collections.Generic.List[string]
 function Get-TreeItems([string]$root) {
+    if ($null -eq $script:Skipped) { $script:Skipped = New-Object System.Collections.Generic.List[string] }
     $root  = (New-Object System.IO.DirectoryInfo($root)).FullName.TrimEnd('\')
     $items = New-Object System.Collections.Generic.List[object]
     $stack = New-Object System.Collections.Generic.Stack[string]
@@ -94,7 +101,8 @@ function Get-TreeItems([string]$root) {
         $di  = New-Object System.IO.DirectoryInfo($dir)
         foreach ($e in $di.GetFileSystemInfos()) {
             if ($e.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
-                throw "reparse point $($e.FullName)"
+                if (-not $script:Skipped.Contains($e.FullName)) { $script:Skipped.Add($e.FullName) }
+                continue
             }
             $rel = $e.FullName.Substring($root.Length).TrimStart('\').Replace('\', '/')
             if ($e -is [System.IO.DirectoryInfo]) {
@@ -389,6 +397,7 @@ try {
             for ($i = 0; $i -lt $entries.Count; $i++) {
                 Write-Output ("ACC-ARCHIVE ENTRY {0} {1} {2}" -f ($i + 1), $entries[$i].Name, (Format-Counts $counts[$i]))
             }
+            foreach ($s in $script:Skipped) { Write-Output ("ACC-ARCHIVE SKIPPED " + $s) }
             Write-Output ("ACC-ARCHIVE CREATE OK ENTRIES {0} ZIPBYTES {1}" -f $entries.Count, (Get-Item -LiteralPath $Zip).Length)
         }
         'Extract' {
@@ -397,11 +406,6 @@ try {
             foreach ($c in $counts) { Write-Output ("ACC-ARCHIVE ACCOUNT {0} {1}" -f $c.Name, (Format-Counts $c)) }
             Write-Output ("ACC-ARCHIVE EXTRACT OK ACCOUNTS {0}" -f $counts.Count)
         }
-        'Count' {
-            if ($Path -eq '') { Write-Output 'ACC-ARCHIVE ERROR Count needs -Path'; exit 2 }
-            if (-not (Test-Path -LiteralPath $Path -PathType Container)) { Write-Output "ACC-ARCHIVE ERROR no such directory: $Path"; exit 1 }
-            Write-Output ("ACC-ARCHIVE COUNT OK " + (Format-Counts (Get-TreeCounts $Path)))
-        }
         'Manifest' {
             if ($Zip -eq '') { Write-Output 'ACC-ARCHIVE ERROR Manifest needs -Zip'; exit 2 }
             $text  = Read-ZipManifest $Zip
@@ -409,6 +413,11 @@ try {
             if ($lines.Count -gt 0 -and $lines[$lines.Count - 1] -eq '') { $lines = @($lines[0..($lines.Count - 2)]) }
             foreach ($l in $lines) { Write-Output ("ACC-ARCHIVE MLINE " + $l) }
             Write-Output ("ACC-ARCHIVE MANIFEST OK LINES {0}" -f $lines.Count)
+        }
+        'Count' {
+            if ($Path -eq '') { Write-Output 'ACC-ARCHIVE ERROR Count needs -Path'; exit 2 }
+            if (-not (Test-Path -LiteralPath $Path -PathType Container)) { Write-Output "ACC-ARCHIVE ERROR no such directory: $Path"; exit 1 }
+            Write-Output ("ACC-ARCHIVE COUNT OK " + (Format-Counts (Get-TreeCounts $Path)))
         }
         'Place' {
             if ($Staged -eq '' -or $Target -eq '') { Write-Output 'ACC-ARCHIVE ERROR Place needs -Staged and -Target'; exit 2 }

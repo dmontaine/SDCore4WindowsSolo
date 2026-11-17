@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4297..P-4299), from SD Core a9318999 (RELEASE_1.1 273): dir_select() gives back a
+ *           record id holding a byte 128-255 that is not valid UTF-8 as that byte (MSYS2 stores it as U+F080-U+F0FF; os_name_to_id() undoes it).
  * 11 Nov 26 SD Core Solo - SOLO 56 group 2, from Windows Core (code as in Linux Solo): op_dir() tells a file from a directory with
  *           S_ISREG / S_ISDIR (S.88 stage E2: a socket was listed as a file, a block device as a directory); STATUS() starts at 0 and a
  *           directory that cannot be opened says ER_FNF or ER_PERM (the 18 Oct line below said so; the code was not here).
@@ -77,6 +79,7 @@ void op_dcount(void);
 
 Private void readnext(int16_t mode);
 Private bool dir_select(FILE_VAR* fvar, int16_t list_no);
+Private void os_name_to_id(char* name);
 Private void transfer_list0(DESCRIPTOR* tgt_descr);
 Private int net_select_with_flags(FILE_VAR* fvar, u_int16_t op_flags, STRING_CHUNK** ids, int32_t* count);
 
@@ -1210,6 +1213,35 @@ void clear_select(int16_t list_no) {
 }
 
 /* ======================================================================
+   os_name_to_id()  -  Undo MSYS2's private-use mapping of a byte that is
+                       not valid UTF-8, in place (SD Core RELEASE_1.1 273)
+
+   A record id may hold bytes 128 to 255 (map_t1_id, openQM item 34).  When
+   such a byte is not part of valid UTF-8, the MSYS2 runtime names the file
+   with the character U+F000 + byte, and readdir() returns that character's
+   UTF-8 (EF 82 80-BF for U+F080-U+F0BF, EF 83 80-BF for U+F0C0-U+F0FF)
+   rather than the byte.  Measured 13 Nov 2026: "caf" 0xE9 is listed as
+   "caf" EF 83 A9.  Turning the three bytes back into the one gives SELECT
+   the id that was written; opening that id maps it to the same name again.
+   Bytes below 128 are not touched: the runtime already gives those back.
+   The output is never longer than the input, so the decode is in place.   */
+
+Private void os_name_to_id(char* name) {
+  unsigned char* p = (unsigned char*)name;
+  unsigned char* q = (unsigned char*)name;
+
+  while (*p != '\0') {
+    if ((p[0] == 0xEF) && ((p[1] == 0x82) || (p[1] == 0x83)) && ((p[2] & 0xC0) == 0x80)) {
+      *(q++) = (unsigned char)(((p[1] & 0x01) << 6) | (p[2] & 0x3F) | 0x80);
+      p += 3;
+    } else {
+      *(q++) = *(p++);
+    }
+  }
+  *q = '\0';
+}
+
+/* ======================================================================
    Perform select on directory file                                       */
 
 Private bool dir_select(FILE_VAR* fvar, int16_t list_no) {
@@ -1267,6 +1299,7 @@ Private bool dir_select(FILE_VAR* fvar, int16_t list_no) {
 
       if (statbuf.st_mode & S_IFREG) {
         strcpy(name, dp->d_name);
+        os_name_to_id(name); /* 17 Nov 26: SD Core RELEASE_1.1 273 */
 
         if (map_dir_ids && (strchr(name, '%') != NULL)) /* Mapped name */
         {

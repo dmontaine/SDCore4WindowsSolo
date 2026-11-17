@@ -18,6 +18,7 @@
   	  * 
   	  * 
 	  * START-HISTORY:
+	  * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-3509..P-3511): K$WINPID (59), K$INTERACTIVE (64) and K$OS.ELEVATED (65) retired; no Solo program asks them.
 	  * 16 Nov 26 SD Core Solo - RELEASE_1.1 247, from Windows Core: K$LOCK.TRACE (115), LOCK.TRACER.
 	  * 11 Nov 26 SD Core Solo - SOLO 53: the FCONTROL keys are FCI$ (the internal function is FCONTROL.INT), with 8 and 9, the CREATING.SEQKEY counter.
 	  * 11 Nov 26 SD Core Solo - SOLO 56 group 2 (as in Linux Solo and Core): K$SHOW.SAFE (151), the kernel's one rule for showing another session's text; K$AUTOLOGOUT -2 reads the inactivity clock.
@@ -153,7 +154,7 @@
       $define K$RUNEXE          56       ;* Run executable
       $define K$AUDIT           57       ;* Append a record to the audit trail
       $define K$WINPATH         58       ;* POSIX pathname as a Windows one
-      $define K$WINPID          59       ;* This session pid as Windows counts it
+* 17 Nov 26 SD Core Solo - 59 (K$WINPID) retired: SD Core's elevate asks it; Solo has none.  Keep the number unused.
       $define K$SET.USERNAME    60       ;* Set the session user name ($internal)
 * 26 Sep 26 SD Core Solo - SOLO 3 step 5: 61 (K$ASSUME.USER), 62
 *   (K$IMPERSONATING), 66 (K$HANDOFF) and 67 (K$API.PREAUTH) are RETIRED with
@@ -165,24 +166,8 @@
 *   is the PERSON, asked of Windows each time, and a LOGTO does not move it.
 *   Nothing in SD can set or forge it.  keys.h carries the same note.
       $define K$OS.ADMINISTRATOR 63      ;* Is the signed-in person an OS administrator?
-* 05 Sep 26 Windows port - PRE_RELEASE_FIXES 167.  HOW DID THIS SESSION ARRIVE?
-*   The third of the trio and the one about the ROUTE: 26 is what this session
-*   may DO, 63 is WHO signed in, and this is HOW they got here.  True at the
-*   console and through a remote desktop installed as a SERVICE; false over
-*   ssh, over the API, and for an unattended scheduled task.
-*
-*   ***INDEPENDENT OF ELEVATION ON PURPOSE.***  An administrator at an
-*   UNELEVATED console must still be admitted - they log in to their own
-*   account and reach SDSYS with LOGTO, which is where UAC is asked.  Measured
-*   5 Sep 2026: it answers the same either side of a UAC prompt, because
-*   elevation reuses the logon session and its SIDs.
-      $define K$INTERACTIVE      64      ;* Does this session have a desktop?
-* 15 Sep 26 Windows port - RELEASE_1.1 45, the owner's "elevation is the only
-*   door to SDSYS" model.  DID THIS PROCESS START ELEVATED?  The fourth question:
-*   26 is what the session may DO, 63 is WHO, 64 is the ROUTE, and this is the
-*   PROCESS's own elevation.  IMMUTABLE for the process life, so a LOGTO does not
-*   move it - which is why LOGTO SDSYS gates on this and not on the seed (26).
-      $define K$OS.ELEVATED      65      ;* Did this process start elevated?
+* 17 Nov 26 SD Core Solo - 64 (K$INTERACTIVE) and 65 (K$OS.ELEVATED) retired: SD Core's
+*   LOGIN and CPROC ask them; no Solo program does.  Keep the numbers unused.
 * 66 and 67: retired, see the note at 61.
 * 17 Sep 26 Windows port - RELEASE_1.1 55.  IS A NAMED USER IN A NAMED LOCAL
 *   GROUP?  A live SAM query with NO CHILD PROCESS, which is what a

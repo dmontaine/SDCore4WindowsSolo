@@ -70,10 +70,10 @@ The 30 verbs the User pages 19-24 and the tutorial use most (counted in their ex
 - **`basic`** {*file*} *record* {*record* …}
 - **`build.index`** *file* *field* … | **`all`**
 - **`catalog`** {*file* {*call.name*}} {*program*} {**`local`** | **`global`** | **`pcode`**} {**`no.xref`**}
-- **`clear.file`** {**`data`** | **`dict`**} *file*
 - **`compile.dict`** {**`dict`** | **`data`**} *file* {*i-type* …} {**`no.query`**} {**`no.page`**}  ·  **`compile.dict local`**  ·  **`compile.dict all`**
+- **`copy from`** {**`dict`**} *src* {**`to`** {**`dict`**} *tgt*} {*id* …} {**`(options`**}
 - **`count`** {**`dict`**} *file* {*selection*}
-- **`create.file`** {**`dict`**} *voc.name* {**`directory`**} {*parameters*}
+- **`create.file`** {**`dict`**} *voc.name* {**`directory`**} {*parameters*} {**`server`** *server* {**`as`** *remote.name*}}
 - **`create.index`** *file* *field* … {**`no.nulls`**} {**`pathname`** *path*}
 - **`ct`** {**`dict`**} *file* {*id* … | **`*`**} {**`(options`**}
 - **`delete`** {**`dict`**} *file* {*id* …} {**`no.query`**}
@@ -114,7 +114,7 @@ The VOC record types (field 1, character 1, is the type). Each type is the chunk
 | `D` | descriptor | a data descriptor, which is what dictionary records are |
 
 ### core:walls
-> kind=core.digest tier=core since=- src=docs:GettingStarted/markdown/12-security.md:8#80ab4a86 src2=docs:GettingStarted/markdown/12-security.md:35#971666f3 src3=docs:GettingStarted/markdown/06b-operating-system-access.md:9#d27475d1 src4=docs:GettingStarted/markdown/06b-operating-system-access.md:160#a6517fde src5=docs:GettingStarted/markdown/06b-operating-system-access.md:204#54cf3a87
+> kind=core.digest tier=core since=- src=docs:GettingStarted/markdown/12-security.md:8#80ab4a86 src2=docs:GettingStarted/markdown/12-security.md:36#971666f3 src3=docs:GettingStarted/markdown/06b-operating-system-access.md:9#d27475d1 src4=docs:GettingStarted/markdown/06b-operating-system-access.md:161#a6517fde src5=docs:GettingStarted/markdown/06b-operating-system-access.md:205#54cf3a87
 
 Solo has ONE account, `sduser`, and two per-account switches, the shell (`sh`, `!`) and OS access (`os.execute`, a path outside the account, the embedded Python and the editors that run outside SD), both OFF as delivered and turned on by the administrator with `set.os.access`; it has no other gate and no gate words. What limits a session is below, quoted from Solo's own pages (`GettingStarted/markdown/12-security.md`, `GettingStarted/markdown/06b-operating-system-access.md`).
 
@@ -135,12 +135,15 @@ the computer, from reading or changing the files directly.
 |---|---|
 | Every session | asks the account password |
 | Administrator commands | refused until `admin`. The eight that had no check of their own — `CONFIG`, `LISTU`, `LIST.LOCKS`, `LIST.READU`, `LOCK`, `CLEAR.LOCKS`, `SET.DATE`, `CLEAN.ACCOUNT` — are gated too. See Administrator commands |
-| The VOC | direct edits need `admin`; the global catalogue is changed by nobody in a session |
+| The VOC | direct edits need `admin`; the global catalog is changed by nobody in a session |
+| The shell and OS access | refused until the administrator turns the `sh` or `os` switch on with `set.os.access`: off on a new install unless you answered yes when the installer asked, and kept as they were on an upgrade — see Operating system access |
+| The NET gate | API request 29 (open an `account;file` file for a client) is refused until the administrator sets `NETFILES=2` in `sd.conf` and turns the gate on with `set.net.access on`: both off as delivered; and a VOC pointer that leads out of the account is refused unless the account has the `os` switch on — see API access |
 | File transfer | an sftp program on another computer can put text files into the account's file `xfer.in` and take them from `xfer.out`, over Solo's ssh (port 4251). **Off twice as delivered**: `XFER=1` in `sd.conf` (read when Solo starts) and `set.xfer.access on`. Opening it means a program that knows your Windows password can bring files into the account while you wait in `receive`; it sees only that one folder, only plain text, within the size limits (`XFERFILE`, `XFERSLOT`) and only while the transfer is open. **The SD account password is not asked of the sftp connection** (it has no terminal to give it): what stands in for it is that nothing moves unless your own session, which did give it, is waiting in `receive` or `send` at that moment — see *Moving Files In and Out* in the User documentation |
 | Scheduled jobs | SD's own jobs (`set.job`) run one of your SD commands from a Windows Task Scheduler task, as your Windows user, **whether you are signed in or not**. **Off as delivered**: `set.jobs.access on`, and off refuses every job at its next run. A job is made or changed only with the account password typed at that moment. The task is made by the installer's SYSTEM helper (only an administrator can make a task that runs while you are signed out), which is told only the job's name and schedule; the command stays in SD. While you are signed out Windows will not open the kept copy of the password, so `run.job`, and nothing else, signs in by being the Windows user who owns SD's password folder. That adds no way in: while you are signed in any program of yours can sign in with the kept copy, and while you are signed out a program can run as you only from a task an administrator registered — see Scheduled jobs |
 | The daemon | runs as you on an ordinary token, Administrators deny-only and Medium integrity, even from an administrator's account |
 | ssh | your own Windows account name and password only, on Solo's own port 4251, forced into `sd-solo`, no forwarding; the server runs as SYSTEM with its configuration in an administrators-only folder — see ssh access |
 | The API | off unless chosen; SCRAM inside TLS 1.3; a session confined to the account's files — see API access |
+| `sd-solo -internal` | closed once the installer has finished |
 
 **The account is the same one for every session**, so the gates are about *how
 you arrived and what you unlocked*, not about which account you are in.
@@ -150,7 +153,7 @@ you arrived and what you unlocked*, not about which account you are in.
 | Switch | What it lets the account do |
 |---|---|
 | **`sh`** | the `sh` verb |
-| **`os`** | `OS.EXECUTE`; `OPENSEQ`, `OPENPATH`, `DIR()`, `DELETESEQ`, `DIGEST` of a file and the file-system keys of `OSPATH()` on a path **outside the account's own directory**; a print unit's pathname (`SETPTR ... AS PATHNAME`, `SETPU`, a CSV report's `TO` pathname) outside it; the Python helper; the screen editors `edit` and `micro`; and a VOC pointer to a file outside the account |
+| **`os`** | `OS.EXECUTE`; `OPENSEQ`, `OPENPATH`, `DIR()`, `DELETESEQ`, `OPENTEMP`, `DIGEST` of a file and the file-system keys of `OSPATH()` on a path **outside the account's own directory**; a print unit's pathname (`SETPTR ... AS PATHNAME`, `SETPU`, a CSV report's `TO` pathname) outside it; the Python helper; the screen editors `edit` and `micro`; and a VOC pointer to a file outside the account |
 
 **Both are off as delivered, on a new install and on an upgrade unless you said
 yes when the installer asked.** The account's own directory is never asked

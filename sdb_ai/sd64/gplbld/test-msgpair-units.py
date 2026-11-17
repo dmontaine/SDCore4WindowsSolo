@@ -32,21 +32,19 @@ LINUX = os.environ.get('SD_LINUX_SD64') or os.path.normpath(os.path.join(HERE, '
 
 # (Linux id, our id): reason.  Each reason cites its evidence.  Read 12 Nov 2026 (RELEASE_1.1 257), text against text.
 ALLOWED = {
-    ('10002', '10002'): 'OS: SD Core Solo for Windows refuses SDSYS in its own words (no sdsys OS user; SOLO 4)',
+    ('10002', '10002'): 'product name: SD Core Solo for Windows (SOLO 4); Linux Solo\'s words since 17 Nov 26 (four-version audit P-4339)',
     ('11904', '11904'): 'sl_put\'s 11904 is a character code (CJK radicals), not a message id; Linux has the same literal (RELEASE_1.1 258)',
     ('10003', '10051'): 'two different refusals on the same LOGIN line; ours says the account must be your own (SOLO 4)',
-    ('10921', '10092'): 'sign-in wording in Solo login, same meaning; owed to SOLO 60 (Solo sign-in parity)',
     # 16 Nov 26: Linux Solo c8dac7a moved 11002-11022, 11025-11037 to 14891-14924, and ours went to 15891-15922 with them.
-    ('14923', '10093'): 'sign-in wording in Solo login (a full stop), same meaning; owed to SOLO 60 (Linux 11036 until c8dac7a)',
-    ('14905', '10094'): 'sign-in wording in Solo login, same meaning; owed to SOLO 60 (Linux 11016 until c8dac7a)',
-    ('14924', '10095'): 'sign-in wording in Solo login, same meaning; owed to SOLO 60 (Linux 11037 until c8dac7a)',
+    # 17 Nov 26 (four-version audit P-4425..P-4435): Solo login's first password uses Linux Solo's 14898-14924 as 15898-15924, so the
+    # four sign-in allowances (10092-10095) are gone.
     ('14909', '15909'): 'product name: SD Core Solo for Windows (SOLO 4); 11020 / 12020 until c8dac7a',
     ('14910', '15910'): 'product name: SD Core Solo for Windows (SOLO 4); ours 12930 until c8dac7a, 12021 until 13 Nov 26 (SOLO 61)',
     ('14912', '15912'): 'product name: SD Core Solo for Windows (SOLO 4); 11025 / 12025 until c8dac7a',
     ('11458', '12463'): 'OS: a Windows user, not a Linux user',
     ('11609', '12614'): 'OS: SET.AI CA takes a Windows path, written C:/... (a set.ai word cannot hold a backslash) (RELEASE_1.1 246)',
     ('11899', '12904'): 'OS: a viewer is a full Windows path to an .exe, not a name looked up in /usr/bin (SOLO 47)',
-    ('11983', '12988'): 'OS: Windows has no file-permission refusal of that kind here; the upgrade updates every account (SOLO 9)',
+    ('11983', '12988'): 'OS: Windows has no file-permission refusal of that kind here, so the parenthesis is dropped; one VOC, as Linux Solo (SOLO 9; audit P-4346)',
     ('14932', '15932'): 'OS: a job is started by its Task Scheduler task, not a systemd timer (SOLO 74, Linux Solo 2d3db81)',
 }
 

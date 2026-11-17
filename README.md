@@ -1,4 +1,4 @@
-# SD Core Solo
+# SD Core Solo for Windows
 
 A personal, single-user edition of SD Core for Windows: the SD multivalue
 database for one Windows user, installed entirely under that user's home
@@ -47,12 +47,13 @@ time.
   Python installer, both of which the SD Core Solo installer can install for
   you. It runs equally from a download or a USB stick.
 
-SD Core Solo cannot be installed on a computer that has the multi-user
-SD Core for Windows installed; the installer refuses.
+It can be installed beside the multi-user SD Core for Windows (since 2 Oct 2026:
+`sd-solo` and `sd` are separate commands, and each product has its own ports,
+shared memory and firewall rules).
 
 ## Requirements
 
-Windows 10 or 11, 64-bit.
+Windows 11, 64-bit.
 
 ## Building from source
 

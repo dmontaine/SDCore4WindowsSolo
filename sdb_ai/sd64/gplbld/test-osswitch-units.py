@@ -157,8 +157,9 @@ def checks(t):
        0 <= a.find("api.sh.grant = @false") < a.find("void kernel(K$SH,      api.sh.grant)") < a.find("if not(master.login.done) then"))
     ck("B4 CPROC's SH verb and \"!\" are the account's SH switch (sh.listed = kernel(K$SH, -1)), refused with 10053",
        "sh.listed = kernel(K$SH, -1)" in t["cproc"] and "sysmsg(10053, @logname)" in t["cproc"])
+    # 17 Nov 26 (four-version audit P-4416): EDIT tests the two in two IFs, as Linux Solo's.
     ck("B5 EDIT needs the administrator or K$OS.EXEC and says what to ask for",
-       has(t["edit"], "kernel(K$ADMINISTRATOR, -1) or kernel(K$OS.EXEC, -1)", "set.os.access os on"))
+       has(t["edit"], "if kernel(K$ADMINISTRATOR, -1) then", "if kernel(K$OS.EXEC, -1) then", "set.os.access os on"))
     ck("B6 SETPTR AS PATHNAME and QPROC's CSV TO pathname ask K$PATH.OK with message 12185",
        all(has(t[p], "kernel(K$PATH.OK,", "12185") for p in ("setptr", "qproc")))
     ck("B7 _voc_ref holds a VOC pointer to the OS gate (K$PATH.OK, ER$PERM) for everybody but the administrator and an account that holds OS",
@@ -226,8 +227,9 @@ MUTANTS = [
     ("the gate forgets the administrator", "op_sh", "return (my_uptr->flags & (USR_ADMIN | USR_OS_EXEC)) != 0;", "return (my_uptr->flags & USR_OS_EXEC) != 0;", "G1"),
     ("OS.EXECUTE is open again", "op_sh", "  return os_gate_open();\n}\n\n/* ======================================================================\n   os_gate_open()",
      "  return TRUE;\n}\n\n/* ======================================================================\n   os_gate_open()", "G2"),
-    ("containment does not refuse ..", "op_dio2", "  if (has_parent_ref(cand))\n    return FALSE;\n\n  if (process.syscom != NULL) {\n    descr = Element(process.syscom, SYSCOM_ACCOUNT_PATH);\n    if (k_get_c_string(descr, item, MAX_PATHNAME_LEN) > 0) {\n      if (net_normalise(item, root) && path_within(cand, root))\n        return TRUE;\n    }\n  }\n\n  return FALSE;\n}\n\nbool os_path_open_ok",
-     "  if (process.syscom != NULL) {\n    descr = Element(process.syscom, SYSCOM_ACCOUNT_PATH);\n    if (k_get_c_string(descr, item, MAX_PATHNAME_LEN) > 0) {\n      if (net_normalise(item, root) && path_within(cand, root))\n        return TRUE;\n    }\n  }\n\n  return FALSE;\n}\n\nbool os_path_open_ok", "G3"),
+    # 17 Nov 26 (four-version audit P-4293): anchored on the text as it is now; the account test refuses a whole-machine root.
+    ("containment does not refuse ..", "op_dio2", "  if (has_parent_ref(cand))\n    return FALSE;\n\n  if (process.syscom != NULL) {\n    descr = Element(process.syscom, SYSCOM_ACCOUNT_PATH);\n    if (k_get_c_string(descr, item, MAX_PATHNAME_LEN) > 0) {\n      /* 17 Nov 26 (audit P-4293",
+     "  if (process.syscom != NULL) {\n    descr = Element(process.syscom, SYSCOM_ACCOUNT_PATH);\n    if (k_get_c_string(descr, item, MAX_PATHNAME_LEN) > 0) {\n      /* 17 Nov 26 (audit P-4293", "G3"),
     ("os_path_open_ok no longer trusts an internal program", "op_dio2", "  if (process.program.flags & HDR_INTERNAL)\n    return TRUE;\n  return os_path_ok_for_account(name);",
      "  return os_path_ok_for_account(name);", "G4"),
     ("OSPATH keys skip the account's question", "op_dio2", "  if (!os_path_open_ok(path))\n    return FALSE;\n\n  if (connection_type != CN_SOCKET)",
@@ -247,7 +249,7 @@ MUTANTS = [
     ("APISRVR loads them after MASTER.LOGIN", "apisrvr", "void kernel(K$SH,      api.sh.grant)\nvoid kernel(K$OS.EXEC, api.os.grant)\nvoid kernel(K$NET,",
      "void kernel(K$NET,", "B3"),
     ("the shell is open again", "cproc", "sh.listed = kernel(K$SH, -1)", "sh.listed = @true", "B4"),
-    ("EDIT is open again", "edit", "if kernel(K$ADMINISTRATOR, -1) or kernel(K$OS.EXEC, -1) then", "if @true then", "B5"),
+    ("EDIT is open again", "edit", "if kernel(K$OS.EXEC, -1) then", "if @true then", "B5"),
     ("QPROC writes anywhere", "qproc", "   if not(kernel(K$PATH.OK, csv.pathname)) then", "   if 0 then", "B6"),   # 12 Nov 26 (SOLO 59): the gate is indented 3 spaces now
     ("a VOC pointer is not held to the gate", "voc_ref", "vr.free = vr.admin or kernel(K$OS.EXEC, -1)", "vr.free = @true", "B7"),
     ("the verb is open to everyone", "setosacc", "if not(kernel(K$ADMINISTRATOR, -1)) then", "if 0 then", "V1"),

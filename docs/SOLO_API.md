@@ -1,8 +1,18 @@
 # SD Core Solo — the API design (SOLO 3's remainder, SOLO 6)
 
-**Status: a PLAN, 25 Sep 2026, every decision taken (D5, D2, D3 — rulings 18,
-19, 20). Nothing below is built; build in §4's order.**
-Every step names what would falsify it. Rulings cited are in PROJECT_STATUS.md,
+**Status, 17 Nov 2026: HISTORICAL — this was the plan of 25 Sep 2026, and it was
+built (steps 1-4 below say BUILT) and has moved on since. Where it disagrees with
+the tree, the tree is right.** Three things below are no longer so: the clients
+DO pin the server's key on first use (SOLO 24, 30 Sep 2026:
+`gplsrc/sdclilib/sd_tls.c`, `sd_pin.c`), although the TLS handshake itself still
+does not verify a certificate; `SET.API.PASSWORD` and `newvoc/set.api.password`
+are gone (an API login takes the account password, set with `set.password`, or
+the global password); and the API set to local listens on 127.0.0.1 only
+(`APILOCAL`, `remote.api local`). The documentation of what is built is in
+[SDCore4WindowsSoloDocs](https://github.com/dmontaine/SDCore4WindowsSoloDocs)
+(Getting Started, API access).
+Plan as written, 25 Sep 2026: every decision taken (D5, D2, D3 — rulings 18,
+19, 20). Every step names what would falsify it. Rulings cited are in PROJECT_STATUS.md,
 "WHAT SD CORE SOLO IS".
 
 ***CONSTRAINT, owner, 25 Sep 2026: "the client libraries need to remain

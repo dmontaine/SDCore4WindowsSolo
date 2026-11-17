@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4425, P-4426, P-4431, P-4433, P-4435): the first password's prompts and refusals
+*           are Linux Solo's 14898, 14899, 14900 (then 10921), 14905, 14923 and 14924, here 15898-15924; SD Core's 10090-10095 are gone.
 * 16 Nov 26 Windows port - from Linux Solo 2d3db81 (S.247, scheduled jobs): require.password's RUN-JOB-IDENTITY block - a one-shot that is
 *           exactly "run.job <name>", whose $stored cannot be decrypted, is admitted by the process's Windows identity (SD_FILE_PRIVATE on
 *           $cred: owned by this process's user, nobody but that user, SYSTEM and Administrators allowed).  MEASURED on a VM, 16 Nov 2026: a job
@@ -1736,7 +1738,7 @@ set.first.password:
    display sysmsg(15912) ;* This account has no password yet. Choose one now...
    display
    for pf.try = 1 to pf.max
-      display sysmsg(10090) :  ;* New password:
+      display sysmsg(15898) : ' ' :  ;* New password:
       input pf.pw1 HIDDEN
       display
       if pf.pw1 = '' then exit
@@ -1754,31 +1756,32 @@ set.first.password:
          display sysmsg(10921, pf.try, pf.max) ;* That was attempt %1 of %2
          continue
       end
-      display sysmsg(10091) :  ;* Repeat new password:
+      display sysmsg(15899) : ' ' :  ;* Confirm the new password:
       input pf.pw2 HIDDEN
       display
       if pf.pw1 # pf.pw2 then
          pf.pw2 = ''
-         display sysmsg(10092, pf.try, pf.max) ;* The passwords do not match...
+         display sysmsg(15900) ;* The passwords do not match
+         display sysmsg(10921, pf.try, pf.max) ;* That was attempt %1 of %2
          continue
       end
       pf.pw2 = ''
       pf.set = @false
       call !CRED_SET(upcase(initial.account), pf.pw1, pf.set)
       if not(pf.set) then
-         display sysmsg(10094, status()) ;* Unable to set the password, status %1
+         display sysmsg(15905, status()) ;* The password could not be stored (status %1)
          exit
       end
       pf.kept = @false
       call !SOLO_STORE_PW(upcase(initial.account), pf.pw1, pf.kept)
       if not(pf.kept) then display sysmsg(15911, status()) ;* ...could not be kept for commands given on the sd command line
-      display sysmsg(10093, initial.account) ;* Password set for account %1
+      display sysmsg(15923, initial.account) ;* Password set for account %1
       pf.ok = @true
       exit
    next pf.try
    pf.pw1 = ''
    pf.pw2 = ''
-   if not(pf.ok) then display sysmsg(10095) ;* No password was set, and one is required...
+   if not(pf.ok) then display sysmsg(15924) ;* No password was set, and one is required...
    return
 
 *

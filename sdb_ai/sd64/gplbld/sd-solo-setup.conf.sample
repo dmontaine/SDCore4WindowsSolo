@@ -90,13 +90,13 @@ reload-data=
 #   never denied.  Leave it blank to deny nothing extra.  The SD Core server
 #   can change the list later with DENY.VERBS - so on a computer with no
 #   global password the list stays as given until a reinstall.
-#deny-verbs=LISTF,CREATE.FILE
+#deny-verbs=LISTU,CREATE.FILE
 
 deny-verbs=
 
 # os-access
 #   The shell and OS access (20 Oct 2026).  Both are OFF as delivered, and the
-#   administrator can change them later (ADMIN, then SET.OS.ACCESS).  none =
+#   administrator can change them later (ADMIN, then set.os.access).  none =
 #   turn on neither; sh = the SH verb and "!"; os = OS.EXECUTE, files and
 #   directories outside the account, Python and the editors that run outside
 #   SD; both = both.  Blank: the installer asks.  Either switch lets whoever
@@ -109,7 +109,7 @@ os-access=
 # start
 #   Where new sessions start (12 Nov 2026): menu = the home screen, as
 #   delivered; terminal = the command prompt.  The administrator can change it
-#   later (ADMIN, then SET.START.DEFAULT).  Blank: the installer asks.  Used on
+#   later (ADMIN, then set.start.default).  Blank: the installer asks.  Used on
 #   a new installation only: an upgrade keeps what the installation has.
 #start=terminal
 

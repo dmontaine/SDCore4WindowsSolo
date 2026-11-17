@@ -18,6 +18,7 @@
 *
 *
 * START-HISTORY:
+* 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4395): the audit line names the $admin credential in lower case, as Linux Solo.
 * 16 Nov 26 Windows port - from Linux Solo c8dac7a: messages 12002-12007 are 15891-15896 (Linux Solo's 14891-14896), text
 *           unchanged; SD Core uses 12002-12007 for other messages.
 * 16 Nov 26 SD Core Solo - SOLO 60 (Linux mail 2026-11-16T1330): CRED_VERIFY is given '$admin' and '$global', lower case, as the ids are.
@@ -98,7 +99,7 @@ $include err.h
    end
    if not(has.admin) then
       display sysmsg(15896) ;* No administrator password is set on this system
-      void kernel(K$AUDIT, 'admin refused reason=no $ADMIN credential')
+      void kernel(K$AUDIT, 'admin refused reason=no $admin credential')
       stop
    end
 

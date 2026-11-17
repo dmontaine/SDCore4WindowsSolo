@@ -13,6 +13,11 @@
  * GNU General Public License for more details.
  *
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4327..P-4332), from SD Core
+ *           f43a0a43 (RELEASE_1.1 247, Linux S.159): win32_audit_rotate() refuses a
+ *           rotation whose DACL it cannot read, recreates with OPEN_ALWAYS so a racing
+ *           append is kept, and undoes the rename when the new trail cannot be made
+ *           or given the old DACL.
  * 16 Aug 26 Windows port - written.  The POSIX runtime cannot open a file for
  *           appending without also asking for FILE_WRITE_DATA, which defeats
  *           an append-only ACL.  PROJECT_STATUS.md 7 step 4.
@@ -88,27 +93,40 @@ int win32_audit_rotate(const char* path, const char* rotated) {
 
   /* Read the descriptor BEFORE the rename, while the name still resolves.
      Only the DACL is wanted: the owner is left to whatever creating the new
-     file produces, which is the elevated caller and is correct.           */
+     file produces, which is the elevated caller and is correct.
+
+     17 Nov 26 - from SD Core's RELEASE_1.1 247: A DESCRIPTOR THAT CANNOT BE
+     READ REFUSES THE ROTATION.  It used to rotate anyway and leave the new
+     trail with the folder's inherited rights.  The trail stays whole and keeps
+     growing instead, as Linux's audit_rot.c does when it cannot lift the
+     append attribute.                                                       */
 
   if (GetNamedSecurityInfoA((LPSTR)path, SE_FILE_OBJECT,
                             DACL_SECURITY_INFORMATION, NULL, NULL, &dacl, NULL,
                             &sd) != ERROR_SUCCESS) {
-    dacl = NULL;
-    sd = NULL;
+    return -1;
   }
-
-  if (!MoveFileA(path, rotated)) {
-    if (sd != NULL)
-      LocalFree(sd);
+  if (dacl == NULL) {
+    LocalFree(sd);
     return -1;
   }
 
-  /* Recreate immediately.  CREATE_ALWAYS rather than CREATE_NEW because a
-     racing append could have made it already; either way it is empty and the
-     ACL is set below.                                                     */
+  /* MoveFile does not replace an existing name, so a rotated file of the same
+     second is never overwritten (Linux refuses that case by hand); and it
+     fails while a session holds the trail open, which is the moment not to
+     rename it.                                                              */
+  if (!MoveFileA(path, rotated)) {
+    LocalFree(sd);
+    return -1;
+  }
+
+  /* Recreate immediately.  17 Nov 26 (SD Core 13 Nov) - OPEN_ALWAYS, NOT
+     CREATE_ALWAYS: a session appending for itself in the moment between the
+     rename and this makes the file first, and CREATE_ALWAYS truncated its
+     record away.  Kept now; the ACL is set below either way.               */
 
   h = CreateFileA(path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                  NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+                  NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 
   if (h != INVALID_HANDLE_VALUE) {
     CloseHandle(h);
@@ -116,18 +134,23 @@ int win32_audit_rotate(const char* path, const char* rotated) {
   }
 
   /* PROTECTED_DACL_SECURITY_INFORMATION is what stops the directory's rights
-     being inherited back on top of the ones just copied.  A failure here
-     leaves a working trail with weaker rights than intended, which is why it
-     is reported: the caller cannot fix it, but PROJECT_STATUS.md 7 step 4
-     names the symptom so it is recognisable.                              */
+     being inherited back on top of the ones just copied.
 
-  if ((status == 0) && (dacl != NULL)) {
+     17 Nov 26 - Linux S.159 (audit_rot.c), as SD Core: A NEW TRAIL THAT CANNOT
+     BE MADE, OR CANNOT BE GIVEN THE OLD ONE'S DACL, UNDOES THE ROTATION.  The
+     old trail goes back under its name - over the new file when one was made -
+     and the caller tries again later.                                       */
+
+  if (status == 0) {
     if (SetNamedSecurityInfoA((LPSTR)path, SE_FILE_OBJECT,
                               DACL_SECURITY_INFORMATION |
                                   PROTECTED_DACL_SECURITY_INFORMATION,
                               NULL, NULL, dacl, NULL) != ERROR_SUCCESS) {
       status = -1;
+      (void)MoveFileExA(rotated, path, MOVEFILE_REPLACE_EXISTING);
     }
+  } else {
+    (void)MoveFileA(rotated, path);
   }
 
   if (sd != NULL)

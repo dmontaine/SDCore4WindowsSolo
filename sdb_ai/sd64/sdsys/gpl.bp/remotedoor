@@ -4,6 +4,8 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4386): "Wrong password - nothing was changed" is message 12598 (was 12987, which
+*           SD Core for Windows uses for another text; 12598 is free in both Windows trees), text unchanged.
 * 16 Nov 26 Windows port - from Linux Solo c8dac7a: the administrator password prompt is message 15891 (was 12002), text unchanged.
 * 16 Nov 26 SD Core Solo - SOLO 60 (Linux mail 2026-11-16T1330): '$admin' and '$global' in lower case, as the $cred ids are; the helper
 *           (solo-doors.ps1) compares and opens them without regard to case.
@@ -192,7 +194,7 @@ change:
       pw = ''
       sleep 2
       void kernel(K$AUDIT, verb : ' mode=' : want : ' status=refused reason=wrong password')
-      display sysmsg(12987)                                       ;* Wrong password - nothing was changed
+      display sysmsg(12598)                                       ;* Wrong password - nothing was changed (12987 until 17 Nov 26)
       return
    end
 

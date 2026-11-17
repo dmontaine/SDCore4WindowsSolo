@@ -20,9 +20,14 @@ logger = logging.getLogger(__name__)
 # cannot work.  The old value is kept only as the fallback, so running it with
 # no argument behaves as it always did.
 #
-#   python3 gplbld/pcode_bld.py [sysdir]
-
-SDSYS = sys.argv[1] if len(sys.argv) > 1 else '/usr/local/sdsys'
+#   python3 gplbld/pcode_bld.py <sysdir>
+#
+# 17 Nov 26 SD Core Solo - four-version audit P-4244, as Linux Solo (LSOLO 6): the SDSYS directory is the ONE
+# argument, with no default.  The old fallback was a Linux path no Windows tree has; a build that guessed would
+# write bin/pcode into the wrong tree.  bootstrap.py always passes it.
+if len(sys.argv) != 2 or not os.path.isdir(sys.argv[1]):
+    sys.exit("usage: python3 pcode_bld.py <SDSYS directory>")
+SDSYS = os.path.abspath(sys.argv[1])
 
 DEBUG_DIFF = False
 

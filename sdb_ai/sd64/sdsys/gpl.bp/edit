@@ -15,6 +15,7 @@
 * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 *
 * START-HISTORY:
+* 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4416): check.permitted tests the administrator and the OS switch in two IFs, as Linux Solo.
 * 20 Oct 26 SD Core Solo - RELEASE_1.1 165 (the OS switch, Linux Solo 7c6bbfc): micro and Microsoft Edit need the OS switch (K$OS.EXEC); the administrator passes.
 * 06 Oct 26 SD Core Solo - the working-copy path, the editor's path and micro's
 *           configuration home are put into the PowerShell command with every
@@ -488,7 +489,13 @@ check.permitted:
 *  system, and who may do that is the same grant that governs OS.EXECUTE from inside a program: the account's OS switch (K$OS.EXEC),
 *  loaded at sign-on; K$ADMINISTRATOR covers the administrator session.  This program is $internal, so op_sh admits its os.execute on
 *  HDR_INTERNAL and never asks; testing here refuses before anything is created and says what to do about it.  ed needs none of it.
-   if kernel(K$ADMINISTRATOR, -1) or kernel(K$OS.EXEC, -1) then
+*  17 Nov 26 (audit P-4416): two tests, as Linux Solo's and SD Core's; the same result.
+   if kernel(K$ADMINISTRATOR, -1) then
+      permitted = @true
+      return
+   end
+
+   if kernel(K$OS.EXEC, -1) then
       permitted = @true
       return
    end

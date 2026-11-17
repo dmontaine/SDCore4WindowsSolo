@@ -191,7 +191,8 @@ $issBad = @(Get-Content -LiteralPath $Iss | Select-String -Pattern '^\s*#\s*(\w*
             Where-Object { $issDirectives -notcontains $_.Matches[0].Groups[1].Value.ToLower() })
 if ($issBad.Count -gt 0) {
     $issBad | ForEach-Object { Write-Host ("   sd-solo.iss:{0}: {1}" -f $_.LineNumber, $_.Line.Trim()) -ForegroundColor Red }
-    Fail ("sd-solo.iss has {0} line(s) starting with '#' that ISPP will read as a directive." -f $issBad.Count)
+    Fail ("sd-solo.iss has {0} line(s) starting with '#' that ISPP will read as a preprocessor " -f $issBad.Count +
+          "directive.  Move the constant to the END of the previous line, as every other #13#10 in that file is.")
 }
 $issSections = @('Setup', 'Languages', 'Messages', 'Tasks', 'Files', 'Dirs', 'Icons', 'Run',
                  'UninstallRun', 'Code', 'Registry', 'InstallDelete', 'UninstallDelete',
@@ -255,14 +256,16 @@ if ($mustBuild) {
     foreach ($b in $binState.binaries) {
         Remove-Item -LiteralPath $b.FullName -Force -ErrorAction SilentlyContinue
     }
+    $gone = @($binState.binaries | Where-Object { -not (Test-Path -LiteralPath $_.FullName) })   # 17 Nov 26: as SD Core (audit P-4233)
+    Write-Host ("   removed {0} of {1} binary/ies for a full relink" -f $gone.Count, $binState.binaries.Count)
     $mk = "cd '$(ToMsys $Sd64)' && make sd"
     Write-Host "   $Bash -lc ""$mk"""
     & $Bash -lc $mk
-    if ($LASTEXITCODE -ne 0) { Fail "make exited $LASTEXITCODE - nothing else has run." }
+    if ($LASTEXITCODE -ne 0) { Fail "make sd exited $LASTEXITCODE - nothing else has run." }
     $binState = Get-BinaryStaleness $Sd64
-    if (-not $binState.ok) { Fail ("after make: " + $binState.reason) }
+    if (-not $binState.ok) { Fail ("after make sd: " + $binState.reason) }
     if ($binState.stale) {
-        Fail ("make exited 0 but {0} source file(s) are STILL newer than bin\{1}." -f
+        Fail ("make sd exited 0 but {0} source file(s) are STILL newer than bin\{1} - assert-current would refuse after the install, so this stops now." -f
               $binState.uncompiled.Count, $binState.oldest.Name)
     }
     Write-Host ("   built: bin\ now {0}, no source newer" -f $binState.oldest.LastWriteTime.ToString('dd MMM HH:mm:ss'))
@@ -336,7 +339,7 @@ $faults = @()
 if ($szCproc -le 0)   { $faults += '$cproc is the 0-byte placeholder - the bootstrap never reached the last step' }
 if ($nGcat   -lt 100) { $faults += "gcat holds $nGcat entries" }
 if ($nOut    -lt 150) { $faults += "gpl.bp.out holds $nOut objects" }
-if ($nTinfo  -lt 30)  { $faults += "terminfo holds $nTinfo entries - no terminal type would resolve" }
+if ($nTinfo  -lt 30)  { $faults += "terminfo holds $nTinfo entries - run 'make terminfo'; no terminal type would resolve" }
 if ($szBcomp -ge 0 -and $szBcomp -lt 80000) { $faults += "`$bcomp is $szBcomp bytes - bbcmp.py's seed, not BCOMP's own object" }
 if (-not (Test-Path -LiteralPath (Join-Path $stSys 'voc'))) { $faults += "voc is absent - 'sd -i' did not complete" }
 if ($nCred -gt 0)     { $faults += "the stage holds $nCred credential record(s) - a probe ran on it; sd-solo.iss would refuse the build" }
@@ -357,7 +360,8 @@ $setup = Get-ChildItem -LiteralPath $Out -Filter 'sd-solo-setup-*.exe' |
 if (-not $setup) { Fail "ISCC reported success but no sd-solo-setup-*.exe is in $Out" }
 if ($setup.LastWriteTime -lt $isccStart) {
     Fail ("ISCC exited 0 but the newest installer in $Out predates this run: $($setup.Name) " +
-          "written $($setup.LastWriteTime), ISCC started $isccStart.")
+          "written $($setup.LastWriteTime), ISCC started $isccStart.  " +
+          "Nothing was built - this is an earlier cycle's binary.")
 }
 Write-Host ("   {0}, {1:N0} bytes, {2}" -f $setup.FullName, $setup.Length, $setup.LastWriteTime)
 # 9 Nov 26 - THE SOURCE GOES BESIDE THE INSTALLER, NEVER INTO IT (owner: "the
