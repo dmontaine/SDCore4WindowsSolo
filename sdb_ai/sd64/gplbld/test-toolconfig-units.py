@@ -71,6 +71,15 @@ def load():
     doc = os.path.join(DOCS, "GettingStarted", "markdown", "16-configuration.md")
     print("  doc      %s" % os.path.abspath(doc))
     raw["doc"] = open(doc, "rb").read().decode("utf-8", "replace") if os.path.exists(doc) else None
+    # 17 Nov 26 (as Linux Solo): GettingStarted 16 was split to the docs' page-length rule (16, 16b "changing a parameter from SD",
+    # 16c "the parameters").  The guide is the three parts read as one text, in order; a missing part is simply absent, and the
+    # rows that need what it held fail.
+    if raw["doc"] is not None:
+        for part in ("16b-changing-a-parameter-from-sd.md", "16c-the-parameters.md"):
+            pp = os.path.join(DOCS, "GettingStarted", "markdown", part)
+            print("  doc      %s" % os.path.abspath(pp))
+            if os.path.exists(pp):
+                raw["doc"] += "\n" + open(pp, "rb").read().decode("utf-8", "replace")
     return raw
 
 

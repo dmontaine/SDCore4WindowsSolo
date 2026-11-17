@@ -114,7 +114,7 @@ The VOC record types (field 1, character 1, is the type). Each type is the chunk
 | `D` | descriptor | a data descriptor, which is what dictionary records are |
 
 ### core:walls
-> kind=core.digest tier=core since=- src=docs:GettingStarted/markdown/12-security.md:8#80ab4a86 src2=docs:GettingStarted/markdown/12-security.md:36#971666f3 src3=docs:GettingStarted/markdown/06b-operating-system-access.md:9#d27475d1 src4=docs:GettingStarted/markdown/06b-operating-system-access.md:161#a6517fde src5=docs:GettingStarted/markdown/06b-operating-system-access.md:205#54cf3a87
+> kind=core.digest tier=core since=- src=docs:GettingStarted/markdown/12-security.md:8#80ab4a86 src2=docs:GettingStarted/markdown/12-security.md:36#971666f3 src3=docs:GettingStarted/markdown/06b-operating-system-access.md:9#d27475d1 src4=docs:GettingStarted/markdown/06b-operating-system-access.md:167#a6517fde src5=docs:GettingStarted/markdown/06b-operating-system-access.md:211#54cf3a87
 
 Solo has ONE account, `sduser`, and two per-account switches, the shell (`sh`, `!`) and OS access (`os.execute`, a path outside the account, the embedded Python and the editors that run outside SD), both OFF as delivered and turned on by the administrator with `set.os.access`; it has no other gate and no gate words. What limits a session is below, quoted from Solo's own pages (`GettingStarted/markdown/12-security.md`, `GettingStarted/markdown/06b-operating-system-access.md`).
 
@@ -160,6 +160,12 @@ yes when the installer asked.** The account's own directory is never asked
 about: inside it everything works whatever the switches say. **The
 administrator needs no switch**: after `admin` the session passes both for as
 long as it lasts.
+
+**One narrower door for files only.** With the `os` switch off, an `sd.conf` line such as
+`NETDIRS=D:\Data\Sales;D:\Data\Shared` lets the account read and write files in the folders it
+names, and below them, by pathname, without turning the switch on. None is listed as
+delivered, and listing one is a loosening for every session of the account. See
+The parameters.
 
 **What they run as, when they are on:** your Windows user, on an ordinary
 unelevated token — even when your Windows account is an administrator, because

@@ -3561,7 +3561,7 @@
 "part": "reference/basic-statements.md",
 "since": "-",
 "tier": "reference",
-"words": 25
+"words": 30
 },
 "basic:stmt:silent": {
 "kind": "basic.clause",
@@ -3911,7 +3911,7 @@
 "part": "core.md",
 "since": "-",
 "tier": "core",
-"words": 1196
+"words": 1255
 },
 "dict:chaining": {
 "kind": "dict.conv",
