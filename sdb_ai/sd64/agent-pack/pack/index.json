@@ -28994,26 +28994,12 @@
 "tier": "examples",
 "words": 49
 },
-"voc:entry:$contrib": {
-"kind": "voc.entry",
-"part": "examples/voc-entries.md",
-"since": "-",
-"tier": "examples",
-"words": 100
-},
 "voc:entry:$hold": {
 "kind": "voc.entry",
 "part": "examples/voc-entries.md",
 "since": "-",
 "tier": "examples",
 "words": 18
-},
-"voc:entry:$licence": {
-"kind": "voc.entry",
-"part": "examples/voc-entries.md",
-"since": "-",
-"tier": "examples",
-"words": 5946
 },
 "voc:entry:$map": {
 "kind": "voc.entry",
