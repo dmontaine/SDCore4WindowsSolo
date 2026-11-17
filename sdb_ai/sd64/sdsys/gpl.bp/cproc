@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 16 Nov 26 Windows port - from Linux Solo c8dac7a: the VOC refusal is message 15897 (was 12008), text unchanged.
 * 12 Nov 26 Windows port - from Linux ca3c6f41 (RELEASE_1.1 252, P-21): RUN folds the program name (as typed, lower, upper), as Linux.
 * 12 Nov 26 SD Core Solo - RELEASE_1.1 245: a refused login sets exit status 1 (it was 0), for the session's own window and for scripts.
 * 10 Nov 26 Windows port - RELEASE_1.1 214: F1 names the changelog in the folder above sdsys, where it is, not @sdsys/changelog.
@@ -66,7 +67,7 @@
 *           editor now takes '' as OFF; get.string cancels; PAUSE takes it as
 *           Q, which returns to the editor and so ends there too.
 * 28 Sep 26 SD Core Solo - RULING 27: .S name and .D name need ADMIN (message
-*           12008), like every other direct VOC change (ruling 14).
+*           15897), like every other direct VOC change (ruling 14).
 * 28 Sep 26 SD Core Solo - RULING 34: a verb on the install's deny list
 *           (solo.policy denied.verbs) needs ADMIN (2001) - check.denied.verb.
 * 28 Sep 26 SD Core Solo - RULING 35: LOCK, CLEAR.LOCKS and SET.DATE need
@@ -1324,7 +1325,7 @@ stack.manipulation:
 * 28 Sep 26 SD Core Solo - RULING 27: .D name NEEDS ADMIN, like .S name.  .D
 *   and .Dn above only edit this session's command stack and stay ungated.
             if not(kernel(K$ADMINISTRATOR, -1)) then
-               display sysmsg(12008) ;* The VOC can only be changed after ADMIN
+               display sysmsg(15897) ;* The VOC can only be changed after ADMIN
                goto exit.stack.command
             end
             at.command = trimf(trimb(at.command))
@@ -1485,7 +1486,7 @@ stack.manipulation:
 *   Narrows ruling 14's exemption for a saved sentence.  Before any record is
 *   read or locked, with voc_guard's message.
          if not(kernel(K$ADMINISTRATOR, -1)) then
-            display sysmsg(12008) ;* The VOC can only be changed after ADMIN
+            display sysmsg(15897) ;* The VOC can only be changed after ADMIN
             goto exit.stack.command
          end
 

@@ -56,7 +56,7 @@
 #      account, and checks every one gone.  Ported from verify-promptenter.ps1
 #      (git show 3776c66:...); its sessions add ADMIN only for COPY into VOC,
 #      DELETE VOC and .S/.D name, the gated writes (rulings 14, 27) - and e
-#      checks .S and .D name are refused without it (12008).
+#      checks .S and .D name are refused without it (15897).
 #  11. SD-to-SD over the API from BASIC: a probe in the account's bp creates
 #      the !sdclient class (gpl.bp/sdclient, TLS 1.3 + SCRAM) and connects to
 #      this machine's own API as the account - EXECUTE WHERE lands in the
@@ -65,7 +65,7 @@
 #      does not connect.  Both passwords reach the probe on its input, never
 #      its source.  Skipped when sd.conf has no APIPORT.
 #  12. the installed sdclilib.dll, loaded by full path, finds its home: its
-#      SDConnectLocal reaches the server and gets the ruled refusal (12930; 12021 until 13 Nov 26),
+#      SDConnectLocal reaches the server and gets the ruled refusal (15910; 12930 until 16 Nov 26, 12021 until 13 Nov 26),
 #      audited once                                          (SOLO 2 owed leg 1)
 #  13. an sd.exe started from Git Bash (or MSYS2) bash, whose POSIX root and
 #      /dev/shm are not the Solo tree's, reaches the daemon: a one-shot WHERE
@@ -380,7 +380,7 @@ function Printable([string]$s) {
 # 06 Oct 26 - THE ACCOUNT HAS NO PASSWORD UNTIL SOMEONE SETS ONE.  An install from a control file never carries the
 # account password (the register then holds $ADMIN and $GLOBAL only, no record named for the account); a MANAGED tree
 # gets it at the first interactive sd-solo at the keyboard (login, set.first.password, SOLO 18), and an unmanaged tree
-# with no record is told to install again (message 12020).  The first message this script gave for it - "the account
+# with no record is told to install again (message 15909).  The first message this script gave for it - "the account
 # password was refused ... mistyped, or login is broken" - named neither, and the owner was twice told his password
 # rule was the trouble (2 Oct 18:05 and 19:27, 6 Oct).  So it is asked BEFORE any password is requested, from the
 # register alone.  '' = go on; a register that cannot be read is not a reason to refuse here.
@@ -609,26 +609,26 @@ try {
         $b1 = Audit-Count $rxBad; $u1 = Audit-Count $rxOk
         $L = Get-Lines $t
         $i2001   = First $L '^Command requires administrator privileges$'
-        $i12008  = First $L '^The VOC can only be changed after ADMIN'
-        $i12005  = First $L '^Wrong password - administrator commands stay locked$'
-        $i12003  = First $L '^Administrator commands unlocked for this session$'
+        $i15897  = First $L '^The VOC can only be changed after ADMIN'
+        $i15894  = First $L '^Wrong password - administrator commands stay locked$'
+        $i15892  = First $L '^Administrator commands unlocked for this session$'
         $iCopied = First $L '^1 record\(s\) copied\.?$'
         $iDel    = First $L '^1 record\(s\) deleted$'
         $i5200   = First $L '^Copying records from NEWVOC to VOC'
-        $i12004  = First $L '^Administrator commands locked$'
-        Say ('    line of each answer: 2001=' + $i2001 + ' 12008=' + $i12008 + ' 12005=' + $i12005 + ' 12003=' + $i12003 + ' copied=' + $iCopied + ' deleted=' + $iDel + ' 5200=' + $i5200 + ' 12004=' + $i12004)
+        $i15893  = First $L '^Administrator commands locked$'
+        Say ('    line of each answer: 2001=' + $i2001 + ' 15897=' + $i15897 + ' 15894=' + $i15894 + ' 15892=' + $i15892 + ' copied=' + $iCopied + ' deleted=' + $iDel + ' 5200=' + $i5200 + ' 15893=' + $i15893)
         Say ('    audit: ADMIN REFUSED ' + $b0 + ' -> ' + $b1 + ', ADMIN UNLOCKED ' + $u0 + ' -> ' + $u1)
         Check 'the session landed in the account' ((Lands $t) -and ((CountOf $L '^Wrong password$') -eq 0)) 'want the account line, no login refusal'
-        Check 'before ADMIN, UPDATE.ACCOUNTS is refused' ((CountOf $L '^Command requires administrator privileges$') -eq 1 -and $i2001 -ge 0 -and $i2001 -lt $i12003) 'want one "Command requires administrator privileges", before the unlock'
-        Check 'before ADMIN, a COPY into the VOC is refused' ((CountOf $L '^The VOC can only be changed after ADMIN') -eq 1 -and $i12008 -ge 0 -and $i12008 -lt $i12003) 'want one "The VOC can only be changed after ADMIN", before the unlock'
-        Check 'a wrong administrator password is refused' ((CountOf $L '^Wrong password - administrator commands stay locked$') -eq 1 -and $i12005 -ge 0 -and $i12005 -lt $i12003 -and $b1 -eq $b0 + 1) 'want one 12005 before the unlock, and one new "ADMIN REFUSED" audit line'
-        Check 'the administrator password unlocks' ((CountOf $L '^Administrator commands unlocked for this session$') -eq 1 -and $u1 -eq $u0 + 1) 'want one 12003 and one new "ADMIN UNLOCKED via=admin" audit line'
-        Check 'after ADMIN, the COPY into the VOC goes through' ((CountOf $L '^1 record\(s\) copied\.?$') -eq 1 -and $iCopied -gt $i12003) 'want one "1 record(s) copied." after the unlock'
+        Check 'before ADMIN, UPDATE.ACCOUNTS is refused' ((CountOf $L '^Command requires administrator privileges$') -eq 1 -and $i2001 -ge 0 -and $i2001 -lt $i15892) 'want one "Command requires administrator privileges", before the unlock'
+        Check 'before ADMIN, a COPY into the VOC is refused' ((CountOf $L '^The VOC can only be changed after ADMIN') -eq 1 -and $i15897 -ge 0 -and $i15897 -lt $i15892) 'want one "The VOC can only be changed after ADMIN", before the unlock'
+        Check 'a wrong administrator password is refused' ((CountOf $L '^Wrong password - administrator commands stay locked$') -eq 1 -and $i15894 -ge 0 -and $i15894 -lt $i15892 -and $b1 -eq $b0 + 1) 'want one 15894 before the unlock, and one new "ADMIN REFUSED" audit line'
+        Check 'the administrator password unlocks' ((CountOf $L '^Administrator commands unlocked for this session$') -eq 1 -and $u1 -eq $u0 + 1) 'want one 15892 and one new "ADMIN UNLOCKED via=admin" audit line'
+        Check 'after ADMIN, the COPY into the VOC goes through' ((CountOf $L '^1 record\(s\) copied\.?$') -eq 1 -and $iCopied -gt $i15892) 'want one "1 record(s) copied." after the unlock'
         Check 'and the copied record is deleted again' ($iDel -gt $iCopied) 'want "1 record(s) deleted" after the copy'
-        Check 'after ADMIN, UPDATE.ACCOUNTS runs' ((CountOf $L '^Copying records from NEWVOC to VOC') -eq 1 -and $i5200 -gt $i12003) 'want one "Copying records from NEWVOC to VOC..." after the unlock'
+        Check 'after ADMIN, UPDATE.ACCOUNTS runs' ((CountOf $L '^Copying records from NEWVOC to VOC') -eq 1 -and $i5200 -gt $i15892) 'want one "Copying records from NEWVOC to VOC..." after the unlock'
         $iShow = First $L '^mode\s*:\s*-Show$'
-        Check 'with ADMIN, a PowerShell-backed verb runs in the session (APPEND.SD.PATH report)' ($iShow -gt $i5200 -and $iShow -lt $i12004 -and ($t -notmatch 'Could not \w+ (the system|your) PATH') -and ($t -match 'HKCU\\Environment')) ('want sd-path''s "mode : -Show" line between UPDATE.ACCOUNTS and ADMIN OFF, its HKCU\Environment registry line (SOLO 17), and no 10153; line ' + $iShow)
-        Check 'ADMIN OFF locks again' ($i12004 -gt $i5200) 'want "Administrator commands locked" last'
+        Check 'with ADMIN, a PowerShell-backed verb runs in the session (APPEND.SD.PATH report)' ($iShow -gt $i5200 -and $iShow -lt $i15893 -and ($t -notmatch 'Could not \w+ (the system|your) PATH') -and ($t -match 'HKCU\\Environment')) ('want sd-path''s "mode : -Show" line between UPDATE.ACCOUNTS and ADMIN OFF, its HKCU\Environment registry line (SOLO 17), and no 10153; line ' + $iShow)
+        Check 'ADMIN OFF locks again' ($i15893 -gt $i5200) 'want "Administrator commands locked" last'
         $t = Invoke-Sd 'probe-absent-after' ('CT VOC ' + $Probe) '' 'none'
         Check ($Probe + ' is gone from the VOC afterwards') ((CountOf (Get-Lines $t) ("(?i)^Record '" + [regex]::Escape($Probe) + "' not found$")) -eq 1) ('it is still there: ADMIN, then DELETE VOC ' + $Probe)
     }
@@ -661,7 +661,7 @@ try {
     if ($managed) {
         $t = Invoke-Sd 'interactive-global' '' ($globalPw + "`nWHERE`nADMIN`nzz-not-a-password`nOFF`n") 'the global password, WHERE, ADMIN, a dummy line, OFF'
         Check 'the global password lands in the account' ((Lands $t) -and ((CountOf (Get-Lines $t) '^Wrong password$') -eq 0)) 'want the account line, no "Wrong password"'
-        Check 'with the administrator commands already unlocked' ((CountOf (Get-Lines $t) '^Administrator commands are already unlocked') -eq 1) 'want ADMIN to say they are already unlocked (12006)'
+        Check 'with the administrator commands already unlocked' ((CountOf (Get-Lines $t) '^Administrator commands are already unlocked') -eq 1) 'want ADMIN to say they are already unlocked (15895)'
     }
     else { Skip 'the global password at a console' 'no global password on this computer' }
 
@@ -916,15 +916,15 @@ try {
         $sRx = '(?m)^[ \t]*001[ \t]+S[ \t]*$'
         $vocGate = '(?m)^The VOC can only be changed after ADMIN'
         # 28 Sep 26 - RULING 27: .S name and .D name need ADMIN.  Without it .S
-        # is refused with 12008 and writes nothing (.L then says not found).
+        # is refused with 15897 and writes nothing (.L then says not found).
         $t = Invoke-Pe 'pe-e-s-noadmin' @(".S $sV 1", ".L $sV")
-        Check "e: without ADMIN, .S is refused (12008) and saves nothing" (($t -match $vocGate) -and ($t -match "'$sV' not found in VOC") -and ($t -notmatch $sRx)) 'want 12008 and .L "not found"'
+        Check "e: without ADMIN, .S is refused (15897) and saves nothing" (($t -match $vocGate) -and ($t -match "'$sV' not found in VOC") -and ($t -notmatch $sRx)) 'want 15897 and .L "not found"'
         $t = Invoke-Pe 'pe-e-make' @(".S $sV 1", ".L $sV") -Admin
         $sentOk = $t -match $sRx
         Check "e: setup - with ADMIN, .S wrote $sV as an S-type record" $sentOk 'no "001  S" line, so .D would never ask 5040'
         if ($sentOk) {
             $t = Invoke-Pe 'pe-e-d-noadmin' @(".D $sV", ".L $sV")
-            Check "e: without ADMIN, .D $sV is refused (12008), no 5040, and the sentence stays" (($t -match $vocGate) -and ($t -notmatch "Delete VOC record '$sV'") -and ($t -match $sRx)) 'want 12008, no 5040 prompt, and .L still listing it'
+            Check "e: without ADMIN, .D $sV is refused (15897), no 5040, and the sentence stays" (($t -match $vocGate) -and ($t -notmatch "Delete VOC record '$sV'") -and ($t -match $sRx)) 'want 15897, no 5040 prompt, and .L still listing it'
             $t = Invoke-Pe 'pe-e-enter' @(".D $sV", '', ".L $sV") -Admin
             Check 'e: the transcript is a sane size' ($t.Length -lt 200000) ('' + $t.Length + ' bytes')
             Check 'e: prompt 5040 reached, showing (y/<n>)' ($t -match "Delete VOC record '$sV' \(y/<n>\)\?") 'no 5040 prompt'
@@ -1066,7 +1066,7 @@ try {
     # SOLO 2's owed leg (1), witnessed by hand 27 Sep 2026.  sdclilib.dll takes
     # the home from its own location, <home>\usr\bin (home_path()); its only
     # caller is sysdir(), reached only through SDConnectLocal, which Solo refuses
-    # on the server (message 12930, apisrvr vb.local.login).  So the REFUSAL is
+    # on the server (message 15910, apisrvr vb.local.login).  So the REFUSAL is
     # the success anchor: its text is not in the DLL and comes back only if the
     # DLL found <home>\sd.conf and sd.exe and the session started.  Loaded by
     # FULL PATH, and the loaded module is checked, so no other copy can answer.
@@ -1100,7 +1100,7 @@ public static class SdSuiteCli {
         Say ('    returned ' + $rc + '; SDError: ' + (Mask $err))
         Say ('    audit "API REFUSED request=25" lines: ' + $a0 + ' -> ' + $a1)
         Check 'the loaded sdclilib.dll is the installed one' ($mod.Count -eq 1 -and $mod[0] -eq $cliDll) ('loaded: ' + ($mod -join '; '))
-        Check 'SDConnectLocal reaches the server and is refused as ruled (12930)' ($rc -eq 0 -and $err -match '^SDConnectLocal is not available in SD Core Solo for Windows - connect with SDConnect' -and $err -notmatch '(?i)cannot determine|not found') ('returned ' + $rc + ', SDError: ' + $err)
+        Check 'SDConnectLocal reaches the server and is refused as ruled (15910)' ($rc -eq 0 -and $err -match '^SDConnectLocal is not available in SD Core Solo for Windows - connect with SDConnect' -and $err -notmatch '(?i)cannot determine|not found') ('returned ' + $rc + ', SDError: ' + $err)
         Check 'and the audit records the refusal, once' ($a0 -ge 0 -and $a1 -eq $a0 + 1) ('audit count ' + $a0 + ' -> ' + $a1)
     }
 
@@ -1199,8 +1199,8 @@ public static class SdSuiteCli {
     # -----------------------------------------------------------------------
     # 28 Sep 26 - RULING 33: the global catalog is the SD Core server's.
     # a: sduser WITH ADMIN is refused every change - CATALOG ... GLOBAL and
-    #    DELETE.CATALOG of a global entry (12029), SYNC.GLOBAL.CATALOG and a
-    #    COPY into GLOBAL.BP.OUT (12028) - and GLOBAL.BP.OUT stays empty.
+    #    DELETE.CATALOG of a global entry (15916), SYNC.GLOBAL.CATALOG and a
+    #    COPY into GLOBAL.BP.OUT (15915) - and GLOBAL.BP.OUT stays empty.
     # b: managed mode only - a session signed in with the GLOBAL password
     #    copies a compiled subroutine into GLOBAL.BP.OUT and syncs; sduser
     #    (account password, no ADMIN) then CALLs it by name; the global
@@ -1219,8 +1219,8 @@ public static class SdSuiteCli {
 
     $t = Invoke-Pe 'g-admin' @("CATALOG BP $gSub GLOBAL", ('DELETE.CATALOG *' + $gSub.ToLower()), 'SYNC.GLOBAL.CATALOG', 'COPY FROM VOC TO GLOBAL.BP.OUT WHERE') -Admin
     $L = Get-Lines $t
-    Check 'a: with ADMIN, CATALOG ... GLOBAL and DELETE.CATALOG *name are refused (12029)' ((CountOf $L '^The global catalog holds the SD Core server') -eq 2) ('12029 lines: ' + (CountOf $L '^The global catalog holds the SD Core server'))
-    Check 'a: with ADMIN, SYNC.GLOBAL.CATALOG and COPY into GLOBAL.BP.OUT are refused (12028)' (((CountOf $L '^The global catalog can only be changed by the SD Core server') -eq 2) -and ($t -notmatch 'SYNC GLOBAL CATALOG DONE') -and ($t -notmatch 'record\(s\) copied')) ('12028 lines: ' + (CountOf $L '^The global catalog can only be changed by the SD Core server'))
+    Check 'a: with ADMIN, CATALOG ... GLOBAL and DELETE.CATALOG *name are refused (15916)' ((CountOf $L '^The global catalog holds the SD Core server') -eq 2) ('15916 lines: ' + (CountOf $L '^The global catalog holds the SD Core server'))
+    Check 'a: with ADMIN, SYNC.GLOBAL.CATALOG and COPY into GLOBAL.BP.OUT are refused (15915)' (((CountOf $L '^The global catalog can only be changed by the SD Core server') -eq 2) -and ($t -notmatch 'SYNC GLOBAL CATALOG DONE') -and ($t -notmatch 'record\(s\) copied')) ('15915 lines: ' + (CountOf $L '^The global catalog can only be changed by the SD Core server'))
     $gbpN = @(Get-ChildItem -LiteralPath $gbpDir -File -ErrorAction SilentlyContinue).Count
     Check 'a: GLOBAL.BP.OUT is still empty' ($gbpN -eq 0) ('' + $gbpN + ' objects')
 
@@ -1276,7 +1276,7 @@ public static class SdSuiteCli {
     # a (35): without ADMIN the eight maintenance verbs that had no check are
     #    refused with 2001; with ADMIN the two harmless readers run.  SET.DATE,
     #    CLEAN.ACCOUNT, LOCK and CLEAR.LOCKS are only ever asked WITHOUT ADMIN.
-    # b (36): DENY.VERBS is refused to sduser even with ADMIN (12030).
+    # b (36): DENY.VERBS is refused to sduser even with ADMIN (15917).
     # c (34, 36): managed only - a global session adds WHO to the deny list;
     #    sduser without ADMIN is refused WHO (2001), with ADMIN it runs; the
     #    global session removes WHO and sduser runs it again.  The list the
@@ -1305,7 +1305,7 @@ public static class SdSuiteCli {
     Check 'a: with ADMIN, LISTU and LIST.LOCKS run' (((CountOf (Get-Lines $t) $gate2001) -eq 0) -and ($t -match '(?i)sduser')) 'want no 2001 and LISTU naming sduser'
 
     $t = Invoke-Pe 'v-deny-admin' @('DENY.VERBS', 'DENY.VERBS ADD WHO') -Admin
-    Check 'b: with ADMIN, DENY.VERBS is refused (12030)' (((CountOf (Get-Lines $t) '^The denied verbs can only be listed or changed by the SD Core server') -eq 2) -and ($t -notmatch '(?m)^DENY\.VERBS \d+:')) 'want two 12030 and no DENY.VERBS answer'
+    Check 'b: with ADMIN, DENY.VERBS is refused (15917)' (((CountOf (Get-Lines $t) '^The denied verbs can only be listed or changed by the SD Core server') -eq 2) -and ($t -notmatch '(?m)^DENY\.VERBS \d+:')) 'want two 15917 and no DENY.VERBS answer'
 
     if (-not $managed) {
         Skip 'c: the SD Core server denies and allows a verb' 'no global password on this computer'
@@ -1371,15 +1371,15 @@ public static class SdSuiteCli {
     $t = Invoke-Pe 'p-usage' @('SET.PASSWORD BOGUS')
     Check 'a: SET.PASSWORD BOGUS is refused with the usage line' (((CountOf (Get-Lines $t) '^SET\.PASSWORD \[ADMIN \| GLOBAL\]$') -eq 1) -and ((CountOf (Get-Lines $t) $okRx) -eq 0)) 'want the usage line and no "Password changed"'
     $t = Invoke-Sd 'p-wrong-current' '' ($acctPw + "`nTERM 200,9999`nSET.PASSWORD`n" + $wrongPw + "`nOFF`n") 'account password, TERM 200,9999, SET.PASSWORD, a WRONG current password, OFF'
-    Check 'a: without ADMIN, SET.PASSWORD asks the current password and refuses a wrong one (12032)' (($t -match 'Current password:') -and ((CountOf (Get-Lines $t) '^Wrong password - the password is unchanged$') -eq 1) -and ((CountOf (Get-Lines $t) $okRx) -eq 0)) 'want "Current password:", 12032, and no "Password changed"'
+    Check 'a: without ADMIN, SET.PASSWORD asks the current password and refuses a wrong one (15919)' (($t -match 'Current password:') -and ((CountOf (Get-Lines $t) '^Wrong password - the password is unchanged$') -eq 1) -and ((CountOf (Get-Lines $t) $okRx) -eq 0)) 'want "Current password:", 15919, and no "Password changed"'
     $t = Invoke-Pe 'p-admin-noadmin' @('SET.PASSWORD ADMIN')
     Check 'a: without ADMIN, SET.PASSWORD ADMIN is refused (2001)' ((CountOf (Get-Lines $t) $gate2001) -eq 1) 'want one 2001'
     $t = Invoke-Pe 'p-global-admin' @('SET.PASSWORD GLOBAL') -Admin
     if ($managed) {
-        Check 'a: with ADMIN, SET.PASSWORD GLOBAL is refused (12033)' ((CountOf (Get-Lines $t) '^The global password can only be changed by the SD Core server$') -eq 1) 'want 12033'
+        Check 'a: with ADMIN, SET.PASSWORD GLOBAL is refused (15920)' ((CountOf (Get-Lines $t) '^The global password can only be changed by the SD Core server$') -eq 1) 'want 15920'
     }
     else {
-        Check 'a: no global password, SET.PASSWORD GLOBAL is refused (12034)' ((CountOf (Get-Lines $t) '^This computer has no global password - no SD Core server manages it$') -eq 1) 'want 12034'
+        Check 'a: no global password, SET.PASSWORD GLOBAL is refused (15921)' ((CountOf (Get-Lines $t) '^This computer has no global password - no SD Core server manages it$') -eq 1) 'want 15921'
     }
 
     # b: the account password, WITHOUT ADMIN, after the current one.
@@ -1414,9 +1414,9 @@ public static class SdSuiteCli {
         Check 'c: with ADMIN, the administrator password changes' $changed 'want "Password changed"'
         if ($changed) {
             $t = Invoke-Sd 'p-admin-new' '' ($acctPw + "`nADMIN`n" + $tAdm + "`nOFF`n") 'account password, ADMIN, the temporary administrator password, OFF'
-            Check 'c: the new administrator password unlocks ADMIN' ((CountOf (Get-Lines $t) '^Administrator commands unlocked for this session$') -eq 1) 'want 12003'
+            Check 'c: the new administrator password unlocks ADMIN' ((CountOf (Get-Lines $t) '^Administrator commands unlocked for this session$') -eq 1) 'want 15892'
             $t = Invoke-Sd 'p-admin-old' '' ($acctPw + "`nADMIN`n" + $adminPw + "`nOFF`n") 'account password, ADMIN, the OLD administrator password, OFF'
-            Check 'c: CONTROL - the old one no longer does (12005)' ((CountOf (Get-Lines $t) '^Wrong password - administrator commands stay locked$') -eq 1) 'want 12005'
+            Check 'c: CONTROL - the old one no longer does (15894)' ((CountOf (Get-Lines $t) '^Wrong password - administrator commands stay locked$') -eq 1) 'want 15894'
         }
     }
     finally {

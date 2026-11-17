@@ -4,6 +4,7 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 16 Nov 26 Windows port - from Linux Solo c8dac7a: the administrator password prompt is message 15891 (was 12002), text unchanged.
 * 16 Nov 26 SD Core Solo - SOLO 60 (Linux mail 2026-11-16T1330): '$admin' and '$global' in lower case, as the $cred ids are; the helper
 *           (solo-doors.ps1) compares and opens them without regard to case.
 * 12 Nov 26 SD Core Solo - SOLO 62: the helper task is started by Task Scheduler COM; Start-ScheduledTask (CIM) is refused over ssh.
@@ -177,7 +178,7 @@ change:
    done = @false
 
 *  The password, again, and which record it opens: the administrator's, or in managed mode the global one (as ADMIN tries them).
-   display sysmsg(12002) : ' ' :                                  ;* Administrator password:
+   display sysmsg(15891) : ' ' :                                  ;* Administrator password:
    input pw HIDDEN
    cred = ''
    ok = @false

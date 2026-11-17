@@ -18,8 +18,9 @@
 * 
 * 
 * START-HISTORY:
+* 16 Nov 26 Windows port - from Linux Solo c8dac7a: !voc_refusal's messages are 15897 and 15915 (were 12008 and 12028), text unchanged.
 * 12 Nov 26 Windows port - SOLO 56 group 5: Linux Solo 608b511 taken whole (messages renumbered: 11xxx + 1005); it replaces the October carry, so the
-*               record view has the pages' look, the theme and the menu bar.  The refusal is still !voc_refusal (Solo's, 12008 and 12028).
+*               record view has the pages' look, the theme and the menu bar.  The refusal is still !voc_refusal (Solo's, 15897 and 15915).
 * 8 Nov 26 dm   S.179 / S.180 (the owner: the same keys on every page, every feature on a menu; SP.VIEW "same as debugger"): SP.VIEW starts in $sl_theme 'site'
 *               (the person's own theme, then SCREENTHEME); in the pages' look a menu bar (File, View, Help: sp.bar), opened by Esc or F10, whose entries are
 *               the letters the loop acts on; F5 and Ctrl-L refresh, Ctrl-T the theme ($tk_theme), Ctrl-K and F1 the keys, Ctrl-Q quits.  S, X, Q and the rest
@@ -583,7 +584,7 @@ delete.item:
 *   the prompt line as every complaint here does (voc_guard() would DISPLAY over the page).  $hold and every ordinary file pass, as before.
    refusal = voc_refusal(data.f)
    if refusal then
-      prompt.text = sysmsg(refusal) ;* 12008 The VOC needs ADMIN / 12028 the global files need the global session
+      prompt.text = sysmsg(refusal) ;* 15897 The VOC needs ADMIN / 15915 the global files need the global session
       gosub say.note                                 ;* 11 Nov 26 (S.117): the framed page's own note line, as SD Core's refusal is shown
       c = keycode()
       return

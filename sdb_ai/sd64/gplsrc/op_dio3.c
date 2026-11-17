@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 16 Nov 26 Windows port - from Linux Solo c8dac7a: op_clrfile()'s refusals are messages 15897 and 15915 (were 12008 and 12028), text unchanged.
  * 15 Nov 26 SD Core Solo - from Core e861651e (RELEASE_1.1 279, 236): dir_write() writes LF for an explicit FC$CRLF mode 0, 2 or 3; CR LF stays
  *               for mode 1 and a file with no mode (Core's OS deviation, RELEASE_1.1 271).
  * 11 Nov 26 SD Core Solo - from SD Core 392c8e01 / Linux Solo ba2eb2a (SOLO 53): op_write() carries out WRITE and WRITEU ...
@@ -445,9 +446,9 @@ void op_clrfile() {
     k_error(sysmsg(1403));
 
   if (voc_write_refused(fvar)) /* 25 Sep 26 SD Core Solo - SOLO 5, ruling 14 */
-    k_error(sysmsg(12008));
+    k_error(sysmsg(15897));
   if (global_write_refused(fvar)) /* 28 Sep 26 SD Core Solo - ruling 33 */
-    k_error(sysmsg(12028));
+    k_error(sysmsg(15915));
 
   {
     /* Get exclusive access to the file_lock entry in the file table. Because

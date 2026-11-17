@@ -18,6 +18,7 @@
 *
 *
 * START-HISTORY:
+* 16 Nov 26 Windows port - from Linux Solo c8dac7a: the refusal is message 15917 (was 12030), text unchanged.
 * 29 Sep 26 SD Core Solo - SOLO 22: says which other verbs the list denies
 *           because they run the same command ("also denies ..."), before
 *           the anchored last line.
@@ -42,7 +43,7 @@
 *
 * WHO: a session signed in with the global password (K$GLOBAL.SESSION), and
 * the installer ("sd -internal DENY.VERBS SET ...", from the control file's
-* deny-verbs line).  Anyone else - ADMIN included - gets 12030; listing is the
+* deny-verbs line).  Anyone else - ADMIN included - gets 15917; listing is the
 * same, since the list is the server's business.
 *
 * WHERE: @SDSYS/solo.policy, record denied.verbs, one verb per line.  CPROC's
@@ -81,7 +82,7 @@ $include err.h
    @system.return.code = -ER$ARGS
 
    if not(kernel(K$GLOBAL.SESSION, -1)) and not(kernel(K$INTERNAL, -1)) then
-      display sysmsg(12030) ;* The denied verbs can only be listed or changed by the SD Core server
+      display sysmsg(15917) ;* The denied verbs can only be listed or changed by the SD Core server
       stop
    end
 

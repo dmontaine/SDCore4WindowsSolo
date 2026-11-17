@@ -18,11 +18,12 @@
 *
 *
 * START-HISTORY:
+* 16 Nov 26 Windows port - from Linux Solo c8dac7a: the refusals are messages 15897 and 15915 (were 12008 and 12028), text unchanged.
 * 18 Oct 26 SD Core Solo - SOLO 46 (from SD Core Solo for Linux 2a9b736): the rule is !voc_refusal's now;
 *           this program is that plus the display.  The verbs that change a file the user names in
 *           other ways than ED / COPY / DELETE ask it too (see the changelog).
 * 28 Sep 26 SD Core Solo - ruling 33: SDSYS's gcat and global.bp.out need a
-*           global-password session (K$GLOBAL.SESSION, message 12028).
+*           global-password session (K$GLOBAL.SESSION, message 15915).
 * 25 Sep 26 SD Core Solo - new, SOLO 5.
 * END-HISTORY
 *
@@ -44,7 +45,7 @@
 * voc_write_refused() in C.  The dictionary, voc.dic, is not the VOC.
 *
 * Returns @true when the edit may go ahead: not a VOC, or ADMIN is on.  On
-* @false it has already said why (12008).
+* @false it has already said why (15897).
 *
 * END-DESCRIPTION
 *
@@ -61,7 +62,7 @@ $catalog !voc_guard
    n = voc_refusal(f)
    if n = 0 then return @true
 
-   display sysmsg(n) ;* 12008 The VOC can only be changed after ADMIN / 12028 The global catalogue can only be changed by the SD Core server
+   display sysmsg(n) ;* 15897 The VOC can only be changed after ADMIN / 15915 The global catalogue can only be changed by the SD Core server
    return @false
 end
 

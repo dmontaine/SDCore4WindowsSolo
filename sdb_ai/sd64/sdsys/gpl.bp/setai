@@ -5,6 +5,8 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 16 Nov 26 Windows port - from Linux Solo c8dac7a: the AI gate message is 15925 (was 12611; Linux Solo 14925), text unchanged;
+*               SD Core's 12611 is another message.
 * 11 Nov 26 dm  Carried from SD Core (owner, 11 Nov 2026: "Carry Core's dialog"): google is a provider and MODEL - goes back to the provider's starting model (e1061f73);
 *               SET.AI MODELS provider lists the provider's own model names; SET.AI MODEL warns (15016, 15018) when the provider does not list the name; SET.AI KEY provider
 *               HANDOVER takes the key from the AI page's hand-over file ($aikey/key in the Solo tree, a directory of mode 0700) and removes the file whatever happens;
@@ -12,7 +14,7 @@
 * 11 Nov 26 dm  Carried from SD Core (S.160, 7 Nov 26, 74cf7001): SET.AI CONTEXT hex | - (the standing text sent first with every request), put to the wall's screen
 *               before the helper keeps it; messages 15011-15014 (shared with Core) and 12614's usage.  The code of the case is Core's.
 * 23 Oct 26 dm  Solo carry 15: the helper's client is <tree>/tools/sd-ai-ctl (Core: root-owned under /usr/local/lib); the word GATE ON | OFF is Solo's account gate (Core's is
-*               modify.account NAME ai-on, one per account); message 12611 says it.  Everything else is Core's program.
+*               modify.account NAME ai-on, one per account); message 15925 says it.  Everything else is Core's program.
 * 23 Oct 26 dm  (Core) New (S.69 step 2; the owner: "an ai choice page ... a checkbox for the currently selected provider ... the same model needs to be used by all accounts").
 * 16 Nov 26 SD Core Solo - RELEASE_1.1 246: from Linux Solo 415b9f3 (its same-user form, c89bb9b, 6941038, f802f30, 10fcf2f), with its messages renumbered
 *              (11xxx + 1005, 14xxx + 1000) and the Windows facts of the client, as SD Core for Windows' setai: the client is the helper's own program,
@@ -101,7 +103,7 @@ $include err.h
          gosub run.ctl
          gosub need.ok
          void kernel(K$AUDIT, 'set.ai gate=' : gstate)
-         display sysmsg(12611, gstate)                                                    ;* The AI gate is now %1
+         display sysmsg(15925, gstate)                                                    ;* The AI gate is now %1
          @system.return.code = 0
 
       case sub = 'provider' and n.words = 3

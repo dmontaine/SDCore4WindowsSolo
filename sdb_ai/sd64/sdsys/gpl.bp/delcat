@@ -18,8 +18,9 @@
 * 
 * 
 * START-HISTORY:
+* 16 Nov 26 Windows port - from Linux Solo c8dac7a: the global catalogue refusal is message 15916 (was 12029), text unchanged.
 * 28 Sep 26 SD Core Solo - ruling 33: a global entry is never deleted here
-*           (message 12029, every session); SYNC.GLOBAL.CATALOG does it.
+*           (message 15916, every session); SYNC.GLOBAL.CATALOG does it.
 * 14 Sep 26 Windows port - RELEASE_1.1 5 stage 3a: catalogue names are lower
 *           case, and a local entry is found under its old upper-case VOC id too.
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
@@ -113,7 +114,7 @@ $include int$keys.h
    for gbl.i = 1 to gbl.count
       gbl.name = name.list<gbl.i>
       if global or index(prefix.chars, gbl.name[1,1], 1) then
-         stop sysmsg(12029) ;* ... changed only by SYNC.GLOBAL.CATALOG
+         stop sysmsg(15916) ;* ... changed only by SYNC.GLOBAL.CATALOG
       end
    next gbl.i
 

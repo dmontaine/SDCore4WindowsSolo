@@ -19,7 +19,8 @@ on this port:
 --selftest breaks a copy of each subject in memory and requires the check that guards it to go red.
 
 SD CORE SOLO (12 Nov 2026, SOLO 56 group 5): SD Core for Windows' guard, with Solo's differences.  T6's messages are 12938-12942
-and 15972-15973 (12936 and 12937 are SET.PINS's here, as in Linux Solo).  T7 has no installer lock to look for (Solo's sd.conf and
+and 15972-15973, as Linux Solo's 14972-14973 (12936 and 12937 were SET.PINS's here until 16 Nov 26, when SET.PINS moved to
+15926-15928 with Linux Solo c8dac7a; set.config stayed where Linux Solo keeps it).  T7 has no installer lock to look for (Solo's sd.conf and
 config.table are the user's own files) and the help topic names GettingStarted 16.  T8 reads SDCore4WindowsSoloDocs GettingStarted 16.
 """
 import os

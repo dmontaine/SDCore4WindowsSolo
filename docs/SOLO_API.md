@@ -145,11 +145,12 @@ already; its SDSYS/elevation test is multi-user and is retargeted, not removed.
    a new data tree with the API box ticked, refuses a password equal to the
    global one (ruling 19's order), passed as `SD_SOLO_API_PW`.
    **`SET.API.PASSWORD` BUILT AND WITNESSED 25 Sep** (owner: that name, gated
-   by ADMIN): `gpl.bp/set_api_password` (`$SETAPIPW`), messages 12009-12016,
+   by ADMIN): `gpl.bp/set_api_password` (`$SETAPIPW`), messages 15898-15905
+   (12009-12016 until 16 Nov 26),
    `newvoc/set.api.password`. Witness, staged tree: refused without ADMIN
-   (2001); after ADMIN refused a mismatched confirmation (12011) and the
-   global password (12014), the old API password still logging in after
-   both; then changed (12012, audited), `scram-probe.py` VERIFIED with the new
+   (2001); after ADMIN refused a mismatched confirmation (15900) and the
+   global password (15903), the old API password still logging in after
+   both; then changed (15901, audited), `scram-probe.py` VERIFIED with the new
    password and REFUSED with the old. **Open, the owner's call:**
    `MODIFY.PASSWORD` (`set_acc_password`) is still in `newvoc` and writes the
    same record — own password with only the current one, and a FIRST one with

@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 16 Nov 26 Windows port - from Linux Solo c8dac7a: the global catalogue refusal is message 15916 (was 12029), text unchanged.
 * 8 Nov 26 Windows port - from Linux d241df26 (S.87): multifiles are gone.  The program file's name is always name.out (the file,part form is not split); PARSER$MFILE is now PARSER$GET.TOKEN.
 * 8 Nov 26 Windows port - from Linux fb98cfb5 (S.87): * and - are no longer global prefix characters (! $ and _ are).
 * 8 Nov 26 Windows port - from Linux e150c47e (S.87 batch 8): OPTION CATALOGUE.LOCAL is gone; CATALOG with no word catalogues privately, and LOCAL says local.
@@ -30,7 +31,7 @@
 * 28 Sep 26 SD Core Solo - later: ruling 33's refusal exempts the internal session:
 *           the bootstrap catalogues SD's own $ and ! programs through here.
 * 28 Sep 26 SD Core Solo - ruling 33: the global catalogue is never written
-*           here (GLOBAL or a * ! _ $ name: message 12029, every session), and
+*           here (GLOBAL or a * ! _ $ name: message 15916, every session), and
 *           a LOCAL entry no longer offers to remove a global one (3035).
 * 14 Sep 26 Windows port - RELEASE_1.1 5 D2: the upper-case rename below runs
 *           only on a case-sensitive VOC.  On a NOCASE one it deleted the entry
@@ -150,7 +151,7 @@ $define CAT_PCODE  3
             * 28 Sep 26 SD Core Solo - RULING 33: refused for every session,
             *   ADMIN or not; see the gate after the name parsing below.
             if not(kernel(K$INTERNAL, -1)) then
-               stop sysmsg(12029)  ;* ... changed only by SYNC.GLOBAL.CATALOG
+               stop sysmsg(15916)  ;* ... changed only by SYNC.GLOBAL.CATALOG
             end
 
          case keyword = KW$PCODE
@@ -258,7 +259,7 @@ $define CAT_PCODE  3
 *  refused the tree.  -internal is the build/installer door only (rulings 11,
 *  13); syncgcat and op_dio3.c global_write_refused() exempt it the same way.
    if mode = CAT_GLOBAL and not(kernel(K$INTERNAL, -1)) then
-      stop sysmsg(12029)  ;* ... changed only by SYNC.GLOBAL.CATALOG
+      stop sysmsg(15916)  ;* ... changed only by SYNC.GLOBAL.CATALOG
    end
 
 

@@ -4,6 +4,8 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 16 Nov 26 Windows port - from Linux Solo c8dac7a: messages 12935-12937 are 15926-15928 (Linux Solo 14926-14928), text unchanged;
+*               SD Core's 12935-12937 are other messages.
 * 23 Oct 26 dm  New (Solo carry 14; the owner, 22 Oct: "users need to be able to add their own items to the full screen menu if allowed by the admin - not manage universal tiles,
 *               but just for their own programs").  Solo has no MODIFY.ACCOUNT and one account, so the permission has a verb of its own, as the OS switches have SET.OS.ACCESS.
 * END-HISTORY
@@ -43,7 +45,7 @@ $include err.h
    words = trim(@sentence)
    n.words = dcount(words, ' ')
    want = downcase(field(words, ' ', 2))
-   if n.words > 2 or (n.words = 2 and want # 'on' and want # 'off') then stop sysmsg(12935)         ;* set.pins {on | off}
+   if n.words > 2 or (n.words = 2 and want # 'on' and want # 'off') then stop sysmsg(15926)         ;* set.pins {on | off}
 
    openpath @sdsys : @ds : 'accounts' to acc.f else stop sysmsg(6003)
    readu acc.rec from acc.f, acc.name else
@@ -65,7 +67,7 @@ $include err.h
       release acc.f, acc.name
       close acc.f
       @system.return.code = 0
-      display sysmsg(12936, acc.name, want)             ;* Own programs for %1 were already %2; nothing changed
+      display sysmsg(15927, acc.name, want)             ;* Own programs for %1 were already %2; nothing changed
       stop
    end
 
@@ -76,7 +78,7 @@ $include err.h
    close acc.f
    if not(ok) then
       @system.return.code = -ER$FAILED
-      stop sysmsg(12937)                                ;* The permission could not be written
+      stop sysmsg(15928)                                ;* The permission could not be written
    end
 
    @system.return.code = 0

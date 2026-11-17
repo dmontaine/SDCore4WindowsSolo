@@ -795,7 +795,7 @@ This product has **walls**. A wall is the system working: when one stops you, sa
 | the OS switch, `os` | `os.execute`; `openseq`, `openpath`, `dir()`, `deleteseq`, `opentemp`, `digest` and `ospath` of a path outside the account; a print unit's pathname; the embedded Python; `micro` | the administrator: `set.os.access os on`. **Off as delivered.** |
 | verbs the product does not have | `create.account`, `logto`: there is one account | nothing |
 
-The refusal is in words you can match, and the pack holds each as `msg:<number>`: 2001 (`Command requires administrator privileges`), 10053 (the shell) and 10054 (`os.execute`), 11008 (the VOC), 11028 and 11029 (the global catalog), 11180 (a pathname outside the account). What a session that has **not typed `admin`** and has both switches off, **as delivered**, sees:
+The refusal is in words you can match, and the pack holds each as `msg:<number>`: 2001 (`Command requires administrator privileges`), 10053 (the shell) and 10054 (`os.execute`), 15897 (the VOC), 15915 and 15916 (the global catalog), 12185 (a pathname outside the account). What a session that has **not typed `admin`** and has both switches off, **as delivered**, sees:
 
 ```basic run id=gshell
 program gshell

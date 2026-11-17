@@ -18,10 +18,11 @@
 * 
 * 
 * START-HISTORY:
+* 16 Nov 26 Windows port - from Linux Solo c8dac7a: the global files refusal is message 15915 (was 12028), text unchanged.
 * 12 Nov 26 SD Core Solo - SOLO 56 group 8, as Linux Solo b1d823f (SD Core's S.73 item 3): DELETE.FILE of an N pointer deletes the file on its server and removes
 *            the pointer in the same act (delete.remote.file, messages 12532, 12533, 12537, 12539, 12540).
 * 28 Sep 26 SD Core Solo - ruling 33: @SDSYS/global.bp.out and gcat are kept
-*            unless the session signed in with the global password (12028).
+*            unless the session signed in with the global password (15915).
 * 13 Sep 26 Windows port - RELEASE_1.1_FIXES.md 33, owner's ruling: Enter at
 *            "Use active select list" (2050) means N, and "Delete all data
 *            components of multifile" (6133) gains C to cancel, which is also
@@ -579,7 +580,7 @@ check.sdsys.file:
    sdsys.tail = downcase(convert(char(92), '/', sdsys.tail))
    if sdsys.tail = '@sdsys/global.bp.out' or sdsys.tail = '@sdsys/gcat' or sdsys.tail = '@sdsys/solo.policy' then
       if not(kernel(K$GLOBAL.SESSION, -1)) then
-         display sysmsg(12028) ;* The global catalogue can only be changed by the SD Core server
+         display sysmsg(15915) ;* The global catalogue can only be changed by the SD Core server
          skip.part = @true
          return
       end

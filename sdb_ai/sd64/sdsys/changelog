@@ -3,6 +3,22 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+16 Nov 26  SOLO'S MESSAGE NUMBERS NO LONGER CLASH WITH SD CORE'S.
+
+             What        - 36 messages that only Solo has used numbers SD Core for Windows gives to other messages (for
+                           example 12002 was "Administrator password:" here and a backup message there).  They now sit
+                           in Solo's own block, 15891 to 15928, with the same text: the administrator and password
+                           messages (12002 to 12020 are now 15891 to 15909, 12022 is 15911, 12025 to 12035 are 15912 to
+                           15922), the SDConnectLocal refusal (12930 is 15910), the AI gate message (12611 is 15925) and
+                           the set.pins messages (12935 to 12937 are 15926 to 15928).  The numbers are SD Core Solo for
+                           Linux's new ones plus 1000, as for Solo's other messages.
+             Why         - the same number must mean the same thing in SD Core, SD Core Solo and the Linux products; a
+                           program or a message file carried from one to another would otherwise print the wrong words.
+             Does NOT    - Change any text or any behaviour: what you read on the screen is the same.  A program of your
+                           own that cites one of these numbers with SYSMSG(), or tests the number !VOC_REFUSAL returns
+                           (now 15897 or 15915), needs the new number; a script that matches the words is unaffected.
+                           NOT YET TESTED ON AN INSTALLED SYSTEM.
+
 16 Nov 26  THE VOC RECORDS $CONTRIB AND $LICENCE ARE GONE; THE TEXTS ARE IN THE SYSTEM FOLDER.
 
              What        - A new account's VOC, and the administrator's set, no longer have $contrib and $licence, two

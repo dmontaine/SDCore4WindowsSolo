@@ -168,7 +168,7 @@ try:
     L = lines(out)
     verdict('A: ADMIN unlocks', any(l.startswith('leg.a ') and 'unlocked' in l for l in L), 'want LEG.A ... unlocked')
     verdict('B: SET.PASSWORD changes, and keeps it', any(l.startswith('leg.b ') and 'password changed' in l
-            and 'could not be kept' not in l for l in L), 'want LEG.B ... Password changed, no 12022')
+            and 'could not be kept' not in l for l in L), 'want LEG.B ... Password changed, no 15911')
     rec2 = stored()
     verdict('$STORED rewritten (new blob)', rec2 is not None and rec2[0] == ACCT.upper() and rec2[1] != blob1, 'blob differs')
     out = sd_in(['WHERE'], '\n')

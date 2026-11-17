@@ -53,6 +53,12 @@ NOT_HERE = {
     'setmode':          'OS: SET.MODE (Linux 3b435253) sets POSIX permission bits; Windows files have ACLs, not mode bits (agreed with Linux, mail 2026-11-11T0630)',
     'peer_local':       'never in Solo: removed from Core with the administrator predicate (RELEASE_1.1 64, fdded05a)',
     'upgrade_nocase':   'removed with the upgrade it served (SOLO 9, 95c67ce1)',
+    # 16 Nov 26: Linux Solo's scheduled jobs (S.247, 2d3db81) and examples.bp (S.261, fb685f0) are owed here, not yet carried.
+    'solojob':          'carry owed: scheduled jobs, SOLO 74 (Task Scheduler in place of systemd timers)',
+    'runjob':           'carry owed: scheduled jobs, SOLO 74',
+    'setjobsacc':       'carry owed: scheduled jobs, SOLO 74',
+    'tool_solojobs':    'carry owed: scheduled jobs, SOLO 74',
+    'solo_examples':    'carry owed: examples.bp, RELEASE_1.1 335',
 }
 
 EVIDENCE = re.compile(r'(RELEASE_1\.1 \d+|SOLO \d+|\b[0-9a-f]{7,8}\b|^OS: )')

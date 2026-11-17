@@ -18,6 +18,8 @@
 *
 *
 * START-HISTORY:
+* 16 Nov 26 Windows port - from Linux Solo c8dac7a: messages 12002-12007 are 15891-15896 (Linux Solo's 14891-14896), text
+*           unchanged; SD Core uses 12002-12007 for other messages.
 * 16 Nov 26 SD Core Solo - SOLO 60 (Linux mail 2026-11-16T1330): CRED_VERIFY is given '$admin' and '$global', lower case, as the ids are.
 * 12 Nov 26 Windows port - RELEASE_1.1 260: the $cred id read here is '$admin', as Linux Solo (NTFS finds a $ADMIN record stored upper case).
 * 28 Sep 26 SD Core Solo - ruling 33: the global password also sets
@@ -71,7 +73,7 @@ $include err.h
    if arg = 'OFF' then
       void kernel(K$ADMINISTRATOR, 0)
       void kernel(K$AUDIT, 'admin locked')
-      display sysmsg(12004) ;* Administrator commands locked
+      display sysmsg(15893) ;* Administrator commands locked
       @system.return.code = 0
       stop
    end
@@ -82,7 +84,7 @@ $include err.h
    end
 
    if kernel(K$ADMINISTRATOR, -1) then
-      display sysmsg(12006) ;* Administrator commands are already unlocked
+      display sysmsg(15895) ;* Administrator commands are already unlocked
       @system.return.code = 0
       stop
    end
@@ -95,12 +97,12 @@ $include err.h
       close cred.f
    end
    if not(has.admin) then
-      display sysmsg(12007) ;* No administrator password is set on this system
+      display sysmsg(15896) ;* No administrator password is set on this system
       void kernel(K$AUDIT, 'admin refused reason=no $ADMIN credential')
       stop
    end
 
-   display sysmsg(12002) : ' ' :   ;* Administrator password:
+   display sysmsg(15891) : ' ' :   ;* Administrator password:
    input pw HIDDEN
 
    ok = @false
@@ -116,7 +118,7 @@ $include err.h
 
    if not(ok) then
       sleep 2
-      display sysmsg(12005) ;* Wrong password - administrator commands stay locked
+      display sysmsg(15894) ;* Wrong password - administrator commands stay locked
       void kernel(K$AUDIT, 'admin refused reason=wrong password')
       stop
    end
@@ -125,7 +127,7 @@ $include err.h
 *  grant that did not happen cannot be reported as one.
    granted = kernel(K$ADMINISTRATOR, 1)
    if not(granted) then
-      display sysmsg(12005)
+      display sysmsg(15894)
       void kernel(K$AUDIT, 'admin refused reason=the flag was not granted')
       stop
    end
@@ -134,7 +136,7 @@ $include err.h
 *  $GLOBAL one (K$GLOBAL.SESSION); the administrator password does not.
    if via = 'global' then void kernel(K$GLOBAL.SESSION, 1)
    void kernel(K$AUDIT, 'admin unlocked via=' : via)
-   display sysmsg(12003) ;* Administrator commands unlocked for this session
+   display sysmsg(15892) ;* Administrator commands unlocked for this session
    @system.return.code = 0
    stop
 end

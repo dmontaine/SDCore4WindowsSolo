@@ -17,7 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
- * 11 Nov 26 SD Core Solo - SOLO 56 group 4, from Linux Solo carry 19: start_file() refuses (12008) a print file whose path runs through a VOC
+ * 16 Nov 26 Windows port - from Linux Solo c8dac7a: start_file()'s VOC refusal is message 15897 (was 12008), text unchanged.
+ * 11 Nov 26 SD Core Solo - SOLO 56 group 4, from Linux Solo carry 19: start_file() refuses (15897) a print file whose path runs through a VOC
  *           (edit_os_path_refusal(), include_leaf FALSE).
  * 11 Nov 26 SD Core Solo - SOLO 56 group 2: start_file()'s OS-access refusal (12185) is k_error(sysmsg_arg1(12185, account())), as in Linux
  *           Solo and Windows Core; os_access_refused(), which did the same by hand, is gone.
@@ -264,9 +265,9 @@ Private void start_file(PRINT_UNIT* pu) {
     }
     /* 11 Nov 26 SD Core Solo - SOLO 56 group 4, from Linux Solo carry 19 (SD Core's S.64 hunk, VOC only): a print file made in a VOC replaces
        what is there, which is a change to it; asked of the ACCOUNT for the same reason as above.  The print file itself is a plain file
-       (include_leaf FALSE): only what is above its name counts.  Message 12008, the VOC rule's own (Linux Solo's 11008). */
+       (include_leaf FALSE): only what is above its name counts.  Message 15897, the VOC rule's own (Linux Solo's 14897). */
     if (edit_os_path_refusal(fn, FALSE) != EDIT_NONE) {
-      k_error(sysmsg(12008));
+      k_error(sysmsg(15897));
     }
 
   open_file:

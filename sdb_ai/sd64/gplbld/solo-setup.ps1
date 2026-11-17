@@ -266,7 +266,7 @@ function Invoke-Sd([string]$SdArgs, [string]$InputText) {
 
 $disqualify = @('only the installer may run this', 'Connection terminated', 'has not been started',
                 'Cannot update every registered account from here', 'Command requires administrator privileges',
-                # SYNC.GLOBAL.CATALOG's refusals (12028, its own open failures, 3022)
+                # SYNC.GLOBAL.CATALOG's refusals (15915, its own open failures, 3022)
                 'can only be changed by the SD Core server', 'cannot open global.bp.out',
                 'Cannot open global catalog directory',
                 # DENY.VERBS's refusals (ruling 34)
