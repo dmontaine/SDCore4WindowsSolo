@@ -3,6 +3,21 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+17 Nov 26  THE AI LINE DRAWS ON THE DOCUMENTATION; THE INSTALLER CHECKS THE INTERNAL DOOR IS SHUT.
+
+             What        - the install puts the documentation's pages in the Solo folder, sdsys\docs\user (the User
+                           pages) and sdsys\docs\admin (the Getting Started pages), and the AI line sends the few
+                           passages that fit a question with it, shown in the preview first; the administrator's
+                           pages only after ADMIN.  An upgrade replaces them.  As SD Core Solo for Linux.
+                         - the install ends by checking that "sd-solo -internal" is refused without the installer's
+                           one-shot marker; if it is admitted, the install fails.
+                         - a new install with a global password whose API or ssh is not open to the network says so
+                           on the last page and in install-summary.log.
+                         - the AI's standing text for an agent names sdsys\agent-pack and sdsys\docs\user, and the
+                           AI is told it is answering at SD Core Solo for Windows (it was told SD Core for Windows).
+                         - set.config's usage and name messages and BACKUP.ACCOUNT's "Not in the backup" are SD Core's
+                           message numbers (12936, 12937, 12028) again; their words are unchanged.
+
 17 Nov 26  THREE WRONG SSH PASSWORDS LOCK THE ADDRESS FOR TEN MINUTES.
 
              What        - where Solo's ssh is set up, three wrong passwords from one address within ten minutes lock

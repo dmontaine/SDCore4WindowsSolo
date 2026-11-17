@@ -129,7 +129,7 @@ def checks(raw):
        and "$disqualify" in blk and "WARNING  the example programs were not put into the account" in blk
        and "fails" not in ps_code(blk) and "Judge " not in ps_code(blk) and "exit" not in ps_code(blk))
     ck("E4d", "Invoke-Sd waits as long as it is told (ten minutes here), 120 s by default",
-       "function Invoke-Sd([string]$SdArgs, [string]$InputText, [int]$WaitMs = 120000) {" in sc and "if (-not $p.WaitForExit($WaitMs)) {" in sc)
+       "function Invoke-Sd([string]$SdArgs, [string]$InputText, [int]$WaitMs = 120000, [switch]$NoMarker) {" in sc and "if (-not $p.WaitForExit($WaitMs)) {" in sc)   # 17 Nov 26: -NoMarker (P-3791)
     iss = iss_code(raw["iss"])
     ss = iss.find("\\solo-setup.ps1\" -AppDir \"")
     dt = iss.find("if DataTreeWasAbsent then", ss)

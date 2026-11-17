@@ -47,7 +47,8 @@
 # 17 Nov 26 (four-version audit P-4259, from SD Core's RELEASE_1.1 289): it was
 # REFUSED, which stopped the whole backup.  Linux Solo's archiver skips a symlink
 # and names it (acc_archive, 14983); Create now prints "ACC-ARCHIVE SKIPPED
-# <path>" for each, and acc_archive shows 15983 "Not in the backup: %1".
+# <path>" for each, and acc_archive shows 12028 "Not in the backup: %1" (SD Core's
+# number since 17 Nov 26; it was Solo's 15983).
 
 param(
     [Parameter(Mandatory = $true)] [ValidateSet('Create', 'Extract', 'Count', 'Place', 'AkPath', 'Manifest')] [string]$Mode,

@@ -903,6 +903,32 @@ begin
     Result := WizardIsTaskSelected('installssh\network');
 end;
 
+{ 17 Nov 26 - four-version audit P-3890 (Linux Solo installsdsolo.sh, the warning after ACCESS-ASK): a global password with the API
+  or ssh not open to the network.  The sentence says the result only (the 20 Sep rule); what it means for an SD Core server is in
+  the Solo docs.  A new tree only: on an upgrade the Tasks page is not shown and its boxes say nothing. }
+function AccessWord(Wanted, Network: Boolean): String;
+begin
+  if not Wanted then
+    Result := 'off'
+  else if Network then
+    Result := 'open'
+  else
+    Result := 'local';
+end;
+
+function ManagedClosedNote: String;
+var
+  A, S: String;
+begin
+  Result := '';
+  if SoloWasInstalled or not Managed then
+    Exit;
+  A := AccessWord(ApiWanted, ApiNetworkWanted);
+  S := AccessWord(SshWanted, SshOpenWanted);
+  if (A <> 'open') or (S <> 'open') then
+    Result := 'This computer has a global password, but the API is ' + A + ' and ssh is ' + S + '.';
+end;
+
 procedure InitializeWizard;
 begin
   { 06 Oct 26 - SOLO 36: THE MODE PAGE IS GONE (owner: "remove the standalone
@@ -1065,6 +1091,9 @@ begin
   if (CurPageID = wpFinished) and UseControl and (CfGlobal = '') then
     WizardForm.FinishedLabel.Caption := WizardForm.FinishedLabel.Caption + #13#10#13#10 +
       'The control file gives no global password, so this computer will NOT be managed by an SD Core server.';
+  { 17 Nov 26 - P-3890: a global password with the API or ssh not open (ManagedClosedNote). }
+  if (CurPageID = wpFinished) and (ManagedClosedNote <> '') then
+    WizardForm.FinishedLabel.Caption := WizardForm.FinishedLabel.Caption + #13#10#13#10 + ManagedClosedNote;
   { SOLO 37: where the old folder went.  It stays until the user deletes it. }
   if (CurPageID = wpFinished) and (KeptFolder <> '') then
   begin
@@ -1300,6 +1329,12 @@ begin
   else
     S := S + ' (no global password: this computer is NOT managed by an SD Core server)';
   S := S + #13#10;
+  { 17 Nov 26 - P-3890: the same sentence the finish page adds, so an unattended install records it too. }
+  if ManagedClosedNote <> '' then
+  begin
+    S := S + 'WARNING        : ' + ManagedClosedNote + #13#10;
+    Log('SD Core Solo: ' + ManagedClosedNote);
+  end;
   { SOLO 37: what happened to kept data - the answer, and where the old folder is. }
   if KeptFolder <> '' then
   begin

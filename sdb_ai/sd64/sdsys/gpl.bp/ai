@@ -4,6 +4,8 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 17 Nov 26 SD Core Solo - four-version audit round 1 (Linux's mail 2026-11-17T2200): the fixed sentence names SD Core Solo for Windows, as Linux Solo's
+*               now names SD Core Solo for Linux; it said SD Core for Windows.
 * 11 Nov 26 dm  Carried from SD Core (S.160, 7 Nov 26, 74cf7001): the standing text the helper's status now carries goes first in the system text, after the wall's
 *               screen (a text that names SD's own code stops the request, 15013); it is not shown in the preview and its size is counted.  This replaces the
 *               "NOT carried" of the entry below: Solo's helper has the text now.
@@ -100,7 +102,7 @@ $include err.h
    end
 
 *  The preview
-   system.text = 'You are answering a question typed at the terminal of SD Core for Windows, a multivalue database. Answer briefly, in plain text without markup.'
+   system.text = 'You are answering a question typed at the terminal of SD Core Solo for Windows, a multivalue database. Answer briefly, in plain text without markup.'
 *  11 Nov 26 (Core S.160): the standing text (the administrator's, or the shipped default), first, put to the same screen as the question; not shown in the preview (its size
 *  is counted)
    ctext = st{'context'}

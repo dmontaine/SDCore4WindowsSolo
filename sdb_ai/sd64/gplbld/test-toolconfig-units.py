@@ -18,9 +18,10 @@ on this port:
   T8  the guide (SDCore4WindowsDocs Administrator 07) describes the page and the verb, when that checkout is beside this one.
 --selftest breaks a copy of each subject in memory and requires the check that guards it to go red.
 
-SD CORE SOLO (12 Nov 2026, SOLO 56 group 5): SD Core for Windows' guard, with Solo's differences.  T6's messages are 12938-12942
-and 15972-15973, as Linux Solo's 14972-14973 (12936 and 12937 were SET.PINS's here until 16 Nov 26, when SET.PINS moved to
-15926-15928 with Linux Solo c8dac7a; set.config stayed where Linux Solo keeps it).  T7 has no installer lock to look for (Solo's sd.conf and
+SD CORE SOLO (12 Nov 2026, SOLO 56 group 5): SD Core for Windows' guard, with Solo's differences.  T6's messages are 12936-12942,
+SD Core's: 12936 and 12937 were SET.PINS's here until 16 Nov 26 (SET.PINS moved to 15926-15928 with Linux Solo c8dac7a), set.config
+then used 15972-15973 as Linux Solo's 14972-14973, and on 17 Nov 26 both moved back to Core's numbers as Linux Solo's did (11931,
+11932); 15972 and 15973 are retired.  T7 has no installer lock to look for (Solo's sd.conf and
 config.table are the user's own files) and the help topic names GettingStarted 16.  T8 reads SDCore4WindowsSoloDocs GettingStarted 16.
 """
 import os
@@ -44,7 +45,7 @@ FILES = {
     "helper": "gplbld/sd-confset.ps1",
 }
 HEADERS = ["gplsrc/config.h", "gplsrc/dh.h", "gplsrc/sddefs.h", "gplsrc/sysseg.h"]
-MSGS = list(range(12938, 12943)) + [15972, 15973]      # Solo: usage 15973, name 15972 (Linux Solo 14973, 14972)
+MSGS = list(range(12936, 12943))      # 17 Nov 26 Solo: SD Core's numbers again (Linux Solo 11931-11937, back from 14972-14973)
 REFUSED = {"STARTUP"}
 UNREADABLE = {"BACKUPDIR", "SDSYS"}
 

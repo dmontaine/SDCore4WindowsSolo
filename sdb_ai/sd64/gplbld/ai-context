@@ -8,6 +8,7 @@ About this system: SD Core Solo for Windows, the single-user edition of SD Core,
 
 Where SD's help is:
 - Inside SD: F1, ? or the [?] buttons on a full-screen page explain it, and the pdf command opens the documentation.
+- For an agent that can read files on this machine: in the installation directory (%USERPROFILE%\SDCoreSolo unless another was chosen), the SD BASIC guide is sdsys\agent-pack\guide\sd-basic-guide.md, the knowledge pack (every command, message and dictionary item) is under sdsys\agent-pack\pack, and the user documentation pages are in sdsys\docs\user.
 - On the web: https://github.com/dmontaine/SDCore4WindowsSoloDocs
 
 Answer briefly and plainly.

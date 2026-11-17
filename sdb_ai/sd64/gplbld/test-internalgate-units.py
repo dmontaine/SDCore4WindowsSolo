@@ -376,6 +376,19 @@ row("'internal-marker.ps1'" in stage, "stage.py ships internal-marker.ps1 beside
 # solo-setup.ps1 is the one that dot-sources internal-marker.ps1 now.
 for name in ("solo-setup.ps1",):
     row("internal-marker.ps1" in read(os.path.join(HERE, name)), "%s dot-sources internal-marker.ps1" % name)
+# 17 Nov 26 - four-version audit P-3791 (Linux Solo's self-check): the install ends by proving the door is shut - an
+# "sd -internal WHO" with NO marker, refused, a WHO line for sdsys failing the install.  Its text, in order.
+_ss = read(os.path.join(HERE, "solo-setup.ps1"))
+_i_rm = _ss.find("if (-not (Remove-SdInternalMarker -SdsysDir $sdsys))")
+_i_run = _ss.find("Invoke-Sd '-internal WHO' '' -NoMarker")
+_i_open = _ss.find("$fails += 'internal door OPEN'")
+_i_term = _ss.find("$t -notmatch '(?m)^Connection terminated\\s*$'")
+_i_stop = _ss.find("[void](Invoke-Sd '-stop' '')\n    Remove-Item")
+row(0 <= _i_rm < _i_run < _i_open < _i_term and (_i_stop < 0 or _i_term < _i_stop),
+    "solo-setup.ps1 removes any marker, runs sd -internal WHO with -NoMarker, fails the install if admitted, wants 'Connection terminated'",
+    "positions %d %d %d %d" % (_i_rm, _i_run, _i_open, _i_term))
+row("$internal = ($SdArgs -match '^-internal\\b') -and -not $NoMarker" in _ss,
+    "solo-setup.ps1's Invoke-Sd writes no marker for -NoMarker (and one for every other -internal)")
 
 # ---------------------------------------------------------------------------
 # 4. the PowerShell writer, EXECUTED

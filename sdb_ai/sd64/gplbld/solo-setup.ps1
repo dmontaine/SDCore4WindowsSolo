@@ -45,6 +45,8 @@
 #      (sd-solo.iss passes nothing on an upgrade, which keeps the site's start): terminal runs sd -internal SET.START.DEFAULT TERMINAL
 #      and is judged on the verb's words AND on sdsys\start.default, which must then say terminal; menu writes nothing (no
 #      start.default is the home screen, as delivered).
+#   5c. (17 Nov 26, four-version audit P-3791, Linux Solo's self-check) sd -internal WHO WITH NO MARKER, every install path: it
+#      must be refused ("Connection terminated") and leave no marker; admitted fails the install.
 #   6. sd -stop    the machine step (solo-machine.ps1) starts it again from the
 #                  scheduled task, which is the process that should own it.
 # Each -internal session gets the one-shot marker LOGIN demands (ruling 13,
@@ -204,12 +206,13 @@ $secrets = @($adminPw, $globalPw, $accountPw) | Where-Object { $_ }
 # Returns the output with every password masked; sets $script:leaked when one
 # was found.
 # 16 Nov 26 - RELEASE_1.1 335: $WaitMs, for solo_examples, which compiles 28 programs on a first run; every other call keeps 120 s.
-function Invoke-Sd([string]$SdArgs, [string]$InputText, [int]$WaitMs = 120000) {
+# 17 Nov 26 - P-3791: -NoMarker runs an -internal command WITHOUT the marker, for the closing check that the door is shut.
+function Invoke-Sd([string]$SdArgs, [string]$InputText, [int]$WaitMs = 120000, [switch]$NoMarker) {
     $script:n++
     $out = Join-Path $work ('sd-' + $script:n + '.txt')
-    $internal = $SdArgs -match '^-internal\b'
+    $internal = ($SdArgs -match '^-internal\b') -and -not $NoMarker
     Note ''
-    Note ('$ sd ' + $SdArgs + $(if ($InputText) { '   [input: 1 line, not shown]' } else { '' }) + $(if ($internal) { '   [marker written]' } else { '' }))
+    Note ('$ sd ' + $SdArgs + $(if ($InputText) { '   [input: 1 line, not shown]' } else { '' }) + $(if ($internal) { '   [marker written]' } elseif ($NoMarker) { '   [NO marker: must be refused]' } else { '' }))
     if ($internal -and -not (Set-SdInternalMarker -SdsysDir $sdsys -Writer 'solo-setup')) {
         Note '  could not write the internal marker'
         return ''
@@ -680,6 +683,29 @@ try {
             $t = Invoke-Sd ('-internal DOCS.INSTALL "' + $srcPdf + '"') ''
             Judge ('documentation PDFs (' + $nPdf + ') installed into ' + $pdfDir) $t '(?m)^Copied \d+ document\(s\) into the pdf directory; skipped 0\s*$'
         }
+    }
+
+    # 17 Nov 26 - four-version audit P-2914/P-3613 (Linux Solo DOCS-CORPUS): the pages the AI line draws on came with the tree
+    # (stage.py DOCS_CORPUS, sdsys\docs\user and docs\admin).  Counted for the report only: none is not a failure, as on Linux.
+    $nUser = @(Get-ChildItem -LiteralPath (Join-Path $sdsys 'docs\user') -Filter '*.md' -File -ErrorAction SilentlyContinue).Count
+    $nAdmin = @(Get-ChildItem -LiteralPath (Join-Path $sdsys 'docs\admin') -Filter '*.md' -File -ErrorAction SilentlyContinue).Count
+    if ($nUser -gt 0) { Note ('  PASS  documentation for the AI line: ' + $nUser + ' user and ' + $nAdmin + ' administrator page(s) in ' + (Join-Path $sdsys 'docs')) }
+    else { Note ('  NOTE  no documentation for the AI line in ' + (Join-Path $sdsys 'docs\user') + '; it will answer without passages of it') }
+
+    # 17 Nov 26 - four-version audit P-3791 (Linux Solo installsdsolo.sh, the self-check's last step): THE INTERNAL DOOR IS SHUT
+    # WHEN THE INSTALL ENDS.  Every -internal step above wrote a marker that LOGIN consumed; with none left, "sd -internal" must be
+    # refused ("Connection terminated", login's terminate.connection) and leave no marker behind.  Admitted is a failed install.
+    # The anchor for the failure is WHO's own line for the SDSYS account; the success anchor is the refusal's whole line.
+    $markerPath = Join-Path $sdsys '$internal'
+    if (-not (Remove-SdInternalMarker -SdsysDir $sdsys)) {
+        Note ('  FAIL  internal door: a marker at ' + $markerPath + ' could not be removed before the check')
+        $fails += 'internal door check'
+    } else {
+        $t = Invoke-Sd '-internal WHO' '' -NoMarker
+        if ($t -match '(?mi)^\d+\s+sdsys\s*$') { Note '  FAIL  sd -internal was admitted with no marker: the internal door is OPEN'; $fails += 'internal door OPEN' }
+        elseif ($t -notmatch '(?m)^Connection terminated\s*$') { Note "  FAIL  sd -internal did not end with 'Connection terminated'"; $fails += 'internal door check' }
+        elseif (Test-Path -LiteralPath $markerPath) { Note ('  FAIL  a marker was left at ' + $markerPath); $fails += 'internal marker left' }
+        else { Note '  PASS  sd -internal is closed' }
     }
 }
 catch {

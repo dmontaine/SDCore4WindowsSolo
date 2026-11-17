@@ -1,7 +1,7 @@
 #
 # stage.py - assemble the staging tree for a Windows install
 #
-# command line: python3 gplbld/stage.py [--stage DIR] [--msys DIR] [--force]
+# command line: python3 gplbld/stage.py [--stage DIR] [--msys DIR] [--force] [--docs DIR]
 # eg  cd sdb_ai/sd64 && make sd && python3 gplbld/stage.py --stage ../../stage
 #
 # Produces ONE directory, which is what an install consists of:
@@ -384,7 +384,28 @@ SDSYS_SHIP = [
     # from this tree (agent-pack/mkpack.py), for the user to copy to where an AI agent works.  Nothing in SD reads it.  Its source is
     # sd64/agent-pack/{guide,pack}, not sdsys (SDSYS_SHIP_SOURCE below); replaced on upgrade like every ship name.
     ('agent-pack',    'the AI guide and the knowledge pack of this version, as text'),
+    # 17 Nov 26 SD Core Solo - four-version audit P-2914/P-3613/P-4129/P-4130 (Linux Solo installsdsolo.sh DOCS-CORPUS, S.216 and
+    # S.221; the owner, 1 Nov 2026, S.100: "install the user/admin docs too").  The markdown gpl.bp/tk_aidocs draws the AI line's
+    # passages from: the User pages to docs\user and the Getting Started pages (Solo's administration) to docs\admin, which tk_aidocs
+    # reads only for a session that has typed ADMIN.  Its source is the documentation repository (DOCS_CORPUS below, --docs), not
+    # sdsys; replaced whole on upgrade like every ship name, as Linux replaces an older install's docs.
+    ('docs',          'the documentation pages the AI line draws on (tk_aidocs)'),
 ]
+
+# 17 Nov 26 SD Core Solo - THE DOCUMENTATION CORPUS (P-2914 and the three Solo findings beside it).  (folder of the documentation
+# repository, sdsys\docs sub-folder, required).  Linux Solo's installer copies User/markdown/*.md to docs/user and, when the
+# documentation has it, GettingStarted/markdown/*.md to docs/admin, from the release package's source/docs or else a clone.  Windows
+# installs from a staged tree with no network step, so the copy is made HERE, from a checkout of SDCore4WindowsSoloDocs: by default
+# the sibling of this repository's folder (the default mkrelease.ps1 -DocsRepo uses), else --docs.  ONLY the names tk_aidocs reads
+# are copied (lower case letters, digits and . _ -, ending .md, at most 80 characters), so nothing else of the docs repository ships.
+# THE BUILD STOPS WITHOUT THE USER PAGES: an installer with no corpus would be the quiet failure (the AI line answering without
+# passages on every machine it reaches), and the upgrade check refuses an empty ship directory anyway.
+DOCS_CORPUS = [
+    ('User/markdown',           'user',  True),
+    ('GettingStarted/markdown', 'admin', False),
+]
+DOCS_REPO_NAME = 'SDCore4WindowsSoloDocs'
+DOCS_NAME_RE = re.compile(r'^[a-z0-9_-][a-z0-9._-]{0,76}\.md$')
 
 # 17 Nov 26 (SD Core 13 Nov) - A SHIP NAME WHOSE SOURCE IS NOT sdsys/<name>.  Each entry is the staged name and the (source,
 # staged sub-path) pairs that make it.  agent-pack takes only guide/ and pack/: the skill, the templates, the recipe, the
@@ -1096,6 +1117,45 @@ def copy_tree(src, dst, staged, stage_root):
     staged.scan(stage_root, dst)
 
 
+def default_docs_repo():
+    """The documentation checkout beside this repository's folder (gplbld -> sd64 -> sdb_ai -> repository -> its parent)."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    projects = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(here))))
+    return os.path.join(projects, DOCS_REPO_NAME)
+
+
+def docs_pages(folder):
+    """The page names of one docs folder that tk_aidocs would read, sorted; [] when the folder is absent."""
+    if not os.path.isdir(folder):
+        return []
+    return sorted(n for n in os.listdir(folder)
+                  if DOCS_NAME_RE.match(n) and '..' not in n and os.path.isfile(os.path.join(folder, n)))
+
+
+def check_docs_repo(docs_repo):
+    """Refuse the build, before anything is staged, when the User pages are not there (DOCS_CORPUS)."""
+    for sub, _dst, required in DOCS_CORPUS:
+        if required and not docs_pages(os.path.join(docs_repo, sub)):
+            die('the documentation the AI line draws on is not at %s (no page in %s) - check out %s there, '
+                'or name the checkout with --docs' % (docs_repo, sub, DOCS_REPO_NAME))
+
+
+def stage_docs(docs_repo, sdsys, staged, stage_root):
+    """Copy the corpus into <sdsys>/docs/<user|admin>, page names only (DOCS_CORPUS), and say what was copied."""
+    for sub, dst, _required in DOCS_CORPUS:
+        src = os.path.join(docs_repo, sub)
+        names = docs_pages(src)
+        if not names:
+            print('  docs: %s has no pages, so docs/%s is not staged' % (src, dst))
+            continue
+        to = os.path.join(sdsys, 'docs', dst)
+        os.makedirs(to)
+        for n in names:
+            shutil.copy2(os.path.join(src, n), os.path.join(to, n))
+            staged.add(stage_root, os.path.join(to, n))
+        print('  docs: %d page(s) from %s to sdsys/docs/%s' % (len(names), src, dst))
+
+
 # RAW STRINGS, and not as a style preference.  This text is full of Windows
 # paths, and "C:\\Program Files" in an ordinary literal is \\P - an invalid
 # escape, which is a SyntaxWarning today and an error in a later Python.
@@ -1471,6 +1531,9 @@ def main():
     ap.add_argument('--list-stripped', action='store_true',
                     help='print the voc_template records the staging removes, '
                          'as voc_template/<name>, one per line, and exit')
+    ap.add_argument('--docs', default='',
+                    help='the SDCore4WindowsSoloDocs checkout the AI line\'s documentation is '
+                         'staged from (default: the folder of that name beside this repository)')
     args = ap.parse_args()
 
     # ANSWERED BEFORE ANY OTHER CHECK, DELIBERATELY.  assert-current.ps1 asks
@@ -1535,6 +1598,10 @@ def main():
             % ', '.join(sorted(missing)))
     if not os.path.isdir('terminfo'):
         die('terminfo/ has not been generated - run "make terminfo" first')
+    # 17 Nov 26 SD Core Solo (P-2914): the documentation corpus is checked before the stage is touched (DOCS_CORPUS).
+    docs_repo = args.docs or default_docs_repo()
+    check_docs_repo(docs_repo)
+    print('  docs: the AI line\'s documentation from %s' % docs_repo)
 
     stage = args.stage
     if os.path.exists(stage):
@@ -1877,6 +1944,9 @@ def main():
     # SDSYS_BUILD_SEED is copied like a ship name - BBPROC reads it during the
     # bootstrap below - and deleted again once that has finished.
     for name, _why in SDSYS_SHIP + SDSYS_BUILD_SEED:
+        if name == 'docs':   # 17 Nov 26 (P-2914): from the documentation repository, page names only (DOCS_CORPUS)
+            stage_docs(docs_repo, sdsys, staged, stage)
+            continue
         if name in SDSYS_SHIP_SOURCE:   # 17 Nov 26: staged from elsewhere in the tree (agent-pack), as SD Core
             for s, d in SDSYS_SHIP_SOURCE[name]:
                 if not os.path.isdir(s):

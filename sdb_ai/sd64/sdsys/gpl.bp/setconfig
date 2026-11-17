@@ -18,6 +18,8 @@
 *
 *
 * START-HISTORY:
+* 17 Nov 26 SD Core Solo - four-version audit, Solo's messages back to Core's numbers (Linux Solo 14972>11932, 14973>11931): the
+*           usage and name messages are 12936 and 12937, SD Core's, which are free here since SET.PINS moved; 15972 and 15973 are retired.
 * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4334): the file SD_CONFIG names is the one changed, as Linux Solo's setconfig
 *           does; with no SD_CONFIG, sd.conf in the Solo folder as before (the helper's -ConfPath).
 * 12 Nov 26 SD Core Solo - SOLO 56 group 5: SD Core for Windows' program, for Linux Solo's set.config (S.117).  Two Solo differences.
@@ -64,7 +66,7 @@ deffun ps_script_out(script, want.out) calling '!ps_script_out'
    end
 
    words = trim(@sentence)
-   if dcount(words, ' ') # 3 then stop sysmsg(15973)
+   if dcount(words, ' ') # 3 then stop sysmsg(12936)
 
    pname = upcase(field(words, ' ', 2))
    pval = field(words, ' ', 3)
@@ -74,7 +76,7 @@ deffun ps_script_out(script, want.out) calling '!ps_script_out'
    for i = 1 to len(pname)
       if index(good, pname[i, 1], 1) = 0 then ok = @false
    next i
-   if not(ok) then stop sysmsg(15972)
+   if not(ok) then stop sysmsg(12937)
 
    ok = (len(pval) >= 1 and len(pval) <= 7)
    for i = 1 to len(pval)

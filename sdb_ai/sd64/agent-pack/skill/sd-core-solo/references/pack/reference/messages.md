@@ -1423,6 +1423,15 @@ Value not found where required
 Invalid data type
 ```
 
+### msg:12028
+> kind=message tier=reference since=- src=sdsys/messages/12028:1#70816855
+
+```
+Not in the backup: %1
+```
+
+cited by: `acc_archive`
+
 ### msg:1203
 > kind=message tier=reference since=- src=sdsys/messages/1203:1#0fb8db6b
 
@@ -7974,6 +7983,24 @@ The doors helper is changing the job's task (a few seconds)...
 
 cited by: `solojob`
 
+### msg:12936
+> kind=message tier=reference since=- src=sdsys/messages/12936:1#60187304
+
+```
+set.config parameter value (for example set.config cleanup 600); tool.config shows which parameters can be changed and the range of each
+```
+
+cited by: `setconfig`
+
+### msg:12937
+> kind=message tier=reference since=- src=sdsys/messages/12937:1#09bbf981
+
+```
+The parameter name has only letters and digits, up to 12 of them (for example cleanup)
+```
+
+cited by: `setconfig`
+
 ### msg:12938
 > kind=message tier=reference since=- src=sdsys/messages/12938:1#45af3bfa
 
@@ -11012,33 +11039,6 @@ cited by: `remotedoor`
 ```
 
 cited by: `remotedoor`
-
-### msg:15972
-> kind=message tier=reference since=- src=sdsys/messages/15972:1#09bbf981
-
-```
-The parameter name has only letters and digits, up to 12 of them (for example cleanup)
-```
-
-cited by: `setconfig`
-
-### msg:15973
-> kind=message tier=reference since=- src=sdsys/messages/15973:1#60187304
-
-```
-set.config parameter value (for example set.config cleanup 600); tool.config shows which parameters can be changed and the range of each
-```
-
-cited by: `setconfig`
-
-### msg:15983
-> kind=message tier=reference since=- src=sdsys/messages/15983:1#70816855
-
-```
-Not in the backup: %1
-```
-
-cited by: `acc_archive`
 
 ### msg:15995
 > kind=message tier=reference since=- src=sdsys/messages/15995:1#32ac8f74
