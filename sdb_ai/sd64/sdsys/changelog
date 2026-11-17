@@ -12,6 +12,25 @@ of both Windows products is 2.0-0, as all four SD Core versions will be.)
              Does NOT    - Change when the AI can be used, or what any other page says.  The same change as SD Core for
                            Windows, tested there.
 
+16 Nov 26  THE AI, AS ON SD CORE SOLO FOR LINUX: THE AI VERB, THE AI LINE ON THE PAGES, SET.AI AND TOOL.AI.  OFF AS DELIVERED.
+
+             What        - SD can send a question, with what you are working on, to an AI provider you choose (Anthropic,
+                           OpenAI, Google, DeepSeek or a custom one) and show the answer.  AI at the prompt asks a
+                           question; the AI line on the home screen, the toolkit pages, the IDE, SED, CED, the debugger
+                           and the dictionary form shows what will be sent before anything is sent.  SET.AI (needs
+                           ADMIN) sets the switch (SET.AI GATE ON), the provider, the model, the key, a custom
+                           connection, the limits and the standing text; TOOL.AI is the same as a page, and the gates
+                           page (TOOL.GATES) has a row for it.  The requests go through sd-ai.exe in the usr\bin folder,
+                           which SD starts as you for each request; it is the only part that connects outward and the
+                           only part that reads the key.  The key is kept, encrypted for your Windows user, in the
+                           system folder's ai folder, which an upgrade does not touch and uninstall's Keep keeps.
+             Why         - Solo is to have the whole AI that SD Core has.  Earlier entries in this section that say the
+                           AI is not here were written before it was carried; this entry replaces them.
+             Does NOT    - Send anything until you turn the switch on and set up a provider and its key: the switch is
+                           off and no provider is set up as delivered.  Turning it on sends what you ask, and the records
+                           you show it, to the provider's servers.  It never sends SD's own files (the system folder,
+                           the programs, sd.conf).  NOT YET TESTED ON AN INSTALLED SYSTEM.
+
 16 Nov 26  LOCK.TRACER, AS ON SD CORE SOLO FOR LINUX.
 
              What        - LOCK.TRACER ON (needs ADMIN) starts a trace of every lock taken or let go by every
