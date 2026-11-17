@@ -18,6 +18,8 @@
 *
 *
 * START-HISTORY:
+* 17 Nov 26 SD Core Solo - from Linux Solo 45bb99c2 (S.62 L4 S1): [mode] says "unknown (the global password record could not be read, status N
+*           os error E)" when $cred opens but the read of $global fails for another reason than a missing record.
 * 17 Nov 26 SD Core Solo - four-version audit, Linux Solo 3b1316cc (P-4440): [mode] says "unknown (the credential register could not
 *           be read, status N)" when $cred cannot be opened, Linux Solo's words (it said "(could not be read: $cred)").
 * 16 Nov 26 SD Core Solo - SOLO 60 (Linux mail 2026-11-16T1330): the $cred id '$global' in lower case, as Linux Solo.
@@ -57,6 +59,7 @@ subroutine settings_os(lines, err)
 $catalog !settings_os
 
 $include int$keys.h
+$include err.h
 
 deffun ps_script_out(script, want.out) calling '!ps_script_out'
 
@@ -97,7 +100,16 @@ deffun ps_script_out(script, want.out) calling '!ps_script_out'
       read g.rec from cred.f, '$global' then
          lines<-1> = 'managed (a global password is set)'
       end else
-         lines<-1> = 'not managed (no global password)'
+*        17 Nov 26 SD Core Solo - from Linux Solo 45bb99c2 (S.62 L4 S1): the register opened but the read failed for another reason than "no such
+*          record": that says nothing about the mode.  A directory file's READ says ER$RNF for both, so the OS error tells them apart: 2 (ENOENT,
+*          MSYS2's errno as Linux's) is a record that is not there.
+         rd.st = status()
+         rd.os = os.error()
+         if rd.st # ER$RNF or rd.os # 2 then
+            lines<-1> = 'unknown (the global password record could not be read, status ':rd.st:' os error ':rd.os:')'
+         end else
+            lines<-1> = 'not managed (no global password)'
+         end
       end
       close cred.f
    end else

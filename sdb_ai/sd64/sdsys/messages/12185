@@ -1,1 +1,1 @@
-%1 has no OS access, so a file or directory outside its own account cannot be reached by pathname (the administrator can give it: set.os.access os on)
+%1 has no OS access, so outside its own account it can reach by pathname only a directory the administrator opened to it (the administrator can give it: set.os.access os on)
