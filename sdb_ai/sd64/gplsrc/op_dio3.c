@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - four-version audit round 1, from Linux Solo 04d8c8d (S.62 P-1773, P-1774): op_writev() counts PROF_WRITE before
+ *               the remote and VOC / global refusals, as SD Core does and as op_write() and op_delete() do.
  * 16 Nov 26 Windows port - from Linux Solo c8dac7a: op_clrfile()'s refusals are messages 15897 and 15915 (were 12008 and 12028), text unchanged.
  * 15 Nov 26 SD Core Solo - from Core e861651e (RELEASE_1.1 279, 236): dir_write() writes LF for an explicit FC$CRLF mode 0, 2 or 3; CR LF stays
  *               for mode 1 and a file with no mode (Core's OS deviation, RELEASE_1.1 271).
@@ -1578,6 +1580,18 @@ void op_writev() {
 
   process.status = 0;
 
+  /* 17 Nov 26 SD Core Solo - four-version audit, Linux Solo 04d8c8d (S.62 P-1773, P-1774): counted BEFORE the refusals, as SD Core
+     counts WRITEV and as WRITE and DELETE are counted: the profiler counts the statements a program runs, refused or not. */
+  if (prof_mask & PROF_WRITE) /* WRITEV: the application event profiler (16 Oct 26); the file variable is third from the top */
+  {
+    DESCRIPTOR* prof_d = e_stack - 3;
+
+    while (prof_d->type == ADDR)
+      prof_d = prof_d->data.d_addr;
+    if (prof_d->type == FILE_REF)
+      ProfFile(PROF_WRITE, prof_d->data.fvar);
+  }
+
   /* 25 Sep 26 SD Core Solo - SOLO 5, ruling 14.  Tested HERE, not left to
      op_write(): the recursive pcode below is $internal, so by the time it
      writes, the caller's program flags are gone.  A refusal drops the four
@@ -1607,16 +1621,6 @@ void op_writev() {
       k_dismiss();
       goto exit_op_writev;
     }
-  }
-
-  if (prof_mask & PROF_WRITE) /* WRITEV: the application event profiler (16 Oct 26); the file variable is third from the top */
-  {
-    DESCRIPTOR* prof_d = e_stack - 3;
-
-    while (prof_d->type == ADDR)
-      prof_d = prof_d->data.d_addr;
-    if (prof_d->type == FILE_REF)
-      ProfFile(PROF_WRITE, prof_d->data.fvar);
   }
 
   /* Push lock flag onto e-stack; zero for WRITEV, non-zero for WRITEVU */

@@ -4107,7 +4107,7 @@
 "part": "reference/dictionaries.md",
 "since": "-",
 "tier": "reference",
-"words": 224
+"words": 219
 },
 "dict:format:date-shortcut-d-in-the-format-field": {
 "kind": "dict.format",
@@ -29111,7 +29111,7 @@
 "part": "reference/voc.md",
 "since": "-",
 "tier": "reference",
-"words": 79
+"words": 75
 },
 "voc:type:R": {
 "kind": "voc.type",
@@ -29146,7 +29146,7 @@
 "part": "reference/voc.md",
 "since": "-",
 "tier": "reference",
-"words": 243
+"words": 240
 }
 },
 "pack_format": 1

@@ -17,6 +17,11 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - four-version audit, Linux Solo 3b1316cc (S.62 NETDIRS, the owner's decision of 17 Nov): os_path_ok_for_account()
+ *               asks netdirs_admit() last, and net_path_permitted() asks it in place of its own loop.  Entries are judged once per process in
+ *               the Windows form and ignored (named in the error log at sd-solo -start, netdirs_report()) when not absolute, not a directory,
+ *               a drive root, or overlapping the Solo folder, the system directory, sd.conf's directory, USRDIR, GRPDIR or a registered
+ *               account (re-read at each admission); at most 16; a "." or ".." left in the candidate is refused.
  * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4293, P-4294, P-4295): from SD Core b04ec733 (RELEASE_1.1 254, Linux path_inside_dir):
  *               os_path_inside() (K_PATH_IN) refuses a directory that is not absolute and one that holds the whole machine (a drive root, or "/");
  *               os_path_ok_for_account() refuses such an account root too.
@@ -56,6 +61,7 @@
  *  op_sysdir          SYSDIR
  *  op_ospath          OSPATH
  *  net_path_permitted May this session touch this path?
+ *  netdirs_report     NETDIRS judged at sd-solo -start, each entry ignored named
  *
  * END-DESCRIPTION
  *
@@ -68,6 +74,7 @@
 #include "header.h"
 #include "syscom.h"
 #include "locks.h"
+#include "config.h" /* 17 Nov 26 SD Core Solo: pcfg.usrdir and pcfg.grpdir, which NETDIRS keeps clear of */
 
 #include <time.h>
 #include <stdint.h>
@@ -2054,6 +2061,8 @@ Private bool path_within(char* cand, char* root) {
    Keep this in step with that directory - if a template VOC gains an
    @SDSYS/ reference and this does not, a network session is refused it. */
 
+Private bool netdirs_admit(char* cand); /* 17 Nov 26: NETDIRS, below os_path_inside() */
+
 Private char* net_sysdir_shared[] = {"$ipc",     "$map",    "$map.dic",
                                      "dict.dic", "messages", "newvoc",
                                      "sd.voclib", "syscom",  "voc.dic",
@@ -2172,31 +2181,13 @@ bool net_path_permitted(char* path,     /* Absolute, as left by fullpath() */
   }
 
   /* NETDIRS: site data directories outside any account.  Semicolon
-    separated, because a Windows pathname contains a colon.               */
+    separated, because a Windows pathname contains a colon.
+    17 Nov 26 SD Core Solo - Linux Solo 3b1316cc (S.62): the entries are judged once per process and an entry that is not absolute, not
+    an existing directory, a drive root, or overlaps the Solo folder, the system directory, sd.conf's directory, USRDIR, GRPDIR or a
+    registered account is IGNORED (netdirs_admit(), below os_path_inside()); the same list the OS switch's gate asks.              */
 
-  if (sysseg->netdirs[0] != '\0') {
-    char* p;
-    char* q;
-
-    p = (char*)(sysseg->netdirs);
-    while (*p != '\0') {
-      q = item;
-      while ((*p != '\0') && (*p != ';') &&
-             ((q - item) < MAX_PATHNAME_LEN))
-        *(q++) = *(p++);
-      *q = '\0';
-
-      while ((*p != '\0') && (*p != ';'))
-        p++; /* Discard an over-long element rather than truncating into a
-                shorter directory that would then match more than it should */
-      if (*p == ';')
-        p++;
-
-      if ((item[0] != '\0') && net_normalise(item, root) &&
-          path_within(cand, root))
-        return TRUE;
-    }
-  }
+  if (netdirs_admit(cand))
+    return TRUE;
 
   return FALSE;
 }
@@ -2215,7 +2206,7 @@ bool net_path_permitted(char* path,     /* Absolute, as left by fullpath() */
    already measured and handles (see net_normalise() above): the name goes through fullpath(), is folded into the POSIX namespace, is
    refused while it still holds "..", and must be at or below the account's directory (SYSCOM_ACCOUNT_PATH, the account the session is
    standing in; the process's working directory is the same place).  A name it cannot resolve is a no.  Nothing is widened: unlike the
-   network gate there are no SDSYS entries, no NETDIRS and no global.bp.out here - the shipped system files are reached by $internal
+   network gate there are no SDSYS entries and no global.bp.out here (17 Nov 26: NETDIRS is asked last, as Linux Solo 3b1316cc does) - the shipped system files are reached by $internal
    programs, which are trusted by os_path_open_ok() below.
 
    It does NOT look at the connection: an API session is the user in Solo and is held to the switch like the console.  A link inside the
@@ -2256,7 +2247,9 @@ bool os_path_ok_for_account(const char* name) {
     }
   }
 
-  return FALSE;
+  /* 17 Nov 26 SD Core Solo - Linux Solo 3b1316cc (S.62, the owner's NETDIRS decision of 17 Nov): last, a directory sd.conf's NETDIRS
+     lists, judged by netdirs_admit() below.  Empty as delivered, so this adds nothing until the administrator names one. */
+  return netdirs_admit(cand);
 }
 
 bool os_path_open_ok(const char* name) {
@@ -2320,6 +2313,260 @@ bool os_path_inside(const char* rootdir, const char* name) {
   if (has_parent_ref(cand))
     return FALSE;
   return path_within(cand, root);
+}
+
+/* ======================================================================
+   NETDIRS  -  netdirs_admit(), netdirs_report()
+
+   17 Nov 26 SD Core Solo - four-version audit, carried from Linux Solo 3b1316cc (S.62; the owner's decision of 17 Nov: the parameter on
+   all four products, "taking into account the differences between operating systems and core vs solo purpose").  sd.conf's NETDIRS=
+   names directories, separated by ";", OUTSIDE THE ACCOUNT that a session may still reach by pathname, to read and to write: a session
+   the OS switch holds to its account (os_path_ok_for_account(), asked LAST, after the account's own directory) and an API session
+   (net_path_permitted(), after its account and the shared SDSYS entries).  Empty as delivered: nothing is added.  Nothing else is
+   widened: SH and OS.EXECUTE (os_permitted()), the VOC rule (edit_os_path_refusal(), voc_write_refused()) and the AI wall ask their own
+   questions.
+
+   WHEN: read from sd.conf at sd-solo -start into the segment (config.c, sysseg.c), so a change takes effect at the next start.  Each
+   process judges the list once, the first time it is asked; netdirs_report() judges it at start and names each entry it ignores in the
+   error log (Linux also writes syslog; Windows has none for SD).
+
+   AN ENTRY is resolved once (fullpath(), the POSIX fold, a surviving ".." refused) and kept in the WINDOWS form ("C:/data", forward
+   slashes).  NOT THE POSIX FORM: Solo's runtime root "/" IS the Solo folder, so the folder itself folds to "/" and every path below it
+   to "/...", which would make every comparison with the folder meaningless.  It is IGNORED when it is not absolute, is not an existing
+   directory, is a drive root, or holds or lies inside: the Solo folder (GetHomePath(): the account, $cred, sd.conf, the ssh and AI
+   folders are all in it), the SD system directory, the directory of sd.conf, USRDIR or GRPDIR (each may be moved out of the folder by
+   sd.conf), or the directory of any registered account (the register is read again at each admission, so an account made later inside
+   a listed directory closes that entry at once; a register that cannot be read refuses).  At most MAX_NETDIRS are taken.  An element
+   longer than a pathname is discarded whole, never cut.  A Solo folder that cannot be found takes every entry with it.
+
+   THE CANDIDATE has been resolved by the caller (fullpath(), the POSIX fold, ".." refused); a "." component left in it is refused too.
+   The comparison is path_within()'s: CASE-INSENSITIVE (NTFS), at a component boundary, so C:/data/xkey is not inside C:/data/x.    */
+
+#define MAX_NETDIRS 16
+
+Private char netdirs_root[MAX_NETDIRS][MAX_PATHNAME_LEN + 1];
+Private int netdirs_count = -1; /* -1: the list has not been judged in this process */
+
+/* A POSIX-folded name (net_normalise()) in the Windows form, forward slashes, no trailing separator except a drive root's "C:/". */
+Private bool netdir_posix_to_win(const char* posix, char* out) {
+  char* p;
+  size_t n;
+
+  if (cygwin_conv_path(CCP_POSIX_TO_WIN_A | CCP_ABSOLUTE, posix, out, MAX_PATHNAME_LEN + 1) != 0)
+    return FALSE;
+  for (p = out; *p != '\0'; p++) {
+    if (*p == '\\')
+      *p = '/';
+  }
+  n = strlen(out);
+  while ((n > 3) && (out[n - 1] == '/'))
+    out[--n] = '\0';
+  return (n > 0);
+}
+
+/* A directory as SD sees it, resolved and in the Windows form; FALSE when it cannot be had (nothing to compare with). */
+Private bool netdir_winform(const char* dir, char* out) {
+  char tmp[MAX_PATHNAME_LEN + 1];
+  char posix[MAX_PATHNAME_LEN + 1];
+
+  if ((dir == NULL) || (*dir == '\0') || (strlen(dir) > MAX_PATHNAME_LEN))
+    return FALSE;
+  strcpy(tmp, dir);
+  if (!fullpath(tmp, tmp) || !net_normalise(tmp, posix) || has_parent_ref(posix))
+    return FALSE;
+  return netdir_posix_to_win(posix, out);
+}
+
+/* A drive root ("C:/") or a share's root holds the whole machine, or a whole volume. */
+Private bool netdir_whole_volume(const char* w) {
+  size_t n = strlen(w);
+  const char* p;
+
+  if ((n <= 3) && (n >= 2) && (w[1] == ':'))
+    return TRUE;
+  if ((w[0] == '/') && (w[1] == '/')) { /* //server/share: a root unless something follows the share */
+    p = strchr(w + 2, '/');
+    return (p == NULL) || (strchr(p + 1, '/') == NULL);
+  }
+  return FALSE;
+}
+
+Private bool netdir_overlap(char* a, char* b) {
+  return path_within(a, b) || path_within(b, a);
+}
+
+/* A "." or ".." component left in a resolved name: the prefix test would mean nothing. */
+Private bool netdir_is_dot(const char* c) { /* C starts a component: is it "." or ".."? */
+  return (c[0] == '.') && ((c[1] == '\0') || (c[1] == '/') || ((c[1] == '.') && ((c[2] == '\0') || (c[2] == '/'))));
+}
+
+Private bool netdir_dot_component(const char* p) {
+  if (netdir_is_dot(p))
+    return TRUE;
+  while ((p = strchr(p, '/')) != NULL) {
+    p++;
+    if (netdir_is_dot(p))
+      return TRUE;
+  }
+  return FALSE;
+}
+
+/* Does ROOT (Windows form) hold, or lie inside, the directory of a registered account?  1 yes (its name in WHICH), 0 no, -1 the
+   register cannot be read (taken as yes by every caller).  Line 1 of each record of <sysdir>/accounts is the account's path. */
+Private int netdir_account_clash(char* root, char* which, size_t which_len) {
+  char regdir[MAX_PATHNAME_LEN + 1];
+  char recpath[MAX_PATHNAME_LEN + 1];
+  char body[4096];
+  char acct[MAX_PATHNAME_LEN + 1];
+  char* p;
+  DIR* d;
+  struct dirent* ent;
+  FILE* fp;
+  size_t got;
+  int clash = 0;
+
+  if (snprintf(regdir, sizeof(regdir), "%s%caccounts", (char*)(sysseg->sysdir), DS) >= (int)sizeof(regdir))
+    return -1;
+  if ((d = opendir(regdir)) == NULL)
+    return -1;
+  while ((clash == 0) && ((ent = readdir(d)) != NULL)) {
+    if ((ent->d_name[0] == '.') || (ent->d_name[0] == '%'))
+      continue;
+    if (snprintf(recpath, sizeof(recpath), "%s%c%s", regdir, DS, ent->d_name) >= (int)sizeof(recpath))
+      continue;
+    if ((fp = fopen(recpath, "rb")) == NULL)
+      continue;
+    got = fread(body, 1, sizeof(body) - 1, fp);
+    fclose(fp);
+    body[got] = '\0';
+    if ((p = strpbrk(body, "\r\n")) != NULL)
+      *p = '\0';
+    if (!os_root_absolute(body) || !netdir_winform(body, acct))
+      continue; /* no directory there to protect */
+    if (netdir_overlap(root, acct)) {
+      clash = 1;
+      if (which != NULL)
+        snprintf(which, which_len, "%.64s", ent->d_name); /* an account name is far shorter; the name is only reported */
+    }
+  }
+  closedir(d);
+  return clash;
+}
+
+/* Say why an entry is ignored, at sd-solo -start; a session ignores it without a word. */
+Private void netdir_note(bool report, const char* entry, const char* why) {
+  char msg[MAX_PATHNAME_LEN + 200];
+
+  if (!report)
+    return;
+  snprintf(msg, sizeof(msg), "NETDIRS: %s is ignored - %s", entry, why);
+  log_message(msg);
+}
+
+Private void netdirs_load(bool report) {
+  char item[MAX_PATHNAME_LEN + 1];
+  char root[MAX_PATHNAME_LEN + 1];
+  char home[MAX_PATHNAME_LEN + 1];
+  char homedir[MAX_PATHNAME_LEN + 1];
+  char sysdir[MAX_PATHNAME_LEN + 1];
+  char confdir[MAX_PATHNAME_LEN + 1];
+  char other[MAX_PATHNAME_LEN + 1];
+  char which[64 + 1];
+  char why[128 + 1];
+  const char* p;
+  char* slash;
+  size_t n;
+  int clash;
+  struct stat st;
+  bool have_home, have_sys, have_conf;
+
+  netdirs_count = 0;
+  if (sysseg->netdirs[0] == '\0')
+    return;
+
+  have_home = GetHomePath(home, sizeof(home)) && netdir_winform(home, homedir) && !netdir_whole_volume(homedir);
+  have_sys = netdir_winform((char*)(sysseg->sysdir), sysdir);
+  have_conf = netdir_winform(config_path, confdir);
+  if (have_conf) {
+    slash = strrchr(confdir, '/');
+    if ((slash == NULL) || (slash <= confdir + 2))
+      have_conf = FALSE; /* sd.conf at a drive root: every entry would hold its directory, so none is taken */
+    else
+      *slash = '\0';
+  }
+
+  p = (const char*)(sysseg->netdirs);
+  while (*p != '\0') {
+    n = strcspn(p, ";");
+    if (n > MAX_PATHNAME_LEN) {
+      /* Discarded, never cut: a cut path is a SHORTER directory, which would admit more than was written. */
+      snprintf(item, sizeof(item), "%.40s...", p);
+      netdir_note(report, item, "it is longer than a pathname may be");
+    } else if (n > 0) {
+      memcpy(item, p, n);
+      item[n] = '\0';
+      why[0] = '\0';
+      if (!os_root_absolute(item))
+        strcpy(why, "it is not an absolute path");
+      else if (!netdir_winform(item, root) || (stat(root, &st) != 0) || !S_ISDIR(st.st_mode))
+        strcpy(why, "it is not an existing directory");
+      else if (netdir_whole_volume(root))
+        strcpy(why, "it is the root of a drive, which holds the whole volume");
+      else if (!have_home || netdir_overlap(root, homedir))
+        strcpy(why, "it holds, or lies inside, the SD Core Solo folder");
+      else if (!have_sys || netdir_overlap(root, sysdir))
+        strcpy(why, "it holds, or lies inside, the SD system directory");
+      else if (!have_conf || netdir_overlap(root, confdir))
+        strcpy(why, "it holds, or lies inside, the directory of sd.conf");
+      else if (netdir_winform(pcfg.usrdir, other) && netdir_overlap(root, other))
+        strcpy(why, "it holds, or lies inside, the directory of user accounts (USRDIR)");
+      else if (netdir_winform(pcfg.grpdir, other) && netdir_overlap(root, other))
+        strcpy(why, "it holds, or lies inside, the directory of group accounts (GRPDIR)");
+      else if ((clash = netdir_account_clash(root, which, sizeof(which))) != 0) {
+        if (clash < 0)
+          strcpy(why, "the account register cannot be read");
+        else
+          snprintf(why, sizeof(why), "it holds, or lies inside, the account %s", which);
+      } else if (netdirs_count >= MAX_NETDIRS)
+        snprintf(why, sizeof(why), "only %d directories are taken", MAX_NETDIRS);
+
+      if (why[0] != '\0')
+        netdir_note(report, item, why);
+      else
+        strcpy(netdirs_root[netdirs_count++], root);
+    }
+    p += n;
+    if (*p == ';')
+      p++;
+  }
+}
+
+/* start_sd(): the list judged once at sd-solo -start, each entry it ignores named in the error log. */
+void netdirs_report(void) {
+  netdirs_load(TRUE);
+  netdirs_count = -1; /* a session judges again in its own process */
+}
+
+/* Is CAND - resolved by the caller, folded into the POSIX namespace, with no ".." left - inside a directory NETDIRS lists? */
+Private bool netdirs_admit(char* cand) {
+  char w[MAX_PATHNAME_LEN + 1];
+  int i;
+
+  if (sysseg->netdirs[0] == '\0')
+    return FALSE;
+  if ((cand == NULL) || (*cand == '\0') || has_parent_ref(cand) || netdir_dot_component(cand))
+    return FALSE;
+  if (netdirs_count < 0)
+    netdirs_load(FALSE);
+  if (netdirs_count == 0)
+    return FALSE;
+  if (!netdir_posix_to_win(cand, w))
+    return FALSE;
+  for (i = 0; i < netdirs_count; i++) {
+    if (path_within(w, netdirs_root[i]) && (netdir_account_clash(netdirs_root[i], NULL, 0) == 0))
+      return TRUE;
+  }
+  return FALSE;
 }
 
 /* ======================================================================

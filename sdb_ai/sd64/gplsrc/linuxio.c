@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - four-version audit, Linux Solo 3b1316cc (CARRY-linuxio, SD Core's P-4606): the TLS-directory refusal says
+ *            "cannot derive the TLS directory beside <sd.conf>" (it said "no usable data directory in").
  * 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230, RELEASE_1.1 286): socket_byte() gives a NUL on an ended read, the key
  *            written to a child's pipe is tested, and the Unix-socket path is copied with its terminator always set.
  * 12 Nov 26 Windows port - from Linux e79f6499, as Linux Solo (RELEASE_1.1 252, P-23): a TCP connection to a session that is not the API
@@ -362,7 +364,8 @@ bool start_connection(int unused) {
       char tls_err[512];
 
       if (!api_tls_dir(tls_dir, sizeof(tls_dir))) {
-        syslog(LOG_ERR, "API connection refused: no usable data directory in %s",
+        /* 17 Nov 26 SD Core Solo - Linux Solo 3b1316cc (SD Core's P-4606): api_tls_dir() takes the directory of config_path; say that. */
+        syslog(LOG_ERR, "API connection refused: cannot derive the TLS directory beside %s",
                config_path);
         return FALSE;
       }

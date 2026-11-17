@@ -17,6 +17,9 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - four-version audit, Linux Solo 3b1316cc (CARRY-phantom): a phantom child that cannot start writes
+ *               "phantom: cannot start a phantom from <path> - <reason>" (or why there is no path) to the error log and ends; it called
+ *               k_error(), whose longjmp() left the child running as a second copy of the session.
  * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4300, P-4302): extern txn_nondurable in SD Core's place; no change.
  * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-3509..P-3514): K_WINPID (59), K_INTERACTIVE (64) and K_OS_ELEVATED (65) retired,
  *           as 61, 62, 66 and 67 were: no Solo program asks them (SD Core's elevate, LOGIN and CPROC do).
@@ -1583,17 +1586,25 @@ void op_phantom() {
        counter - and PHANTOM still answered the reserved user number as if a phantom
        had started.  _exit(), never return, from every failure below.            */
 
+    /* 17 Nov 26 SD Core Solo - four-version audit, Linux Solo 3b1316cc (CARRY-phantom, SD Core's P-4608): each failure is written to the
+       error log with log_message() and the child ends.  k_error() was called here, and a k_error() that is fatal does not return: it
+       longjmp()s to the caller's command loop, so the child the comment above means to end ran on as a second copy of the session and the
+       _exit() after it was never reached.  The child has no terminal of its own; the error log is where the reason can be read. */
     if (!exe_directory(bindir, sizeof(bindir))) {
-      k_error("Cannot locate the SD program directory - phantom not started");
+      log_message("phantom: cannot start a phantom - the SD program directory cannot be found");
       _exit(1);
     }
     if (snprintf(path, sizeof(path), "%s/%s", bindir, SD_SERVER_NAME) >= (int)sizeof(path)) {
-      k_error("Overflowed path/filename length in op_phantom()!");
+      log_message("phantom: cannot start a phantom - the path of " SD_SERVER_NAME " is too long");
       _exit(1);
     }
     sprintf(option, "-p%d", phantom_user_index);
     execle(path, path, option, (char *)NULL, child_env); /* 28 Oct 26 F10: with the environment made above */
-    k_error("Cannot start a phantom from %s - %s", path, strerror(errno));
+    {
+      char phantom_msg[MAX_PATHNAME_LEN + 128];
+      snprintf(phantom_msg, sizeof(phantom_msg), "phantom: cannot start a phantom from %s - %s", path, strerror(errno));
+      log_message(phantom_msg);
+    }
     _exit(1);
   } else if (cpid == -1) { /* Error */
     *(UMap(uptr->uid)) = 0;

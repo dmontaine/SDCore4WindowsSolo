@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - Linux Solo 3b1316cc (S.62 NETDIRS): netdirs_report() (op_dio2.c), called by start_sd().
  * 16 Nov 26 SD Core Solo - RELEASE_1.1 246, from SD Core for Windows: k_ai() (op_ai.c), the AI helper's transport.
  * 11 Nov 26 SD Core Solo - SOLO 56 group 2, from Windows Core (as in Linux Solo): prototypes of show_unsafe_byte(), show_safe_text() and
  *               show_ts_safe() (op_lock.c, S.88 phase 2: the one rule for showing another session's text), sysmsg_arg1() (messages.c),
@@ -458,6 +459,7 @@ bool os_gate_open(void);
 bool os_path_ok_for_account(const char * name);
 bool os_path_inside(const char * rootdir, const char * name);   /* 21 Oct 26, Solo carry 10: geometry only, for K_PATH_IN */
 bool os_path_open_ok(const char * name);
+void netdirs_report(void);   /* 17 Nov 26, Linux Solo 3b1316cc: NETDIRS judged at sd-solo -start, each entry it ignores named (op_dio2.c) */
 /* 11 Nov 26 SOLO 56 group 4 (Linux Solo carry 19): the OS-path routes to the VOC (op_dio2.c).  SD Core's names and numbers; Solo knows one kind. */
 #define EDIT_NONE 0
 #define EDIT_VOC  1

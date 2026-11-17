@@ -5,6 +5,9 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 17 Nov 26 SD Core Solo - four-version audit, Linux Solo 3b1316cc (as SD Core for Windows c9950057): SET.AI KEY reads the client's exit
+*               status (os.error(), "; exit $LASTEXITCODE" on the command) after both forms; a client that failed no longer reports an earlier
+*               key as set (12613 and nothing audited, before the listing; the hand-over file is still dropped first).
 * 16 Nov 26 Windows port - from Linux Solo c8dac7a: the AI gate message is 15925 (was 12611; Linux Solo 14925), text unchanged;
 *               SD Core's 12611 is another message.
 * 11 Nov 26 dm  Carried from SD Core (owner, 11 Nov 2026: "Carry Core's dialog"): google is a provider and MODEL - goes back to the provider's starting model (e1061f73);
@@ -167,8 +170,16 @@ $include err.h
 *        command line; the client removes the file whatever happens, and so does this verb, BEFORE anything else is looked at (run.ctl's stops would otherwise leave it).
 *        What happened is read back from the helper, as for the typed key; the client's own words are not trusted for it.
          out = ''
-         os.execute "& '" : ctl : "' 'key' '" : prov : "' '--handover' '" : hand.f : "'" capturing out
+         os.execute "& '" : ctl : "' 'key' '" : prov : "' '--handover' '" : hand.f : "'; exit $LASTEXITCODE" capturing out
+         key.stat = os.error()
          gosub drop.handover
+*        17 Nov 26 (Linux Solo 3b1316cc; SD Core for Windows c9950057): the client's own exit status first.  A client that failed set
+*        nothing, and a key stored EARLIER would still make the listing below say "key: set" - so a failure stops here, before the listing,
+*        the audit line and 12620.  "; exit $LASTEXITCODE": OS.EXECUTE runs PowerShell, whose own status is not the program's.
+         if key.stat # 0 then
+            @system.return.code = -ER$FAILED
+            stop sysmsg(12613, 'nokey', 'the key was not set')                             ;* The AI helper refused: %1 (%2)
+         end
          out = convert(char(13), '', out)                                                ;* PowerShell's line ends (see run.ctl)
          qargs = "'show'"
          gosub run.ctl
@@ -196,7 +207,12 @@ $include err.h
          if index(providers, ' ' : prov : ' ', 1) = 0 then stop sysmsg(12615, prov[1, 40])
 *        The console is handed to the helper's client and nothing is captured: the key is typed there, never read by SD.  What happened is then read back, not assumed.
 *        Nothing is redirected: the client writes to standard output only.
-         os.execute "& '" : ctl : "' 'key' '" : prov : "'"
+         os.execute "& '" : ctl : "' 'key' '" : prov : "'; exit $LASTEXITCODE"
+*        17 Nov 26: the client's exit status first, as in the hand-over form above.
+         if os.error() # 0 then
+            @system.return.code = -ER$FAILED
+            stop sysmsg(12613, 'nokey', 'the key was not set')                             ;* The AI helper refused: %1 (%2)
+         end
          qargs = "'show'"
          gosub run.ctl
          gosub check.key

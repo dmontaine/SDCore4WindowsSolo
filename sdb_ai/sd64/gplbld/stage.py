@@ -836,16 +836,23 @@ ERRLOG=50
 # TO TURN IT OFF, comment the line below out.  Changing it takes effect when
 # SD is next started, not when a session begins.
 APIPORT=4249
-# NETDIRS says which directories OUTSIDE ITS OWN ACCOUNT a session that arrived
-# over the API may reach.  IT IS COMMENTED OUT ON PURPOSE and the empty value is
-# the strict one: with nothing here, an API session can open files in the
-# account it is standing in, and nothing else.
+# NETDIRS says which directories OUTSIDE ITS OWN ACCOUNT a session may still
+# reach by pathname, to read and to write: a session the OS switch holds to its
+# account, and a session that arrived over the API.  IT IS COMMENTED OUT ON
+# PURPOSE and the empty value is the strict one: with nothing here, such a
+# session can open files in the account it is standing in, and nothing else.
+#
+# A directory is IGNORED, and named in the error log when SD starts, if it is
+# not a full path, does not exist, is a drive root, or holds or lies inside the
+# SD Core Solo folder, the system directory, the directory of sd.conf or any
+# account's directory.  At most 16 directories and 191 characters.
 #
 # 21 Aug 26 Windows port - WHY IT EXISTS.  Until now a session arriving over the
 # API could open any file on the machine, including SDSYS/$cred, the credential
 # store - measured, from a remote client, holding nothing but an ordinary
-# account's password.  Sessions at the keyboard and over ssh are unaffected by
-# this parameter; only API sessions are confined.
+# account's password.  Since 17 Nov 26 the same list also widens the OS switch:
+# a session at the keyboard or over ssh whose account has the switch off is held
+# to its account, and reaches these directories too.
 #
 # THE SHIPPED SDSYS FILES A NORMAL ACCOUNT NEEDS ARE ALWAYS REACHABLE and do not
 # have to be listed - the VOC entries every account has (messages, syscom, the
@@ -858,8 +865,8 @@ APIPORT=4249
 #
 #     NETDIRS=D:\\shared\\data;E:\\archive
 #
-# A directory named here is reachable by EVERY API session in every account, so
-# it is a decision about the machine and not about one account.
+# A directory named here is reachable by every such session in every account,
+# so it is a decision about the machine and not about one account.
 #
 # Changing it takes effect when SD is next started, not when a session begins.
 # NETDIRS=

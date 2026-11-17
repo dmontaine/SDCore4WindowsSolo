@@ -436,7 +436,7 @@ the argument to the BASIC `FMT()` function, and the syntax is the same.
 **Combined examples**
 
 
-Every row below was run on W1.0-0 and shows what came back, including the
+Every row below shows what comes back, including the
 trailing spaces the format adds.
 
 | Field 3 (conversion) | Field 5 (format) | Stored value | Output |

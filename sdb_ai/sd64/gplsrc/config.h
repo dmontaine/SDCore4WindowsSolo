@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY
+ * 17 Nov 26 SD Core Solo - Linux Solo 3b1316cc (S.62 NETDIRS): NETDIRS_VALUE_MAX 191, what one sd.conf line holds after "NETDIRS=".
  * 17 Nov 26 SD Core Solo - from Core 8bd42f1a (RELEASE_1.1 317): api_local (APILOCAL).
  * 31 Dec 23 SD launch - prior history suppressed
  * rev 0.9.0 Jan 25 mab add create_user
@@ -43,6 +44,10 @@
 /* !!CONFIG!! All places requiring changes for config parameters are marked */
 
 /* MAX_NETDIRS_LEN is in sysseg.h - see the note there for why. */
+/* 17 Nov 26 SD Core Solo - Linux Solo 3b1316cc (S.62): the longest NETDIRS VALUE sd.conf may give.  read_config() reads a line of at
+   most 199 characters, so 191 is all "NETDIRS=" leaves; a longer one is refused by name (config.c), never cut: a cut list could end in a
+   SHORTER directory, which would admit more than the administrator wrote.  The segment's field stays MAX_NETDIRS_LEN wide. */
+#define NETDIRS_VALUE_MAX 191
 
 struct CONFIG {
 

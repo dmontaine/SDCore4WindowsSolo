@@ -18,6 +18,9 @@
 * 
 * 
 * START-HISTORY:
+* 17 Nov 26 SD Core Solo - four-version audit, Linux Solo 3b1316cc (SD Core's P-4641): a rename that differs from the old
+*           name only in case is refused (6151), as SD Core and Linux Solo do; the record being renamed is no longer excused
+*           from the clash test.
 * 25 Sep 26 SD Core Solo - SOLO 5: renaming records in a VOC needs ADMIN
 *           (ruling 14, !voc_guard).
 * 14 Sep 26 Windows port - RELEASE_1.1 5 stage 2a: the dictionary's @ID record
@@ -156,25 +159,25 @@ rename.file:
 *   REFUSED IF IT EXISTS IN ANY CASE.  Owner's ruling, 13 Sep 2026: ids in SD
 *   system files are lower case; 14 Sep 2026: an existing id in another case is
 *   "the same id".  VOC is a DYNAMIC file, so the exact test alone let a rename
-*   land beside a differently cased twin.  The one hit that is NOT a clash is
-*   the record being renamed, which is what lets "CNAME MYFILE TO myfile" bring
-*   an old upper-case id into line.
+*   land beside a differently cased twin.
    new.typed = new.file.name
    new.file.name = downcase(new.typed)
 
 *  AND A NEW NAME THAT FOLDS TO THE OLD ONE IS REFUSED, OR THE RECORD IS LOST.
-*  "CNAME myfile TO MYFILE" gives new.file.name = old.file.name, the write below
-*  lands on the old record, and the delete after it removes the only copy.
-   if new.file.name = old.file.name then
+*  "CNAME myfile TO MYFILE" gives the old name's own id, the write below lands on
+*  the old record, and the delete after it removes the only copy.  17 Nov 26 (Linux
+*  Solo 3b1316cc, SD Core's P-4641): compared FOLDED, so "CNAME MYFILE TO myfile"
+*  is refused too - on the case-blind VOC it is the same record (it was let through
+*  here to bring an old upper-case id into line).  And no hit is excused: the
+*  record being renamed can no longer be among them.
+   if new.file.name = downcase(old.file.name) then
       stop sysmsg(6151, new.file.name) ;* xx is already defined in your VOC
    end
 
    clash.ids = new.typed : @fm : new.file.name : @fm : upcase(new.typed)
    for clash.i = 1 to 3
-      if clash.ids<clash.i> # old.file.name then
-         readvu s from voc.f, clash.ids<clash.i>, 0 then
-            stop sysmsg(6151, clash.ids<clash.i>) ;* xx is already defined in your VOC
-         end
+      readvu s from voc.f, clash.ids<clash.i>, 0 then
+         stop sysmsg(6151, clash.ids<clash.i>) ;* xx is already defined in your VOC
       end
    next clash.i
 

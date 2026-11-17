@@ -33,6 +33,8 @@
 *              PowerShell and icacls (the Solo user, by SID, and SYSTEM only, inheritance removed: OS.EXECUTE runs PowerShell here, and Windows has no umask or
 *              chmod 700) and removes the file with Remove-Item; A's prompt says the file is written with / (a word for SET.AI may not hold a backslash).  The
 *              cursor is parked by $tk_aipage('cursor', ...) as on every Windows page (RELEASE_1.1 328; Linux Solo already has it).
+* 17 Nov 26 SD Core Solo - four-version audit, Linux Solo 3b1316cc (P-4666): the setup box no longer raises ctx<TK.C.GEN> a second time
+*              after after.box has raised it (SD Core's shape).
 * END-HISTORY
 *
 * START-DESCRIPTION:
@@ -753,9 +755,7 @@ do.setup:
    repeat
    kv = ''
    screen hide sf
-   gosub after.box
-   gen += 1
-   ctx<TK.C.GEN> = gen
+   gosub after.box                                             ;* 17 Nov 26 (Linux Solo 3b1316cc, P-4666): after.box raises ctx<TK.C.GEN>; the second raise here is gone, as in SD Core
    if su.done then
       msg = (if key.done then 'The key for ' : nm.s : ' is set' else 'The key is unchanged')
       if mv # cur then                                         ;* cur is the model in use (the one set, else the default)

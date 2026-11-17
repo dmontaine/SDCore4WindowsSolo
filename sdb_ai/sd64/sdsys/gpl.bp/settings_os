@@ -18,6 +18,8 @@
 *
 *
 * START-HISTORY:
+* 17 Nov 26 SD Core Solo - four-version audit, Linux Solo 3b1316cc (P-4440): [mode] says "unknown (the credential register could not
+*           be read, status N)" when $cred cannot be opened, Linux Solo's words (it said "(could not be read: $cred)").
 * 16 Nov 26 SD Core Solo - SOLO 60 (Linux mail 2026-11-16T1330): the $cred id '$global' in lower case, as Linux Solo.
 * 06 Oct 26 SD Core Solo - SOLO 36: [mode] reads "managed (a global password
 *           is set)" or "not managed (no global password)", as on Linux Solo.
@@ -99,7 +101,8 @@ deffun ps_script_out(script, want.out) calling '!ps_script_out'
       end
       close cred.f
    end else
-      lines<-1> = '(could not be read: $cred)'
+*     17 Nov 26 (Linux Solo 3b1316cc, P-4440): Linux Solo's words for a register that cannot be opened.
+      lines<-1> = 'unknown (the credential register could not be read, status ':status():')'
    end
 
 *  policy - the verbs denied to the local user (DENY.VERBS).

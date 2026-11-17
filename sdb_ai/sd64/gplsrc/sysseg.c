@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - Linux Solo 3b1316cc (S.62 NETDIRS): start_sd() calls netdirs_report() after audit_rotate(), so each NETDIRS
+ *               entry SD ignores is named once in the error log at sd-solo -start.
  * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4324): apply_pending_restore() is declared at the top, as Linux Solo's.
  * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4323): a restore that failed is said in Linux Solo's words, with the status.
  * 17 Nov 26 SD Core Solo - from Core 8bd42f1a (RELEASE_1.1 317): api_local copied to the segment for sdwind.
@@ -845,6 +847,11 @@ bool start_sd() {
      bind_sysseg(), which is what makes sysseg->sysdir readable.             */
 
   audit_rotate();
+
+  /* 17 Nov 26 SD Core Solo - Linux Solo 3b1316cc (S.62): NETDIRS is judged here once and each entry it ignores is named in the error
+     log.  A session judges the same list again itself (op_dio2.c) and ignores the same entries without a word. */
+
+  netdirs_report();
 
   /* Start sdwind daemon */
 

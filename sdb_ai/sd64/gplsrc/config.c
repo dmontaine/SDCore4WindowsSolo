@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - four-version audit, Linux Solo 3b1316cc (S.62 NETDIRS): a NETDIRS line too long for the 199-character
+ *               line buffer, or a value over NETDIRS_VALUE_MAX (191), is refused by name and never cut (it was read in two pieces).
  * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4282): the STARTUP refusal says "it never ran on Windows", as SD Core's.
  * 17 Nov 26 SD Core Solo - from Core 8bd42f1a (RELEASE_1.1 317; audit round 1): APILOCAL=1 (the API listener binds the loopback address only).
  * 15 Nov 26 SD Core Solo - from Core (Linux 64561d81, S.230): copy_section_name() bounds and terminates a [section] name.
@@ -63,7 +65,7 @@
  *  GRPSIZE=n     Default group size when creating a dynamic file
  *  MAXIDLEN=63   Maximum record id len
  *  MUSTLOCK=1    Must hold update or file lock to write or delete record
- *  NETDIRS=p;p   Directories a network session may reach outside its account
+ *  NETDIRS=p;p   Directories outside its account that a session without the OS switch, or a network session, may reach (none)
  *  NETFILES=0    Allow remote files?
  *                  0x0001   Allow outgoing NFS
  *                  0x0002   Allow incoming Q_M_Net
@@ -135,6 +137,7 @@ struct CONFIG* read_config(char* errmsg) {
   int n;
   int numlocks_asked = 100; /* NUMLOCKS as written: cfg->numlocks is int16 and would wrap before it was checked */
   bool status = FALSE;
+  bool line_whole;   /* 17 Nov 26, Linux Solo 3b1316cc: the line fitted in rec (NETDIRS is refused when it did not) */
   int n2;
   int hi_user;
   struct stat statbuf;
@@ -242,8 +245,26 @@ struct CONFIG* read_config(char* errmsg) {
   }
 
   while (fgets(rec, 200, fu) != NULL) {
+    /* 17 Nov 26 SD Core Solo - Linux Solo 3b1316cc (S.62 NETDIRS): was the whole line read?  fgets() stops at 199 characters and the
+       rest of a longer line comes back as the next record, so a long NETDIRS was CUT, and a cut list can end in a shorter directory.
+       A line of exactly 199 has its line end still waiting (LF, or CR LF as Windows editors write it), which is taken here.  Only
+       NETDIRS acts on it (refused by name below); every other parameter is read as it always was. */
+    line_whole = TRUE;
     if ((p = strchr(rec, '\n')) != NULL)
       *p = '\0';
+    else {
+      int c = getc(fu);
+      if (c == '\r') {
+        int c2 = getc(fu);
+        if ((c2 != EOF) && (c2 != '\n')) {
+          ungetc(c2, fu);
+          line_whole = FALSE;
+        }
+      } else if ((c != EOF) && (c != '\n')) {
+        ungetc(c, fu);
+        line_whole = FALSE;
+      }
+    }
 
     /* 14 Aug 26 Windows port - strip the carriage return too.  Only '\n' was
        removed, which is correct for a Unix file and wrong for every
@@ -349,10 +370,13 @@ struct CONFIG* read_config(char* errmsg) {
    BOUNDS CHECKED, and the refusal is deliberate rather than a truncation - a
    truncated pathname is a SHORTER one, which as a containment root would
    match MORE than the administrator asked for, not less.                   */
+/* 17 Nov 26 SD Core Solo - Linux Solo 3b1316cc (S.62): the limit is what one sd.conf line holds after "NETDIRS=" (NETDIRS_VALUE_MAX,
+   191), and a longer line is refused by name rather than read in two pieces.  Each entry is judged where the list is used (op_dio2.c
+   netdirs_load()); one SD ignores is named in the error log at sd-solo -start. */
       else if (strncmp(rec, "NETDIRS=", 8) == 0) {
-        if (strlen(rec + 8) > MAX_NETDIRS_LEN) {
+        if (!line_whole || (strlen(rec + 8) > NETDIRS_VALUE_MAX)) {
           sprintf(errmsg, "NETDIRS value is longer than %d characters.",
-                  MAX_NETDIRS_LEN);
+                  NETDIRS_VALUE_MAX);
           goto exit_read_config;
         }
         strcpy(cfg->netdirs, rec + 8);
