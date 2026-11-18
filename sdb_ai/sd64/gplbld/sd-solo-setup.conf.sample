@@ -15,10 +15,12 @@
 # that breaks the rules below, a word that is not off, local or open) is asked
 # for too.
 #
-# The ACCOUNT password is deliberately not here.  With a global password the
-# user sets it at this computer's keyboard the first time they run sd.
-# Without one the installer asks for it, so an install with no global
-# password cannot run unattended.
+# The ACCOUNT password is deliberately not here.  When a global-password IS
+# given here (a computer an SD Core server manages), the person who first runs
+# sd-solo at this computer's keyboard chooses the account password.  Give the
+# installer /ACCOUNTPASSWORDFILE=<file> as well (the password on the file's first
+# line) if you want it set at install time; delete the file afterwards.  When
+# there is no global-password the installer asks for the account password.
 #
 # Nothing else needs answering.  SD Core Solo for Windows is always added to the user's
 # PATH, and Python is always installed (from the python folder beside the

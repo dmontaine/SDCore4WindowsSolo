@@ -308,6 +308,10 @@ var
     the switches the installation has.  CfSshKey (P-7371) is the control file's ssh-public-key-file=, '' for none.  CfRefusal
     (18 Nov 26, P-8156) is why the control file stops the install before anything is written, '' when it does not. }
   CmdOsAccess, CfSshKey, CfRefusal: String;
+  { 18 Nov 26 - four-version audit P-4266, Linux Solo's --account-password-file: /ACCOUNTPASSWORDFILE=<file> on the command line, a
+    new tree only - the account password from the file's first line, so a control-file install that gives a global password (where
+    the account page is not shown) sets it too.  '' when not given.  Never logged. }
+  CmdAccountPw: String;
   { 12 Nov 26 - SOLO 56 group 6, THE START QUESTION (Linux Solo S.221 START-ASK / START-SET, control file start=; SD Core for Windows
     RELEASE_1.1 210, task startprompt): where new sessions start.  The control file's start=, menu or terminal; '' when not given or not
     one of those (then the page asks).  StartPage is one unticked box, shown on a new tree only: an upgrade keeps the site's start. }
@@ -559,8 +563,8 @@ end;
   never logged - only whether each was given and whether it was accepted. }
 procedure LoadControlFile;
 var
-  F, P: String;
-  KeyText: AnsiString;
+  F, P, PwProblem: String;
+  KeyText, PwText: AnsiString;
 begin
   F := ExpandConstant('{src}\sd-solo-setup.conf');
   UseControl := DataTreeWasAbsent and FileExists(F);
@@ -577,6 +581,36 @@ begin
     CmdOsAccess := '';
   end;
   Log('SD Core Solo: command line os-access "' + CmdOsAccess + '"');
+  { 18 Nov 26 - P-4266: /ACCOUNTPASSWORDFILE=<file>, the account password, as Linux Solo's --account-password-file.  On a new tree
+    only (an upgrade keeps the account's password); a file that cannot be read, or a password the rules refuse, refuses the install
+    (CfRefusal, InitializeSetup).  The file is the caller's to delete. }
+  CmdAccountPw := '';
+  PwProblem := '';
+  P := Trim(ExpandConstant('{param:ACCOUNTPASSWORDFILE|}'));
+  if (P <> '') and DataTreeWasAbsent then
+  begin
+    if not LoadStringFromFile(P, PwText) then
+      CfRefusal := 'Cannot read the account password file ' + P + '.'
+    else
+    begin
+      CmdAccountPw := String(PwText);
+      if Pos(#10, CmdAccountPw) > 0 then
+        CmdAccountPw := Copy(CmdAccountPw, 1, Pos(#10, CmdAccountPw) - 1);
+      if Pos(#13, CmdAccountPw) > 0 then
+        CmdAccountPw := Copy(CmdAccountPw, 1, Pos(#13, CmdAccountPw) - 1);
+      PwProblem := PasswordProblem(CmdAccountPw, CmdAccountPw);
+      if PwProblem <> '' then
+        CfRefusal := 'The account password in ' + P + ' is refused: ' + PwProblem;
+      if CfRefusal <> '' then
+        CmdAccountPw := '';
+    end;
+    if CfRefusal = '' then
+      Log('SD Core Solo: command line account password file "' + P + '": given, accepted')
+    else
+      Log('SD Core Solo: command line account password file "' + P + '": refused');
+  end
+  else if P <> '' then
+    Log('SD Core Solo: /ACCOUNTPASSWORDFILE ignored - this computer already has a data tree');
   if not UseControl then
   begin
     if FileExists(F) then
@@ -602,6 +636,13 @@ begin
       P := 'Use a password different from the administrator password.';
     CfGlobalOk := P = '';
     Log('SD Core Solo: control file global-password ' + PasswordFate(CfGlobal, P));
+  end;
+  { 18 Nov 26 - P-4266, ruling 19: the account password from /ACCOUNTPASSWORDFILE differs from the administrator and global ones
+    (one login name, two passwords, the account's checked first). }
+  if (CmdAccountPw <> '') and (((CfAdmin <> '') and (CmdAccountPw = CfAdmin)) or ((CfGlobal <> '') and (CmdAccountPw = CfGlobal))) then
+  begin
+    CfRefusal := 'The account password in the /ACCOUNTPASSWORDFILE file must differ from the administrator and global passwords.';
+    CmdAccountPw := '';
   end;
   { SOLO 36: api= and ssh=.  Anything but off, local or open is not an answer: the Tasks page asks. }
   CfApi := Lowercase(Trim(GetIniString('install', 'api', '', F)));
@@ -1120,7 +1161,7 @@ begin
     global password (a file with none, a refused one, or no file) the account
     password is asked here, on every route. }
   else if PageID = AccountPage.ID then
-    Result := (not DataTreeWasAbsent) or KeptPasswordsUsed or (UseControl and CfGlobalOk)
+    Result := (not DataTreeWasAbsent) or KeptPasswordsUsed or (UseControl and CfGlobalOk) or (CmdAccountPw <> '')   { P-4266 }
   { SOLO 36: the page asks the API and ssh in every install; skipped on an
     upgrade, and when the control file answers both. }
   { 20 Oct 26 - RELEASE_1.1 165: the OS switch question, skipped when a control file (a new tree) answers it.
@@ -1192,7 +1233,11 @@ begin
   Result := True;
   Problem := '';
   if CurPageID = AdminPage.ID then
-    Problem := PasswordProblem(AdminPage.Values[0], AdminPage.Values[1])
+  begin
+    Problem := PasswordProblem(AdminPage.Values[0], AdminPage.Values[1]);
+    if (Problem = '') and (CmdAccountPw <> '') and (AdminPage.Values[0] = CmdAccountPw) then   { P-4266 }
+      Problem := 'Use a password different from the account password.';
+  end
   else if CurPageID = GlobalPage.ID then
   begin
     { SOLO 36: both boxes blank is the answer "no global password" - not
@@ -1211,6 +1256,8 @@ begin
       account page.  Unchanged in the control-file path, where the global
       password comes from the file and no account password is asked. }
     if (Problem = '') and (GlobalPage.Values[0] = AccountPage.Values[0]) then
+      Problem := 'Use a password different from the account password.';
+    if (Problem = '') and (CmdAccountPw <> '') and (GlobalPage.Values[0] = CmdAccountPw) then   { P-4266 }
       Problem := 'Use a password different from the account password.';
   end
   else if CurPageID = AccountPage.ID then
@@ -1627,7 +1674,11 @@ begin
         Params := Params + ' -Global';
         SetEnvironmentVariable('SD_SOLO_GLOBAL_PW', GlobalPage.Values[0]);
       end;
-      SetEnvironmentVariable('SD_SOLO_ACCOUNT_PW', AccountPage.Values[0]);
+      { 18 Nov 26 - P-4266: the /ACCOUNTPASSWORDFILE password when one was given (the account page was not shown). }
+      if CmdAccountPw <> '' then
+        SetEnvironmentVariable('SD_SOLO_ACCOUNT_PW', CmdAccountPw)
+      else
+        SetEnvironmentVariable('SD_SOLO_ACCOUNT_PW', AccountPage.Values[0]);
     end;
     { 28 Sep 26 - ruling 34: the control file's deny-verbs, on a new tree only
       (an existing tree keeps its list; the server changes it with DENY.VERBS). }

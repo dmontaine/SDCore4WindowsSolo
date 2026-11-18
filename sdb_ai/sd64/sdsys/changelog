@@ -18,6 +18,9 @@ of both Windows products is 2.0-0, as all four SD Core versions will be.)
                          - an upgrade whose conversion to case-insensitive record ids does not finish now warns and goes
                            on (the files are as they were, and the log names them), as SD Core Solo for Linux does; it
                            used to fail the installation.
+                         - the installer takes /ACCOUNTPASSWORDFILE=<file> on its command line: the account password from
+                           the file's first line, on a new installation, as SD Core Solo for Linux's --account-password-file.
+                           A file that cannot be read, or a password the rules refuse, stops the install.
 
 17 Nov 26  THE PAPER LOOK ON AN UPGRADE; /OSACCESS ON AN UPGRADE; A PUBLIC KEY IN THE INSTALL FILE; A CUT AUDIT RECORD ENDS ITS LINE.
 
