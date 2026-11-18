@@ -37,11 +37,19 @@
 #                 address and ends "SOLO SSH GUARD LOCKED 1", -Unlock ends "UNLOCKED 1" and the rule goes, the lock lifts
 #                 by itself, a bad address and no switch are refused, the first pass writes "watching ...: ok", a
 #                 writer listed "exited" in procs.txt is believed.
+#   TRACED rows - (the third build: a connection's process is known from the process start/stop trace only)
+#                 a traced life of Solo's counts inside its life and is dropped after its exit; another account,
+#                 another program, or no account on either side is forged; a reused pid's records are each judged
+#                 against the life the pid had at the record's time; a start stamped up to $TraceSlack late still
+#                 owns the record; a record older than the live process or the cached verification under its pid
+#                 is unverified; only records $TraceGrace old are judged and the bookmark goes back for the rest.
 #   NATIVE rows - SoloSshWatch (the script's sshguard_native region, compiled here) on a child PING.EXE of this
-#                 shell: caught with its parent, image and creation time; after its exit still held, with the exact
-#                 exit time; let go past the hold; a pid not running is not caught; a missing channel throws.  Four
-#                 native mutants (renamed copies) must each turn a NATIVE row red.  -Serve starts the watcher
-#                 before its loop, and a pass catches a record's uncaught writer (text pins).
+#                 shell: caught with its parent, image, account and creation time; after its exit still held, with
+#                 the exact exit time; let go past the hold; a pid not running is not caught.  The trace's
+#                 bookkeeping fed recorded start/stop events: two lives of a pid, the stop ends the right one, an
+#                 exited life is forgotten after the hold; the subscription throws when it may not subscribe.  Eight
+#                 native mutants (renamed copies) must each turn a NATIVE row red.  -Serve starts the trace before
+#                 its loop, and a pass judges only ripe records and reads the lives (text pins).
 #   PIN rows    - what the guard relies on elsewhere: Solo's sshd_config (solo-sshd.ps1 Get-Config) says LogLevel
 #                 VERBOSE and LoginGraceTime 120 (and $ConnLife is longer); the sshd task (solo-machine.ps1) has no -E;
 #                 the installer's two checks anchor on the words the guard writes.
@@ -49,7 +57,8 @@
 #                 does not parse, or a native copy that does not compile, counts as green: it tests nothing).  A
 #                 mutant whose target is not found exactly once stops the run (exit 2): it would test nothing.
 # NOT MEASURED HERE: Solo's own sshd writing "Connection from ... port 4251" to the channel (VERBOSE; the port-22 sshd
-# at INFO never does), the watcher catching Solo's SYSTEM sshd as SYSTEM and in time, the firewall rule refusing a
+# at INFO never does), the process trace delivering Solo's sshd starts and stops as SYSTEM, in time and with the
+# listener's account (an unelevated subscription is refused), the firewall rule refusing a
 # connection, the child being ended.  verify-solo.ps1 leg 18e (a wrong password must be COUNTED) and the
 # installer's "read Solo's sshd start" check measure the first two on an installed Solo.
 
@@ -93,8 +102,8 @@ $ruleRows = {
     # added as its running child (the WRITER rows below build their own worlds).
     $img = $SshdImages[0]
     function New-World {
-        $l = @{ Pid = 4000; Parent = 1; Image = $img; Created = [long]100 }
-        return @{ Procs = @{ '4000' = $l }; Listener = $l; Vc = @{} }
+        $l = @{ Pid = 4000; Parent = 1; Image = $img; Sid = 'S-1-5-18'; Created = [long]100 }
+        return @{ Procs = @{ '4000' = $l }; Lives = @{}; Listener = $l; Vc = @{} }
     }
     function Add-Proc($w, [int]$procId, [int]$parent, [long]$created, [string]$image, [long]$exited = 0) { $w.Procs[[string]$procId] = @{ Pid = $procId; Parent = $parent; Image = $image; Created = $created; Exited = $exited } }
     $script:W = New-World
@@ -257,6 +266,57 @@ $ruleRows = {
     Update-Verified $w 3000
     Row 'the listing marks a verified pid gone AT ITS EXIT TIME (1500, not the 3000 it was noticed), and one caught already exited at its exit (1700)' ($w.Vc['931'].Gone -eq 1500 -and $w.Vc['932'].Gone -eq 1700) ('gone ' + $w.Vc['931'].Gone + ' / ' + $w.Vc['932'].Gone)
 
+    # ---- TRACED LIVES (the third build): a connection's process is known only from the start/stop trace - pid,
+    # parent, program NAME, account, start and exit - and each record is judged by its pid AND its time.  Real
+    # tick scales, because $TraceSlack is 2 s.
+    # Not $S: PowerShell names are case-blind, and $s is the state these rows use.
+    $T0 = [long]639000000000000000; $Sec = [long]10000000
+    function Add-Life($w, [int]$procId, [int]$parent, [long]$created, [long]$exited, [string]$name, [string]$sid) {
+        $k = [string]$procId
+        if (-not $w.Lives.ContainsKey($k)) { $w.Lives[$k] = @() }
+        $w.Lives[$k] += @{ Pid = $procId; Parent = $parent; Image = ''; Name = $name; Sid = $sid; Created = $created; Exited = $exited }
+    }
+    function At($x, [long]$t) { $x.Time = $t; return $x }
+    $w = New-World; Add-Life $w 950 4000 ($T0 + $Sec) ($T0 + 2 * $Sec) 'sshd.exe' 'S-1-5-18'
+    $s = New-State
+    $ra = @((Add-Record $s (At (Cn 950 $A) ($T0 + $Sec + 1000)) 8000 $w).R, (Add-Record $s (At (Fp 950 $A) ($T0 + $Sec + 5000)) 8000 $w).R)
+    $rb = Add-Record $s (At (Fp 950 $A) ($T0 + 3 * $Sec)) 8000 $w
+    Row 'a TRACED life (sshd.exe, the listener''s account, parent the listener) is Solo''s: its connection and failure inside its life count' (($ra -join ',') -eq 'CONN,COUNT' -and $s.Addrs[$A].Fails.Count -eq 1) ('events ' + ($ra -join ','))
+    Row 'a record under that pid AFTER the traced exit is dropped (gone)' ($rb.R -eq 'DROP' -and $rb.V -eq 'gone') ('R ' + $rb.R + ', V ' + $rb.V)
+    $w = New-World; Add-Life $w 951 4000 ($T0 + $Sec) 0 'sshd.exe' 'S-1-5-21-1-2-3-1001'
+    $ax = Add-Record (New-State) (At (Cn 951 $A) ($T0 + 2 * $Sec)) 8000 $w
+    Row 'a traced child of the listener running as ANOTHER account is dropped (forged)' ($ax.R -eq 'DROP' -and $ax.V -eq 'forged') ('R ' + $ax.R + ', V ' + $ax.V)
+    $w = New-World; Add-Life $w 952 4000 ($T0 + $Sec) 0 'evil.exe' 'S-1-5-18'
+    $ax = Add-Record (New-State) (At (Cn 952 $A) ($T0 + 2 * $Sec)) 8000 $w
+    Row 'a traced child of the listener whose program is not sshd is dropped (forged)' ($ax.R -eq 'DROP' -and $ax.V -eq 'forged') ('R ' + $ax.R + ', V ' + $ax.V)
+    $w = New-World; $w.Listener.Sid = ''; Add-Life $w 953 4000 ($T0 + $Sec) 0 'sshd.exe' ''
+    $ax = Add-Record (New-State) (At (Cn 953 $A) ($T0 + 2 * $Sec)) 8000 $w
+    Row 'with neither account known, a traced child is dropped (an empty account is not a match)' ($ax.R -eq 'DROP' -and $ax.V -eq 'forged') ('R ' + $ax.R + ', V ' + $ax.V)
+    # PID REUSE in the trace: a Solo life (T0+1 s .. T0+2 s), then a forger's (parent another process) from T0+10 s.
+    $w = New-World; Add-Life $w 954 4000 ($T0 + $Sec) ($T0 + 2 * $Sec) 'sshd.exe' 'S-1-5-18'; Add-Life $w 954 6512 ($T0 + 10 * $Sec) 0 'sshd.exe' 'S-1-5-18'
+    $r1 = (Add-Record (New-State) (At (Cn 954 $A) ($T0 + $Sec + 1000)) 8000 $w).R
+    $w.Vc = @{}
+    $r2 = Add-Record (New-State) (At (Cn 954 $A) ($T0 + 11 * $Sec)) 8000 $w
+    $w.Vc = @{}
+    $r3 = Add-Record (New-State) (At (Cn 954 $A) ($T0 + 5 * $Sec)) 8000 $w
+    Row 'PID REUSE in the trace: each record is judged against the life its pid had AT ITS TIME (Solo''s: CONN; the forger''s: forged; between the two: gone)' ($r1 -eq 'CONN' -and $r2.V -eq 'forged' -and $r3.V -eq 'gone') ('T0+1s ' + $r1 + ', T0+11s ' + $r2.R + ' ' + $r2.V + ', T0+5s ' + $r3.R + ' ' + $r3.V)
+    $w = New-World; Add-Life $w 955 4000 ($T0 + $Sec) 0 'sshd.exe' 'S-1-5-18'
+    $rs = (Add-Record (New-State) (At (Cn 955 $A) ($T0 + [long]5000000)) 8000 $w).R
+    $rt = Add-Record (New-State) (At (Cn 955 $A) ($T0 - 2 * $Sec)) 8000 $w
+    Row 'a traced start stamped up to $TraceSlack after the record still owns it; one 3 s after does not (unverified)' ($rs -eq 'CONN' -and $rt.R -eq 'DROP' -and $rt.V -eq 'unverified') ('0.5 s before: ' + $rs + ', 3 s before: ' + $rt.R + ' ' + $rt.V)
+    # A live entry, or a cached verification, says nothing about a record OLDER than its process.
+    $w = New-World; Add-Proc $w 956 4000 ($T0 + 10 * $Sec) $img
+    $ru = Add-Record (New-State) (At (Cn 956 $A) ($T0 + $Sec)) 8000 $w
+    $w = New-World; $w.Vc['957'] = @{ Created = $T0 + 10 * $Sec; Gone = [long]0 }
+    $rv = Test-RecordProcess $w (At (Cn 957 $A) ($T0 + $Sec))
+    Row 'a record older than the live process under its pid, or than its cached verification, is dropped (unverified)' ($ru.R -eq 'DROP' -and $ru.V -eq 'unverified' -and $rv -eq 'unverified') ('live: ' + $ru.R + ' ' + $ru.V + ', cached: ' + $rv)
+    # RIPENESS: only records $TraceGrace old are judged; the bookmark goes back to just before the first newer one.
+    $st = New-State; $st.Offset = 40
+    $rr = @(@{ Id = 41; Time = $T0 }, @{ Id = 42; Time = $T0 + $Sec }, @{ Id = 43; Time = $T0 + 10 * $Sec }, @{ Id = 44; Time = $T0 + 11 * $Sec })
+    $st.Offset = 44
+    $ripe = @(Select-Ripe $st $rr ($T0 + 5 * $Sec))
+    Row 'records newer than the cutoff are not judged now, and the bookmark goes back to read them again' ($ripe.Count -eq 2 -and $ripe[1].Id -eq 42 -and $st.Offset -eq 42) ('ripe ' + $ripe.Count + ', offset ' + $st.Offset)
+
     # ---- parsing
     $inj = 'Failed password for invalid user x from 10.9.9.9 port 1 ssh2: from ' + $B + ' port 50107 ssh2'
     $ev = Get-LineEvent $inj
@@ -373,6 +433,11 @@ $pl = @('listener 4000', ('proc 4000 1 100 ' + $sysSshd))
 foreach ($p in 1001..1006) { $pl += ('proc ' + $p + ' 4000 200 ' + $sysSshd) }
 $pl += 'proc 3001 4000 200 C:\Users\Public\sshd.exe'
 $pl += ('proc 1007 4000 200 exited 300 ' + $sysSshd)
+# Traced lives (the real shape since the third build): 1008 Solo's (sshd.exe, the listener's account), 3002 a
+# child of the listener under another account.
+$pl += 'sid 4000 S-1-5-18'
+$pl += 'life 1008 4000 200 300 sshd.exe S-1-5-18'
+$pl += 'life 3002 4000 200 0 sshd.exe S-1-5-21-1-2-3-1001'
 [IO.File]::WriteAllLines((Join-Path $td 'procs.txt'), [string[]]$pl)
 Write-Host ('  procs.txt: ' + ($pl -join ' | '))
 Add-Try 1001; Add-Try 1002
@@ -400,6 +465,9 @@ Check 'after it, -List ends "SOLO SSH GUARD LOCKED 0"' ($o -match '(?m)^SOLO SSH
 Add-Try 1007
 $o = Run-Guard 10070 @('-Serve')
 Check 'a writer listed as EXITED ("proc ... exited <ticks> <image>", the real shape of a refused connection) is believed: its wrong password counts' ($o -match 'a wrong password from 203\.0\.113\.5 \(pid 1007\)' -and $o -notmatch 'pid 1007 dropped') 'wrong password (pid 1007)'
+Add-Try 1008; Add-Try 3002
+$o = Run-Guard 10080 @('-Serve')
+Check 'a TRACED life ("life ..." in procs.txt) of Solo''s is believed; one under another account is dropped (forged)' ($o -match 'a wrong password from 203\.0\.113\.5 \(pid 1008\)' -and $o -match 'unverified record from pid 3002 dropped \(forged' -and $o -notmatch '\(pid 3002\)') 'pid 1008 counted, 3002 forged'
 Add-Try 1004; Add-Try 1005; Add-Try 1006
 $null = Run-Guard 20000 @('-Serve')
 $o = Run-Guard 20599 @('-Serve')
@@ -443,7 +511,7 @@ function Test-Native([string]$code, [string]$suffix, [bool]$verbose) {
         if (-not $ok) { [void]$bad.Add($label) }
     }
     $tn = 'SoloSshWatch' + $suffix
-    try { Add-Type -TypeDefinition ($code.Replace('SoloSshWatch', $tn).Replace('SoloProcInfo', 'SoloProcInfo' + $suffix)) -ErrorAction Stop }
+    try { Add-Type -TypeDefinition ($code.Replace('SoloSshWatch', $tn).Replace('SoloProcInfo', 'SoloProcInfo' + $suffix)) -ReferencedAssemblies 'System.Management' -ErrorAction Stop }
     catch { NRow 'the native region compiles' $false $_.Exception.Message; return @($bad) }
     NRow 'the native region compiles' $true $tn
     $ty = [type]$tn
@@ -451,8 +519,9 @@ function Test-Native([string]$code, [string]$suffix, [bool]$verbose) {
     $caught = $ty::Catch($p.Id)
     $i = @($ty::Snapshot([long]600000000) | Where-Object { $_.Pid -eq $p.Id })
     $wantC = $p.StartTime.ToUniversalTime().Ticks
-    $ok = ($caught -and $i.Count -eq 1 -and $i[0].Parent -eq $PID -and $i[0].Image -eq $ping -and $i[0].Created -eq $wantC -and $i[0].Exited -eq 0)
-    NRow 'a running process is caught: its parent (this shell), image and creation time (Process.StartTime''s ticks), not exited' $ok ('caught ' + $caught + $(if ($i.Count) { ', parent ' + $i[0].Parent + ' (want ' + $PID + '), image ' + $i[0].Image + ', created ' + $i[0].Created + ' (want ' + $wantC + '), exited ' + $i[0].Exited } else { ', not in the snapshot' }))
+    $me = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    $ok = ($caught -and $i.Count -eq 1 -and $i[0].Parent -eq $PID -and $i[0].Image -eq $ping -and $i[0].Created -eq $wantC -and $i[0].Exited -eq 0 -and $i[0].Sid -eq $me)
+    NRow 'a running process is caught: its parent (this shell), image, account (ours) and creation time (Process.StartTime''s ticks), not exited' $ok ('caught ' + $caught + $(if ($i.Count) { ', parent ' + $i[0].Parent + ' (want ' + $PID + '), image ' + $i[0].Image + ', sid ' + $i[0].Sid + ' (want ' + $me + '), created ' + $i[0].Created + ' (want ' + $wantC + '), exited ' + $i[0].Exited } else { ', not in the snapshot' }))
     $p.WaitForExit()
     $i = @($ty::Snapshot([long]600000000) | Where-Object { $_.Pid -eq $p.Id })
     $wantX = $p.ExitTime.ToUniversalTime().Ticks
@@ -462,19 +531,33 @@ function Test-Native([string]$code, [string]$suffix, [bool]$verbose) {
     NRow 'once past the hold its handle is let go and it is forgotten' ($i.Count -eq 0) ('entries for the pid ' + $i.Count)
     $c2 = $ty::Catch(2147483644)
     NRow 'a pid that is not running is not caught' (-not $c2) ('Catch ' + $c2)
-    $threw = $false
-    try { $ty::Start('SD-No/SuchChannel') } catch { $threw = $true }
-    $started = $false
-    try { $ty::Start('Application'); $started = $true; $ty::Stop() } catch { }
-    NRow 'subscribing to a channel that does not exist THROWS; to Application it does not' ($threw -and $started) ('threw ' + $threw + ', Application ' + $started)
+    # THE TRACE's bookkeeping, fed recorded events (the subscription itself needs an administrator): two lives of
+    # one pid, a stop that ends the right one, and an exited life forgotten after the hold.
+    $tp = 2147483640
+    $t0 = [DateTime]::UtcNow.Ticks - 50000000
+    $ty::AddStart($tp, 4000, 'sshd.exe', 'S-1-5-18', $t0)
+    $ty::AddStart($tp, 6000, 'sshd.exe', 'S-1-5-18', $t0 + 30000000)
+    $ty::AddStop($tp, $t0 + 10000000)
+    $lv = @($ty::LivesSnapshot([long]600000000) | Where-Object { $_.Pid -eq $tp } | Sort-Object Created)
+    NRow 'two starts of one pid are two lives (parent, program, account kept); the stop ends the life that had started by then' ($lv.Count -eq 2 -and $lv[0].Parent -eq 4000 -and $lv[0].Name -eq 'sshd.exe' -and $lv[0].Sid -eq 'S-1-5-18' -and $lv[0].Exited -eq ($t0 + 10000000) -and $lv[1].Exited -eq 0) ('lives ' + $lv.Count + $(if ($lv.Count -eq 2) { ', exited ' + $lv[0].Exited + ' / ' + $lv[1].Exited } else { '' }))
+    $lv = @($ty::LivesSnapshot([long]10000000) | Where-Object { $_.Pid -eq $tp })
+    NRow 'an exited life older than the hold is forgotten, a running one is kept' ($lv.Count -eq 1 -and $lv[0].Parent -eq 6000) ('lives ' + $lv.Count)
+    $threw = $false; $msg = ''
+    try { $ty::StartTrace(); $ty::StopTrace() } catch { $threw = $true; $msg = $_.Exception.InnerException.Message }
+    $elev = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    NRow 'the trace subscription THROWS when it cannot subscribe (unelevated: "Access denied"); elevated it starts' ($(if ($elev) { -not $threw } else { $threw })) ('elevated ' + $elev + ', threw ' + $threw + ' ' + $msg)
     return @($bad)
 }
 $nb = @(Test-Native $native '' $true)
 $fail += $nb.Count
 Write-Host ('NATIVE rows: ' + $nb.Count + ' failed')
-Check '-Serve subscribes the watcher before its first pass, compiled with TEMP in the machine folder' ($text.Contains('[SoloSshWatch]::Start($Channel)') -and $text.Contains('$env:TMP = $dir; $env:TEMP = $dir') -and $text.IndexOf('[SoloSshWatch]::Start($Channel)') -lt $text.IndexOf('while ($true) {')) 'Start before the loop'
-Check 'a pass catches a record''s writer not caught yet, before judging the record' ($text.Contains('if ([SoloSshWatch]::Catch([int]$rec.Pid)) { Update-World $false }')) 'Catch at read'
+Check '-Serve starts the trace before its first pass, compiled with TEMP in the machine folder' ($text.Contains('[SoloSshWatch]::StartTrace()') -and $text.Contains('$env:TMP = $dir; $env:TEMP = $dir') -and $text.IndexOf('[SoloSshWatch]::StartTrace()') -lt $text.IndexOf('while ($true) {')) 'StartTrace before the loop'
+Check 'a pass judges only records $TraceGrace old (Select-Ripe), and reads the trace''s lives into the world' ($text.Contains('$ripe = @(Select-Ripe $st $recs ((Get-NowTicks) - $TraceGrace))') -and $text.Contains('foreach ($rec in $ripe) {') -and $text.Contains('[SoloSshWatch]::LivesSnapshot($HoldTicks)') -and $text.Contains('$script:World.Lives = $lives')) 'ripe records, lives'
 $nmut = @(
+    @('a stop marks no life',     'if (best != null) best.Exited = exited;', 'if (best == null) best = null;'),
+    @('a stop ends a later life', 'i.Exited == 0 && i.Created <= exited &&', 'i.Exited == 0 &&'),
+    @('exited lives never forgotten', 'kv.Value.RemoveAll(i => i.Exited != 0 && now - i.Exited > holdTicks);', 'kv.Value.RemoveAll(i => false);'),
+    @('the account not read',     'i.Sid = TokenSid(h);', 'i.Sid = "";'),
     @('the exit time never read', 'if (en.I.Exited == 0 && WaitForSingleObject(en.H, 0) == 0)', 'if (en.I.Exited == 0 && en.H == IntPtr.Zero)'),
     @('the parent not read',      'i.Parent = (int)b.InheritedFromUniqueProcessId.ToInt64();', 'i.Parent = 0;'),
     @('the image not read',       'i.Image = sb.ToString(0, (int)n);', 'i.Image = "";'),
@@ -522,7 +605,17 @@ $mutants = @(
     @('exited never-verified kept','if ($null -eq $c) { return ''unverified'' }', 'if ($null -eq $c) { return ''cached'' }'),
     @('exited verified dropped',   ('    return ''cached''' + "`n" + '}'), ('    return ''unverified''' + "`n" + '}')),
     @('a reused pid believed',     'if ($null -ne $c -and $c.Created -eq $p.Created) {', 'if ($null -ne $c) {'),
-    @('written after gone kept',   ('if ($null -eq $c) { return ''unverified'' }' + "`n" + '    if ($c.Gone -gt 0 -and $null -ne $rec.Time -and $rec.Time -gt $c.Gone) { return ''gone'' }'), 'if ($null -eq $c) { return ''unverified'' }'),
+    @('written after gone kept',   ('$rec.Time -lt $c.Created) { return ''unverified'' }' + "`n" + '    if ($c.Gone -gt 0 -and $null -ne $rec.Time -and $rec.Time -gt $c.Gone) { return ''gone'' }'), '$rec.Time -lt $c.Created) { return ''unverified'' }'),
+    @('a record older than its cached process kept', '    if ($null -ne $rec.Time -and $rec.Time -lt $c.Created) { return ''unverified'' }', '    $null = 0'),
+    @('a live entry owns older records', '($null -eq $rec.Time -or $rec.Time -ge $p.Created)', '$true'),
+    @('a traced account not checked', ' -and $p.Sid -and $p.Sid -eq $listener.Sid', ''),
+    @('an empty account matches',  ' -and $p.Sid -and $p.Sid -eq $listener.Sid', ' -and $p.Sid -eq $listener.Sid'),
+    @('a traced program not checked', '$SshdNames -contains ([string]$p.Name).ToLowerInvariant() -and ', ''),
+    @('the first life, not the latest', 'if ($null -eq $best -or $l.Created -gt $best.Created) { $best = $l }', 'if ($null -eq $best) { $best = $l }'),
+    @('a life started after the record used', 'if ($null -ne $rec.Time -and $l.Created -gt ($rec.Time + $TraceSlack)) { continue }', '$null = 0'),
+    @('no slack for a late start', '($rec.Time + $TraceSlack)', '$rec.Time'),
+    @('every record judged at once', 'if ($null -ne $r.Time -and $r.Time -gt $cutoff) { $st.Offset = [long]$r.Id - 1; break }', '$null = 0'),
+    @('the bookmark not put back', '{ $st.Offset = [long]$r.Id - 1; break }', '{ break }'),
     @('written after gone kept (listener restarted)', '            if ($c.Gone -gt 0 -and $null -ne $rec.Time -and $rec.Time -gt $c.Gone) { return ''gone'' }', '            $null = 0'),
     @('the exit time ignored',     'if ($x -gt 0 -and $null -ne $rec.Time -and $rec.Time -gt $x) { return ''gone'' }', '$null = 0'),
     @('the listing verifies nothing', 'if (-not (Test-SoloProcess $p $world.Listener)) { continue }', 'continue'),

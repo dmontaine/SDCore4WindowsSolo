@@ -49,41 +49,44 @@
 # WHO MAY WRITE A RECORD THE GUARD BELIEVES.  The channel's own access list lets INTERACTIVE users write to it
 # (channelAccess "(A;;0x3;;;IU)", read 17 Nov 2026), so any program the signed-in user runs can write sshd-shaped
 # records - under ITS OWN pid, which Windows sets.  So a record that would change the state (a connection or listener
-# start on 4251, a failure or sign-in of a Solo connection) is believed only when its pid is Solo's sshd as SYSTEM
-# sees it (Win32_Process): the process that owns port 4251, or a process whose PARENT is that one and that started
-# after it, both running an sshd.exe / sshd-session.exe of System32\OpenSSH or Program Files\OpenSSH.  A user cannot
-# make a SYSTEM sshd its parent or put its program at those paths.  The guard CATCHES each writer while it runs:
-# it subscribes to the channel and, as each record is written, opens its writer's process and keeps the handle
-# (SoloSshWatch, at "the world" below - a 100 ms listing was tried first and missed every refused connection, which
-# lives ~65 ms; measured).  While the handle is held the pid cannot be reused, and the kernel's exit time is exact:
-# a record is believed only when its writer was caught and is Solo's, and the record is no later than that
-# process's exit; a reused pid (another creation time) is a new process and is judged again.  Anything else is
-# dropped, with "unverified record from pid P dropped (...)" in sshguard.log once per pid.
+# start on 4251, a failure or sign-in of a Solo connection) is believed only when the process that had its pid AT
+# THE RECORD'S TIME is Solo's sshd: the process that owns port 4251 (caught live: its full path is an sshd.exe /
+# sshd-session.exe of System32\OpenSSH or Program Files\OpenSSH), or a process whose PARENT is that one, that started
+# after it, whose program is sshd.exe / sshd-session.exe and whose account is the listener's.  A user cannot make the
+# listener its parent or run a process as the listener's account.  A connection's process lives ~55 ms and is gone
+# long before its records can be read (and before the channel's own subscription delivers them: 250 - 930 ms,
+# measured), so the guard does not look at it at all: it keeps the history Windows' process START AND STOP TRACE
+# gives it (pid, parent, program, account and start time captured as the process starts; the exit time as it stops;
+# SoloSshWatch, at "the world" below), and judges a record by its pid and time against that history.  A record
+# outside its writer's life, from a pid with no known life, or from a life that is not Solo's is dropped, with
+# "unverified record from pid P dropped (...)" in sshguard.log once per pid.
 #
-# WHAT IT CANNOT SEE OR TRUST, after that: a Solo connection whose process exits before the guard is told of its
-# first record (measured: told within ~22 ms of "Connection from", by a 3 ms poll of the channel unelevated; the
-# loopback connection lived ~40 ms more) is never verified, so its records are dropped (logged) and its wrong
-# passwords are not counted - so a machine too loaded to deliver a record in time under-counts, never over-counts;
-# a remote connection lives longer than a loopback one (each step waits for the network).  A forger whose process
-# takes a pid that a caught Solo process had can do so only after the guard has let go of the handle, $HoldTicks
-# after that process's exit, and its records are later than the exit time, so they are dropped ('gone').  If an
-# administrator disables the channel the guard goes blind after the install's check; and a pid of a Solo
-# connection killed without a closing line and reused within $ConnLife seconds by a port-22 connection would be
-# read as Solo's - except that the reused process's parent is the port-22 listener, so its records fail the check.
+# WHAT IT CANNOT SEE OR TRUST, after that: a start or stop event Windows does not deliver (WMI may drop events
+# under load) leaves a connection with no known life, so its records are dropped and its wrong passwords are not
+# counted - an under-count, never an over-count; so does a record whose writer started more than $TraceSlack after
+# it.  Records are judged $TraceGrace after they are written, so a lock engages a few seconds after the third wrong
+# password.  If the stop event of a Solo connection is lost and Windows gives its pid to a forger whose START event
+# is ALSO lost, the forger's records would be read against the Solo life and believed; with either event delivered
+# they are dropped.  If an administrator disables the channel the guard goes blind after the install's check; and
+# a pid of a Solo connection killed without a closing line and reused within $ConnLife seconds by a port-22
+# connection would be read as Solo's - except that the reused process's parent is the port-22 listener, so its
+# records fail the check.
 #
-# NOT MEASURED (17 Nov 2026): the subscription's delivery delay as SYSTEM (the 22 ms above is an unelevated poll
-# of the channel, not EventLogWatcher); that OpenProcess, QueryFullProcessImageName and NtQueryInformationProcess
-# succeed as SYSTEM on Solo's sshd (unelevated they are refused, error 5 - measured); that the block rule refuses a
-# NEW connection from the address; that stopping the child that owns the established connection ends only that
-# one.  MEASURED (17 Nov 2026 19:03 - 19:05): Solo's sshd writes "Connection from ... port 4251" (VERBOSE) to the
-# channel, from the per-connection process that writes the connection's other records.
+# NOT MEASURED (17 Nov 2026): the trace as SYSTEM (an unelevated subscription is refused, "Access denied" -
+# measured); its delivery delay against $TraceGrace; whether TIME_CREATED is the kernel's moment or WMI's (hence
+# $TraceSlack); that the per-connection sshd runs as the listener's account; that OpenProcess, QueryFullProcessImageName,
+# NtQueryInformationProcess and the token read succeed as SYSTEM on the listener (unelevated they are refused, error
+# 5; the second build's log, 17 Nov 19:43, shows the listener caught as SYSTEM); that the block rule refuses a NEW
+# connection from the address; that stopping the child that owns the established connection ends only that one.
+# MEASURED (17 Nov 2026 19:03 - 19:05): Solo's sshd writes "Connection from ... port 4251" (VERBOSE) to the channel,
+# from the per-connection process (parent = the listener) that writes the connection's other records.
 #
 # OUTPUT: -List ends "SOLO SSH GUARD LOCKED <n>", -Unlock ends "SOLO SSH GUARD UNLOCKED <n>" (Linux's words); a
 # refusal is "ERROR=<text>", exit 1.  -Serve writes "watching OpenSSH/Operational: ok, from record <n>" to
 # sshguard.log after its FIRST successful read and "Solo's sshd is listening: pid <p> (...)" when it reads Solo's
 # listener start - solo-machine.ps1 waits for both.  TEST HOOK, NOT A FEATURE: -TestDir <folder> uses that folder
 # for the state, reads records from <folder>\events.txt ("<record> <pid> <message>" per line) in place of the
-# channel and the sshd processes from <folder>\procs.txt in place of Win32_Process, honours SDSOLO_TEST_NOW (seconds since 1970) as the clock, makes -Serve do ONE pass, and never touches the
+# channel and the sshd processes from <folder>\procs.txt in place of the live catch and the trace, honours SDSOLO_TEST_NOW (seconds since 1970) as the clock, makes -Serve do ONE pass, and never touches the
 # firewall, a process or the machine folder; a real task never passes it.
 
 param(
@@ -147,25 +150,69 @@ function Get-LineEvent([string]$line) {
 function New-State { return @{ Offset = [long]-1; Addrs = @{}; Conns = @{} } }
 
 # ---- WHO WROTE A RECORD (17 Nov 26, SOLO 77: the channel is writable by interactive users) ----------------------
-# A "world" is what the guard caught of the processes that write to the channel: @{ Procs = @{ "<pid>" = @{ Pid;
-# Parent; Image; Created (UTC ticks); Exited (UTC ticks, the kernel's exit time; 0 or absent while running) } };
-# Listener = <the Procs entry of the pid that owns port 4251, or $null>; Vc = the cache of verified pids, "<pid>" =
-# @{ Created; Gone (UTC ticks: the exit time, or when first seen gone; 0 while alive) } }.  A record that would
-# change the state is believed only when its pid IS Solo's sshd: the listener itself, or a process whose parent is
-# the listener and that started after it, both running an sshd image Windows' OpenSSH installs, and the record no
-# later than that process's exit.  Measured on Solo's sshd (OpenSSH_for_Windows 9.5p2), 17 Nov 2026 19:03 and 19:05:
+# A "world" is what the guard knows of the processes that write to the channel: @{ Procs = @{ "<pid>" = @{ Pid;
+# Parent; Image (full path); Sid; Created (UTC ticks); Exited (UTC ticks; 0 or absent while running) } } - processes
+# caught LIVE (the listener); Lives = @{ "<pid>" = @( @{ Pid; Parent; Name (program, no path); Sid; Created; Exited
+# } ... ) } - every life of an sshd process the start/stop trace reported, so a reused pid has two; Listener = <the
+# Procs entry of the pid that owns port 4251, or $null>; Vc = the cache of verified pids, "<pid>" = @{ Created; Gone
+# (UTC ticks: the exit time, or when first seen gone; 0 while alive) } }.  A record that would change the state is
+# believed only when the process that had its pid AT THE RECORD'S TIME IS Solo's sshd: the listener itself, or a
+# process whose parent is the listener, that started after it and runs Windows' sshd (Test-SoloProcess), and the
+# record no later than that process's exit.  Measured on Solo's sshd (OpenSSH_for_Windows 9.5p2), 17 Nov 2026 19:03 and 19:05:
 # listener 15772 -> per-connection sshd.exe (parent = the listener; it writes EVERY record of the connection, from
 # "Connection from" to "Connection reset") -> its own child sshd.exe (the unprivileged one; it writes none).
 $SshdImages = @(foreach ($d in @((Join-Path ([Environment]::SystemDirectory) 'OpenSSH'), (Join-Path ([Environment]::GetFolderPath('ProgramFiles')) 'OpenSSH'))) {
     foreach ($n in @('sshd.exe', 'sshd-session.exe')) { (Join-Path $d $n).ToLowerInvariant() } })
 $VerifiedLife = [long]6000000000   # 10 minutes in ticks: a gone pid's verification is kept this long
 
+$SshdNames = @('sshd.exe', 'sshd-session.exe')
+
+# The listener is caught LIVE (it runs for as long as it listens), so its full image path and account are known.
+# A per-connection process is usually known only from the process-start trace, which names its program (not its
+# path) and its account: such a life passes when its program is sshd.exe / sshd-session.exe and it runs as the
+# LISTENER's account.  The wall in both cases is the parent: only the listener itself can start a process whose
+# parent is the listener, and nobody can give a running process another account.
 function Test-SoloProcess($p, $listener) {
-    if ($null -eq $p -or $null -eq $listener -or -not $p.Image -or -not $listener.Image) { return $false }
-    if ($SshdImages -notcontains ([string]$p.Image).ToLowerInvariant()) { return $false }
+    if ($null -eq $p -or $null -eq $listener -or -not $listener.Image) { return $false }
     if ($SshdImages -notcontains ([string]$listener.Image).ToLowerInvariant()) { return $false }
+    if ($p.Image) {
+        if ($SshdImages -notcontains ([string]$p.Image).ToLowerInvariant()) { return $false }
+    }
+    elseif (-not ($SshdNames -contains ([string]$p.Name).ToLowerInvariant() -and $p.Sid -and $p.Sid -eq $listener.Sid)) { return $false }
     if ($p.Pid -eq $listener.Pid) { return $true }
     return ($p.Parent -eq $listener.Pid -and $p.Created -ge $listener.Created)
+}
+
+# The process that wrote $rec: the live entry when the record is no older than it, else the traced life of that
+# pid that had started by the record's time (the latest such), else $null.  A record older than every process
+# known under its pid has no writer the guard knows.  $TraceSlack: a traced start time may be stamped late (NOT
+# MEASURED whether Win32_ProcessStartTrace's TIME_CREATED is the kernel's moment or WMI's), so a life counts as
+# started up to that long after the record.
+$TraceSlack = [long]20000000   # 2 s in ticks
+function Get-Writer($world, $rec) {
+    $k = [string]$rec.Pid
+    $p = $world.Procs[$k]
+    if ($null -ne $p -and ($null -eq $rec.Time -or $rec.Time -ge $p.Created)) { return $p }
+    $best = $null
+    if ($null -ne $world.Lives -and $world.Lives.ContainsKey($k)) {
+        foreach ($l in @($world.Lives[$k])) {
+            if ($null -ne $rec.Time -and $l.Created -gt ($rec.Time + $TraceSlack)) { continue }
+            if ($null -eq $best -or $l.Created -gt $best.Created) { $best = $l }
+        }
+    }
+    return $best
+}
+
+# The records old enough to judge: written no later than $cutoff (UTC ticks), so the trace has had time to deliver
+# their writer's start and stop.  The bookmark is put back to just before the first record that is too new, and it
+# and every later record are read again on the next pass.  A record with no time (the test hook's) is always ripe.
+function Select-Ripe($st, $recs, [long]$cutoff) {
+    $out = New-Object System.Collections.ArrayList
+    foreach ($r in @($recs)) {
+        if ($null -ne $r.Time -and $r.Time -gt $cutoff) { $st.Offset = [long]$r.Id - 1; break }
+        [void]$out.Add($r)
+    }
+    return $out.ToArray()
 }
 
 # Every snapshot: a caught Solo sshd process is verified (with its creation time, and its exit time once it has
@@ -193,7 +240,7 @@ function Update-Verified($world, [long]$nowTicks) {
 function Test-RecordProcess($world, $rec) {
     if ($null -eq $world -or $null -eq $world.Listener) { return 'nolistener' }
     $k = [string]$rec.Pid
-    $p = $world.Procs[$k]
+    $p = Get-Writer $world $rec
     $c = $world.Vc[$k]
     if ($null -ne $p) {
         if (Test-SoloProcess $p $world.Listener) {
@@ -209,6 +256,7 @@ function Test-RecordProcess($world, $rec) {
         return 'forged'
     }
     if ($null -eq $c) { return 'unverified' }
+    if ($null -ne $rec.Time -and $rec.Time -lt $c.Created) { return 'unverified' }
     if ($c.Gone -gt 0 -and $null -ne $rec.Time -and $rec.Time -gt $c.Gone) { return 'gone' }
     return 'cached'
 }
@@ -472,25 +520,35 @@ function Stop-Connections([string]$addr) {
 # spent 65 - 95 ms on Get-CimInstance Win32_Process before it could look at the new pid - so every refused connection
 # (pids 24044, 20968, 7688, 15824, 15768) was dropped "unverified", and only the 2 s key sign-in of pid 19768 was
 # caught.  A listing fast enough to catch them costs ~27% of a core (a Toolhelp snapshot is 4 ms; measured).
-# SO THE GUARD IS TOLD, NOT POLLING: SoloSshWatch (below) subscribes to the channel (EventLogWatcher; a new record
-# is delivered as it is written - "Connection from" was READABLE 22 ms after it was written, its writer still
-# running, measured 19:05:51) and, for each record's writer pid it has not caught, at once opens the process
-# (PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE) and reads its parent (NtQueryInformationProcess), image and
-# creation time.  IT KEEPS THAT HANDLE until $HoldTicks after the process exits: while a handle is held Windows
-# cannot give the pid to another process, and GetProcessTimes still gives the EXACT exit time (measured on a child
-# of an unelevated shell; the image can no longer be read after exit, so it is read at the catch).  Each pass also
-# catches the listener (the pid that owns port 4251) and any record's pid not caught yet, if it is still running.
-# -TestDir: from <folder>\procs.txt, "proc <pid> <parent> <created ticks> [exited <ticks> ]<image>" and
-# "listener <pid>" lines, read fresh on each run.
-$HoldTicks = [long]600000000   # 60 s in ticks: a caught process's handle is kept this long after it exits
+# NOR BEING TOLD OF THE RECORD (the second build, installed 17 Nov 19:40, also dropped every refused connection):
+# the channel's subscription (EventLogWatcher) delivers a record 250 - 930 ms after it was written, and every time
+# the writer had already exited (measured unelevated 17 Nov 19:54, two bare TCP connections to 127.0.0.1:4251, no
+# sign-in attempted: delays 552, 251, 933, 933 ms; OpenProcess on the writer in the callback answered 87, "no such
+# process", for all four).  ANY DESIGN THAT NEEDS THE WRITER ALIVE WHEN ITS RECORD ARRIVES LOSES THIS RACE.
+# SO THE GUARD KEEPS A HISTORY OF THE sshd PROCESSES and judges each record against it by pid AND TIME: SoloSshWatch
+# (below) takes Windows' process start and stop trace (WMI Win32_ProcessStartTrace / Win32_ProcessStopTrace, which
+# needs an administrator - SYSTEM here), filtered to sshd.exe and sshd-session.exe.  Each start event carries the
+# pid, the PARENT pid, the program name, the account (Sid) and the time, captured by the kernel as the process
+# starts; each stop event the time it exited.  So a 55 ms process is fully described long after it has gone, and a
+# reused pid has two lives, each with its own times.  A record is judged only once it is $TraceGrace old
+# (Select-Ripe), so the start and stop events of its writer have had time to arrive; it is then believed only if the
+# life of its pid that had started by the record's time is Solo's (Test-SoloProcess) and had not yet exited.  The
+# listener is still caught LIVE (Catch: it runs for as long as it listens), which gives its full image path and its
+# account, the two things a traced child is compared with.
+# -TestDir: from <folder>\procs.txt, "proc <pid> <parent> <created ticks> [exited <ticks> ]<image>" (live) and
+# "life <pid> <parent> <created ticks> <exited ticks or 0> <name> <sid>" (traced) and "listener <pid>" lines, read
+# fresh on each run; a "sid <pid> <sid>" line gives a live process its account.
+$HoldTicks = [long]600000000   # 60 s in ticks: a caught process's handle, or an exited traced life, is kept this long
+$TraceGrace = [long]50000000   # 5 s in ticks: a record is judged only when it is this old
 # BEGIN sshguard_native  (test-sshguard-units.ps1 compiles this and drives it on its own child process)
 $NativeSource = @'
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.Eventing.Reader;
+using System.Management;
 using System.Runtime.InteropServices;
+using System.Security.Principal;
 using System.Text;
-public sealed class SoloProcInfo { public int Pid; public int Parent; public string Image; public long Created; public long Exited; }
+public sealed class SoloProcInfo { public int Pid; public int Parent; public string Image; public string Name; public string Sid; public long Created; public long Exited; }
 public static class SoloSshWatch {
     [StructLayout(LayoutKind.Sequential)]
     struct PBI { public IntPtr ExitStatus, PebBaseAddress, AffinityMask, BasePriority, UniqueProcessId, InheritedFromUniqueProcessId; }
@@ -500,28 +558,101 @@ public static class SoloSshWatch {
     [DllImport("kernel32.dll")] static extern bool GetProcessTimes(IntPtr h, out long created, out long exited, out long kernel, out long user);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] static extern bool QueryFullProcessImageNameW(IntPtr h, uint flags, StringBuilder name, ref uint size);
     [DllImport("ntdll.dll")] static extern int NtQueryInformationProcess(IntPtr h, int infoClass, ref PBI info, int size, out int ret);
+    [DllImport("advapi32.dll", SetLastError = true)] static extern bool OpenProcessToken(IntPtr h, uint access, out IntPtr token);
     sealed class Entry { public SoloProcInfo I; public IntPtr H; }
     static readonly object Gate = new object();
     static readonly Dictionary<int, Entry> Map = new Dictionary<int, Entry>();
-    static EventLogWatcher watcher;
+    static readonly Dictionary<int, List<SoloProcInfo>> Lives = new Dictionary<int, List<SoloProcInfo>>();
+    static ManagementEventWatcher startW, stopW;
     public const int Cap = 4096;
-    public static int Delivered;
+    public static int Starts, Stops;
     public static string LastError = "";
-    // Subscribes to the channel; throws when it cannot (no such channel, no right to read it).
-    public static void Start(string channel) {
-        var w = new EventLogWatcher(new EventLogQuery(channel, PathType.LogName));
-        w.EventRecordWritten += OnRecord;
-        w.Enabled = true;
-        watcher = w;
+    public const string Filter = " WHERE ProcessName='sshd.exe' OR ProcessName='sshd-session.exe'";
+
+    // THE TRACE: every sshd start and stop, with the data the kernel captured.  Throws when it cannot subscribe
+    // (it needs an administrator).
+    public static void StartTrace() {
+        var a = new ManagementEventWatcher(new WqlEventQuery("SELECT * FROM Win32_ProcessStartTrace" + Filter));
+        a.EventArrived += OnStart;
+        a.Start();
+        var b = new ManagementEventWatcher(new WqlEventQuery("SELECT * FROM Win32_ProcessStopTrace" + Filter));
+        b.EventArrived += OnStop;
+        try { b.Start(); } catch { a.Stop(); a.Dispose(); throw; }
+        startW = a; stopW = b;
     }
-    public static void Stop() { if (watcher != null) { watcher.Enabled = false; watcher.Dispose(); watcher = null; } }
-    static void OnRecord(object sender, EventRecordWrittenEventArgs e) {
+    public static void StopTrace() {
+        if (startW != null) { startW.Stop(); startW.Dispose(); startW = null; }
+        if (stopW != null) { stopW.Stop(); stopW.Dispose(); stopW = null; }
+    }
+    static long Ticks(object v) { return DateTime.FromFileTimeUtc(Convert.ToInt64(v)).Ticks; }
+    static void OnStart(object s, EventArrivedEventArgs e) {
         try {
-            if (e.EventRecord == null) { if (e.EventException != null) LastError = e.EventException.Message; return; }
-            using (var r = e.EventRecord) { Delivered++; if (r.ProcessId.HasValue) Catch(r.ProcessId.Value); }
-        } catch (Exception x) { LastError = x.Message; }
+            var o = e.NewEvent;
+            string sid = "";
+            var sb = o["Sid"] as byte[];
+            if (sb != null && sb.Length > 0) sid = new SecurityIdentifier(sb, 0).Value;
+            AddStart(Convert.ToInt32(o["ProcessID"]), Convert.ToInt32(o["ParentProcessID"]), Convert.ToString(o["ProcessName"]), sid, Ticks(o["TIME_CREATED"]));
+        } catch (Exception x) { LastError = "start event: " + x.Message; }
     }
-    // Catches one process: true when it is caught now or was already; false when it cannot be opened (it has exited).
+    static void OnStop(object s, EventArrivedEventArgs e) {
+        try { var o = e.NewEvent; AddStop(Convert.ToInt32(o["ProcessID"]), Ticks(o["TIME_CREATED"])); }
+        catch (Exception x) { LastError = "stop event: " + x.Message; }
+    }
+    // A new life of $pid (the trace's start event).  Public so the guard's test can feed recorded events.
+    public static void AddStart(int pid, int parent, string name, string sid, long created) {
+        lock (Gate) {
+            Starts++;
+            List<SoloProcInfo> l;
+            if (!Lives.TryGetValue(pid, out l)) { l = new List<SoloProcInfo>(); Lives[pid] = l; }
+            l.Add(new SoloProcInfo { Pid = pid, Parent = parent, Image = "", Name = name ?? "", Sid = sid ?? "", Created = created });
+            Trim();
+        }
+    }
+    // The latest life of $pid that started by $exited and has no exit yet ends at $exited (the stop event).
+    public static void AddStop(int pid, long exited) {
+        lock (Gate) {
+            Stops++;
+            List<SoloProcInfo> l;
+            if (!Lives.TryGetValue(pid, out l)) return;
+            SoloProcInfo best = null;
+            foreach (var i in l) if (i.Exited == 0 && i.Created <= exited && (best == null || i.Created > best.Created)) best = i;
+            if (best != null) best.Exited = exited;
+        }
+    }
+    // Copies of every traced life; an exited life older than $holdTicks is forgotten.
+    public static SoloProcInfo[] LivesSnapshot(long holdTicks) {
+        var o = new List<SoloProcInfo>();
+        long now = DateTime.UtcNow.Ticks;
+        lock (Gate) {
+            var empty = new List<int>();
+            foreach (var kv in Lives) {
+                kv.Value.RemoveAll(i => i.Exited != 0 && now - i.Exited > holdTicks);
+                if (kv.Value.Count == 0) empty.Add(kv.Key);
+                foreach (var i in kv.Value) o.Add(new SoloProcInfo { Pid = i.Pid, Parent = i.Parent, Image = "", Name = i.Name, Sid = i.Sid, Created = i.Created, Exited = i.Exited });
+            }
+            foreach (int p in empty) Lives.Remove(p);
+        }
+        return o.ToArray();
+    }
+    // More than Cap lives: the oldest are forgotten (a record of a forgotten life is then dropped - an under-count).
+    static void Trim() {
+        int n = 0;
+        foreach (var l in Lives.Values) n += l.Count;
+        while (n > Cap) {
+            int op = 0; SoloProcInfo oi = null;
+            foreach (var kv in Lives) foreach (var i in kv.Value) if (oi == null || i.Created < oi.Created) { oi = i; op = kv.Key; }
+            Lives[op].Remove(oi); if (Lives[op].Count == 0) Lives.Remove(op);
+            n--;
+        }
+    }
+    static string TokenSid(IntPtr h) {
+        IntPtr t;
+        if (!OpenProcessToken(h, 0x0008, out t)) return "";
+        try { using (var id = new WindowsIdentity(t)) return id.User == null ? "" : id.User.Value; }
+        catch { return ""; }
+        finally { CloseHandle(t); }
+    }
+    // THE LIVE CATCH (the listener): true when it is caught now or was already; false when it cannot be opened.
     public static bool Catch(int pid) {
         if (pid <= 0) return false;
         lock (Gate) {
@@ -531,13 +662,14 @@ public static class SoloSshWatch {
         }
         IntPtr h = OpenProcess(0x101000, false, pid);
         if (h == IntPtr.Zero) return false;
-        var i = new SoloProcInfo { Pid = pid, Image = "" };
+        var i = new SoloProcInfo { Pid = pid, Image = "", Name = "", Sid = "" };
         long c, x, k, u;
         if (GetProcessTimes(h, out c, out x, out k, out u)) { i.Created = DateTime.FromFileTimeUtc(c).Ticks; if (x != 0 && WaitForSingleObject(h, 0) == 0) i.Exited = DateTime.FromFileTimeUtc(x).Ticks; }
         var sb = new StringBuilder(1024); uint n = (uint)sb.Capacity;
         if (QueryFullProcessImageNameW(h, 0, sb, ref n)) i.Image = sb.ToString(0, (int)n);
         var b = new PBI(); int ret;
         if (NtQueryInformationProcess(h, 0, ref b, Marshal.SizeOf(typeof(PBI)), out ret) == 0) i.Parent = (int)b.InheritedFromUniqueProcessId.ToInt64();
+        i.Sid = TokenSid(h);
         if (i.Created == 0) { CloseHandle(h); return false; }
         lock (Gate) {
             if (Map.ContainsKey(pid)) { CloseHandle(h); return true; }
@@ -555,7 +687,7 @@ public static class SoloSshWatch {
                 if (en.I.Exited == 0 && WaitForSingleObject(en.H, 0) == 0) { long c, x, k, u; if (GetProcessTimes(en.H, out c, out x, out k, out u) && x != 0) en.I.Exited = DateTime.FromFileTimeUtc(x).Ticks; }
             }
             DropExited(holdTicks, false);
-            foreach (var en in Map.Values) o.Add(new SoloProcInfo { Pid = en.I.Pid, Parent = en.I.Parent, Image = en.I.Image, Created = en.I.Created, Exited = en.I.Exited });
+            foreach (var en in Map.Values) o.Add(new SoloProcInfo { Pid = en.I.Pid, Parent = en.I.Parent, Image = en.I.Image, Name = "", Sid = en.I.Sid, Created = en.I.Created, Exited = en.I.Exited });
         }
         return o.ToArray();
     }
@@ -581,18 +713,29 @@ function Get-NowTicks {
 # below, and a [bool] parameter would turn it into $true.)
 function Update-World([bool]$askPort) {
     $procs = @{}
+    $lives = @{}
     $lp = @()
     if ($TestDir) {
         $pf = Join-Path $dir 'procs.txt'
+        $sids = @{}
         foreach ($l in @(Get-Content -LiteralPath $pf -ErrorAction SilentlyContinue)) {
             $m = [regex]::Match($l, '^proc (\d+) (\d+) (\d+) (?:exited (\d+) )?(.+)$')
             if ($m.Success) {
                 $x = $(if ($m.Groups[4].Success) { [long]$m.Groups[4].Value } else { [long]0 })
-                $procs[$m.Groups[1].Value] = @{ Pid = [int]$m.Groups[1].Value; Parent = [int]$m.Groups[2].Value; Created = [long]$m.Groups[3].Value; Exited = $x; Image = $m.Groups[5].Value.Trim() }
+                $procs[$m.Groups[1].Value] = @{ Pid = [int]$m.Groups[1].Value; Parent = [int]$m.Groups[2].Value; Created = [long]$m.Groups[3].Value; Exited = $x; Image = $m.Groups[5].Value.Trim(); Sid = '' }
             }
+            $m = [regex]::Match($l, '^life (\d+) (\d+) (\d+) (\d+) (\S+) (\S+)\s*$')
+            if ($m.Success) {
+                $k = $m.Groups[1].Value
+                if (-not $lives.ContainsKey($k)) { $lives[$k] = @() }
+                $lives[$k] += @{ Pid = [int]$k; Parent = [int]$m.Groups[2].Value; Created = [long]$m.Groups[3].Value; Exited = [long]$m.Groups[4].Value; Image = ''; Name = $m.Groups[5].Value; Sid = $m.Groups[6].Value }
+            }
+            $m = [regex]::Match($l, '^sid (\d+) (\S+)\s*$')
+            if ($m.Success) { $sids[$m.Groups[1].Value] = $m.Groups[2].Value }
             $m = [regex]::Match($l, '^listener (\d+)\s*$')
             if ($m.Success) { $lp += $m.Groups[1].Value }
         }
+        foreach ($k in $sids.Keys) { if ($procs.ContainsKey($k)) { $procs[$k].Sid = $sids[$k] } }
     }
     else {
         if ($askPort) {
@@ -601,9 +744,15 @@ function Update-World([bool]$askPort) {
         }
         $lp = $script:listenerPids
         foreach ($i in @([SoloSshWatch]::Snapshot($HoldTicks))) {
-            $procs[[string]$i.Pid] = @{ Pid = $i.Pid; Parent = $i.Parent; Image = $i.Image; Created = $i.Created; Exited = $i.Exited }
+            $procs[[string]$i.Pid] = @{ Pid = $i.Pid; Parent = $i.Parent; Image = $i.Image; Sid = $i.Sid; Created = $i.Created; Exited = $i.Exited }
+        }
+        foreach ($i in @([SoloSshWatch]::LivesSnapshot($HoldTicks))) {
+            $k = [string]$i.Pid
+            if (-not $lives.ContainsKey($k)) { $lives[$k] = @() }
+            $lives[$k] += @{ Pid = $i.Pid; Parent = $i.Parent; Image = ''; Name = $i.Name; Sid = $i.Sid; Created = $i.Created; Exited = $i.Exited }
         }
     }
+    $script:World.Lives = $lives
     $lp = @($lp | Sort-Object -Unique)
     $listener = $null
     if ($lp.Count -eq 1 -and $procs.ContainsKey($lp[0])) { $listener = $procs[$lp[0]] }
@@ -623,12 +772,10 @@ function Invoke-Pass([bool]$fromEnd) {
         # counted now, at a time they did not happen.
         if ($fromEnd) { $st.Offset = -1 }
         $cut = @()
-        foreach ($rec in (Read-NewRecords $st $source $fromEnd)) {
-            # A writer the watcher did not catch is caught now, if it is still running (verified at the moment its
-            # record is read).
-            if (-not $TestDir -and $null -ne $rec.Pid -and -not $script:World.Procs.ContainsKey([string]$rec.Pid)) {
-                if ([SoloSshWatch]::Catch([int]$rec.Pid)) { Update-World $false }
-            }
+        # Only records $TraceGrace old are judged: their writer's start and stop events have had time to arrive.
+        $recs = @(Read-NewRecords $st $source $fromEnd)
+        $ripe = @(Select-Ripe $st $recs ((Get-NowTicks) - $TraceGrace))
+        foreach ($rec in $ripe) {
             $a = Add-Record $st $rec $now $script:World
             $ev = $a.Ev
             if ($a.R -eq 'DROP') {
@@ -636,7 +783,8 @@ function Invoke-Pass([bool]$fromEnd) {
                 if ($script:dropSaid.Count -gt 1000) { $script:dropSaid = @{} }
                 if (-not $script:dropSaid.ContainsKey($dk)) {
                     $script:dropSaid[$dk] = 1
-                    Say ('unverified record from pid ' + $rec.Pid + ' dropped (' + $a.V + ', listener pid ' + $(if ($script:World.Listener) { $script:World.Listener.Pid } else { 'none' }) + '): ' + $rec.Text)
+                    $tr = $(if ($TestDir) { '' } else { ', trace starts ' + [SoloSshWatch]::Starts + ' stops ' + [SoloSshWatch]::Stops })
+                    Say ('unverified record from pid ' + $rec.Pid + ' dropped (' + $a.V + ', listener pid ' + $(if ($script:World.Listener) { $script:World.Listener.Pid } else { 'none' }) + $tr + '): ' + $rec.Text)
                 }
             }
             elseif ($a.R -eq 'LOCK') {
@@ -710,18 +858,19 @@ Say ('started: watching ' + $source + ' for Solo''s sshd on port ' + $SshPort + 
 # compiled DLL are never in a folder a user can write to (C:\Windows\Temp lets users create files).
 $env:TMP = $dir; $env:TEMP = $dir
 try {
-    if (-not ('SoloSshWatch' -as [type])) { Add-Type -TypeDefinition $NativeSource -ErrorAction Stop }
-    [SoloSshWatch]::Start($Channel)
-    Say ('process watch: subscribed to ' + $Channel + ' (each record''s writer is caught as the record is written)')
+    if (-not ('SoloSshWatch' -as [type])) { Add-Type -TypeDefinition $NativeSource -ReferencedAssemblies 'System.Management' -ErrorAction Stop }
+} catch { Say ('process watch: cannot compile (' + $_.Exception.Message + '): no record can be verified'); exit 1 }
+try {
+    [SoloSshWatch]::StartTrace()
+    Say 'process trace: subscribed to Win32_ProcessStartTrace and Win32_ProcessStopTrace for sshd.exe and sshd-session.exe'
 } catch {
-    Say ('process watch FAILED: ' + $_.Exception.Message + ' - a refused connection''s records will be dropped as unverified')
-    if (-not ('SoloSshWatch' -as [type])) { Say 'no process watch at all: no record can be verified'; exit 1 }
+    Say ('process trace FAILED: ' + $_.Exception.Message + ' - only the listener''s own records can be verified; every connection''s are dropped')
 }
 $first = $true
 $saidErr = ''
 while ($true) {
     try { Invoke-Pass $first; $first = $false } catch { Say ('pass failed: ' + $_.Exception.Message) }
     $we = [SoloSshWatch]::LastError
-    if ($we -and $we -ne $saidErr) { $saidErr = $we; Say ('process watch: ' + $we) }
+    if ($we -and $we -ne $saidErr) { $saidErr = $we; Say ('process trace: ' + $we) }
     Start-Sleep -Milliseconds 2000
 }
