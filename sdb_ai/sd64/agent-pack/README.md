@@ -39,6 +39,6 @@ Solo is the single-user product; SD Core's pack was written for the full product
 | the skill | `sd-core` | `sd-core-solo` | two skills may be installed side by side |
 | the VOC layers in the pack | `newvoc` for every account, `voc_template` for SDSYS, `newvoc.mods` on top | the one account's VOC is `newvoc` whole, so a verb's chunk describes its `newvoc` record; Core's `alt_dispatch` (which describes SDSYS's `voc_template` record first and notes the ordinary account's) is not carried | Solo has no `newvoc.mods`, and the person's sessions are in `sduser` |
 | the docs the generator reads | `SDCore4WindowsDocs` (`User`, `Administrator`) | `SDCore4WindowsSoloDocs` (`User`, `GettingStarted`) | Solo's docs are a separate repository |
-| installed | the guide and pack, as text, under SDSYS | the guide and pack, as text, under the Solo folder's `sdsys` | as SD Core Solo for Linux and SD Core for Windows |
+| installed | the guide and pack, as text, under SDSYS | the guide and pack, as text, under the Solo folder's `sdsys` | Solo has no SDSYS |
 
 Not different: the dialect itself. The guide's Part A, its worked examples (Part C), the table of what SD lacks (B6) and the rosters hold for Solo as they stand; on SD Core Solo for Linux every row of the Solo guide was run and holds. They were not run on Windows Solo: the guide's sandbox is a Linux tool.

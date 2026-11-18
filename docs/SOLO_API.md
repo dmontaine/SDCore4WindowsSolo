@@ -61,13 +61,15 @@ after a global login the server installs its public key through request 72 (`api
 request in the same words. Request 49 asks the server for its revision, as in SD Core.
 
 - **Who may send it:** only a session signed in with the global password
-  (`K$GLOBAL.SESSION`). Any other session gets message 12894, "Only the SD Core server
-  may manage ssh keys".
-- **The request:** `ADD` and a one-line public key; `REMOVE` and a `SHA256:...`
-  fingerprint; `LIST` alone.
+  (`K$GLOBAL.SESSION`). An account-password session, or ADMIN, gets message 12894, "Only
+  the SD Core server may manage ssh keys". It is not admitted before login, and on a
+  computer with no global password no session can be a global one.
+- **The request:** a verb, then a field mark and an argument. `ADD` and a one-line public
+  key; `REMOVE` and a `SHA256:...` fingerprint; `LIST` alone.
 - **The reply:** `ADD` gives six fields: the Windows user, the host name, the key's
   fingerprint, `ADDED` or `PRESENT`, the fingerprint of Solo's own sshd's host key,
-  and the port to connect to (4251). `REMOVE` gives `REMOVED` or `ABSENT` and how
+  and the port to connect to (4251); a client that reads only the first five fields is
+  unaffected by the sixth. `REMOVE` gives `REMOVED` or `ABSENT` and how
   many Solo lines are left. `LIST` gives one fingerprint per field.
 - **The refusals,** message 12884, "The ssh key request was refused: %1", with the reason
   "the key or fingerprint is not valid", "four Solo ssh keys are already installed",
