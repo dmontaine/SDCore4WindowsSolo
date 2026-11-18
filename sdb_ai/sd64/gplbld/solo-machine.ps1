@@ -46,7 +46,8 @@
 #   - checks it: the task ran, 4251 listens, the sshd that answers was made from the machine
 #     config and runs as SYSTEM, and ssh-keyscan's host key is the .pub in the machine folder.
 #   - the firewall rule SD-Solo-SSH-In-TCP for 4251 (solo-ssh-firewall.ps1): -SshScope open (other
-#     computers) or restrict (this machine only).  "leave" makes none.
+#     computers) or restrict (this machine only).  "leave" makes none.  Since SOLO 78 the same choice is sshd's listen
+#     address (0.0.0.0 or 127.0.0.1), and the rule is the second wall.
 #   - REMOVES the old route: the "Match User" block an earlier build wrote into the SYSTEM
 #     sshd_config (between the markers below), on Install, Upgrade and Remove.  It never sets or
 #     changes the system sshd's startup type; an earlier build set it to Automatic and that is
@@ -96,6 +97,14 @@
 # ssh is set up (Register-SshTask: install, upgrade, the doors helper), a SYSTEM task "SD Core Solo SSH Guard" runs the admin-only
 # copy of solo-sshguard.ps1; three wrong passwords from one address in ten minutes block that address on 4251 for ten minutes
 # (a Windows Firewall rule per address).  Remove-SshTask takes the task and every lock-out rule away first.
+#
+# 18 Nov 26 SD Core Solo - SOLO 78 (four-version audit P-4455; Linux Solo's solo-service.sh ListenStream 127.0.0.1:4251 / 0.0.0.0:4251):
+# ssh's LOCAL IS THE LISTEN ADDRESS, as the API's is (APILOCAL).  Register-SshTask takes local or open and has solo-sshd.ps1 -Install
+# write "ListenAddress 127.0.0.1" or "ListenAddress 0.0.0.0", then checks the addresses that hold 4251 (Get-SshListenVerdict); the
+# firewall rule stays as the second wall.  Install: -SshScope open is open, restrict local.  Upgrade: the config's own line, and for
+# a config from before this (no line, every address) open only when the rule is open, else local (Resolve-SshUpgradeListen; nothing
+# the user opened is shut).  Doors: a move between local and open, or a config with no line, sets the server up again with the new
+# address (sshd reads its config only at start); the same mode only re-enables the task.
 
 param(
     [ValidateSet('Install', 'Upgrade', 'Remove', 'Doors', 'Job')] [string]$Action = 'Install',
@@ -505,7 +514,49 @@ function Test-SshPortListening {
     return (@(Get-NetTCPConnection -State Listen -LocalPort $SshPort -ErrorAction SilentlyContinue).Count -gt 0)
 }
 
-function Register-SshTask {
+# 18 Nov 26 - SOLO 78.  The addresses that hold 4251, against the listen address asked for: '' when they agree, else why not.
+# local: at least one, and every one 127.0.0.1; open: 0.0.0.0 among them.  Pure, so the guard can run it.
+function Get-SshListenVerdict([string]$listen, [string[]]$addrs) {
+    $a = @($addrs | Where-Object { $_ })
+    if ($a.Count -eq 0) { return ('nothing listens on ' + $SshPort) }
+    if ($listen -eq 'local') {
+        $bad = @($a | Where-Object { $_ -ne '127.0.0.1' })
+        if ($bad.Count -gt 0) { return ('LOCAL was asked for, but sshd also listens on ' + ($bad -join ', ')) }
+        return ''
+    }
+    if ($listen -eq 'open') {
+        if ($a -contains '0.0.0.0') { return '' }
+        return ('OPEN was asked for, but sshd listens only on ' + ($a -join ', '))
+    }
+    return ('no listen address was given (' + $listen + ')')
+}
+
+function Get-SshListenAddrs {
+    return @(Get-NetTCPConnection -State Listen -LocalPort $SshPort -ErrorAction SilentlyContinue | ForEach-Object { [string]$_.LocalAddress } | Sort-Object -Unique)
+}
+
+# 18 Nov 26 - SOLO 78.  What the installed config says (solo-sshd.ps1 -Show's LISTEN=, one copy of the reader): local, open,
+# every (no ListenAddress line: a build from before SOLO 78), none (no config) or other ...; '' when it could not be read.
+function Get-InstalledSshListen {
+    $mark = $lines.Count
+    $null = Invoke-Shipped 'solo-sshd.ps1' @('-Show')
+    foreach ($l in @($lines | Select-Object -Skip $mark)) { if ($l -match '^\s*\|\s*LISTEN=(.+?)\s*$') { return $Matches[1] } }
+    return ''
+}
+
+# 18 Nov 26 - SOLO 78.  An UPGRADE keeps what is installed: a config that names its address keeps it; one from before SOLO 78
+# (every address, LOCAL walled by the firewall) is open only when the rule is open, else local.  Nothing the user opened is shut.
+# Pure, so the guard can run it.
+function Resolve-SshUpgradeListen([string]$configListen, [string]$ruleScope) {
+    if ($configListen -eq 'local' -or $configListen -eq 'open') { return $configListen }
+    if ($ruleScope -eq 'open') { return 'open' }
+    if ($ruleScope -eq 'restricted' -or $ruleScope -eq 'none') { return 'local' }
+    return 'open'     # the rule could not be read: an every-address server is not shut by an upgrade
+}
+
+function Register-SshTask([string]$listen) {
+    if (@('local', 'open') -notcontains $listen) { Fail ('Register-SshTask was given no listen address (' + $listen + ')'); return }
+    Note ('  listen address asked for: ' + $listen + $(if ($listen -eq 'local') { ' (127.0.0.1 only)' } else { ' (0.0.0.0)' }))
     $script = Join-Path $AppDir 'solo-sshd.ps1'
     if (-not (Test-Path -LiteralPath $script)) { Fail ('solo-sshd.ps1 is not at ' + $script); return }
     $sshd = Find-Sshd
@@ -524,7 +575,7 @@ function Register-SshTask {
 
     # The admin-only folder: config, host key, permissions - and the permissions READ BACK, which -Install
     # refuses to pass unless nobody but SYSTEM and Administrators can write there.
-    $c = Invoke-Shipped 'solo-sshd.ps1' @('-Install', '-OsUser', $login, '-AppDir', $AppDir)
+    $c = Invoke-Shipped 'solo-sshd.ps1' @('-Install', '-OsUser', $login, '-AppDir', $AppDir, '-Listen', $listen)
     if ($c -ne 0) { Fail ('solo-sshd.ps1 -Install exited ' + $c + ' - the ssh task was not registered'); return }
 
     # 17 Nov 26 - D1: the lock-out guard runs BEFORE the sshd it watches starts.
@@ -586,6 +637,12 @@ function Register-SshTask {
     }
     if ($mine.Count -eq 0) { Fail ('port ' + $SshPort + ' listens, but no sshd.exe made from ' + $cfgPath + ' is running as SYSTEM'); return }
     Note ('  PASS  Solo''s own sshd is running as SYSTEM (session ' + $mine[0].SessionId + ') and listening on ' + $SshPort)
+    # 18 Nov 26 - SOLO 78: the addresses it listens on are the ones asked for.
+    $addrs = Get-SshListenAddrs
+    Note ('  listening on: ' + ($addrs -join ', '))
+    $why = Get-SshListenVerdict $listen $addrs
+    if ($why -ne '') { Fail $why; return }
+    Note ('  PASS  sshd listens on ' + $(if ($listen -eq 'local') { '127.0.0.1 only (LOCAL)' } else { '0.0.0.0 (OPEN)' }))
 
     # 17 Nov 26 - SOLO 77: THE GUARD MUST HAVE READ THIS sshd's OWN START.  A running guard task proved nothing (the
     # first build ran for a day reading nothing); its "Solo's sshd is listening: pid <p>" line, written when it reads
@@ -1093,7 +1150,13 @@ if ($Action -eq 'Doors') {
                         if ($kept.Count -eq 0) { Fail ('there is no ssh server on this computer and no OpenSSH MSI in ' + (Join-Path $AppDir 'ssh-server') + ' - run the SD Core Solo installer again') }
                         else { Install-SshMsi $kept[0].FullName }
                     }
-                    if ($fails.Count -eq 0) { Register-SshTask }
+                    if ($fails.Count -eq 0) { Register-SshTask $Mode }
+                } elseif (($was = Get-InstalledSshListen) -ne $Mode) {
+                    # 18 Nov 26 - SOLO 78: local and open are different listen addresses, and sshd reads its config only when it
+                    # starts, so the server is set up again with the new one (the same steps as an install, checked the same way).
+                    Note ('  the config says LISTEN=' + $(if ($was) { $was } else { '(unreadable)' }) + ', ' + $Mode + ' was asked for: setting the ssh server up again')
+                    Enable-ScheduledTask -TaskName $SshTaskName | Out-Null
+                    Register-SshTask $Mode
                 } else {
                     Enable-ScheduledTask -TaskName $SshTaskName | Out-Null
                     # 17 Nov 26 - D1: the lock-out guard runs whenever ssh does.
@@ -1103,6 +1166,12 @@ if ($Action -eq 'Doors') {
                     $ok = $false
                     for ($k = 0; $k -lt 30 -and -not $ok; $k++) { if (Test-SshPortListening) { $ok = $true } else { Start-Sleep -Seconds 1 } }
                     if ($ok) { Note ('  PASS  the ssh task is enabled and port ' + $SshPort + ' listens') } else { Fail ('nothing listens on port ' + $SshPort + ' after the ssh task was started') }
+                    if ($ok) {
+                        $addrs = Get-SshListenAddrs
+                        $why = Get-SshListenVerdict $Mode $addrs
+                        Note ('  listening on: ' + ($addrs -join ', '))
+                        if ($why -ne '') { Fail $why } else { Note ('  PASS  sshd listens as ' + $Mode + ' asks') }
+                    }
                 }
                 if ($fails.Count -eq 0) {
                     $c = Invoke-Shipped 'solo-ssh-firewall.ps1' @($(if ($Mode -eq 'open') { '-Open' } else { '-Restrict' }))
@@ -1254,7 +1323,19 @@ try {
         $wantSsh = ($Action -eq 'Install' -and [bool]$SshIntoSd) -or ($Action -eq 'Upgrade' -and ($haveSshTask -or $script:oldBlockRemoved))
         if ($Action -eq 'Upgrade') { Note ('  upgrade: ssh task registered=' + $haveSshTask + '  old route block removed=' + [bool]$script:oldBlockRemoved) }
         if ($wantSsh) {
-            Register-SshTask
+            # 18 Nov 26 - SOLO 78: the listen address.  Install: the box (open, else local).  Upgrade: what is installed.
+            if ($Action -eq 'Install') { $sshListen = if ($SshScope -eq 'open') { 'open' } else { 'local' } }
+            else {
+                $cfgListen = Get-InstalledSshListen
+                $scopeTmp = Join-Path $env:TEMP 'sd-solo-ssh-scope.txt'
+                Remove-Item -LiteralPath $scopeTmp -Force -ErrorAction SilentlyContinue
+                $null = Invoke-Shipped 'solo-ssh-firewall.ps1' @('-ScopeFile', $scopeTmp)
+                $ruleScope = ''
+                try { $ruleScope = ([IO.File]::ReadAllText($scopeTmp)).Trim() } catch { $ruleScope = '' }
+                $sshListen = Resolve-SshUpgradeListen $cfgListen $ruleScope
+                Note ('  upgrade: config LISTEN=' + $(if ($cfgListen) { $cfgListen } else { '(unreadable)' }) + '  rule scope=' + $(if ($ruleScope) { $ruleScope } else { '(unreadable)' }) + '  -> ' + $sshListen)
+            }
+            Register-SshTask $sshListen
             if ($Action -eq 'Install' -and $SshScope -ne 'leave') {
                 # The one admin step Solo's ssh still has.
                 $c = Invoke-Shipped 'solo-ssh-firewall.ps1' @($(if ($SshScope -eq 'open') { '-Open' } else { '-Restrict' }))

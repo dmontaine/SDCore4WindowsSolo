@@ -1502,7 +1502,15 @@ public static class SdSuiteCli {
         $listen = @(Get-NetTCPConnection -State Listen -LocalPort $sshPort -ErrorAction SilentlyContinue)
         Say ('    Solo''s sshd listening on ' + $sshPort + ': ' + $listen.Count + ' socket(s); key file ' + $akf + ' (' + $akBefore + ')')
         Check ('Solo''s own sshd is listening on port ' + $sshPort) ($listen.Count -gt 0) 'nothing listens on 4251 - the "SD Core Solo SSH" SYSTEM task did not start sshd (its records: the OpenSSH/Operational event log)'
-        $kdir = Join-Path $env:TEMP ('sdsshkey-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+        # 18 Nov 26 - SOLO 78: the addresses that listen are the ones the machine config names (127.0.0.1 for local, 0.0.0.0
+        # for open); a config with no ListenAddress line is an install from before SOLO 78 and fails.
+        $mcfg = Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) 'SDCoreSolo\ssh\sshd_config'
+        $la = @(if (Test-Path -LiteralPath $mcfg) { Get-Content -LiteralPath $mcfg | ForEach-Object { if ($_ -match '^\s*ListenAddress\s+(\S+)') { $Matches[1] -replace ':\d+$', '' } } })
+        $lsa = @($listen | ForEach-Object { [string]$_.LocalAddress } | Sort-Object -Unique)
+        Say ('    ' + $mcfg + ' ListenAddress: [' + ($la -join ', ') + ']   listening on: [' + ($lsa -join ', ') + ']')
+        Check 'the addresses sshd listens on are the ListenAddress lines of its config (SOLO 78: 127.0.0.1 for local, 0.0.0.0 for open)' (
+            $la.Count -gt 0 -and $lsa.Count -gt 0 -and ((@($la | Sort-Object -Unique) -join ',') -eq ($lsa -join ','))) 'no ListenAddress line (an install from before SOLO 78), or sshd listens on other addresses than its config names'
+        $kdir =Join-Path $env:TEMP ('sdsshkey-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
         New-Item -ItemType Directory -Path $kdir | Out-Null
         $kf = Join-Path $kdir 'k'
         $null = & $kgen -q -t ed25519 -N '""' -f $kf -C verify49

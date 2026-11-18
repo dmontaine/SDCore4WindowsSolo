@@ -31,6 +31,10 @@
 # rule is re-read and compared with what was asked for, because a CIM error came back
 # NON-TERMINATING once and the script went on to report success over an open port.
 #
+# 18 Nov 26 SD Core Solo - SOLO 78 (audit P-4455, as Linux Solo): THIS RULE IS THE SECOND WALL.  The first is sshd's own listen
+# address (solo-sshd.ps1 -Listen: 127.0.0.1 for local, 0.0.0.0 for open), so -Restrict no longer stands alone and a "LOCAL"
+# below is the rule's state only; solo-sshd.ps1 -Show reports the address (LISTEN=, LISTENERS=).
+#
 # NOT MEASURED: that Windows Firewall admits a REMOTE client to 4251 through this rule (only
 # loopback was exercised); that is a cycle-time witness from a second computer.
 

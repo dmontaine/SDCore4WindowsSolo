@@ -17,6 +17,8 @@
 # refused; -Install and -Uninstall refuse unelevated and change nothing; and the permission READ-BACK
 # (Get-AclProblems, lifted from the script) flags a user-writable folder, a user-readable private key and a
 # non-admin owner - proved on bad, partly good and mutant folders.  The elevated -Install itself cannot run here.
+# 18 Nov 26 - SOLO 78: -Listen local writes ListenAddress 127.0.0.1 and open 0.0.0.0 (one line, after Port; sshd -t takes both),
+# no -Listen is refused, -Show reads the line back (LISTEN=), and a MUTANT copy whose local writes 0.0.0.0 turns the local row red.
 
 $ErrorActionPreference = 'Continue'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -44,10 +46,11 @@ function Check([string]$label, [bool]$ok) {
 }
 function Skip([string]$label, [string]$why) { Write-Host "SKIP  $label  ($why)" }
 
-function Run([string]$name, [string[]]$a) {
+function Run([string]$name, [string[]]$a, [string]$file = '') {
+    if ($file -eq '') { $file = $helper }
     $env:USERPROFILE = $prof
     $env:ProgramData = $pd
-    $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $helper @a 2>&1 | Out-String
+    $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $file @a 2>&1 | Out-String
     $code = $LASTEXITCODE
     Write-Host ('--- ' + $name + ' (exit ' + $code + ')'); Write-Host $out.TrimEnd()
     return @{ Out = $out; Code = $code }
@@ -125,8 +128,46 @@ $r = Run 'Prepare with the old sdsys\ssh-hostkey present' @('-Prepare')
 Check 'the stale sdsys\ssh-hostkey (the system sshd''s pin) is removed' (-not (Test-Path (Join-Path $app 'sdsys\ssh-hostkey')))
 
 # ---- 5. the configuration: password AND key, port fixed, accepted by sshd -t -------------------------
-$r = Run 'PrintConfig' @('-PrintConfig', '-OsUser', $expectUser)
+$r = Run 'PrintConfig' @('-PrintConfig', '-OsUser', $expectUser, '-Listen', 'local')
 $cfgText = $r.Out
+
+# 18 Nov 26 - SOLO 78 (audit P-4455; Linux Solo's ListenStream 127.0.0.1:4251 / 0.0.0.0:4251, test-sshport-units.py UNITS): LOCAL is
+# the listen address.  One ListenAddress line, after the Port line (sshd takes an address's port from the Port lines before it).
+function Get-ListenLines([string]$t) { return @([regex]::Matches($t, '(?m)^ListenAddress\s+(\S+)\s*$') | ForEach-Object { $_.Groups[1].Value }) }
+function Test-ListenCfg([string]$t, [string]$addr) {
+    # By LINE NUMBER: a culture-aware String.IndexOf does not find "`nPort" inside "`r`nPort" (measured, the first run of this row).
+    # @(), because a function's one-element answer comes back as a bare string, and its [0] is the first character.
+    $l = @(Get-ListenLines $t)
+    $ls =@($t -split "`r?`n")
+    $iPort = [array]::IndexOf($ls, 'Port 4251')
+    $iLa = -1; for ($i = 0; $i -lt $ls.Count; $i++) { if ($ls[$i] -like 'ListenAddress *') { $iLa = $i; break } }
+    return ($l.Count -eq 1 -and $l[0] -eq $addr -and $iPort -ge 0 -and $iLa -gt $iPort)
+}
+Write-Host ('  local config ListenAddress lines: [' + ((Get-ListenLines $cfgText) -join ', ') + ']')
+Check 'LOCAL: the config has exactly one ListenAddress, 127.0.0.1, after Port 4251' (Test-ListenCfg $cfgText '127.0.0.1')
+$ro = Run 'PrintConfig open' @('-PrintConfig', '-OsUser', $expectUser, '-Listen', 'open')
+$cfgOpen = $ro.Out
+Write-Host ('  open config ListenAddress lines: [' + ((Get-ListenLines $cfgOpen) -join ', ') + ']')
+Check 'OPEN: the config has exactly one ListenAddress, 0.0.0.0, after Port 4251, and no 127.0.0.1' ($ro.Code -eq 0 -and (Test-ListenCfg $cfgOpen '0.0.0.0') -and $cfgOpen -notmatch '127\.0\.0\.1')
+$restLocal = ((($cfgText -split "`r?`n") | Where-Object { $_ -notmatch '^ListenAddress ' }) -join "`n")
+$restOpen = ((($cfgOpen -split "`r?`n") | Where-Object { $_ -notmatch '^ListenAddress ' }) -join "`n")
+Check 'the two configs differ ONLY in the ListenAddress line' ($restLocal.Length -gt 0 -and $restLocal -ceq $restOpen)
+$rn = Run 'PrintConfig with no -Listen' @('-PrintConfig', '-OsUser', $expectUser)
+Check 'no -Listen is refused: ERROR=give -Listen, exit 1, no config printed (a server whose scope nobody chose is not written)' ($rn.Code -eq 1 -and $rn.Out -match '(?m)^ERROR=give -Listen' -and $rn.Out -notmatch '(?m)^Port ')
+$rb = Run 'PrintConfig with -Listen sideways' @('-PrintConfig', '-OsUser', $expectUser, '-Listen', 'sideways')
+Check 'a -Listen other than local or open is refused (exit non-zero, no config printed)' ($rb.Code -ne 0 -and $rb.Out -notmatch '(?m)^Port ')
+# MUTANT: a copy of the script whose LOCAL writes 0.0.0.0 must turn the LOCAL row red; the live file is asserted unchanged.
+$liveSha = Sha $src
+$mutText = [IO.File]::ReadAllText($src)
+$mutated = $mutText.Replace("else { '127.0.0.1' }", "else { '0.0.0.0' }")
+$mutFile = Join-Path $root 'mutant-solo-sshd.ps1'
+[IO.File]::WriteAllText($mutFile, $mutated, (New-Object Text.UTF8Encoding($false)))
+Write-Host ('  mutant made: ' + ($mutated -ne $mutText) + '   (' + $mutFile + ')')
+$rm = Run 'MUTANT PrintConfig local' @('-PrintConfig', '-OsUser', $expectUser, '-Listen', 'local') $mutFile
+# The CONTROL: the mutant's config is well formed for 0.0.0.0, so the LOCAL row goes red on the address and nothing else.
+Check 'MUTANT (LOCAL writes 0.0.0.0): the mutant differs from the live file, printed a config, and the LOCAL row goes red on it (on the address: the same config passes as 0.0.0.0)' (
+    $mutated -ne $mutText -and $rm.Code -eq 0 -and $rm.Out -match '(?m)^Port 4251' -and -not (Test-ListenCfg $rm.Out '127.0.0.1') -and (Test-ListenCfg $rm.Out '0.0.0.0'))
+Check 'and the live solo-sshd.ps1 is byte-identical (SHA-256) after the mutant ran' ((Sha $src) -eq $liveSha)
 Check 'the config sets Port 4251, StrictModes yes, PasswordAuthentication yes and PubkeyAuthentication yes' (
     $cfgText -match '(?m)^Port 4251\s*$' -and $cfgText -match '(?m)^StrictModes yes\s*$' -and $cfgText -match '(?m)^PasswordAuthentication yes\s*$' -and $cfgText -match '(?m)^PubkeyAuthentication yes\s*$')
 Check 'it allows ONLY the owner, forces sd-solo.exe from the app folder, and forbids forwarding' (
@@ -144,24 +185,27 @@ Write-Host ('  SD_SFTP_SUBSYSTEM read from ' + $sftpH + ': [' + $sub + ']')
 Check 'the config names the sftp subsystem once, with sd_sftp.h''s SD_SFTP_SUBSYSTEM' (
     $sub -ne '' -and @([regex]::Matches($cfgText, '(?m)^Subsystem\s')).Count -eq 1 -and $cfgText -match ('(?m)^Subsystem sftp ' + [regex]::Escape($sub) + '\s*$'))
 if ($haveSshd) {
-    $tcfg = Join-Path $root 'test_sshd_config'
-    [IO.File]::WriteAllText($tcfg, ($cfgText.TrimEnd() + "`n"), (New-Object Text.UTF8Encoding($false)))
-    $tp = Start-Process -FilePath $sshdExe -ArgumentList @('-t', '-f', ('"' + $tcfg + '"')) -NoNewWindow -Wait -PassThru -RedirectStandardError (Join-Path $root 't.err') -RedirectStandardOutput (Join-Path $root 't.out')
-    Write-Host ('--- sshd -t on that config (exit ' + $tp.ExitCode + ')  ' + ((Get-Content (Join-Path $root 't.err') -ErrorAction SilentlyContinue) -join ' | '))
-    Check 'sshd -t accepts the printed configuration (exit 0, nothing on stderr)' ($tp.ExitCode -eq 0 -and ((Get-Content (Join-Path $root 't.err') -ErrorAction SilentlyContinue) -join '').Trim() -eq '')
-} else { Skip 'sshd -t on the printed configuration' 'no sshd.exe on this computer' }
+    # 18 Nov 26 - SOLO 78: both configs, the LOCAL one and the OPEN one.
+    foreach ($pair in @(@('LOCAL', $cfgText), @('OPEN', $cfgOpen))) {
+        $tcfg = Join-Path $root 'test_sshd_config'
+        [IO.File]::WriteAllText($tcfg, (($pair[1] -replace "`r`n", "`n").TrimEnd() + "`n"), (New-Object Text.UTF8Encoding($false)))
+        $tp = Start-Process -FilePath $sshdExe -ArgumentList @('-t', '-f', ('"' + $tcfg + '"')) -NoNewWindow -Wait -PassThru -RedirectStandardError (Join-Path $root 't.err') -RedirectStandardOutput (Join-Path $root 't.out')
+        Write-Host ('--- sshd -t on the ' + $pair[0] + ' config (exit ' + $tp.ExitCode + ')  ' + ((Get-Content (Join-Path $root 't.err') -ErrorAction SilentlyContinue) -join ' | '))
+        Check ('sshd -t accepts the printed ' + $pair[0] + ' configuration (exit 0, nothing on stderr)') ($tp.ExitCode -eq 0 -and ((Get-Content (Join-Path $root 't.err') -ErrorAction SilentlyContinue) -join '').Trim() -eq '')
+    }
+} else { Skip 'sshd -t on the printed configurations' 'no sshd.exe on this computer' }
 
 # ---- 6. inputs that could add a line to a config a SYSTEM process reads are refused -------------------
 foreach ($bad in @('don evil', 'don/x', 'a;b')) {
-    $r = Run ('PrintConfig with login name [' + $bad + ']') @('-PrintConfig', '-OsUser', $bad)
+    $r = Run ('PrintConfig with login name [' + $bad + ']') @('-PrintConfig', '-OsUser', $bad, '-Listen', 'local')
     Check ('login name [' + $bad + '] is refused with ERROR=, exit 1, and no config printed') ($r.Code -eq 1 -and $r.Out -match '(?m)^ERROR=refusing a login name' -and $r.Out -notmatch '(?m)^Port ')
 }
-$r = Run 'PrintConfig with no login name' @('-PrintConfig')
+$r = Run 'PrintConfig with no login name' @('-PrintConfig', '-Listen', 'local')
 Check 'no login name is refused' ($r.Code -eq 1 -and $r.Out -match '(?m)^ERROR=give -OsUser')
 
 # ---- 7. -Install and -Uninstall need an administrator and change nothing without one ---------------
 $before = Tree $pd
-$r = Run 'Install, unelevated' @('-Install', '-OsUser', $expectUser)
+$r = Run 'Install, unelevated' @('-Install', '-OsUser', $expectUser, '-Listen', 'local')
 Check '-Install unelevated: ERROR=...ELEVATED, exit 1, and the machine folder is exactly as it was' ($r.Code -eq 1 -and $r.Out -match '(?m)^ERROR=.*ELEVATED' -and (Tree $pd) -eq $before)
 $r = Run 'Uninstall, unelevated' @('-Uninstall')
 Check '-Uninstall unelevated: ERROR=...ELEVATED, exit 1, and the machine folder is still there' ($r.Code -eq 1 -and $r.Out -match '(?m)^ERROR=.*ELEVATED' -and (Test-Path (Join-Path $mdir 'ssh_host_ed25519_key')))
@@ -178,6 +222,19 @@ Check 'two switches: ERROR, exit 1' ($r.Code -eq 1 -and $r.Out -match '(?m)^ERRO
 $h = Sha $ak
 $r = Run 'Show' @('-Show')
 Check '-Show reports PORT=4251, the machine folder, and changes nothing' ($r.Out -match 'PORT=4251 listening=' -and $r.Out -match 'MACHINEDIR=' -and (Sha $ak) -eq $h -and $r.Code -eq 0)
+# 18 Nov 26 - SOLO 78: -Show reads the listen address back from the machine config (LISTEN=), whatever wrote it.
+Check '-Show with no machine config says LISTEN=none, and names the addresses on 4251 (LISTENERS=)' ($r.Out -match '(?m)^LISTEN=none\s*$' -and $r.Out -match '(?m)^LISTENERS=')
+$mcfg = Join-Path $mdir 'sshd_config'
+$showRows = @(@('the LOCAL config', ($cfgText -replace "`r`n", "`n"), 'local'), @('the OPEN config', ($cfgOpen -replace "`r`n", "`n"), 'open'),
+              @('a config with no ListenAddress (a build before SOLO 78)', "Port 4251`nPasswordAuthentication yes`n", 'every'),
+              @('a config with 127.0.0.1:4251', "Port 4251`nListenAddress 127.0.0.1:4251`n", 'local'),
+              @('a config with 127.0.0.1 AND 0.0.0.0', "Port 4251`nListenAddress 127.0.0.1`nListenAddress 0.0.0.0`n", 'open'))
+foreach ($s in $showRows) {
+    [IO.File]::WriteAllText($mcfg, $s[1], (New-Object Text.UTF8Encoding($false)))
+    $r = Run ('Show over ' + $s[0]) @('-Show')
+    Check ('-Show over ' + $s[0] + ' says LISTEN=' + $s[2]) ($r.Code -eq 0 -and $r.Out -match ('(?m)^LISTEN=' + $s[2] + '\s*$'))
+}
+Remove-Item -LiteralPath $mcfg -Force
 $r = Run 'Stop with none of ours running' @('-Stop')
 if ($blindBefore -eq 0) {
     Check '-Stop with nothing of ours running answers RESULT=NONE' ($r.Code -eq 0 -and $r.Out -match '(?m)^RESULT=NONE\s*$' -and $r.Out -match '(?m)^STOPPED=0\s*$')

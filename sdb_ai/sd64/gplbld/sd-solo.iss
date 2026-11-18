@@ -1557,7 +1557,9 @@ begin
     { Solo's ssh is its OWN sshd on port 4251 (SOLO 28), set up only when it is wanted (SOLO 36), from an
       OpenSSH server already installed or from the MSI beside the installer.  Its firewall rule
       (solo-ssh-firewall.ps1) is open to other computers or this-computer-only - the same shape as the
-      API's.  "leave" means no Solo sshd and no package. }
+      API's.  "leave" means no Solo sshd and no package.  18 Nov 26 - SOLO 78: the same -SshScope is
+      also sshd's listen address (open 0.0.0.0, restrict 127.0.0.1; solo-machine.ps1), the rule the
+      second wall. }
     if SshWanted then
     begin
       if not SshServerWasFound then

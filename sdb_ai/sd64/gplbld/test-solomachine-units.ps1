@@ -10,6 +10,8 @@
 # WHAT IT PROTECTS: the one path that touches a USER'S EXISTING machine on an upgrade - taking the
 # "Match User" block an earlier build wrote OUT of the system sshd_config - and the promise made in the
 # script's header that it never writes a block any more and never changes the system sshd's startup type.
+# 18 Nov 26 - SOLO 78 (section 1c): the ssh listen address - local 127.0.0.1, open 0.0.0.0 - from install, upgrade and the doors
+# to solo-sshd.ps1 -Install, and the verdict on the addresses that listen, with a mutant of that verdict.
 
 $ErrorActionPreference = 'Continue'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -73,6 +75,53 @@ if ($ln.Count -eq 1) {
     Write-Host ("login names: ACE\Don -> [$l1]   CORP\Alice -> [$l2]   Bob -> [$l3]")
     Check 'the login name sshd allows: a local account is its lower-case name, a domain account is name@domain' ($l1 -eq 'don' -and $l2 -eq 'alice@corp' -and $l3 -eq 'bob')
 } else { Check 'Get-SshLoginName exists exactly once' $false }
+
+# ---- 1c. SOLO 78: the listen address (local 127.0.0.1, open 0.0.0.0) reaches sshd, and is checked --------------
+# 18 Nov 26.  Register-SshTask passes -Listen to solo-sshd.ps1 -Install; Install maps -SshScope, Upgrade keeps what is installed
+# (Resolve-SshUpgradeListen), Doors passes -Mode; the listeners are judged by Get-SshListenVerdict.  The two pure functions are
+# lifted out of the file and run; a MUTANT of the verdict that lets 0.0.0.0 pass as local must turn its row red.
+Check 'Register-SshTask takes the listen address, refuses one that is not local or open, and passes it as -Listen to solo-sshd.ps1 -Install' (
+    $regCode -match 'function Register-SshTask\(\[string\]\$listen\)' -and $regCode -match "@\('local', 'open'\) -notcontains \`$listen" -and $regCode -match "'-Listen', \`$listen\)")
+Check 'Register-SshTask judges the addresses that hold 4251 against it (Get-SshListenVerdict) and FAILS on a disagreement' ($regCode -match 'Get-SshListenVerdict \$listen \$addrs' -and $regCode -match "if \(\`$why -ne ''\) \{ Fail \`$why")
+$codeNoC1 = (($text -split "`n") | Where-Object { $_ -notmatch '^\s*#' }) -join "`n"
+Check 'Install gives open for -SshScope open and local otherwise; Upgrade resolves it; Doors passes -Mode, and sets the server up again when the config says another address' (
+    $codeNoC1 -match "if \(\`$SshScope -eq 'open'\) \{ 'open' \} else \{ 'local' \}" -and $codeNoC1 -match 'Resolve-SshUpgradeListen \$cfgListen \$ruleScope' -and
+    $codeNoC1 -match 'Register-SshTask \$sshListen' -and @([regex]::Matches($codeNoC1, 'Register-SshTask \$Mode')).Count -eq 2 -and $codeNoC1 -match '\(\$was = Get-InstalledSshListen\) -ne \$Mode' -and
+    $codeNoC1 -notmatch '(?m)Register-SshTask\s*$')
+$pure = @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and ($n.Name -eq 'Get-SshListenVerdict' -or $n.Name -eq 'Resolve-SshUpgradeListen') }, $true))
+if ($pure.Count -ne 2) { Check 'Get-SshListenVerdict and Resolve-SshUpgradeListen each exist once' $false }
+else {
+    $SshPort = 4251
+    foreach ($f in $pure) { . ([scriptblock]::Create($f.Extent.Text)) }
+    $vcases = @(@('local', @('127.0.0.1'), $true), @('local', @('0.0.0.0'), $false), @('local', @('127.0.0.1', '0.0.0.0'), $false), @('local', @('::'), $false),
+                @('local', @(), $false), @('open', @('0.0.0.0'), $true), @('open', @('0.0.0.0', '::'), $true), @('open', @('127.0.0.1'), $false), @('', @('0.0.0.0'), $false))
+    $vbad = @()
+    foreach ($c in $vcases) {
+        $w = Get-SshListenVerdict $c[0] ([string[]]$c[1])
+        Write-Host ('  verdict ' + $c[0] + ' on [' + ($c[1] -join ',') + '] -> [' + $w + ']')
+        if (($w -eq '') -ne $c[2]) { $vbad += ($c[0] + ' on ' + ($c[1] -join ',')) }
+    }
+    Check ('Get-SshListenVerdict: local passes 127.0.0.1 only, open needs 0.0.0.0, nothing listening and no address fail (' + $vcases.Count + ' cases; wrong: [' + ($vbad -join '; ') + '])') ($vbad.Count -eq 0)
+    $ucases = @(@('local', 'open', 'local'), @('open', 'restricted', 'open'), @('every', 'open', 'open'), @('every', 'restricted', 'local'),
+                @('every', 'none', 'local'), @('every', '', 'open'), @('', 'restricted', 'local'), @('none', 'open', 'open'))
+    $ubad = @()
+    foreach ($c in $ucases) {
+        $u = Resolve-SshUpgradeListen $c[0] $c[1]
+        Write-Host ('  upgrade config=' + $c[0] + ' rule=' + $c[1] + ' -> ' + $u)
+        if ($u -ne $c[2]) { $ubad += ($c[0] + '/' + $c[1] + '=' + $u) }
+    }
+    Check ('Resolve-SshUpgradeListen: a config that names its address keeps it; an older one is open only behind an open rule (or an unreadable one), else local (' + $ucases.Count + ' cases; wrong: [' + ($ubad -join '; ') + '])') ($ubad.Count -eq 0)
+    # MUTANT: local accepts any address.  Run on the case that must fail; the live file is asserted unchanged.
+    $liveSha = (Get-FileHash -LiteralPath $src -Algorithm SHA256).Hash
+    $vText = @($pure | Where-Object { $_.Name -eq 'Get-SshListenVerdict' })[0].Extent.Text
+    $mText = $vText.Replace("`$_ -ne '127.0.0.1'", "`$_ -eq 'no-such-address'")
+    . ([scriptblock]::Create($mText))
+    $mw = Get-SshListenVerdict 'local' ([string[]]@('0.0.0.0'))
+    Write-Host ('  MUTANT verdict local on [0.0.0.0] -> [' + $mw + ']   mutant differs: ' + ($mText -ne $vText))
+    Check 'MUTANT (local accepts any address): the mutant differs, and the local-on-0.0.0.0 case it passes is the one the row above requires to fail' ($mText -ne $vText -and $mw -eq '')
+    . ([scriptblock]::Create($vText))
+    Check 'and the live solo-machine.ps1 is byte-identical (SHA-256) after the mutant, and the real verdict is back' ((Get-FileHash -LiteralPath $src -Algorithm SHA256).Hash -eq $liveSha -and (Get-SshListenVerdict 'local' ([string[]]@('0.0.0.0'))) -ne '')
+}
 
 # ---- 2. load the three functions it needs, with stubs for everything that could touch the machine ---
 $scratch = Join-Path $env:TEMP ('sdsolomachine-units-' + [guid]::NewGuid().ToString('N').Substring(0, 8))

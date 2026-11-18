@@ -5,6 +5,8 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - SOLO 78 (audit P-4455): ssh's local listens on 127.0.0.1 only too (solo-sshd.ps1 ListenAddress), so the doors
+*           view's help and do.door's local line say so for both doors; the firewall rule is the second wall.
 * 18 Nov 26 SD Core Solo - from Linux Solo aea031c and Core: read.all says 15150 (Reading the settings (a few seconds)...), not 12982
 *           (REMOTE.API / REMOTE.SSH keep 12982).  From Linux 10767826 (P-4630, Q9): confirm.and.run says 15172 (Making the change (a few seconds)...) before the
 *           command runs.
@@ -459,10 +461,10 @@ draw.detail:
    lines = ''
    begin case
       case view = 1
-         lines<-1> = 'Each door is off, local or open. OFF: no listener (the API: SD opens no socket; ssh: its server is stopped). LOCAL: only this computer can connect (the API listens on 127.0.0.1 only; for ssh the firewall lets only this computer in). OPEN: other computers on the network may connect. The API is port 4249; ssh is the ssh server of SD itself, port 4251.'
+         lines<-1> = 'Each door is off, local or open. OFF: no listener (the API: SD opens no socket; ssh: its server is stopped). LOCAL: only this computer can connect (the API and ssh listen on 127.0.0.1 only, and the firewall lets only this computer in). OPEN: other computers on the network may connect. The API is port 4249; ssh is the ssh server of SD itself, port 4251.'
          lines<-1> = 'A and S offer off, local or open in a list that starts on off. A change is made by the doors helper the installer set up, after the verb asks for the administrator password again; A and S give the terminal to REMOTE.API or REMOTE.SSH for that. ssh that was never set up is set up by LOCAL or OPEN.'
          lines<-1> = 'SD opens or closes the API socket only when it starts, so an API change to or from OFF takes effect at the next sd-solo -stop and -start (or the next boot). The firewall part and every ssh change take effect at once.'
-         lines<-1> = 'What is shown above is what is installed, read back from sd.conf, the firewall rules and the ssh task, not what this page meant. OPEN lets other computers reach this one, so its box wants the word open typed (in either case).'
+         lines<-1> = 'What is shown above is what is installed, read back from sd.conf, the configuration of the ssh server, the firewall rules and the ssh task, not what this page meant. OPEN lets other computers reach this one, so its box wants the word open typed (in either case).'
       case view = 2
          lines<-1> = 'A user account is reached by a door only if its Windows user is in the Windows group of that door: sdssh for ssh, sdapi for the whole API, sdfiles for the files-only route (sdfileswrite and sdfilesadmin add what it may do).'
          lines<-1> = 'When sdapi and sdfiles are both held, the API wins. NET is the register switch that lets the account open a file on another SD server. The switches are changed on TOOL.GATES (or modify.account), not here.'
@@ -704,11 +706,10 @@ do.door:
       case aw = 'open'
          typed = 'open'
          el<-1> = 'SD listens on port ' : door.port : ' on EVERY address and the firewall rule lets other computers on the network connect to ' : door.what : ' of this computer.'
-      case aw = 'local' and door.verb = 'remote.api'
-*        17 Nov 26 (audit P-4455): the API listener binds 127.0.0.1 for local (APILOCAL, c838ece3), as Linux Solo's LOCAL.
-         el<-1> = 'SD listens on 127.0.0.1:' : door.port : ' only: only this computer may connect.'
       case aw = 'local'
-         el<-1> = 'SD listens on port ' : door.port : ' and the firewall rule lets only this computer connect.'
+*        17 Nov 26 (audit P-4455): the API listener binds 127.0.0.1 for local (APILOCAL, c838ece3), as Linux Solo's LOCAL.
+*        18 Nov 26 (SOLO 78): and so does ssh's server (ListenAddress 127.0.0.1), so the two doors share this line.
+         el<-1> = 'SD listens on 127.0.0.1:' : door.port : ' only: only this computer may connect.'
       case 1
          el<-1> = 'SD has no listener for ' : door.what : ' at all.'
    end case

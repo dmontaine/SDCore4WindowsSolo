@@ -4,6 +4,8 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - SOLO 78 (audit P-4455): the description says LOCAL is the 127.0.0.1 listen address for both doors (ssh's
+*           ListenAddress, as the API's APILOCAL), with the firewall rule as the second wall.  Comments only; no code changed.
 * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4386): "Wrong password - nothing was changed" is message 12598 (was 12987, which
 *           SD Core for Windows uses for another text; 12598 is free in both Windows trees), text unchanged.
 * 16 Nov 26 Windows port - from Linux Solo c8dac7a: the administrator password prompt is message 15891 (was 12002), text unchanged.
@@ -28,8 +30,9 @@
 *    REMOTE.API {OFF | LOCAL | OPEN}        the SD API, port 4249
 *    REMOTE.SSH {OFF | LOCAL | OPEN}        Solo's own ssh server, port 4251
 *       OFF     no listener (the API: APIPORT off in sd.conf; ssh: its task disabled and stopped)
-*       LOCAL   it listens, and the firewall admits this computer only
-*       OPEN    it listens, and the firewall admits other computers.  ON is taken as OPEN (SD Core's word).
+*       LOCAL   it listens on 127.0.0.1 only (the API: APILOCAL=1; ssh: ListenAddress 127.0.0.1), and the firewall admits
+*               this computer only
+*       OPEN    it listens on 0.0.0.0, and the firewall admits other computers.  ON is taken as OPEN (SD Core's word).
 *    With no keyword it reports the setting and changes nothing.
 *
 *    ADMINISTRATOR ONLY (ADMIN first), and a change asks for the administrator password AGAIN: the helper is a separate SYSTEM
@@ -39,8 +42,8 @@
 *    owner accepted (12 Nov 26, "i"): $cred is in the user's own folder, so the proof stops a request made without the password,
 *    not a program running as this user.
 *
-*    THE REPORT IS WHAT IS INSTALLED, NOT WHAT WAS ASKED: solo-doors.ps1 -Show, unelevated, reads sd.conf, the two firewall rules
-*    (through their scripts' -ScopeFile verdicts) and the ssh task, and says whether each port listens now.
+*    THE REPORT IS WHAT IS INSTALLED, NOT WHAT WAS ASKED: solo-doors.ps1 -Show, unelevated, reads sd.conf, Solo's sshd_config
+*    (its ListenAddress), the two firewall rules and the ssh task, and says whether each port listens now.
 *    A CHANGE SUCCEEDS ONLY ON THE HELPER'S OWN LINE "SOLO API LISTENER <mode>" or "SOLO SSH LISTENER <mode>", in the answer whose
 *    first line names this request's nonce - never on an exit status, and never on an older answer.
 *    THE API LISTENER ONLY MOVES WHEN SD NEXT STARTS (sd-solo -stop, then sd-solo -start, or the next boot): the helper does not

@@ -66,6 +66,9 @@
 # "SOLO JOB SET <name>", "SOLO JOB DELETED <name>", "SOLO JOB ABSENT <name>" (there was no task) or "SOLO JOB STARTED <name>".
 # NOT MEASURED when written: that SYSTEM can register an S4U task for the Solo user (an elevated administrator can: the startup task),
 # and any of it end to end.
+#
+# 18 Nov 26 SD Core Solo - SOLO 78 (audit P-4455): ssh's local is sshd's listen address, 127.0.0.1 (solo-sshd.ps1 -Listen), as the API's
+# is APILOCAL; -Show reads it from the machine sshd_config ("ssh listen: ..."), and "ssh mode: open" needs it AND an open rule.
 param(
     [switch]$Show,
     [switch]$Serve,
@@ -121,6 +124,22 @@ function Get-Task([string]$Name) {
     catch { return $null }
 }
 
+# 18 Nov 26 - SOLO 78: the listen address in Solo's sshd_config (users may read the machine folder), the same reading as
+# solo-sshd.ps1's Get-ConfigListen (that script's -Show uses CIM, which an ssh logon cannot, so it is not called from here):
+# local, open, every (no ListenAddress line), none (no config), else other <list>.
+function Get-SshConfigListen {
+    $p = Join-Path $env:ProgramData 'SDCoreSolo\ssh\sshd_config'
+    try {
+        if (-not (Test-Path -LiteralPath $p -PathType Leaf)) { return 'none' }
+        $a = @([IO.File]::ReadAllLines($p) | ForEach-Object { if ($_ -match '^\s*ListenAddress\s+(\S+)') { $Matches[1] } })
+    } catch { return 'unreadable' }
+    if ($a.Count -eq 0) { return 'every' }
+    $hosts = @($a | ForEach-Object { $_ -replace ':\d+$', '' })
+    if (@($hosts | Where-Object { $_ -ne '127.0.0.1' }).Count -eq 0) { return 'local' }
+    if ($hosts -contains '0.0.0.0') { return 'open' }
+    return ('other ' + ($a -join ','))
+}
+
 function Show-Doors {
     # The API: the listener line in sd.conf, then who may reach it.
     $r = Invoke-Script 'solo-api-listener.ps1' @('-Show', '-ConfPath', (Join-Path $AppDir 'sd.conf'))
@@ -145,10 +164,14 @@ function Show-Doors {
     if (-not $t -and -not $folder -and -not (Test-Listening $SshPort)) { Write-Output 'ssh mode: notsetup' }
     elseif ($t -and -not $t.Enabled) { Write-Output 'ssh mode: off' }
     else {
+        # 18 Nov 26 - SOLO 78: open only when sshd listens on more than 127.0.0.1 (its config's ListenAddress) AND the rule is
+        # open; a config that listens on 127.0.0.1, or a rule for this computer only, is local.
         $scope = Get-Scope 'SD Core Solo ssh (port 4251)' $SshPort
-        Write-Output ('ssh mode: ' + $(if ($scope -eq 'open') { 'open' } else { 'local' }))
+        $listen = Get-SshConfigListen
+        Write-Output ('ssh mode: ' + $(if ($scope -eq 'open' -and $listen -ne 'local') { 'open' } else { 'local' }))
     }
     Write-Output ('ssh listening: ' + $(if (Test-Listening $SshPort) { 'yes' } else { 'no' }))
+    Write-Output ('ssh listen: ' + $(switch -regex (Get-SshConfigListen) { '^local$' { '127.0.0.1 only' } '^open$' { '0.0.0.0' } '^every$' { 'every address (an older build)' } '^none$' { 'no config' } default { $_ } }))
     # Where the helper answers, and whether the helper is there: the verb reads both.
     Write-Output ('doors dir: ' + $DoorsDir)
     Write-Output ('doors helper: ' + $(if ((Test-Path -LiteralPath $DoorsDir) -and (Get-Task 'SD Core Solo Doors')) { 'yes' } else { 'no' }))

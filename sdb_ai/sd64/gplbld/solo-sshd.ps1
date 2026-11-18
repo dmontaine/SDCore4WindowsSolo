@@ -8,7 +8,7 @@
 #   -Show         (anyone)         report, change nothing
 #   -Uninstall    (ELEVATED)       -Stop, then delete the machine folder (with -KeepHostKey: all of it but the host key pair)
 #   -PrintConfig  (anyone)         print the sshd_config text for -OsUser, write nothing (the guard uses it)
-# All with: powershell -NoProfile -ExecutionPolicy Bypass -File solo-sshd.ps1 <switch> [-OsUser name] [-AppDir path]
+# All with: powershell -NoProfile -ExecutionPolicy Bypass -File solo-sshd.ps1 <switch> [-OsUser name] [-AppDir path] [-Listen local|open]
 #
 # THE OWNER'S RULINGS, 2 Oct 2026.  (1) Solo's ssh has its OWN port, FIXED AT 4251 and not adjustable, routed
 # by port, no "Match User", no dedicated login; the full product keeps the system sshd on 22.  (2) Sign-in is
@@ -42,7 +42,7 @@
 #
 # THE COST OF PASSWORD LOGIN, for the docs: anyone who can reach port 4251 can try passwords for the owner's
 # Windows account, and the account lockout policy then locks the OWNER out (here: 10 failures in 10 minutes).  The
-# old port-22 route had the same property.  The firewall rule is open only when the owner chose it, or in managed mode.
+# old port-22 route had the same property.  sshd listens on 0.0.0.0 and the firewall rule is open only when the owner chose it.
 #
 # AN SSHD A SYSTEM TASK STARTED IS NOT READABLE FROM AN ORDINARY SHELL (measured: path, command line and owner read
 # empty to an unelevated shell, even of the same user; an elevated shell reads them).  -Stop finds sshd by command
@@ -60,12 +60,22 @@
 # task "SD Core Solo SSH Guard" (solo-machine.ps1) runs it as SYSTEM.  Three wrong passwords from one address in ten
 # minutes lock that address for ten minutes; see that script's header.
 #
+# LOCAL OR OPEN IS THE LISTEN ADDRESS (18 Nov 2026, SOLO 78; four-version audit P-4455, Linux Solo's solo-service.sh, whose
+# socket unit says ListenStream=127.0.0.1:4251 for local and 0.0.0.0:4251 for open).  -Install and -PrintConfig take
+# -Listen local|open and the config says "ListenAddress 127.0.0.1" or "ListenAddress 0.0.0.0", after the Port line.  Before
+# this, the config had no ListenAddress, sshd listened on every address (IPv4 and IPv6) in both cases, and LOCAL was walled
+# only by the firewall rule (solo-ssh-firewall.ps1), which stays as the second wall.  IPv4 only, as the template: it has no
+# IPv6 loopback or ::, so neither is here; an OPEN Solo no longer answers on IPv6.  -Show reads the line back (LISTEN=) and
+# names the addresses that listen now (LISTENERS=).
+#
 # LEGACY: the first build of SOLO 28 ran a per-user sshd from an S4U task out of <app>\ssh.  -Prepare deletes the
 # files that build left there (config, host key, pid, log) and -Stop also ends an sshd started from that config.
 #
 # OUTPUT, one machine-readable line each (anchor on these, nothing else):
 #   OSUSER=<name as sshd matches it>   PORT=4251   HOSTKEY=<SHA256:...>   KEYFILE=<path>   CONFIG=<path>
-#   MACHINEDIR=<path>   MIGRATED=<n>   ACL=OK
+#   MACHINEDIR=<path>   MIGRATED=<n>   ACL=OK   LISTEN=local|open (-Install: what it wrote)
+#   -Show: LISTEN=local|open|every|none|other <addresses> (the config read back; every = no ListenAddress line, an older
+#   build; none = no config)   LISTENERS=<address:port,...> (what holds 4251 now)
 #   RESULT=PREPARED|INSTALLED|STOPPED|NONE|REMOVED        ERROR=<text>  (exit 1)
 # Exit 0 only with a RESULT= line.  -AppDir exists for the guard (test-solosshd-units.ps1), which runs this against a
 # scratch tree with %ProgramData% and %USERPROFILE% overridden in the child; -Install ignores the %ProgramData%
@@ -79,6 +89,8 @@ param(
     [switch]$Uninstall,
     [switch]$PrintConfig,
     [switch]$KeepHostKey,
+    # 18 Nov 26 - SOLO 78: -Install and -PrintConfig only, and required there.  local = 127.0.0.1, open = 0.0.0.0.
+    [ValidateSet('', 'local', 'open')] [string]$Listen = '',
     [string]$AppDir = '',
     [string]$OsUser = ''
 )
@@ -163,11 +175,14 @@ function Get-Fingerprint([string]$b64) {
 # The configuration, as one pure function so a guard can print it, compare it with what is on disk and
 # have sshd -t accept it.  LF, ASCII.  PasswordAuthentication is the point of the exercise; the key lines are
 # the optional extra.  No AuthenticationMethods line: the owner may sign in by password OR by a key he chose to set up.
-function Get-Config([string]$app, [string]$user, [string]$mdir) {
+# 18 Nov 26 - SOLO 78: $listen is local or open; ListenAddress comes after Port (sshd takes the port of an address with
+# none from the Port lines before it).
+function Get-Config([string]$app, [string]$user, [string]$mdir, [string]$listen) {
     return (@(
         '# SD Core Solo''s own sshd, run as SYSTEM by the startup task "SD Core Solo SSH".',
         '# Written by solo-sshd.ps1 -Install (elevated).  Do not edit; the installer rewrites it.',
         ('Port ' + $Port),
+        ('ListenAddress ' + $(if ($listen -eq 'open') { '0.0.0.0' } else { '127.0.0.1' })),
         ('HostKey ' + (& $fwd (Join-Path $mdir 'ssh_host_ed25519_key'))),
         ('PidFile ' + (& $fwd (Join-Path $mdir 'sshd.pid'))),
         ('AuthorizedKeysFile ' + (& $fwd (Join-Path (Join-Path $app 'ssh') 'authorized_keys'))),
@@ -186,6 +201,19 @@ function Get-Config([string]$app, [string]$user, [string]$mdir) {
         'Subsystem sftp sftp-server.exe',
         ('ForceCommand "' + (Join-Path $app 'usr\bin\sd-solo.exe') + '"')
     ) -join "`n") + "`n"
+}
+
+# 18 Nov 26 - SOLO 78: the config's listen address, read back - what is installed, not what was asked (Linux Solo's
+# unit_mode reads its ListenStream line the same way).  local: every ListenAddress is 127.0.0.1; open: one is 0.0.0.0;
+# every: no ListenAddress line (an older build, which listened on every address); none: no config; else other <list>.
+function Get-ConfigListen([string]$path) {
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return 'none' }
+    $a = @([IO.File]::ReadAllLines($path) | ForEach-Object { if ($_ -match '^\s*ListenAddress\s+(\S+)') { $Matches[1] } })
+    if ($a.Count -eq 0) { return 'every' }
+    $hosts = @($a | ForEach-Object { $_ -replace ':\d+$', '' })
+    if (@($hosts | Where-Object { $_ -ne '127.0.0.1' }).Count -eq 0) { return 'local' }
+    if ($hosts -contains '0.0.0.0') { return 'open' }
+    return ('other ' + ($a -join ','))
 }
 
 # Moves the master's old key lines out of ~\.ssh\authorized_keys (where the system sshd's Match block
@@ -303,6 +331,7 @@ function Remove-ExtraAces([string]$path, [string[]]$keepSids) {
 # elevation test so the guard can prove it without being elevated.
 function Assert-ConfigInputs {
     if ($OsUser -eq '') { Stop-With 'give -OsUser: the login name sshd is to allow' }
+    if ($Listen -eq '') { Stop-With 'give -Listen local (127.0.0.1 only) or -Listen open (0.0.0.0)' }
     if ($OsUser -notmatch '^[A-Za-z0-9._@-]+$') { Stop-With ('refusing a login name with unexpected characters: ' + $OsUser) }
     if ($AppDir -match '["\r\n]') { Stop-With 'the app folder name has a quote or a line break in it' }
 }
@@ -342,7 +371,7 @@ function Invoke-Install {
     Remove-ExtraAces ($hostKey + '.pub') @($SidSystem, $SidAdmins, $SidUsers, 'S-1-1-0')
     Invoke-Icacls @(($hostKey + '.pub'), '/setowner', ('*' + $SidAdmins))
 
-    $want = Get-Config $AppDir $OsUser $machineDir
+    $want = Get-Config $AppDir $OsUser $machineDir $Listen
     [IO.File]::WriteAllText($cfg, $want, (New-Object Text.UTF8Encoding($false)))
     Invoke-Icacls @($cfg, '/setowner', ('*' + $SidAdmins))
     # 17 Nov 26 - SOLO 77: sshd runs without -E now (it logs to the OpenSSH/Operational channel); the -E file an
@@ -377,6 +406,10 @@ function Invoke-Install {
     Write-Output ('HOSTKEY=' + (Get-HostFingerprint))
     Write-Output ('MACHINEDIR=' + $machineDir)
     Write-Output ('CONFIG=' + $cfg)
+    # 18 Nov 26 - SOLO 78: read back from the file just written, not echoed from -Listen.
+    $got = Get-ConfigListen $cfg
+    if ($got -ne $Listen) { Stop-With ('the config reads back as LISTEN=' + $got + ', not ' + $Listen) }
+    Write-Output ('LISTEN=' + $got)
     Write-Output 'ACL=OK'
 }
 
@@ -423,7 +456,7 @@ if (@($Prepare, $Install, $Stop, $Show, $Uninstall, $PrintConfig | Where-Object 
 
 if ($PrintConfig) {
     Assert-ConfigInputs
-    Write-Output (Get-Config $AppDir $OsUser $machineDir).TrimEnd("`n")
+    Write-Output (Get-Config $AppDir $OsUser $machineDir $Listen).TrimEnd("`n")
     exit 0
 }
 
@@ -431,6 +464,10 @@ if ($Show) {
     Write-Output ('SSHD=' + (Find-Sshd))
     Write-Output ('MACHINEDIR=' + $machineDir + ' exists=' + (Test-Path -LiteralPath $machineDir))
     Write-Output ('CONFIG=' + $cfg + ' exists=' + (Test-Path -LiteralPath $cfg))
+    # 18 Nov 26 - SOLO 78: the listen address the config says, and the addresses that hold the port now.
+    Write-Output ('LISTEN=' + (Get-ConfigListen $cfg))
+    Write-Output ('LISTENERS=' + ((@(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue |
+                                    ForEach-Object { $_.LocalAddress + ':' + $_.LocalPort }) | Sort-Object -Unique) -join ','))
     Write-Output ('KEYFILE=' + $akFile + ' exists=' + (Test-Path -LiteralPath $akFile))
     Write-Output ('PORT=' + $Port + ' listening=' + (Test-Listening))
     Write-Output ('PROCESSES=' + (Get-OurSshd).Count)

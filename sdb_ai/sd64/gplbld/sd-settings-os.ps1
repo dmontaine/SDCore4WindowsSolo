@@ -20,6 +20,9 @@
 # NEVER IN IT: a private key, $cred, a password.  api.pem holds the API's
 # private key AND its certificate in one file, so only the CERTIFICATE block is
 # ever decoded - Get-PemCertificates below.
+#
+# 18 Nov 26 SD Core Solo - SOLO 78: the ssh section says what the listen address makes ssh (local 127.0.0.1, open 0.0.0.0, or
+# every address for an older build's config) and which addresses hold 4251 now.
 
 param()
 
@@ -128,6 +131,12 @@ try {
             try {
                 $cfgLines = [System.IO.File]::ReadAllLines($sshCfg)
                 foreach ($l in (Select-SshdLines $cfgLines)) { Line $l }
+                # 18 Nov 26 - SOLO 78: the listen address is what makes ssh local or open (the firewall rule is the second wall).
+                $la = @($cfgLines | ForEach-Object { if ($_ -match '^\s*ListenAddress\s+(\S+)') { $Matches[1] -replace ':\d+$', '' } })
+                if ($la.Count -eq 0) { Line 'listen address: every address (no ListenAddress line - an older build; the firewall rule decides)' }
+                elseif (@($la | Where-Object { $_ -ne '127.0.0.1' }).Count -eq 0) { Line 'listen address: 127.0.0.1 only - local, only this computer can connect' }
+                elseif ($la -contains '0.0.0.0') { Line 'listen address: 0.0.0.0 - open, other computers can connect where the firewall rule lets them' }
+                else { Line ('listen address: ' + ($la -join ', ')) }
                 if (@($cfgLines | Where-Object { $_.Trim() -match '^(?i)PasswordAuthentication\s+yes$' }).Count -gt 0) {
                     Line 'logins: Windows account name and password (a key is an optional extra)'
                 } elseif (@($cfgLines | Where-Object { $_.Trim() -match '^(?i)PasswordAuthentication\s+no$' }).Count -gt 0) {
@@ -146,7 +155,8 @@ try {
             # 2026), so a search by command line says "not running" about a running sshd.
             try {
                 $lst = @(Get-NetTCPConnection -State Listen -LocalPort 4251 -ErrorAction SilentlyContinue)
-                if ($lst.Count -gt 0) { Line "Solo's ssh port 4251: listening (pid $($lst[0].OwningProcess))" } else { Line "Solo's ssh port 4251: not listening" }
+                # 18 Nov 26 - SOLO 78: and on which addresses.
+                if ($lst.Count -gt 0) { Line ("Solo's ssh port 4251: listening on " + ((@($lst | ForEach-Object { [string]$_.LocalAddress }) | Sort-Object -Unique) -join ', ') + " (pid $($lst[0].OwningProcess))") } else { Line "Solo's ssh port 4251: not listening" }
             } catch { Failed "ssh port - $($_.Exception.Message)" }
         }
         if ($sshTask) {
