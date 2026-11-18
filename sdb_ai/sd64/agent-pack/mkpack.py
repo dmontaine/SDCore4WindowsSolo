@@ -1164,7 +1164,7 @@ def core_chunks(ctx, voc, since, shapes, chunks_so_far):
         ds, do = DocSections(ctx, SEC), DocSections(ctx, OSA)
         h1, b1, l1 = ds.section(r"^The position in one paragraph")
         h2, b2, l2 = ds.section(r"^What ships secured")
-        h3, b3, l3 = do.section(r"^A filter on the command")
+        h3, b3, l3 = do.section(r"^One rule about the shape of the command")   # 17 Nov 26 (round 3): the template's heading; was "A filter on the command"
         h4, b4, l4 = do.section(r"is not filtered")   # 18 Nov 26 (P-3502): Linux Solo's pattern; Windows Solo's 06b has Linux Solo's heading since the docs split of 18 Nov
         h5, b5, l5 = do.section(r"^The two switches")      # 20 Oct 26 (the OS switch): the shell and OS access are two switches, off as delivered
         # 18 Nov 26 (P-6141, P-3503): Linux Solo's text - Solo has more switches than the two: set.net.access, set.xfer.access, set.jobs.access,

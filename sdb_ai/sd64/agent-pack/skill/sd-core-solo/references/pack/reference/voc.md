@@ -17,7 +17,7 @@ The one account's VOC (`sduser`) is `newvoc` in full: `gpl.bp/solo_account` copi
 SDSYS's own VOC is `voc_template` in full: a superset of `newvoc`. The records only SDSYS has (11): `$hold`, `accounts`, `bp`, `bp.out`, `first.compile`, `gpl.bp`, `gpl.bp.out`, `messages`, `qfile`, `second.compile`, `third.compile`.
 
 ### voc:type:F
-> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:77#98baf5a6
+> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:74#98baf5a6
 
 **The F record — a file**
 
@@ -70,7 +70,7 @@ account directory. It is how a program opens "the account I am in" by
 name rather than by path.
 
 ### voc:type:K
-> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:259#4f0b8cdd
+> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:256#4f0b8cdd
 
 **The K record — a keyword**
 
@@ -79,7 +79,7 @@ name rather than by path.
 002  26
 ```
 
-This is a keyword record. Field 2 is the keyword number the query
+This is `ne`, the not-equal keyword. Field 2 is the keyword number the query
 processor uses. Keywords are not commands in their own right; they are
 the words the query processor — `LIST`, `SELECT`, `SORT` and the rest —
 recognizes inside a command line. `all` is `K` with number 5; `and` is `K`.
@@ -106,7 +106,7 @@ and they are what makes a sentence like `list stock with qty > 100 by
 supplier` parse.
 
 ### voc:type:PA
-> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:224#9486a7c4
+> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:221#9486a7c4
 
 **The PA record — a paragraph**
 
@@ -144,7 +144,7 @@ expands to `grand.total "'L'"` wherever `gt.l` appears in a query.
 in the command instead.
 
 ### voc:type:PH
-> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:241#7acc327c
+> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:238#7acc327c
 
 **The PH record — a phrase**
 
@@ -165,7 +165,7 @@ expands to `grand.total "'L'"` wherever `gt.l` appears in a query.
 in the command instead.
 
 ### voc:type:Q
-> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:181#b10fccd2
+> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:178#b10fccd2
 
 **The Q record — an indirect pointer**
 
@@ -181,7 +181,7 @@ target of `set.file` may itself be a Q-pointer, which makes a chain (not recomme
 followed under the same rules, so a chain cannot reach where its links alone could not.
 
 ### voc:type:R
-> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:194#7919279b
+> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:191#7919279b
 
 **The R record — a remote record reference**
 
@@ -203,7 +203,7 @@ keywords, `"PA"` paragraphs, `"PH"` phrases, `"Q"` Q-pointers, `"R"` R-records,
 `"S"` sentences).
 
 ### voc:type:S
-> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:213#e478fff6
+> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:210#e478fff6
 
 **The S record — a sentence**
 
@@ -217,7 +217,7 @@ runs that line with anything else you typed appended, so a sentence is a
 command with its first arguments filled in.
 
 ### voc:type:V
-> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:127#770e48c1
+> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:124#770e48c1
 
 **The V record — a verb**
 
@@ -274,7 +274,7 @@ records whose field 1 begins with `V` misses all four, and `count` is not
 a marginal verb.
 
 ### voc:type:X
-> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:292#f1c700c1
+> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:289#f1c700c1
 
 **The X record — text**
 
@@ -316,6 +316,6 @@ load-bearing and the remaining thirty are not.**
 | `X` | text | miscellaneous data — not a command |
 | `D` | descriptor | a data descriptor, which is what dictionary records are |
 
-**`PQ` is a valid type and is refused.** PROC is not part of this port. A record of type `PQ` is reported as *"PROC is not
+**`PQ` is a valid type and is refused.** PROC is not supported in SD. A record of type `PQ` is reported as *"PROC is not
 supported"* rather than being dispatched, because the record itself is
 valid PROC and it is the interpreter that is gone.

@@ -480,13 +480,6 @@ Account %1 is suspended
 
 cited by: `login`, `xfersrv`
 
-### msg:10109
-> kind=message tier=reference since=- src=sdsys/messages/10109:1#3aae254a
-
-```
-Account %1 is now %2
-```
-
 ### msg:1011
 > kind=message tier=reference since=- src=sdsys/messages/1011:1#94014939
 
@@ -679,10 +672,10 @@ SD's program directory is no longer on your PATH. "sd" still runs from\nits own 
 cited by: `apndpath`
 
 ### msg:10158
-> kind=message tier=reference since=- src=sdsys/messages/10158:1#21bb39c6
+> kind=message tier=reference since=- src=sdsys/messages/10158:1#6b265f22
 
 ```
-Deleting %1 removes everything the account holds. Its files and the data in\nthem go with it, and this cannot be undone.\n\nIf you only want to stop %1 using SD, suspend it instead:\n\n    modify.account %1 suspended\n\nA suspended account keeps its files, and modify.account %1 unsuspended\nlets it back in.\n
+Deleting %1 removes everything the account holds. Its files and the data in\nthem go with it, and this cannot be undone.\n\nIf you only want to stop %1 using SD, suspend it instead:\n\n    modify.account %1 suspended\n\nA suspended account keeps its files, and modify.account %1 unsuspended lets it back in.\n
 ```
 
 ### msg:1016
@@ -758,7 +751,7 @@ cited by: `cproc`
 Cannot gain exclusive access to %1 - it is open in another session.\n\nHolding it: %2\n\nThis operation needs the file to itself.  If that session is one of your own, close the file there or leave it.  If it is a session that has DIED - an ssh connection that dropped, a window that was closed - its slot is still holding the file, and clearing it is what releases the file:\n\n   logout <user number>\n\nThat reclaims a session whose process is gone.  If the process is still running it is asked to log out instead, so check with the person first.
 ```
 
-cited by: `cname`, `configf`, `deletei`, `disablei`, `mkindx`, `settrig`
+cited by: `cname`, `configf`, `deletei`, `disablei`, `mkindx`, `settrig`, `upgrade_nocase`
 
 ### msg:10169
 > kind=message tier=reference since=- src=sdsys/messages/10169:1#bdeba847
@@ -843,12 +836,16 @@ cited by: `configf`
 WARNING: %1 file(s) hold %2 record id(s) that differ only by case. They were NOT converted:
 ```
 
+cited by: `upgrade_nocase`
+
 ### msg:10179
 > kind=message tier=reference since=- src=sdsys/messages/10179:1#adb12b4c
 
 ```
 Converted %1 of %2 file(s) to case insensitive ids.
 ```
+
+cited by: `upgrade_nocase`
 
 ### msg:1018
 > kind=message tier=reference since=- src=sdsys/messages/1018:1#8d77034a
@@ -864,12 +861,16 @@ Error %d launching command
 Checking every file for record ids that differ only by case...
 ```
 
+cited by: `upgrade_nocase`
+
 ### msg:10181
 > kind=message tier=reference since=- src=sdsys/messages/10181:1#1c98b7d8
 
 ```
 Rename or delete one id of each pair, then convert that file with configure.file no.case.
 ```
+
+cited by: `upgrade_nocase`
 
 ### msg:10182
 > kind=message tier=reference since=- src=sdsys/messages/10182:1#055b63d1
@@ -878,12 +879,16 @@ Rename or delete one id of each pair, then convert that file with configure.file
 Checked %1 file(s); %2 hold a case-only duplicate record id.
 ```
 
+cited by: `upgrade_nocase`
+
 ### msg:10183
 > kind=message tier=reference since=- src=sdsys/messages/10183:1#77126217
 
 ```
 %1 file(s) could not be read or rebuilt; see the lines above.
 ```
+
+cited by: `upgrade_nocase`
 
 ### msg:10184
 > kind=message tier=reference since=- src=sdsys/messages/10184:1#0f73e691
@@ -892,6 +897,8 @@ Checked %1 file(s); %2 hold a case-only duplicate record id.
 File: %1
 ```
 
+cited by: `upgrade_nocase`
+
 ### msg:10185
 > kind=message tier=reference since=- src=sdsys/messages/10185:1#67ae1db7
 
@@ -899,12 +906,16 @@ File: %1
 File has indices, so convert it by hand with configure.file no.case: %1
 ```
 
+cited by: `upgrade_nocase`
+
 ### msg:10186
 > kind=message tier=reference since=- src=sdsys/messages/10186:1#3f57d41f
 
 ```
 %1 indexed file(s) were left for manual configure.file; see the lines above.
 ```
+
+cited by: `upgrade_nocase`
 
 ### msg:10187
 > kind=message tier=reference since=- src=sdsys/messages/10187:1#2be80350
@@ -1317,6 +1328,15 @@ Windows could not answer for %1 (%2)
 Value not found where required
 ```
 
+### msg:12013
+> kind=message tier=reference since=- src=sdsys/messages/12013:1#f31910f8
+
+```
+Cannot open %1 (error %2). It was left as it is.
+```
+
+cited by: `upgrade_nocase`
+
 ### msg:1202
 > kind=message tier=reference since=- src=sdsys/messages/1202:1#784667f8
 
@@ -1339,6 +1359,15 @@ cited by: `acc_archive`
 ```
 Inappropriate data type for GETREM()
 ```
+
+### msg:12035
+> kind=message tier=reference since=- src=sdsys/messages/12035:1#a2eb7f6a
+
+```
+Account %1
+```
+
+cited by: `upgrade_nocase`
 
 ### msg:12038
 > kind=message tier=reference since=- src=sdsys/messages/12038:1#73b31d6a
@@ -3796,10 +3825,10 @@ The next sequential record id of the file cannot be taken
 cited by: `seqkey`
 
 ### msg:12359
-> kind=message tier=reference since=- src=sdsys/messages/12359:1#e30c7561
+> kind=message tier=reference since=- src=sdsys/messages/12359:1#e688ad05
 
 ```
-FCONTROL cannot do this action in SD: it has no forced write mode and no line terminator modes
+FCONTROL cannot do this action in SD: it has no line terminator modes
 ```
 
 ### msg:1236
@@ -5044,10 +5073,10 @@ A file in the shared account can only be changed by an account that has shared.w
 cited by: `edit_msg`
 
 ### msg:12519
-> kind=message tier=reference since=- src=sdsys/messages/12519:1#9a412c5b
+> kind=message tier=reference since=- src=sdsys/messages/12519:1#74d5d9f6
 
 ```
-The structure of a file in the shared account (making, clearing, configuring, indexing, triggers, renaming or deleting it) can only be changed by SDSYS, signed on at a terminal
+The structure of a file in the shared account (making, clearing, configuring, indexing, triggers, renaming or deleting it) can only be changed by SDSYS, the administrator
 ```
 
 cited by: `edit_msg`
@@ -11295,6 +11324,15 @@ cited by: `remotedoor`
 
 cited by: `remotedoor`
 
+### msg:15993
+> kind=message tier=reference since=- src=sdsys/messages/15993:1#5b73358d
+
+```
+%1 file(s) named by an account's VOC lie under SDSYS and were left as they are. SDSYS's own files are made new by the install; convert one yourself with configure.file no.case if you need to:
+```
+
+cited by: `upgrade_nocase`
+
 ### msg:15995
 > kind=message tier=reference since=- src=sdsys/messages/15995:1#32ac8f74
 
@@ -11658,10 +11696,10 @@ This command is not available on Windows
 ```
 
 ### msg:2005
-> kind=message tier=reference since=- src=sdsys/messages/2005:1#c3a8c332
+> kind=message tier=reference since=- src=sdsys/messages/2005:1#974642ec
 
 ```
-This command is not available on Windows
+This command is not available on this platform
 ```
 
 ### msg:2007
@@ -12064,7 +12102,7 @@ cited by: `cname`, `savestk`
 Cannot open accounts register
 ```
 
-cited by: `login`, `lstvocrm`, `rstvoc`, `setacc`, `setfile`, `xfer`, `xfersrv`
+cited by: `login`, `lstvocrm`, `rstvoc`, `setacc`, `setfile`, `upgrade_nocase`, `xfer`, `xfersrv`
 
 ### msg:2201
 > kind=message tier=reference since=- src=sdsys/messages/2201:1#704ebe48
@@ -14667,10 +14705,10 @@ Mapping aborted
 cited by: `mapcat`
 
 ### msg:3046
-> kind=message tier=reference since=- src=sdsys/messages/3046:1#454743bb
+> kind=message tier=reference since=- src=sdsys/messages/3046:1#a752c1bc
 
 ```
-System catalog map at %1 on %2 'G'Page 'SLL'  Catalog name..................  Compiled.  Time....  ...Obj  ..Xref  ..Size
+System catalog map at %1 on %2 'G'Page 'SLL'  Catalog name....................Compiled.  Time....  ...Obj  ..Xref  ..Size
 ```
 
 cited by: `mapcat`
@@ -17931,10 +17969,10 @@ Passwords are set using Windows tools on this platform
 ```
 
 ### msg:6076
-> kind=message tier=reference since=- src=sdsys/messages/6076:1#545b83d9
+> kind=message tier=reference since=- src=sdsys/messages/6076:1#d0f9db9f
 
 ```
-Passwords are set using Windows administration tools on this platform
+Passwords are set using modify.password, not operating system administration tools, on this platform
 ```
 
 ### msg:6077
@@ -18508,7 +18546,7 @@ cited by: `configf`
 Unable to remove old temporary file
 ```
 
-cited by: `configf`
+cited by: `configf`, `upgrade_nocase`
 
 ### msg:6169
 > kind=message tier=reference since=- src=sdsys/messages/6169:1#b5954b3e
@@ -18526,7 +18564,7 @@ cited by: `configf`
 Cannot create temporary file
 ```
 
-cited by: `configf`
+cited by: `configf`, `upgrade_nocase`
 
 ### msg:6171
 > kind=message tier=reference since=- src=sdsys/messages/6171:1#22d6d83f
@@ -18535,7 +18573,7 @@ cited by: `configf`
 Error reading record from old file
 ```
 
-cited by: `configf`
+cited by: `configf`, `upgrade_nocase`
 
 ### msg:6172
 > kind=message tier=reference since=- src=sdsys/messages/6172:1#555174f6
@@ -18598,7 +18636,7 @@ cited by: `configf`
 Failed to delete old file (%1 %2)
 ```
 
-cited by: `configf`
+cited by: `configf`, `upgrade_nocase`
 
 ### msg:6179
 > kind=message tier=reference since=- src=sdsys/messages/6179:1#967989d4
@@ -18607,7 +18645,7 @@ cited by: `configf`
 Unable to rename temporary file (%1 %2)
 ```
 
-cited by: `configf`
+cited by: `configf`, `upgrade_nocase`
 
 ### msg:6180
 > kind=message tier=reference since=- src=sdsys/messages/6180:1#97cf9e1e
