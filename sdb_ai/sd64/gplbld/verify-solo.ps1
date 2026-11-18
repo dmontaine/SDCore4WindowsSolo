@@ -1356,7 +1356,15 @@ public static class SdSuiteCli {
             }
             Check 'd: SH is off the list again' (($t -match '(?m)^DENY\.VERBS \d+:') -and ($t -notmatch '(?m)^DENY\.VERBS \d+: .*\bSH\b')) 'want a DENY.VERBS answer without SH'
             $t = Invoke-Pe 'v-bang-again' @('SH echo ' + $bangOk)
-            Check 'd: CONTROL - and SH runs again without ADMIN' (((CountOf (Get-Lines $t) ('^' + [regex]::Escape($bangOk) + '$')) -eq 1) -and ((CountOf (Get-Lines $t) $gate2001) -eq 0)) 'want the echo text and no 2001'
+            # 18 Nov 26: an install made with the shell switch off (the delivered state: os access none) refuses SH with the
+            # switch's own words, not 2001 - then this control cannot see the shell run, so it is SKIPPED with that reason
+            # (it still must show no 2001).  Measured on the 00:08 install: "sduser is not permitted to use the operating system shell".
+            if (($t -match 'is not permitted to use the operating system shell') -and ((CountOf (Get-Lines $t) $gate2001) -eq 0)) {
+                Skip 'd: CONTROL - and SH runs again without ADMIN' 'the shell switch is off on this install (SH refused by the switch, not 2001); install with Shell and OS access ticked to measure it'
+            }
+            else {
+                Check 'd: CONTROL - and SH runs again without ADMIN' (((CountOf (Get-Lines $t) ('^' + [regex]::Escape($bangOk) + '$')) -eq 1) -and ((CountOf (Get-Lines $t) $gate2001) -eq 0)) 'want the echo text and no 2001'
+            }
         }
     }
 
