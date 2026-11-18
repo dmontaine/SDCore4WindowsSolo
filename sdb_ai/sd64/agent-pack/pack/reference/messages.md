@@ -426,17 +426,22 @@ Insufficient memory to allocate new array chunk
 ```
 
 ### msg:10096
-> kind=message tier=reference since=- src=sdsys/messages/10096:1#f899b188
+> kind=message tier=reference since=- src=sdsys/messages/10096:1#30ea8e54
 
 ```
-%1 is not a command that account %2 may run from the command line.\n\nAn administrator grants it by adding the name to the account's record in\nthe SD system file batch.jobs, which only an administrator can change.
+%1 is not a command that account %2 may run from the command line.
+
+An administrator grants it by adding the name to the account's record in
+the SD system file batch.jobs, which only an administrator can change.
 ```
 
 ### msg:10097
-> kind=message tier=reference since=- src=sdsys/messages/10097:1#206e8eff
+> kind=message tier=reference since=- src=sdsys/messages/10097:1#0a12f826
 
 ```
-A command run from the command line must be a single name with nothing\nafter it.  Put anything the job needs to vary inside the paragraph or\nsentence being run.
+A command run from the command line must be a single name with nothing
+after it.  Put anything the job needs to vary inside the paragraph or
+sentence being run.
 ```
 
 ### msg:10099
@@ -14705,10 +14710,10 @@ Mapping aborted
 cited by: `mapcat`
 
 ### msg:3046
-> kind=message tier=reference since=- src=sdsys/messages/3046:1#a752c1bc
+> kind=message tier=reference since=- src=sdsys/messages/3046:1#7cfa7b53
 
 ```
-System catalog map at %1 on %2 'G'Page 'SLL'  Catalog name....................Compiled.  Time....  ...Obj  ..Xref  ..Size
+System catalog map at %1 on %2 'G'Page 'SLL'  Catalog name....................  Compiled.  Time....  ...Obj  ..Xref  ..Size
 ```
 
 cited by: `mapcat`

@@ -3,6 +3,22 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+17 Nov 26  THE PAPER LOOK ON AN UPGRADE; /OSACCESS ON AN UPGRADE; A PUBLIC KEY IN THE INSTALL FILE; A CUT AUDIT RECORD ENDS ITS LINE.
+
+             What        - an upgrade (or a reload of kept data) adds SCREENTHEME=paper to a kept sd.conf that has no
+                           SCREENTHEME line, so the full-screen pages get the delivered look; a SCREENTHEME line
+                           already there is left as it is.
+                         - the installer takes /OSACCESS=none, sh, os or both on its command line.  On an upgrade it
+                           turns on what it names and turns nothing off; with no /OSACCESS an upgrade keeps the
+                           installation's switches.  On a new installation it wins over the install file's os-access.
+                         - the install file (sd-solo-setup.conf) takes ssh-public-key-file=: a public key whose
+                           owner may ssh straight into sd-solo on port 4251.  Optional, a new installation with ssh
+                           on only; blank adds no key.
+                         - an audit record too long for one line is cut and still ends its line, so the next record
+                           starts a line of its own.
+             Also        - message 3046 (the MAPCAT heading) has the two spaces before "Compiled." again; messages 10096
+                           and 10097 have real line ends.
+
 18 Nov 26  AUDIT RECORDS IN THE EVENT LOG; SSH LIMITS WRITTEN OUT; AN UPGRADE KEEPS THE SHELL AND OS SWITCHES; CASE-INSENSITIVE IDS ON UPGRADE.
 
              What        - every audit record is also written to the Windows Application event log, source sd-audit,

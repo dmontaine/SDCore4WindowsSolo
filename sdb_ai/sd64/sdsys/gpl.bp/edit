@@ -15,6 +15,8 @@
 * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 *
 * START-HISTORY:
+* 17 Nov 26 SD Core Solo - four-version audit round 4 (P-7028): open.files opens the record's file through the open.ok flag, as
+*           SD Core and Linux Solo do.  Same result.
 * 18 Nov 26 SD Core Solo - four-version audit round 2 (P-4415, P-5920): check.permitted stands before compile.record.query, in the
 *           subroutines' alphabetical order, as Linux Solo.  Order only.
 * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4416): check.permitted tests the administrator and the OS switch in two IFs, as Linux Solo.
@@ -811,7 +813,10 @@ return
 * open.files  -  the record's file, and $hold for the working copy.
 * ---------------------------------------------------------------------------
 open.files:
-   open dict.text, in.file.name to input.file then
+   open.ok = @false
+   open dict.text, in.file.name to input.file then open.ok = @true
+
+   if open.ok then
       open temp.file.name to temp.file then
          files.opened = @true
       end else

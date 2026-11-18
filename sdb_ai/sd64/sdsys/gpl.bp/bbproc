@@ -25,6 +25,8 @@
 *
 *
 * START-HISTORY:
+* 17 Nov 26 SD Core Solo - four-version audit round 4 (P-7891): valid_os_name and is_grp_member leave the first-pass compile list, as
+*           Linux Solo's: Solo's LOGIN no longer calls is_grp_member.
 * 18 Nov 26 SD Core Solo - four-version audit round 3 (P-3249..51, P-4408, P-4409, P-5917): the bootstrap's own text says VOC as
 *           Linux Solo's does (voc_template as on disk), the compile list is lower case as the gpl.bp records are named (valid_os_name
 *           and is_grp_member stay, as SD Core for Windows keeps them), and the third column of FILES_LIST names the dictionary.
@@ -269,17 +271,9 @@ src.list<-1> = 'bcomp'
 src.list<-1> = 'pterm'
 src.list<-1> = 'catalog'
 src.list<-1> = 'parser'
-* 14 Aug 26 Windows port - VALID_OS_NAME must be here, and before IS_GRP_MEMBER
-*   reads better than after it.  IS_GRP_MEMBER calls !valid_os_name to check the
-*   two names it interpolates into a PowerShell command, and LOGIN calls
-*   IS_GRP_MEMBER for the sdusers gate - at EVERY login, including the first one
-*   the bootstrap performs.  Without this, SECOND.COMPILE dies at
-*   "000000D7: Unable to load '!VALID_OS_NAME' object code in !IS_GRP_MEMBER"
-*   before it compiles anything, and the staged tree is not installable.
-*   VALID_OS_NAME calls nothing itself, so the chain ends here.
-*   See PROJECT_STATUS.md section 6.
-src.list<-1> = 'valid_os_name'
-src.list<-1> = 'is_grp_member'
+* 17 Nov 26 SD Core Solo - four-version audit round 4 (P-7891): valid_os_name and is_grp_member leave this list, as Linux Solo's
+*   bootstrap list: they were here because LOGIN called is_grp_member for the sdusers gate at every login, and Solo's LOGIN no
+*   longer calls it (P-3344).  Both are still compiled with the rest of gpl.bp.
 * 02 Oct 26 SD Core Solo - ACC_HOLD, for the same reason as VALID_OS_NAME:
 *   LOGIN calls !acc_hold (the backup/restore login hold, SOLO 25) at EVERY
 *   entry, the bootstrap's own SECOND.COMPILE session included.  SD Core for

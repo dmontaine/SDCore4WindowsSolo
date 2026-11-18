@@ -40,9 +40,9 @@ firewall rules).
 
 ## What it is for
 
-- **On its own** - a local, single-user database, used much as you would use
+- **On its own** — a local, single-user database, used much as you would use
   SQLite.
-- **As a client of an SD Core server** - a local store in a distributed setup,
+- **As a client of an SD Core server** — a local store in a distributed setup,
   where a master SD Core server holds the central data and manages its clients.
   A global password lets the master server reach the client.
 
@@ -58,29 +58,29 @@ install nobody sits at.
 
 The installation guide and the SD BASIC and TCL references are in the separate
 [SDCore4WindowsSoloDocs](https://github.com/dmontaine/SDCore4WindowsSoloDocs)
-repository.
+repository; [docs/SOLO_API.md](docs/SOLO_API.md) describes the API.
 
 ## Building from source
 
 This repository contains no binaries; everything is built from source.
 
-- **C server and client library** - MSYS2 (the server against the MSYS2 POSIX
+- **C server and client library** — MSYS2 (the server against the MSYS2 POSIX
   runtime, the client library against native UCRT64). `make sd` from
   `sdb_ai/sd64`.
-- **SD BASIC system programs** - compiled by the Python tooling in
+- **SD BASIC system programs** — compiled by the Python tooling in
   `sdb_ai/sd64/gplbld`.
-- **Installer** - Inno Setup, from `sdb_ai/sd64/gplbld/sd-solo.iss`.
+- **Installer** — Inno Setup, from `sdb_ai/sd64/gplbld/sd-solo.iss`.
 
 `sdb_ai/sd64/gplbld/cycle.ps1`, run from an ordinary (unelevated) PowerShell,
 does all three and then installs the result.
 
 ## Related repositories
 
-- [SDCore4Linux](https://github.com/dmontaine/SDCore4Linux) - the multi-user
+- [SDCore4Linux](https://github.com/dmontaine/SDCore4Linux) — the multi-user
   SD Core for Linux, whose features this edition follows.
-- [SDCore4Windows](https://github.com/dmontaine/SDCore4Windows) - SD Core for
+- [SDCore4Windows](https://github.com/dmontaine/SDCore4Windows) — SD Core for
   Windows, the multi-user Windows version, which this edition is derived from.
-- [SDCore4LinuxSolo](https://github.com/dmontaine/SDCore4LinuxSolo) - the Linux
+- [SDCore4LinuxSolo](https://github.com/dmontaine/SDCore4LinuxSolo) — the Linux
   edition of Solo.
 
 ## Licence

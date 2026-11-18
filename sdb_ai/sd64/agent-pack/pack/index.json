@@ -3911,7 +3911,7 @@
 "part": "core.md",
 "since": "-",
 "tier": "core",
-"words": 1493
+"words": 1525
 },
 "dict:chaining": {
 "kind": "dict.conv",
@@ -5164,14 +5164,14 @@
 "part": "reference/messages.md",
 "since": "-",
 "tier": "reference",
-"words": 38
+"words": 40
 },
 "msg:10097": {
 "kind": "message",
 "part": "reference/messages.md",
 "since": "-",
 "tier": "reference",
-"words": 30
+"words": 32
 },
 "msg:10099": {
 "kind": "message",
@@ -16868,7 +16868,7 @@
 "part": "reference/messages.md",
 "since": "-",
 "tier": "reference",
-"words": 20
+"words": 21
 },
 "msg:3047": {
 "kind": "message",
@@ -26514,7 +26514,7 @@
 "part": "reference/tcl-verbs.md",
 "since": "-",
 "tier": "reference",
-"words": 41
+"words": 38
 },
 "tcl:changed": {
 "kind": "tcl.keyword",
@@ -28537,7 +28537,7 @@
 "part": "reference/tcl-verbs.md",
 "since": "-",
 "tier": "reference",
-"words": 52
+"words": 50
 },
 "tcl:set.date": {
 "kind": "tcl.verb",
@@ -28621,7 +28621,7 @@
 "part": "reference/tcl-verbs.md",
 "since": "-",
 "tier": "reference",
-"words": 58
+"words": 51
 },
 "tcl:set.server": {
 "kind": "tcl.verb",
@@ -28943,7 +28943,7 @@
 "part": "reference/tcl-verbs.md",
 "since": "-",
 "tier": "reference",
-"words": 98
+"words": 96
 },
 "tcl:tool.dict": {
 "kind": "tcl.verb",

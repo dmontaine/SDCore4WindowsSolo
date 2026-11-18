@@ -6,10 +6,6 @@
 # every computer that does not already have SD Core Solo for Windows.  Without the file
 # the installer asks every question itself.
 #
-# The file answers only what it gives.  Whether an SD Core server manages the
-# computer depends on the global password alone: give one and the computer is
-# managed; leave it blank and it is not.  Nothing else changes with it.
-#
 # Each item below is explained in comment lines, then a SAMPLE answer
 # (commented out), then the line for your answer.  Leave an answer blank and
 # the installer asks for it - except global-password, where blank means NONE
@@ -82,6 +78,17 @@ ssh=
 
 deny-verbs=
 
+# ssh-public-key-file
+#   A public key file (on this computer) whose owner may ssh straight into
+#   sd-solo, on Solo's own ssh port (4251).  A key is optional: ssh also takes
+#   the user's Windows account name and password.  Leave it blank for none.
+#   It needs ssh local or open: with ssh off the key is not added.
+#   (The SD Core server that manages a computer installs its own key through
+#   the API.)
+#ssh-public-key-file=C:\Users\alex\.ssh\id_ed25519.pub
+
+ssh-public-key-file=
+
 # reload-data
 #   Only where the folder %USERPROFILE%\SDCoreSolo holds data kept by an
 #   earlier uninstall (the account sduser, sd.conf, the passwords and the
@@ -105,7 +112,10 @@ reload-data=
 #   SD; both = both.  Blank: the installer asks, and a silent install takes
 #   none.  Either switch lets whoever
 #   signs in do what the Windows user can do.  Used on a new installation
-#   only: an upgrade asks nothing and keeps what the installation has.
+#   only, like the rest of this file: an upgrade asks nothing and keeps what
+#   the installation has, unless the installer's command line says
+#   /OSACCESS=sh, os or both, which turns on what it names (and wins over
+#   this line on a new installation).
 #os-access=none
 
 os-access=

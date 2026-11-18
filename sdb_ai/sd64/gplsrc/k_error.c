@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - four-version audit round 4: audit_message() ends a record cut for length with the line end, as Linux
+ *           k_error.c does, so the next record starts its own line; the event log copy still takes the line end off.
  * 18 Nov 26 SD Core Solo - four-version audit (P-0288), from SD Core for Windows aa750298 and as Linux Solo a71033e: audit_message()
  *           copies each record to the Application event log (win32_audit_event(), source sd-audit, registered by the installer),
  *           after ERRLOG_SEM is released, as data, whether or not the file was written, and never failing the trail.
@@ -990,10 +992,15 @@ void audit_message(char* msg) {
   }
 
   /* snprintf reports the length it WANTED, not what it wrote, so a long
-     record would otherwise send WriteFile past the end of the buffer.   */
+     record would otherwise send WriteFile past the end of the buffer.  A
+     record that did not fit is cut and still ends in the line end, so the
+     next record starts its own line (as Linux's audit_message()).  The
+     event log copy below takes the line end off again.                  */
 
-  if (bytes > (int)sizeof(buff) - 1)
+  if (bytes > (int)sizeof(buff) - 1) {
     bytes = (int)sizeof(buff) - 1;
+    memcpy(buff + bytes - NewlineBytes, Newline, NewlineBytes);
+  }
 
   StartExclusive(ERRLOG_SEM, 67);
 

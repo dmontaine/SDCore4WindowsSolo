@@ -12,6 +12,9 @@
  * GNU General Public License for more details.
  *
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - four-version audit round 4 (P-7706): SD_RELAY_EXIT_PRIVILEGE removed, as
+ *           SD Core for Windows did; nothing used it (exit code 3 stays unused, the privilege
+ *           drop is sd's, before the spawn).
  * 26 Sep 26 SD Core Solo - SOLO 3 step 5: the control channel section is
  *           gone; the relay has two handles again (<net> <sp> <timeout>).
  * 25 Sep 26 SD Core Solo - SOLO 3, ruling 20: SD_RELAY_ACCOUNT is gone and
@@ -150,7 +153,6 @@ int win32_owner_only(const char* path, char* why, size_t whylen);
 #define SD_RELAY_IDENTITY_MAX 65536
 #define SD_RELAY_OK             0
 #define SD_RELAY_EXIT_IDENTITY  2
-#define SD_RELAY_EXIT_PRIVILEGE 3    /* unused here: the drop is sd's, before the spawn */
 #define SD_RELAY_EXIT_HANDSHAKE 4
 #define SD_RELAY_EXIT_BINDING   5
 #define SD_RELAY_EXIT_USAGE     6    /* bad argv or handles: a bug, not a peer */

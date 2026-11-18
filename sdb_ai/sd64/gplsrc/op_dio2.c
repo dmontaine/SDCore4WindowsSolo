@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - four-version audit round 4 (P-7375): the NETDIRS refusal tests a drive root and a share root apart
+ *               (netdir_drive_root(), netdir_share_root()), as SD Core for Windows' two tests; same words, same result.
  * 18 Nov 26 SD Core Solo - four-version audit round 3 (P-5882, P-7375, P-7376): config.h in SD Core's place; a NETDIRS entry that is a
  *               drive root or a share root is named in SD Core's words ("holds the whole machine" / "a network share ... the whole volume").
  * 18 Nov 26 SD Core Solo - four-version audit round 2, Core's forms where the result is the same (P-5880, P-5881, P-6439, P-6440,
@@ -2378,18 +2380,27 @@ Private bool netdir_winform(const char* dir, char* out) {
   return netdir_posix_to_win(posix, out);
 }
 
-/* A drive root ("C:/") or a share's root holds the whole machine, or a whole volume. */
-Private bool netdir_whole_volume(const char* w) {
+/* A drive root ("C:/") holds the whole machine.  17 Nov 26 (audit round 4, P-7375): the drive root and the share root are two tests, as
+   SD Core for Windows' os_root_whole_machine() and os_root_share(), which read the POSIX form; these read the "C:/" form netdir_winform()
+   makes.  netdir_whole_volume() is either. */
+Private bool netdir_drive_root(const char* w) {
   size_t n = strlen(w);
+
+  return (n <= 3) && (n >= 2) && (w[1] == ':');
+}
+
+/* The root of a network share - //server/share, with nothing below the share - holds a whole volume, as a drive root does. */
+Private bool netdir_share_root(const char* w) {
   const char* p;
 
-  if ((n <= 3) && (n >= 2) && (w[1] == ':'))
-    return TRUE;
-  if ((w[0] == '/') && (w[1] == '/')) { /* //server/share: a root unless something follows the share */
-    p = strchr(w + 2, '/');
-    return (p == NULL) || (strchr(p + 1, '/') == NULL);
-  }
-  return FALSE;
+  if (!((w[0] == '/') && (w[1] == '/')))
+    return FALSE;
+  p = strchr(w + 2, '/');                           /* the separator after the server */
+  return (p == NULL) || (strchr(p + 1, '/') == NULL);
+}
+
+Private bool netdir_whole_volume(const char* w) {
+  return netdir_drive_root(w) || netdir_share_root(w);
 }
 
 Private bool netdir_overlap(char* a, char* b) {
@@ -2514,9 +2525,10 @@ Private void netdirs_load(bool report) {
       else if (!netdir_winform(item, root) || (stat(root, &st) != 0) || !S_ISDIR(st.st_mode))
         strcpy(why, "it is not an existing directory");
       /* 18 Nov 26 SD Core Solo (audit round 3, P-7375, P-7376): a drive root and a share root are named apart, in SD Core's words. */
-      else if (netdir_whole_volume(root))
-        strcpy(why, (root[1] == ':') ? "it is the root of a drive, which holds the whole machine"
-                                     : "it is the root of a network share, which holds the whole volume");
+      else if (netdir_drive_root(root))
+        strcpy(why, "it is the root of a drive, which holds the whole machine");
+      else if (netdir_share_root(root))
+        strcpy(why, "it is the root of a network share, which holds the whole volume");
       else if (!have_home || netdir_overlap(root, homedir))
         strcpy(why, "it holds, or lies inside, the SD Core Solo folder");
       else if (!have_sys || netdir_overlap(root, sysdir))

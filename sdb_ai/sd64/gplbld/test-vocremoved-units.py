@@ -132,7 +132,10 @@ def checks(t, old_newvoc=None, old_template=None):
     if old_newvoc is None or old_template is None:
         print("  [SKIP] L3 / L4: git or the tag %s is not here, so the list is not compared with what that release shipped" % TAG)
     else:
-        gone = sorted((set(old_newvoc) - t["newvoc"]) | (set(old_template) - t["template"]))
+        # 17 Nov 26 SD Core Solo - four-version audit round 4 (P-7895, P-7896): a record that leaves voc_template but stays in newvoc
+        # is still shipped (L2's own test: in NEWVOC or VOC_TEMPLATE), so it is not gone; backup.account and restore.account are newvoc's
+        # only now, as Linux Solo.
+        gone = sorted((set(old_newvoc) - t["newvoc"]) | (set(old_template) - t["template"] - t["newvoc"]))
         miss = [g for g in gone if g not in lst]
         ck("L3 every record gone from NEWVOC or VOC_TEMPLATE since %s is on the list (%d are)" % (TAG, len(gone)), not miss, "not on the list: %r" % miss)
         wrong = []

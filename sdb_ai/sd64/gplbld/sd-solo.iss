@@ -301,6 +301,11 @@ var
     like the rest of the control file.  OsAccessPage is the question, shown on a new install only (18 Nov 26, P-7047: an upgrade keeps the switches). }
   CfOsAccess: String;
   OsAccessPage: TInputOptionWizardPage;
+  { 17 Nov 26 - four-version audit round 4 (P-7877), Linux Solo's --os-access: /OSACCESS=none|sh|os|both on the installer's command
+    line, '' when not given or not one of those.  It answers the question on a new tree (over the control file, as Linux Solo's
+    command line wins) AND on an upgrade, where it turns on what it names and turns nothing off.  An upgrade with no /OSACCESS keeps
+    the switches the installation has.  CfSshKey (P-7371) is the control file's ssh-public-key-file=, '' for none. }
+  CmdOsAccess, CfSshKey: String;
   { 12 Nov 26 - SOLO 56 group 6, THE START QUESTION (Linux Solo S.221 START-ASK / START-SET, control file start=; SD Core for Windows
     RELEASE_1.1 210, task startprompt): where new sessions start.  The control file's start=, menu or terminal; '' when not given or not
     one of those (then the page asks).  StartPage is one unticked box, shown on a new tree only: an upgrade keeps the site's start. }
@@ -558,6 +563,16 @@ begin
   UseControl := DataTreeWasAbsent and FileExists(F);
   CfAdminOk := False;
   CfGlobalOk := False;
+  CfSshKey := '';
+  { 17 Nov 26 - P-7877: the command line's /OSACCESS=, read on every install, a new tree and an upgrade alike. }
+  CmdOsAccess := Lowercase(Trim(ExpandConstant('{param:OSACCESS|}')));
+  if (CmdOsAccess <> 'none') and (CmdOsAccess <> 'sh') and (CmdOsAccess <> 'os') and (CmdOsAccess <> 'both') then
+  begin
+    if CmdOsAccess <> '' then
+      Log('SD Core Solo: /OSACCESS "' + CmdOsAccess + '" is not none, sh, os or both - ignored');
+    CmdOsAccess := '';
+  end;
+  Log('SD Core Solo: command line os-access "' + CmdOsAccess + '"');
   if not UseControl then
   begin
     if FileExists(F) then
@@ -614,6 +629,16 @@ begin
     logged whole; DENY.VERBS (run by solo-setup) checks each name. }
   CfDeny := Trim(GetIniString('install', 'deny-verbs', '', F));
   Log('SD Core Solo: control file deny-verbs "' + CfDeny + '"');
+  { 17 Nov 26 - four-version audit round 4 (P-7371), Linux Solo's ssh-public-key-file=: a public key file on this computer whose
+    owner may ssh straight into sd-solo on Solo's own port.  Optional and used only when given; solo-setup.ps1 checks the key and
+    adds its one line to Solo's own key file.  A file that is not there is not an answer and is logged. }
+  CfSshKey := Trim(GetIniString('install', 'ssh-public-key-file', '', F));
+  if (CfSshKey <> '') and not FileExists(CfSshKey) then
+  begin
+    Log('SD Core Solo: control file ssh-public-key-file "' + CfSshKey + '" is not a file - no key is added');
+    CfSshKey := '';
+  end;
+  Log('SD Core Solo: control file ssh-public-key-file "' + CfSshKey + '"');
   { 20 Oct 26 - RELEASE_1.1 165: os-access= answers the shell and OS access question (see OsAccessPage).  Anything else is not an
     answer and the page asks. }
   CfOsAccess := Lowercase(Trim(GetIniString('install', 'os-access', '', F)));
@@ -653,7 +678,14 @@ function OsAccessWord: String;
 var
   ShOn, OsOn: Boolean;
 begin
-  { 18 Nov 26 - P-7047: an upgrade is not asked, and keeps what the installation has. }
+  { 18 Nov 26 - P-7047: an upgrade is not asked, and keeps what the installation has.  17 Nov 26 - P-7877, as Linux Solo: an explicit
+    /OSACCESS on the command line is applied, on an upgrade too (solo-setup.ps1 only ever turns a switch on), and wins over the
+    control file on a new tree. }
+  if CmdOsAccess <> '' then
+  begin
+    Result := CmdOsAccess;
+    Exit;
+  end;
   if not DataTreeWasAbsent then
   begin
     Result := 'none';
@@ -1064,7 +1096,7 @@ begin
     has (OsAccessWord gives none, which solo-setup.ps1 reads as "leave both as they are"): an upgrade must not shut what the
     administrator opened, nor open what he shut.  He changes them with ADMIN, then set.os.access. }
   else if PageID = OsAccessPage.ID then
-    Result := (not DataTreeWasAbsent) or (UseControl and (CfOsAccess <> ''))
+    Result := (not DataTreeWasAbsent) or (CmdOsAccess <> '') or (UseControl and (CfOsAccess <> ''))
   else if PageID = wpSelectTasks then
     Result := SoloWasInstalled or (ApiAnswered and SshAnswered)
   { 12 Nov 26 - SOLO 56 group 6: the start question on a new tree only, skipped when a control file answers it. }
@@ -1446,14 +1478,59 @@ begin
     Log('RetiredConf: COULD NOT rewrite sd.conf, which still names:' + Removed);
 end;
 
+{ 17 Nov 26 - four-version audit round 4 (P-4944, P-7810), Linux Solo's default_screentheme (S.117).  THE DELIVERED SCREEN THEME IS
+  PAPER, and a kept sd.conf may be from before that line: a kept file with no SCREENTHEME line gets SCREENTHEME=paper after its [sd]
+  line, once.  A file that has a SCREENTHEME line is left exactly as it is: the line is the user's choice (Solo never delivered another
+  value, so there is nothing to convert, where SD Core changes its own delivered blue).  A file with no [sd] section is left alone and
+  the log says so.  Beside RemoveRetiredConf and for the same reason (sd.conf is onlyifdoesntexist, so only a kept file can be old); a
+  new tree has no file yet and nothing is done.  solo-setup.ps1 does the same for a reloaded sd.conf. }
+procedure UpgradeScreenTheme;
+var
+  Lines, NewLines: TArrayOfString;
+  I, N, At: Integer;
+  Conf: String;
+begin
+  Conf := ExpandConstant('{app}\sd.conf');
+  if not LoadStringsFromFile(Conf, Lines) then
+    Exit;
+  N := GetArrayLength(Lines);
+  At := -1;
+  for I := 0 to N - 1 do
+  begin
+    if Copy(Lines[I], 1, 12) = 'SCREENTHEME=' then
+      Exit;
+    if (At < 0) and (Copy(Lines[I], 1, 4) = '[sd]') then
+      At := I;
+  end;
+  if At < 0 then
+  begin
+    Log('ScreenTheme: sd.conf has no [sd] section: SCREENTHEME was not added (the full-screen pages use the plain look)');
+    Exit;
+  end;
+  SetArrayLength(NewLines, N + 1);
+  for I := 0 to At do
+    NewLines[I] := Lines[I];
+  NewLines[At + 1] := 'SCREENTHEME=paper';
+  for I := At + 1 to N - 1 do
+    NewLines[I + 1] := Lines[I];
+  if SaveStringsToFile(Conf, NewLines, False) then
+    Log('ScreenTheme: added SCREENTHEME=paper (the kept sd.conf had no SCREENTHEME line)')
+  else
+    Log('ScreenTheme: COULD NOT rewrite sd.conf; SCREENTHEME=paper was not added');
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   Params, ReportPath, Extra, Failed: String;
   Code: Integer;
 begin
-  { 9 Nov 26 - RELEASE_1.1 197: see RemoveRetiredConf. }
+  { 9 Nov 26 - RELEASE_1.1 197: see RemoveRetiredConf.  17 Nov 26 - P-4944: and a kept sd.conf with no SCREENTHEME line gets the
+    delivered paper (see UpgradeScreenTheme). }
   if CurStep = ssInstall then
+  begin
     RemoveRetiredConf;
+    UpgradeScreenTheme;
+  end;
 
   if CurStep <> ssPostInstall then
     Exit;
@@ -1524,6 +1601,15 @@ begin
       (an existing tree keeps its list; the server changes it with DENY.VERBS). }
     if UseControl and (CfDeny <> '') then
       SetEnvironmentVariable('SD_SOLO_DENY_VERBS', CfDeny);
+    { 17 Nov 26 - P-7371: the control file's ssh public key, on a new tree with Solo's ssh on (Linux Solo refuses a key with ssh
+      off; here the install goes on and the key is not added, and the log says so). }
+    if UseControl and (CfSshKey <> '') then
+    begin
+      if SshWanted then
+        SetEnvironmentVariable('SD_SOLO_SSH_KEY_FILE', CfSshKey)
+      else
+        Log('SD Core Solo: ssh-public-key-file "' + CfSshKey + '" is NOT added: ssh is off (a key needs ssh local or open)');
+    end;
   end
   else
     { A data tree already existed: its one account's live VOC predates
@@ -1537,6 +1623,7 @@ begin
   SetEnvironmentVariable('SD_SOLO_GLOBAL_PW', '');
   SetEnvironmentVariable('SD_SOLO_ACCOUNT_PW', '');
   SetEnvironmentVariable('SD_SOLO_DENY_VERBS', '');
+  SetEnvironmentVariable('SD_SOLO_SSH_KEY_FILE', '');
   SetEnvironmentVariable('SD_SOLO_OS_ACCESS', '');
   SetEnvironmentVariable('SD_SOLO_START', '');
   SetEnvironmentVariable('SD_SOLO_VIEWER', '');

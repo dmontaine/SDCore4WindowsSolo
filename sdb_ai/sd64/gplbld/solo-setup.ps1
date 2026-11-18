@@ -19,6 +19,9 @@
 #      newvoc.mods, voc_removed.saved and start.default, each replacing what this install made, and the audit trail JOINED
 #      (the kept lines, then this install's) with its rotated copies.  $cred only without -Passwords: -ReloadFrom alone is
 #      the installer's "kept passwords" case, and passwords given replace the kept ones (Linux's rule)
+#   3a. (17 Nov 26, four-version audit round 4, Linux Solo's control file) SD_SOLO_SSH_KEY_FILE, a new tree only: the public key's
+#      one line is added to <app>\ssh\authorized_keys (P-7371); a reloaded sd.conf with no SCREENTHEME line gets SCREENTHEME=paper
+#      (P-4944, as sd-solo.iss does for a kept one).
 #   4. -Upgrade: the dictionaries (SOLO 9, replacing upgrade-dicts.ps1) -
 #      {app}\gplbld\FILES_DICTS placed at sdsys\gplbld, sd -internal RUN gpl.bp
 #      WRITE_INSTALL_DICTS NO.PAGE (merges; every shipped record must be
@@ -123,6 +126,12 @@ $startAt = ("" + [Environment]::GetEnvironmentVariable('SD_SOLO_START', 'Process
 # (SET.VIEWER ADD PDF name, which looks it up in App Paths and tests it), or '' for none.  New tree and upgrade.  Not a secret.
 $viewer = ("" + [Environment]::GetEnvironmentVariable('SD_SOLO_VIEWER', 'Process')).Trim().ToLowerInvariant()
 [Environment]::SetEnvironmentVariable('SD_SOLO_VIEWER', $null, 'Process')
+# 17 Nov 26 - four-version audit round 4 (P-7371), Linux Solo's ssh-public-key-file= (solo-ssh.sh key-add): a public key FILE whose
+# owner may ssh straight into sd-solo on Solo's own port.  Its one line goes into Solo's own key file, <app>\ssh\authorized_keys, where
+# Solo's sshd forces sd-solo for every sign-in (solo-sshd.ps1's ForceCommand).  A new tree with ssh on only; sd-solo.iss passes none
+# otherwise.  Not a secret (a public key).
+$sshKeyFile = ("" + [Environment]::GetEnvironmentVariable('SD_SOLO_SSH_KEY_FILE', 'Process')).Trim()
+[Environment]::SetEnvironmentVariable('SD_SOLO_SSH_KEY_FILE', $null, 'Process')
 # SOLO 2: the tree finds itself from sd.exe's location; a stray SD_CONFIG would
 # point it somewhere else.
 [Environment]::SetEnvironmentVariable('SD_CONFIG', $null, 'Process')
@@ -143,6 +152,7 @@ Note ('deny verbs   : ' + $(if ($denyVerbs) { '"' + $denyVerbs + '"' } else { 'n
 Note ('os access    : ' + $(if ($osAccess) { '"' + $osAccess + '"' } else { 'not given (nothing is turned on)' }))
 Note ('start        : ' + $(if ($startAt) { '"' + $startAt + '"' } else { 'not given (nothing is written: an upgrade, or the home screen)' }))
 Note ('pdf reader   : ' + $(if ($viewer) { '"' + $viewer + '"' } else { 'not given (nothing is allowed)' }))
+Note ('ssh key file : ' + $(if ($sshKeyFile) { '"' + $sshKeyFile + '"' } else { 'not given (no key is added)' }))
 
 # The null cases, refused out loud.
 $refuse = @()
@@ -176,6 +186,25 @@ if ($ReloadFrom -and -not (Test-Path -LiteralPath (Join-Path $ReloadFrom 'user_a
 # It reaches sd's command line through cmd.exe, so only verb-name characters,
 # commas and spaces - nothing cmd could read as & | < > ^ or a quote.
 if ($denyVerbs -and ($denyVerbs -notmatch '^[A-Za-z0-9.$_, -]+$')) { $refuse += 'deny-verbs holds a character that cannot be in a verb name' }
+# 17 Nov 26 - P-7371: the key is checked as Linux Solo's solo-ssh.sh key-add checks it, before anything is done: one line, a key type
+# sshd knows the shape of, no quote or backslash, and a key body that is base64.
+$sshKeyLine = ''
+if ($sshKeyFile) {
+    if ($Upgrade) { $refuse += 'an ssh public key is given on an upgrade (a new tree only)' }
+    elseif (-not (Test-Path -LiteralPath $sshKeyFile -PathType Leaf)) { $refuse += ('cannot read the ssh public key ' + $sshKeyFile) }
+    else {
+        $kl = @([IO.File]::ReadAllLines($sshKeyFile) | Where-Object { $_.Trim() -ne '' })
+        $kf = @()
+        if ($kl.Count -eq 1) { $kf = @($kl[0].Trim() -split '\s+') }
+        $kb = $false
+        if ($kf.Count -ge 2) { try { $kb = ([Convert]::FromBase64String($kf[1]).Length -ge 8) } catch { $kb = $false } }
+        if ($kl.Count -ne 1) { $refuse += ($sshKeyFile + ' does not hold exactly one line; give one public key') }
+        elseif ($kf[0] -notmatch '^(ssh-|ecdsa-|sk-)') { $refuse += ($sshKeyFile + ' does not look like an ssh public key') }
+        elseif ($kl[0].Contains('"') -or $kl[0].Contains([string][char]92)) { $refuse += 'the key line contains a quote or backslash' }
+        elseif (-not $kb) { $refuse += ($sshKeyFile + ': the key is not base64') }
+        else { $sshKeyLine = $kl[0].Trim() }
+    }
+}
 $markerLib = Join-Path $AppDir 'internal-marker.ps1'
 if (-not (Test-Path -LiteralPath $markerLib)) { $refuse += 'no internal-marker.ps1 under the app dir' }
 # The dictionary source: shipped to {app}\gplbld (stage.py), read by
@@ -470,6 +499,20 @@ try {
                 [System.IO.File]::WriteAllLines($conf, [string[]]$confKept)
                 Note ('  configuration: ' + ($confLines.Count - $confKept.Count) + ' retired parameter line(s) taken out of the copy being tried')
             }
+            # 17 Nov 26 - four-version audit round 4 (P-4944), Linux Solo's default_screentheme, as sd-solo.iss UpgradeScreenTheme: a
+            # kept sd.conf with no SCREENTHEME line gets SCREENTHEME=paper after its [sd] line; one that has the line is left as it is.
+            $confLines = @(Get-Content -LiteralPath $conf)
+            if (-not @($confLines | Where-Object { $_ -cmatch '^SCREENTHEME=' }).Count) {
+                $at = -1
+                for ($i = 0; $i -lt $confLines.Count; $i++) { if ($confLines[$i] -cmatch '^\[sd\]') { $at = $i; break } }
+                if ($at -lt 0) { Note '  configuration: the kept sd.conf has no [sd] section, SCREENTHEME was not added' }
+                else {
+                    $themed = @($confLines[0..$at]) + 'SCREENTHEME=paper'
+                    if ($at + 1 -lt $confLines.Count) { $themed += @($confLines[($at + 1)..($confLines.Count - 1)]) }
+                    [System.IO.File]::WriteAllLines($conf, [string[]]$themed)
+                    Note '  configuration: SCREENTHEME=paper added to the copy being tried (the kept file had no SCREENTHEME line)'
+                }
+            }
             # SOLO 33: THE KEPT sd.conf MAY CARRY AN ACTIVE APIPORT, and this unelevated step starts SD before the
             # firewall rule exists - the alert the installer was changed to avoid.  So the API line is switched OFF in
             # the copy being tried; the elevated step switches it ON afterwards only if the API box was ticked.
@@ -503,6 +546,23 @@ try {
     if ($denyVerbs) {
         $t = Invoke-Sd ('-internal DENY.VERBS SET ' + ($denyVerbs -replace ' ', '')) ''
         Judge 'denied verbs set' $t '(?m)^DENY\.VERBS \d+: '
+    }
+
+    # 17 Nov 26 - P-7371, Linux Solo's solo-ssh.sh key-add: the control file's public key, one line in Solo's own key file.  A line
+    # already there is not added twice.  Judged on the line being in the file afterwards, read back.
+    if ($sshKeyLine) {
+        $akDir = Join-Path $AppDir 'ssh'
+        $ak = Join-Path $akDir 'authorized_keys'
+        if (-not (Test-Path -LiteralPath $akDir)) { New-Item -ItemType Directory -Path $akDir | Out-Null }
+        $akLines = @()
+        if (Test-Path -LiteralPath $ak) { $akLines = @([IO.File]::ReadAllLines($ak)) }
+        Note ('  ssh key: ' + $ak + ' held ' + $akLines.Count + ' line(s) before')
+        if ($akLines -ccontains $sshKeyLine) { Note '  ssh key: already present, nothing added' }
+        else { [IO.File]::WriteAllLines($ak, [string[]]($akLines + $sshKeyLine), (New-Object Text.UTF8Encoding($false))) }
+        $akAfter = @([IO.File]::ReadAllLines($ak))
+        Note ('  ssh key: ' + $akAfter.Count + ' line(s) after; key type ' + ($sshKeyLine -split '\s+')[0])
+        if ($akAfter -ccontains $sshKeyLine) { Note '  PASS  the ssh public key is in Solo''s key file' }
+        else { Note '  FAIL  the ssh public key is in Solo''s key file'; $script:fails += 'ssh public key added' }
     }
 
     # 12 Nov 26 - SOLO 56 group 6, THE START QUESTION.  terminal is written with the verb (the audit line is SET.START.DEFAULT's own)

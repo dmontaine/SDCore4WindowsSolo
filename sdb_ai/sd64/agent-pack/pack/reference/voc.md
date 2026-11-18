@@ -12,7 +12,7 @@ The one account's VOC (`sduser`) is `newvoc` in full: `gpl.bp/solo_account` copi
 ### voc:layer:voc_template
 > kind=voc.layer tier=reference since=- src=sdsys/voc_template/$acc:1#e69f20e9
 
-449 records in `sdsys/voc_template`, by the type letter of field 1: F 15, K 218, PA 4, Q 1, S 1, V 209, X 1.
+445 records in `sdsys/voc_template`, by the type letter of field 1: F 15, K 218, PA 4, Q 1, S 1, V 205, X 1.
 
 SDSYS's own VOC is `voc_template` in full: a superset of `newvoc`. The records only SDSYS has (11): `$hold`, `accounts`, `bp`, `bp.out`, `first.compile`, `gpl.bp`, `gpl.bp.out`, `messages`, `qfile`, `second.compile`, `third.compile`.
 

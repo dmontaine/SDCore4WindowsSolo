@@ -1,10 +1,8 @@
 # SD Core Solo for Windows — the API, as built
 
 How a client reaches a Solo computer, what runs on it, and what each step is
-checked by. It is the Windows counterpart of Linux Solo's note of the same name,
-written from the tree as it stands on 18 Nov 2026 (it replaces the design plan of
-25 Sep 2026, which was built and has moved on; the plan's story is in the history
-of this file). Where a line here and the tree disagree, the tree is right.
+checked by. It is the Windows counterpart of Linux Solo's note of the same name.
+Where a line here and the tree disagree, the tree is right.
 
 The client libraries are unchanged from the multiuser product's: **the wire
 protocol is too.** A network login is SCRAM-SHA-256 inside TLS 1.3, requests 47
@@ -39,24 +37,28 @@ the same door.
    either password.
 3. **Request 48**: the client proof. The server checks it against the account
    record first and `$global` second (`apisrvr` `scram.check.proof`).
-   - account proof → `via=account`, an ordinary session;
+   - account proof → `via=account`, an ordinary session, audited `api login user=sduser via=account`;
    - global proof (managed only) → the administrator flag **and** `K$GLOBAL.SESSION`
      are set (`USR_GLOBAL`), audited `api login user=sduser via=global`;
-   - neither → refused, and the reason is on the audit trail.
+   - neither → refused, audited `api refused user=… reason=…`.
 4. The server's signature is sent back and the client verifies it.
 
 **Who may log in:** the user name is always `sduser`. `vb.account` lets the session
 enter only its own account; a name with no register record is refused before
 anything is entered (10003, audited `account refused branch=1 no.path.in.register`),
 and asking for SDSYS or another account gives the same 10003, *User not allowed in
-requested account*. **The administrator password is not an API login**; a session
-unlocks the administrator commands with ADMIN, as at the keyboard.
+requested account* (audited `account refused branch=4 not.own.account`). **The
+administrator password is not an API login**; a session unlocks the administrator
+commands with ADMIN, as at the keyboard. **Until a control-file install's first
+console login, only `$global` verifies**: the account record does not exist yet.
 
 ## Request 72: the managed server's ssh key
 
-In managed mode the server logs in as `sduser` with the global password and installs
-its public key through request 72 (`apisrvr` `vb.sshkey`), as Linux Solo does, in the
-same words.
+In managed mode the server logs in as `sduser` with the global password, over the API
+and over ssh, and knows only the client's address. ssh needs a real Windows user, so
+after a global login the server installs its public key through request 72 (`apisrvr`
+`vb.sshkey`) and learns the user name from the reply. Linux Solo answers the same
+request in the same words. Request 49 asks the server for its revision, as in SD Core.
 
 - **Who may send it:** only a session signed in with the global password
   (`K$GLOBAL.SESSION`). Any other session gets message 12894, "Only the SD Core server
@@ -67,14 +69,23 @@ same words.
   fingerprint, `ADDED` or `PRESENT`, the fingerprint of Solo's own sshd's host key,
   and the port to connect to (4251). `REMOVE` gives `REMOVED` or `ABSENT` and how
   many Solo lines are left. `LIST` gives one fingerprint per field.
-- **The refusals:** message 12884, "The ssh key request was refused: %1", with the
-  reason.
+- **The refusals,** message 12884, "The ssh key request was refused: %1", with the
+  reason "no public key given", "no fingerprint given", "unknown request", "the
+  argument holds a character that is not allowed", or the helper's own: "not a
+  public key line", "unsupported key type", "the key is not base64", "not a SHA256
+  fingerprint", "already 4 SD Core Solo keys installed" or "ssh is not set up for SD
+  Core Solo (...)".
 - **What it writes:** one line in **Solo's own key file**, `<Solo folder>\ssh\
   authorized_keys` (not the user's `~\.ssh\authorized_keys`), marked
   `sdcoresolo-managed`. The work is `gplbld/solo-sshkey.ps1`, unelevated, which
   checks the argument again.
-- **Audit:** every verb writes `api sshkey <verb> ...` with the key's fingerprint and
-  never its text.
+- **Audit:** every verb writes `api sshkey <verb> ... peer=<address>` with the key's
+  fingerprint and never its text.
+
+## Pinning the server's certificate
+
+Covered in the table of "What runs" above: the client library records each server's
+certificate on first use and refuses a changed one before any login byte is sent.
 
 ## What checks it
 

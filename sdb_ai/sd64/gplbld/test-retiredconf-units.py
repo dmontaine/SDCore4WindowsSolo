@@ -4,7 +4,9 @@
 # 8 Nov 26 Windows port - RELEASE_1.1 197, from Linux 843344ba (S.87 batch 15) and its
 # test-install-retiredconf.sh.  config.c refuses an unrecognised sd.conf parameter and SD then
 # does not start, so the installer removes a retired parameter's line from a kept sd.conf at
-# ssInstall.  This holds the three things that make that work:
+# ssInstall.  17 Nov 26 SD Core Solo (audit round 4, P-4944): the ssInstall branch is a
+# begin/end block now (UpgradeScreenTheme follows RemoveRetiredConf); R3 and its mutant read it.
+# This holds the three things that make that work:
 #
 #   R1  every name in RetiredConfNames is one config.c no longer parses (a live name in the
 #       list would be deleted from every upgraded sd.conf);
@@ -60,7 +62,7 @@ def checks(iss, cfg, setup=None):
     rows.append(("R5 solo-setup.ps1's list for a reloaded sd.conf is the installer's list", m2 is not None and m2.group(1).split() == names, "setup: %r" % (m2.group(1) if m2 else None)))
     proc = re.search(r"procedure CurStepChanged\(CurStep: TSetupStep\);.*?\bbegin\b(.*?)if CurStep <> ssPostInstall then", iss, re.S)
     rows.append(("R3 RemoveRetiredConf runs when CurStep = ssInstall, ahead of ssPostInstall",
-                 proc is not None and re.search(r"if CurStep = ssInstall then\s*RemoveRetiredConf;", proc.group(1)) is not None, ""))
+                 proc is not None and re.search(r"if CurStep = ssInstall then\s*(begin\s*)?RemoveRetiredConf;", proc.group(1)) is not None, ""))
     fn = re.search(r"function IsRetiredConfLine\(L: String\): Boolean;(.*?)\nend;", iss, re.S)
     body = fn.group(1) if fn else ""
     rows.append(("R4 IsRetiredConfLine takes the key up to '=' and refuses one with a space",
@@ -84,7 +86,7 @@ def selftest(iss, cfg):
     mutants = [
         ("a live parameter (NUMUSERS) added to the list", iss.replace("PORTMAP FILERULE'", "PORTMAP FILERULE NUMUSERS'"), cfg, "R1"),
         ("GDI left out of the list", iss.replace(" GDI ", " "), cfg, "R2"),
-        ("the ssInstall call removed", iss.replace("if CurStep = ssInstall then\n    RemoveRetiredConf;", ""), cfg, "R3"),
+        ("the ssInstall call removed", iss.replace("if CurStep = ssInstall then\n  begin\n    RemoveRetiredConf;", "if CurStep = ssInstall then\n  begin\n"), cfg, "R3"),
         ("the space refusal removed", iss.replace("if Pos(' ', K) > 0 then", "if False then"), cfg, "R4"),
         ("a name added to the installer's list only", iss.replace("PORTMAP FILERULE'", "PORTMAP FILERULE ZZ'"), cfg, "R5"),
     ]

@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 17 Nov 26 SD Core Solo - four-version audit round 4 (P-1775): op_delete()'s last else is braced, as SD Core does.
  * 18 Nov 26 SD Core Solo - four-version audit round 2 (P-4296): op_write() does not set id_len a second time (its declaration sets it), as Linux Solo.
  * 17 Nov 26 SD Core Solo - four-version audit round 1, from Linux Solo 04d8c8d (S.62 P-1773, P-1774): op_writev() counts PROF_WRITE before
  *               the remote and VOC / global refusals, as SD Core does and as op_write() and op_delete() do.
@@ -812,8 +813,9 @@ exit_op_delete:
     if (!keep_lock && (txn_id == 0) && (id_len != 0)) {
       unlock_record(fvar, id, id_len);
     }
-  } else if (!(op_flags & P_ON_ERROR))
+  } else if (!(op_flags & P_ON_ERROR)) {
     k_error(sysmsg(1405), process.status);
+  }
 }
 
 /* ======================================================================

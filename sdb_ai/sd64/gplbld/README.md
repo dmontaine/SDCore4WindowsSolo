@@ -14,7 +14,7 @@ Binary Free Install process.
       File name structure: "dynamic_file_name" ^ "dictionary_record_id"
       Note: The system files processed are hardcoded in CREATE_INSTALL_DICT_FILE
       
-    WRITE_INSTALL_DICTS (found in GPL.BP):
+    WRITE_INSTALL_DICTS (found in gpl.bp):
       Program writes the dictionary items found in "FILES_DICTS" to associated system files.
       Executed as part of the install script.
     

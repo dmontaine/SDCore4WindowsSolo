@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 17 Nov 26 SD Core Solo - four-version audit round 4 (P-7892): is.phantom is read beside ok = @false at the top, as Linux Solo.
+*           gate.ok keeps its own assignment (BCOMP reads internal.gate's call site first, RELEASE_1.1 82).
 * 18 Nov 26 SD Core Solo - four-version audit round 3, Linux Solo's LOGIN form: six refusals name their reason on the trail (the
 *           register, a network or serial connection, the VOC, not an SD account, $release, the revision cross-check), which
 *           read reason=unspecified; the refused record names initial.account, set empty at the top, and audit.account is gone;
@@ -362,6 +364,7 @@ $include keycode.h
 deffun pw_complex(pw) calling '!pw_complex'
 
    ok = @false
+   is.phantom = kernel(K$IS.PHANTOM, 0)
 
 * 16 Aug 26 Windows port - PROJECT_STATUS.md 7 step 4.  Every refusal below
 *   leaves through terminate.connection, so the audit record is written there
@@ -379,8 +382,6 @@ deffun pw_complex(pw) calling '!pw_complex'
 *   @true is the value that means "nothing to check", which is what every session that is
 *   not internal leaves it at.
    gate.ok = @true
-
-   is.phantom = kernel(K$IS.PHANTOM, 0)
 
    * If the terminal type has not yet been set, work out what it is
 

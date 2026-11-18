@@ -27,7 +27,7 @@ import sys
 # THIS PRODUCT.  The full product's copy names its own message number and VOC layers.
 PRODUCT = "SD Core Solo for Windows"
 OS_MESSAGE = 12042                      # the per-OS helper's own message
-VOC_LAYERS = ("newvoc", "voc_template")  # full product: ("voc_template",) - its verbs are SDSYS's
+VOC_LAYERS = ("newvoc",)  # full product: ("voc_template",) - its verbs are SDSYS's.  17 Nov 26 (audit round 4): newvoc only, as Linux Solo
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TREE = os.path.normpath(os.path.join(HERE, ".."))

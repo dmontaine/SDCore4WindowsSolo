@@ -15,6 +15,8 @@ Linux Solo's row does for 11180; it passed before on "process.username" in a his
 
 12 Nov 26 SD Core Solo - SOLO 59: the B3 and B6 mutants are anchored on the current text (the K$NET line now follows the two loads in apisrvr;
 QPROC's gate is indented 3 spaces), so --selftest proves those two rows again.
+17 Nov 26 SD Core Solo - four-version audit round 4 (P-7877): I2 reads the page skip with /OSACCESS in it; I2a, with its mutant, holds
+/OSACCESS applied on an upgrade.
 
   K   key numbers and user-table bits: the same numbers in the C and BASIC headers, no clash with another flag
   G   the gate: os_gate_open (administrator or USR_OS_EXEC), os_user_permitted answers it, the path test and its trust of an $internal program
@@ -210,8 +212,13 @@ def checks(t):
     # (solo-setup.ps1's "leave both as they are"), so it keeps the switches the installation has.
     ck("I2 the question is a page of two boxes, both unticked, shown on a new install only (skipped on an upgrade and for a control file's answer), and an upgrade's answer is none",
        has(i, "OsAccessPage := CreateInputOptionPage(", "OsAccessPage.Values[0] := False;", "OsAccessPage.Values[1] := False;")
-       and "Result := (not DataTreeWasAbsent) or (UseControl and (CfOsAccess <> ''))" in between(i, "PageID = OsAccessPage.ID", "else if PageID = wpSelectTasks")
+       and "Result := (not DataTreeWasAbsent) or (CmdOsAccess <> '') or (UseControl and (CfOsAccess <> ''))" in between(i, "PageID = OsAccessPage.ID", "else if PageID = wpSelectTasks")
        and "  if not DataTreeWasAbsent then\n  begin\n    Result := 'none';\n    Exit;\n  end;" in between(i, "function OsAccessWord: String;", "function ViewerWord"))
+    # 17 Nov 26 SD Core Solo - four-version audit round 4 (P-7877), Linux Solo's --os-access: /OSACCESS on the command line is the one
+    # explicit answer an upgrade applies; it is read from {param:OSACCESS|}, only the four words count, and OsAccessWord takes it first.
+    ck("I2a /OSACCESS is read on every install, only none, sh, os or both counts, and OsAccessWord applies it before the upgrade's none",
+       has(i, "ExpandConstant('{param:OSACCESS|}')", "(CmdOsAccess <> 'none') and (CmdOsAccess <> 'sh')")
+       and "  if CmdOsAccess <> '' then\n  begin\n    Result := CmdOsAccess;\n    Exit;\n  end;\n  if not DataTreeWasAbsent then" in between(i, "function OsAccessWord: String;", "function ViewerWord"))
     ck("I3 the answer reaches solo-setup.ps1 for a new tree and an upgrade alike (set before the new-tree branch, cleared after the run)",
        # 16 Nov 26 - SOLO 72: the new-tree branch now opens with the reload (a reload that keeps the passwords passes no -Passwords).
        0 <= i.find("SetEnvironmentVariable('SD_SOLO_OS_ACCESS', OsAccessWord);") < i.find("if DataTreeWasAbsent then\n  begin\n    { SOLO 37: reload the kept data")
@@ -276,8 +283,9 @@ MUTANTS = [
     ("message 12185 loses the remedy", "m12185", "set.os.access os on", "ask somebody", "V7"),
     ("the control file key is ignored", "iss", "GetIniString('install', 'os-access'", "GetIniString('install', 'os-acces'", "I1"),
     ("the question starts ticked", "iss", "OsAccessPage.Values[0] := False;", "OsAccessPage.Values[0] := True;", "I2"),
-    ("the question is asked on an upgrade", "iss", "    Result := (not DataTreeWasAbsent) or (UseControl and (CfOsAccess <> ''))\n  else if PageID = wpSelectTasks",
-     "    Result := UseControl and (CfOsAccess <> '')\n  else if PageID = wpSelectTasks", "I2"),
+    ("the question is asked on an upgrade", "iss", "    Result := (not DataTreeWasAbsent) or (CmdOsAccess <> '') or (UseControl and (CfOsAccess <> ''))\n  else if PageID = wpSelectTasks",
+     "    Result := (CmdOsAccess <> '') or (UseControl and (CfOsAccess <> ''))\n  else if PageID = wpSelectTasks", "I2"),
+    ("/OSACCESS is not applied", "iss", "  if CmdOsAccess <> '' then\n  begin\n    Result := CmdOsAccess;\n    Exit;\n  end;\n", "", "I2a"),
     ("an upgrade takes the page's boxes", "iss", "  if not DataTreeWasAbsent then\n  begin\n    Result := 'none';\n    Exit;\n  end;\n  if UseControl and (CfOsAccess",
      "  if UseControl and (CfOsAccess", "I2"),
     # 12 Nov 26 (SOLO 59): SOLO 56 group 6 put SD_SOLO_START between the answer and the new-tree branch, so the mutant takes the answer's line out.
