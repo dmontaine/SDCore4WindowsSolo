@@ -6,9 +6,11 @@ directory (`%USERPROFILE%\SDCoreSolo`).
 
 SD is a multivalue database in the Pr1me Information tradition, descended from
 OpenQM and ScarletDME through [sdb64](https://codeberg.org/stringdatabase/sdb64).
-SD Core Solo has every feature of the full SD Core for Windows except those that
-exist to serve more than one person: there is one account, named after the
-Windows user, and no commands to create accounts or grant access to them.
+SD Core for Linux is the version the other SD Core versions follow; SD Core Solo
+has its features except those that exist to serve more than one person: there is
+one account, `sduser`, and no commands to create accounts or grant access to them.
+
+SD Core is English only: it has no support for other languages or locales.
 
 **Version WS1.1-2.** WS1.1-1 was the first release. See `sdb_ai/sd64/sdsys/changelog` for
 what has changed. Documentation:
@@ -71,9 +73,12 @@ does all three and then installs the result.
 
 ## Related repositories
 
+- [SDCore4Linux](https://github.com/dmontaine/SDCore4Linux) — the multi-user
+  SD Core for Linux, whose features this edition follows.
 - [SDCore4Windows](https://github.com/dmontaine/SDCore4Windows) — the
   multi-user SD Core for Windows this edition is derived from.
-- [SDCore4Linux](https://github.com/dmontaine/SDCore4Linux) — SD Core for Linux.
+- [SDCore4LinuxSolo](https://github.com/dmontaine/SDCore4LinuxSolo) — the Linux
+  edition of Solo.
 
 ## Licence
 

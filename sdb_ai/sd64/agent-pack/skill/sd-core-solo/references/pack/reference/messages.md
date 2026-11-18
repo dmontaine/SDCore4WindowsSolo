@@ -244,25 +244,11 @@ Warning unable to delete OS User: %1 error: %2
 No memory for PROGRAM control area
 ```
 
-### msg:10030
-> kind=message tier=reference since=- src=sdsys/messages/10030:1#fc903a34
-
-```
-Entering SDSYS requires your own password
-```
-
-### msg:10031
-> kind=message tier=reference since=- src=sdsys/messages/10031:1#2409c9a9
-
-```
-Incorrect password
-```
-
 ### msg:10036
-> kind=message tier=reference since=- src=sdsys/messages/10036:1#22e587e5
+> kind=message tier=reference since=- src=sdsys/messages/10036:1#6aa7dfaa
 
 ```
-Windows account %1 was not created by SD, leaving it in place
+Windows account %1 was not created by SD (it has no "SD account" stamp), leaving it in place
 ```
 
 ### msg:10037
@@ -293,81 +279,11 @@ Cannot create user %1 with no.query: setting its password needs a prompt
 Insufficient memory for program variables
 ```
 
-### msg:10041
-> kind=message tier=reference since=- src=sdsys/messages/10041:1#578bd286
-
-```
-%1 may now use account %2
-```
-
-### msg:10042
-> kind=message tier=reference since=- src=sdsys/messages/10042:1#d034e266
-
-```
-%1 no longer has account %2
-```
-
-### msg:10043
-> kind=message tier=reference since=- src=sdsys/messages/10043:1#8e18b61c
-
-```
-%1 must sign out of Windows and back in before this takes effect
-```
-
-### msg:10044
-> kind=message tier=reference since=- src=sdsys/messages/10044:1#25a8e559
-
-```
-Account %1 has no Windows group recorded, so it cannot be granted
-```
-
-### msg:10045
-> kind=message tier=reference since=- src=sdsys/messages/10045:1#06e437ed
-
-```
-There is no Windows account named %1
-```
-
-### msg:10046
-> kind=message tier=reference since=- src=sdsys/messages/10046:1#105abc2e
-
-```
-Nobody has been granted account %1
-```
-
-### msg:10047
-> kind=message tier=reference since=- src=sdsys/messages/10047:1#6481f14a
-
-```
-Windows accounts granted %1:
-```
-
-### msg:10048
-> kind=message tier=reference since=- src=sdsys/messages/10048:1#feeeac1c
-
-```
-Cannot read the members of group %1, status: %2
-```
-
-### msg:10049
-> kind=message tier=reference since=- src=sdsys/messages/10049:1#e01af2f1
-
-```
-%1 has not been granted account %2
-```
-
 ### msg:1005
 > kind=message tier=reference since=- src=sdsys/messages/1005:1#6d1c1591
 
 ```
 Argument count mismatch calling %s (Call=%d, subr=%d)
-```
-
-### msg:10050
-> kind=message tier=reference since=- src=sdsys/messages/10050:1#10691a44
-
-```
-Cannot change the members of group %1, status: %2
 ```
 
 ### msg:10051
@@ -548,13 +464,6 @@ Account %1 has SH %2, OS.EXECUTE %3
 
 cited by: `setosacc`
 
-### msg:10103
-> kind=message tier=reference since=- src=sdsys/messages/10103:1#e05acace
-
-```
-%1 already has an os.users record, so it was left exactly as it was
-```
-
 ### msg:10105
 > kind=message tier=reference since=- src=sdsys/messages/10105:1#3ad02f63
 
@@ -608,13 +517,6 @@ Unable to change the state of %1; its state in the register is unchanged
 
 cited by: `setjobsacc`, `setnetacc`, `setosacc`, `setxferacc`
 
-### msg:10115
-> kind=message tier=reference since=- src=sdsys/messages/10115:1#d7b96b21
-
-```
-os.users: the record for %1 is removed
-```
-
 ### msg:10117
 > kind=message tier=reference since=- src=sdsys/messages/10117:1#ca57bb67
 
@@ -660,10 +562,10 @@ The Windows account %1 was created, and removing it again FAILED - so it is stil
 ```
 
 ### msg:10131
-> kind=message tier=reference since=- src=sdsys/messages/10131:1#ac6687f7
+> kind=message tier=reference since=- src=sdsys/messages/10131:1#9e99e35f
 
 ```
-remote.api on | local | off\n\nON     SD listens on port 4249 on every address and the firewall allows it:\n       other computers may connect.\nLOCAL  SD listens on port 4249 at 127.0.0.1 only: only this computer may connect.\nOFF    SD opens no API socket at all.\n\nWith no keyword it reports the current setting and changes nothing.\n\nSD opens its socket when it starts, so a move between ON, LOCAL and OFF\ntakes effect when SD is next started; the firewall part at once.
+remote.api on | local | off\n\nON     SD listens on port 4249 on every address and the firewall allows it:\n       other computers may connect.\nLOCAL  SD listens on 127.0.0.1:4249 only: only this computer may connect.\nOFF    SD opens no API socket at all.\n\nWith no keyword it reports the current setting and changes nothing.\n\nSD opens its socket when it starts, so a move between ON, LOCAL and OFF\ntakes effect when SD is next started; the firewall part at once.
 ```
 
 ### msg:10132
@@ -781,21 +683,6 @@ cited by: `apndpath`
 
 ```
 Deleting %1 removes everything the account holds. Its files and the data in\nthem go with it, and this cannot be undone.\n\nIf you only want to stop %1 using SD, suspend it instead:\n\n    modify.account %1 suspended\n\nA suspended account keeps its files, and modify.account %1 unsuspended\nlets it back in.\n
-```
-
-### msg:10159
-> kind=message tier=reference since=- src=sdsys/messages/10159:1#077e4554
-
-```
-%1 has lost all access to SD: local login, ssh, the API and logto are refused
-until the account is unsuspended.
-
-Nothing on Windows has changed. %1 keeps its Windows account, its password and
-every group it belongs to, including any administrator rights it had.
-
-    modify.account %1 unsuspended
-
-%1's VOC is left exactly as it was, so it comes back with it.
 ```
 
 ### msg:1016
@@ -1040,6 +927,20 @@ Account %1 could not be opened to check for references to the account being dele
 
 ```
 Error %d restoring stdin
+```
+
+### msg:10192
+> kind=message tier=reference since=- src=sdsys/messages/10192:1#91074107
+
+```
+Account %1 is no longer suspended
+```
+
+### msg:10193
+> kind=message tier=reference since=- src=sdsys/messages/10193:1#5f6faa69
+
+```
+Account %1 is now suspended
 ```
 
 ### msg:1020
@@ -2591,6 +2492,27 @@ That action is not available now.
 
 cited by: `sl_palette`
 
+### msg:12181
+> kind=message tier=reference since=- src=sdsys/messages/12181:1#df081086
+
+```
+%1 is not a file in account %2
+```
+
+### msg:12182
+> kind=message tier=reference since=- src=sdsys/messages/12182:1#e25b2aaa
+
+```
+%1 is not an option run.in gives to %2 (allowed: %3), or it was given twice
+```
+
+### msg:12183
+> kind=message tier=reference since=- src=sdsys/messages/12183:1#90c49ebb
+
+```
+run.in is already running a command; it does not nest
+```
+
 ### msg:12184
 > kind=message tier=reference since=- src=sdsys/messages/12184:1#4bed3361
 
@@ -2662,6 +2584,20 @@ not available: %1
 ```
 
 cited by: `tk_keys`
+
+### msg:12194
+> kind=message tier=reference since=- src=sdsys/messages/12194:1#a649cde7
+
+```
+not available now
+```
+
+### msg:12196
+> kind=message tier=reference since=- src=sdsys/messages/12196:1#13b20cea
+
+```
+set.job {add | change} name job schedule; set.job {delete | run} name; set.job alone lists the administrator's scheduled jobs
+```
 
 ### msg:12197
 > kind=message tier=reference since=- src=sdsys/messages/12197:1#1bffda7b
@@ -2953,6 +2889,13 @@ Press Return to go back to the IDE
 
 cited by: `ide`
 
+### msg:12229
+> kind=message tier=reference since=- src=sdsys/messages/12229:1#417f671e
+
+```
+%1 is not a job name: 1 to 32 characters, a lower case letter first, then lower case letters, digits and dashes, not ending in a dash
+```
+
 ### msg:1223
 > kind=message tier=reference since=- src=sdsys/messages/1223:1#3330c8f2
 
@@ -3081,6 +3024,20 @@ Messages
 
 cited by: `ide`
 
+### msg:12246
+> kind=message tier=reference since=- src=sdsys/messages/12246:1#91cbd356
+
+```
+run.in works in the other accounts; the administrator's own commands are typed at the SDSYS prompt
+```
+
+### msg:12247
+> kind=message tier=reference since=- src=sdsys/messages/12247:1#21da0903
+
+```
+run.in: the command did not finish; the session is back in account %1
+```
+
 ### msg:12248
 > kind=message tier=reference since=- src=sdsys/messages/12248:1#1c97aafe
 
@@ -3108,6 +3065,13 @@ cited by: `tk_help`
 
 cited by: `basic`
 
+### msg:12251
+> kind=message tier=reference since=- src=sdsys/messages/12251:1#76895a2d
+
+```
+%1 is not a job: a job is backup-all or update-accounts
+```
+
 ### msg:12252
 > kind=message tier=reference since=- src=sdsys/messages/12252:1#797fd618
 
@@ -3134,6 +3098,13 @@ Cancel
 ```
 
 cited by: `tk_form`, `tool_ai`
+
+### msg:12255
+> kind=message tier=reference since=- src=sdsys/messages/12255:1#e00382e3
+
+```
+The schedule is none of: every 5|10|15|20|30 minutes, hourly, daily hh:mm, weekly mon..sun hh:mm, monthly 1..28 hh:mm
+```
 
 ### msg:12261
 > kind=message tier=reference since=- src=sdsys/messages/12261:1#52d1175d
@@ -3510,6 +3481,13 @@ File of type %1
 
 cited by: `findfile`
 
+### msg:12307
+> kind=message tier=reference since=- src=sdsys/messages/12307:1#8a158964
+
+```
+A job named %1 already exists; nothing was changed (set.job change %1 changes it)
+```
+
 ### msg:12308
 > kind=message tier=reference since=- src=sdsys/messages/12308:1#da6cee8a
 
@@ -3623,6 +3601,13 @@ Disabled index %1
 
 cited by: `disablei`
 
+### msg:12324
+> kind=message tier=reference since=- src=sdsys/messages/12324:1#e6adc3c2
+
+```
+No job is named %1; nothing was changed
+```
+
 ### msg:12326
 > kind=message tier=reference since=- src=sdsys/messages/12326:1#a63f8b1b
 
@@ -3642,6 +3627,13 @@ A form queue number is a whole number from 0 to 999 (%1)
 
 ```
 Variable is not common
+```
+
+### msg:12337
+> kind=message tier=reference since=- src=sdsys/messages/12337:1#1e52cf91
+
+```
+The job helper did not do it (status %1)
 ```
 
 ### msg:12339
@@ -4093,6 +4085,13 @@ User number to open, or Q to quit:
 
 cited by: `profiler`
 
+### msg:12390
+> kind=message tier=reference since=- src=sdsys/messages/12390:1#cee23551
+
+```
+Account %1 has SD.ACCOUNTS %2
+```
+
 ### msg:12391
 > kind=message tier=reference since=- src=sdsys/messages/12391:1#04f1613d
 
@@ -4281,6 +4280,20 @@ A program file can only be changed by an account that has bp.edit (SDSYS can giv
 
 cited by: `edit_msg`
 
+### msg:12413
+> kind=message tier=reference since=- src=sdsys/messages/12413:1#f9b95375
+
+```
+Programs can only be compiled or cataloged by an account that has bp.edit (SDSYS can give it: modify.account <account> bp-on)
+```
+
+### msg:12414
+> kind=message tier=reference since=- src=sdsys/messages/12414:1#6018b5c6
+
+```
+Account %1 has VOC.EDIT %2, BP.EDIT %3, DICT.EDIT %4
+```
+
 ### msg:12415
 > kind=message tier=reference since=- src=sdsys/messages/12415:1#76fe85f4
 
@@ -4289,6 +4302,13 @@ The pathname of the file cannot be read, so a change to it is refused
 ```
 
 cited by: `edit_guard`
+
+### msg:12416
+> kind=message tier=reference since=- src=sdsys/messages/12416:1#c16772f8
+
+```
+Account %1 has NET %2
+```
 
 ### msg:12417
 > kind=message tier=reference since=- src=sdsys/messages/12417:1#30ebca09
@@ -4603,6 +4623,27 @@ cited by: `setserver`
 
 cited by: `setserver`
 
+### msg:12452
+> kind=message tier=reference since=- src=sdsys/messages/12452:1#eb329ff5
+
+```
+run.in account command name ...; the commands are basic, catalog, decatalog, delete.catalog, debug and compile.dict
+```
+
+### msg:12453
+> kind=message tier=reference since=- src=sdsys/messages/12453:1#312a4fb5
+
+```
+%1 is not a command run.in runs (it runs basic, catalog, decatalog, delete.catalog, debug and compile.dict)
+```
+
+### msg:12454
+> kind=message tier=reference since=- src=sdsys/messages/12454:1#8bf50d4e
+
+```
+%1 cannot be given to a command by run.in (a name is a-z, 0-9, dot, dash and underscore, starts with a letter or digit, and is not an SD keyword)
+```
+
 ### msg:12455
 > kind=message tier=reference since=- src=sdsys/messages/12455:1#17fdc305
 
@@ -4832,6 +4873,55 @@ cited by: `deletenetlogin`
 The server at %1:%2 gave no public key hash.  Nothing was sent or stored
 ```
 
+### msg:12488
+> kind=message tier=reference since=- src=sdsys/messages/12488:1#d45c77a5
+
+```
+set.batch {add | remove} account command; set.batch alone says which commands each account may run from the command line
+```
+
+### msg:12489
+> kind=message tier=reference since=- src=sdsys/messages/12489:1#f758d39b
+
+```
+%1 is not a registered account
+```
+
+### msg:12490
+> kind=message tier=reference since=- src=sdsys/messages/12490:1#b78183e8
+
+```
+sdsys is the administrator's account: its sessions may run any command, and it has no list
+```
+
+### msg:12491
+> kind=message tier=reference since=- src=sdsys/messages/12491:1#66748c15
+
+```
+%1 is not a paragraph or a sentence in account %2
+```
+
+### msg:12492
+> kind=message tier=reference since=- src=sdsys/messages/12492:1#80dcdfae
+
+```
+%1 may now be run from the command line in account %2
+```
+
+### msg:12493
+> kind=message tier=reference since=- src=sdsys/messages/12493:1#52e4f90c
+
+```
+%1 may no longer be run from the command line in account %2
+```
+
+### msg:12494
+> kind=message tier=reference since=- src=sdsys/messages/12494:1#14e584b1
+
+```
+%1 was already allowed in account %2; nothing changed
+```
+
 ### msg:12495
 > kind=message tier=reference since=- src=sdsys/messages/12495:1#b23c2b93
 
@@ -5017,6 +5107,69 @@ The structure of a file in the shared account (making, clearing, configuring, in
 ```
 
 cited by: `edit_msg`
+
+### msg:12520
+> kind=message tier=reference since=- src=sdsys/messages/12520:1#37702136
+
+```
+Account %1 has shared.read %2, shared.write %3
+```
+
+### msg:12521
+> kind=message tier=reference since=- src=sdsys/messages/12521:1#b6859679
+
+```
+The account name shared is reserved for the shared account, which the installer makes: it cannot be created, restored or attached by hand
+```
+
+### msg:12522
+> kind=message tier=reference since=- src=sdsys/messages/12522:1#c8f5dfb2
+
+```
+The shared account cannot be deleted
+```
+
+### msg:12523
+> kind=message tier=reference since=- src=sdsys/messages/12523:1#247386e7
+
+```
+There is no shared account in service
+```
+
+### msg:12524
+> kind=message tier=reference since=- src=sdsys/messages/12524:1#4a89f7be
+
+```
+Files of the shared account that can be opened by name: %1
+```
+
+### msg:12525
+> kind=message tier=reference since=- src=sdsys/messages/12525:1#1d4998b6
+
+```
+Account %1 has shared.read off, so it cannot open the files of the shared account by name (SDSYS can give it back: modify.account %1 shared-read-on)
+```
+
+### msg:12529
+> kind=message tier=reference since=- src=sdsys/messages/12529:1#5137c29b
+
+```
+This login cannot administer files here: ask the administrator for files-admin-on (request %1)
+```
+
+### msg:12530
+> kind=message tier=reference since=- src=sdsys/messages/12530:1#7fb0e36f
+
+```
+Account %1 has files-admin %2
+```
+
+### msg:12531
+> kind=message tier=reference since=- src=sdsys/messages/12531:1#adcef6c2
+
+```
+Account %1 does not have files-write, so it cannot be given files-admin: use files-write-on first
+```
 
 ### msg:12532
 > kind=message tier=reference since=- src=sdsys/messages/12532:1#4a9cc136
@@ -6313,6 +6466,13 @@ cited by: `encryptkey`
 
 cited by: `encryptkey`
 
+### msg:12719
+> kind=message tier=reference since=- src=sdsys/messages/12719:1#423d2cc1
+
+```
+add and delete take a user name and stand alone, and nothing was changed: %1 was not carried out (give it in a command of its own)
+```
+
 ### msg:12720
 > kind=message tier=reference since=- src=sdsys/messages/12720:1#0071d8d8
 
@@ -6781,6 +6941,13 @@ Account %1 keeps a recovery copy of unsaved editor text: %2
 
 cited by: `setrecovery`
 
+### msg:12776
+> kind=message tier=reference since=- src=sdsys/messages/12776:1#a74d7275
+
+```
+%1 is not a user account, and a recovery copy is kept only in a user account, for its own person; nothing was changed
+```
+
 ### msg:12777
 > kind=message tier=reference since=- src=sdsys/messages/12777:1#0ee1c8fd
 
@@ -6933,6 +7100,83 @@ Breakpoints can be set in a program only
 ```
 
 cited by: `ide`
+
+### msg:12794
+> kind=message tier=reference since=- src=sdsys/messages/12794:1#a2f0d1a8
+
+```
+next run: %1; last run: %2
+```
+
+### msg:12795
+> kind=message tier=reference since=- src=sdsys/messages/12795:1#9c87fe87
+
+```
+%1 is not a modify.account action, and nothing was changed: give modify.account with an account and no action to see them
+```
+
+### msg:12796
+> kind=message tier=reference since=- src=sdsys/messages/12796:1#717722fc
+
+```
+%1 and %2 set the same access to different states, and nothing was changed: give one of them
+```
+
+### msg:12797
+> kind=message tier=reference since=- src=sdsys/messages/12797:1#4e6c41eb
+
+```
+No scheduled job is defined
+```
+
+### msg:12798
+> kind=message tier=reference since=- src=sdsys/messages/12798:1#51d7eea7
+
+```
+Account %1: %2 actions carried out: %3
+```
+
+### msg:12799
+> kind=message tier=reference since=- src=sdsys/messages/12799:1#10e20236
+
+```
+Account %1: NOT every action was carried out. Done: %2. Not done: %3
+```
+
+### msg:12800
+> kind=message tier=reference since=- src=sdsys/messages/12800:1#0b1e68e9
+
+```
+SD remote administration: this session is SDRADMIN, signed in over ssh from %1\nwith its password.  Its account commands are run by the remote administration\nhelper; it is never a Windows administrator.  remote.sdsys off shuts this door.
+```
+
+### msg:12801
+> kind=message tier=reference since=- src=sdsys/messages/12801:1#b6ad70de
+
+```
+%1 was not allowed in account %2; nothing changed
+```
+
+### msg:12802
+> kind=message tier=reference since=- src=sdsys/messages/12802:1#c638f2d1
+
+```
+The list of batch commands could not be written
+```
+
+### msg:12803
+> kind=message tier=reference since=- src=sdsys/messages/12803:1#ee445bba
+
+```
+Account %1 may run from the command line: %2
+```
+
+### msg:12804
+> kind=message tier=reference since=- src=sdsys/messages/12804:1#0305acfa
+
+```
+No account may run a command from the command line
+```
 
 ### msg:12805
 > kind=message tier=reference since=- src=sdsys/messages/12805:1#0d11f516
@@ -7240,6 +7484,20 @@ The help text directory %1 is missing or empty
 
 cited by: `loadhelp`
 
+### msg:12841
+> kind=message tier=reference since=- src=sdsys/messages/12841:1#6d56e55c
+
+```
+There is no shared account, so there is nowhere to load the help text
+```
+
+### msg:12842
+> kind=message tier=reference since=- src=sdsys/messages/12842:1#384cda4e
+
+```
+Could not enter the shared account
+```
+
 ### msg:12843
 > kind=message tier=reference since=- src=sdsys/messages/12843:1#084a9dfa
 
@@ -7487,6 +7745,27 @@ Sign out of SD?
 ```
 
 cited by: `tool_home`
+
+### msg:12872
+> kind=message tier=reference since=- src=sdsys/messages/12872:1#773a5260
+
+```
+Could not switch to %1
+```
+
+### msg:12873
+> kind=message tier=reference since=- src=sdsys/messages/12873:1#abf0a474
+
+```
+Account %1 starts at: %2
+```
+
+### msg:12874
+> kind=message tier=reference since=- src=sdsys/messages/12874:1#e7a7a60b
+
+```
+%1 already starts that way; nothing changed
+```
 
 ### msg:12875
 > kind=message tier=reference since=- src=sdsys/messages/12875:1#f9935a86
@@ -7947,6 +8226,13 @@ Passages of SD's own documentation follow, each with its id in brackets. Use the
 
 cited by: `tk_ai`
 
+### msg:12929
+> kind=message tier=reference since=- src=sdsys/messages/12929:1#6999e6ee
+
+```
+remote.sdsys %1 did not succeed (status %2); the lines above say why.\n\nStatus 2: the helper refused or could not run.  Status 3: sshd could not be\nchanged, and its state is as it was before.
+```
+
 ### msg:12931
 > kind=message tier=reference since=- src=sdsys/messages/12931:1#2e09b893
 
@@ -8378,7 +8664,7 @@ cited by: `remotedoor`
 Reading the doors (a few seconds)...
 ```
 
-cited by: `remotedoor`, `tool_remote`
+cited by: `remotedoor`
 
 ### msg:12983
 > kind=message tier=reference since=- src=sdsys/messages/12983:1#dc250828
@@ -8416,11 +8702,18 @@ The doors helper gave no answer within %1 seconds; nothing is known to have chan
 
 cited by: `remotedoor`, `solojob`
 
-### msg:12988
-> kind=message tier=reference since=- src=sdsys/messages/12988:1#b533e116
+### msg:12987
+> kind=message tier=reference since=- src=sdsys/messages/12987:1#2e695081
 
 ```
-%1: this session cannot write that VOC, so it was left as it was. The installer's upgrade updates it.
+This session started as an administrator and keeps its Windows administrator rights in account %1. A program it starts can use them. Sign out and sign in to %1 to work without them.
+```
+
+### msg:12988
+> kind=message tier=reference since=- src=sdsys/messages/12988:1#39d32338
+
+```
+%1: this session cannot write that VOC (its file permissions refuse it), so it was left as it was. The installer's upgrade updates it.
 ```
 
 cited by: `login`
@@ -10328,6 +10621,24 @@ cited by: `tk_form`
 ```
 
 cited by: `tool_ai`, `tool_backups`, `tool_bulk`
+
+### msg:15150
+> kind=message tier=reference since=- src=sdsys/messages/15150:1#3d946bd0
+
+```
+Reading the settings (a few seconds)...
+```
+
+cited by: `tool_config`, `tool_remote`
+
+### msg:15172
+> kind=message tier=reference since=- src=sdsys/messages/15172:1#638f988a
+
+```
+Making the change (a few seconds)...
+```
+
+cited by: `tool_config`, `tool_remote`
 
 ### msg:15891
 > kind=message tier=reference since=- src=sdsys/messages/15891:1#18fd123e
@@ -17669,10 +17980,10 @@ Invalid user name
 ```
 
 ### msg:6075
-> kind=message tier=reference since=- src=sdsys/messages/6075:1#e2b5c6ce
+> kind=message tier=reference since=- src=sdsys/messages/6075:1#62626ec3
 
 ```
-Passwords are set with Windows tools on this platform
+Passwords are set using Windows tools on this platform
 ```
 
 ### msg:6076

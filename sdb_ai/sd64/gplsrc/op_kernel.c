@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - four-version audit round 2 (P-4303, P-5884): the K_SHOW_SAFE case after K_NET and the AI cases before K_XFER,
+ *               as Linux Solo.  Order only.
  * 17 Nov 26 SD Core Solo - four-version audit, Linux Solo 3b1316cc (CARRY-phantom): a phantom child that cannot start writes
  *               "phantom: cannot start a phantom from <path> - <reason>" (or why there is no path) to the error log and ends; it called
  *               k_error(), whose longjmp() left the child running as a second copy of the session.
@@ -740,6 +742,21 @@ void op_kernel() {
       result.data.value = (my_uptr->flags & USR_NET) != 0;
       break;
 
+    /* 10 Nov 26 Windows port - from Linux d35f5e31 (S.88 phase 2): K_SHOW_SAFE, the text with every byte of the one rule as '?'
+       (show_ts_safe(), op_lock.c), chunk by chunk, the same length.  The BASIC readers of $IPC (PSTAT, PROFILER, HSM) ask this.
+       18 Nov 26 (four-version audit round 2, P-4303): here, after K_NET, as Linux Solo. */
+    case K_SHOW_SAFE: {
+      STRING_CHUNK* safe_chunk;
+
+      k_get_string(descr);
+      InitDescr(&result, STRING);
+      result.data.str.saddr = NULL;
+      ts_init(&(result.data.str.saddr), 128);
+      for (safe_chunk = descr->data.str.saddr; safe_chunk != NULL; safe_chunk = safe_chunk->next)
+        show_ts_safe(safe_chunk->data, (int)(safe_chunk->bytes));
+      (void)ts_terminate();
+    } break;
+
     /* May THIS ACCOUNT open this pathname?  An $internal program is exempt from the gate itself (it has to be, to do its work), so
        one that opens a file on the user's behalf asks here first.  The answer is the account's, whoever is asking.  */
     case K_PATH_OK: {
@@ -1018,30 +1035,6 @@ void op_kernel() {
       } else if ((s[0] == 'G') && (s[1] == '\0')) {
         k_put_c_string(phantom_nonce_mine, &result);
       }
-      break;
-
-    /* 10 Nov 26 Windows port - from Linux d35f5e31 (S.88 phase 2): K_SHOW_SAFE, the text with every byte of the one rule as '?'
-       (show_ts_safe(), op_lock.c), chunk by chunk, the same length.  The BASIC readers of $IPC (PSTAT, PROFILER, HSM) ask this. */
-    case K_SHOW_SAFE: {
-      STRING_CHUNK* safe_chunk;
-
-      k_get_string(descr);
-      InitDescr(&result, STRING);
-      result.data.str.saddr = NULL;
-      ts_init(&(result.data.str.saddr), 128);
-      for (safe_chunk = descr->data.str.saddr; safe_chunk != NULL; safe_chunk = safe_chunk->next)
-        show_ts_safe(safe_chunk->data, (int)(safe_chunk->bytes));
-      (void)ts_terminate();
-    } break;
-
-    /* 16 Nov 26 SD Core Solo - RELEASE_1.1 246, from SD Core for Windows (13 Nov 26): the in-SD AI helper (op_ai.c), a transport
-       that only a $internal program may use, as Linux Solo's.  The helper is sd-ai.exe --one beside this program, started for each
-       request on anonymous pipes as this session's own user (win32ai.c); Core's is the service on \\.\pipe\sd-ai. */
-    case K_AI_START:
-    case K_AI_POLL:
-    case K_AI_CANCEL:
-    case K_AI_STATUS:
-      k_ai(action, descr, &result);
       break;
 
     case K_LOCK_TRACE: {
@@ -1422,6 +1415,17 @@ void op_kernel() {
 
     /* 17 Nov 26 SD Core Solo - four-version audit P-3511/P-3514: K_WINPID (59) is RETIRED here: SD Core's elevated helper (elevate) asks
        it, and Solo has no elevate.  Keep the number unused. */
+
+    /* 16 Nov 26 SD Core Solo - RELEASE_1.1 246, from SD Core for Windows (13 Nov 26): the in-SD AI helper (op_ai.c), a transport
+       that only a $internal program may use, as Linux Solo's.  The helper is sd-ai.exe --one beside this program, started for each
+       request on anonymous pipes as this session's own user (win32ai.c); Core's is the service on \\.\pipe\sd-ai.
+       18 Nov 26 (four-version audit round 2, P-4303, P-5884): here, before K_XFER, as Linux Solo. */
+    case K_AI_START:
+    case K_AI_POLL:
+    case K_AI_CANCEL:
+    case K_AI_STATUS:
+      k_ai(action, descr, &result);
+      break;
 
     /* 15 Nov 26 SD Core Solo - from Core f6c20e51 (Linux Solo 9b69caa, S.242 stage 3, RELEASE_1.1 299): the file transfer slot (RECEIVE /
        SEND) and the transfer server's side of it; $internal only (sd_sftp.c). */

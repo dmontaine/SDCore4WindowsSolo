@@ -15,6 +15,8 @@
 * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 *
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 2 (P-4415, P-5920): check.permitted stands before compile.record.query, in the
+*           subroutines' alphabetical order, as Linux Solo.  Order only.
 * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4416): check.permitted tests the administrator and the OS switch in two IFs, as Linux Solo.
 * 20 Oct 26 SD Core Solo - RELEASE_1.1 165 (the OS switch, Linux Solo 7c6bbfc): micro and Microsoft Edit need the OS switch (K$OS.EXEC); the administrator passes.
 * 06 Oct 26 SD Core Solo - the working-copy path, the editor's path and micro's
@@ -396,55 +398,8 @@ end.program:
 * ===========================================================================
 
 * ---------------------------------------------------------------------------
-* compile.record.query  -  a DICT record is always re-compiled; a BP record is
-* offered the compile and the catalogue, exactly as MICRO offered them.
-* ---------------------------------------------------------------------------
-compile.record.query:
-   if compiled.dict then
-      execute 'COMPILE.DICT ' : in.file.name : ' ' : in.record.name
-      return
-   end
-
-   if dict.text = 'DICT' then return
-   if upcase(in.file.name[-2, 2]) # 'BP' then return
-
-   prompt ''
-   response = ''
-   crt
-   loop
-      crt 'Compile ' : in.file.name : ' ' : in.record.name : '?  <Y>es, <N>o : ' :
-      input response, 1 :
-      crt
-      response = upcase(response)
-   until index('YN', response, 1) > 0 repeat
-   if response # 'Y' then return
-
-   execute 'BASIC ' : in.file.name : ' ' : in.record.name
-   crt
-
-   response = ''
-   crt
-   loop
-      crt 'Catalog?  <L>ocal, <P>rivate, <G>lobal, <N>o : ' :
-      input response, 1 :
-      crt
-      response = upcase(response)
-   until index('LPGN', response, 1) > 0 repeat
-
-   begin case
-      case response = 'L'
-         execute 'CATALOG ' : in.file.name : ' ' : in.record.name : ' LOCAL'
-      case response = 'P'
-         execute 'CATALOG ' : in.file.name : ' ' : in.record.name
-      case response = 'G'
-         execute 'CATALOG ' : in.file.name : ' ' : in.record.name : ' GLOBAL'
-      case response = 'N'
-         crt in.file.name : ' ' : in.record.name : ' not cataloged'
-   end case
-return
-
-* ---------------------------------------------------------------------------
-* check.permitted  -  THE SECOND GATE.
+* check.permitted  -  THE SECOND GATE.  (18 Nov 26, P-4415, P-5920: here, in
+* the alphabetical order, as Linux Solo has it.)
 *
 * Owner, 26 Aug 2026: *"these commands will only work if the user has
 * OS.EXECUTE privileges.  If not, they should get a message that the command
@@ -505,6 +460,54 @@ check.permitted:
    error.text := ' permission, which the administrator grants with' : char(10)
    error.text := '   set.os.access os on' : char(10)
    error.text := 'ed, the line editor, needs none of this.'
+return
+
+* ---------------------------------------------------------------------------
+* compile.record.query  -  a DICT record is always re-compiled; a BP record is
+* offered the compile and the catalogue, exactly as MICRO offered them.
+* ---------------------------------------------------------------------------
+compile.record.query:
+   if compiled.dict then
+      execute 'COMPILE.DICT ' : in.file.name : ' ' : in.record.name
+      return
+   end
+
+   if dict.text = 'DICT' then return
+   if upcase(in.file.name[-2, 2]) # 'BP' then return
+
+   prompt ''
+   response = ''
+   crt
+   loop
+      crt 'Compile ' : in.file.name : ' ' : in.record.name : '?  <Y>es, <N>o : ' :
+      input response, 1 :
+      crt
+      response = upcase(response)
+   until index('YN', response, 1) > 0 repeat
+   if response # 'Y' then return
+
+   execute 'BASIC ' : in.file.name : ' ' : in.record.name
+   crt
+
+   response = ''
+   crt
+   loop
+      crt 'Catalog?  <L>ocal, <P>rivate, <G>lobal, <N>o : ' :
+      input response, 1 :
+      crt
+      response = upcase(response)
+   until index('LPGN', response, 1) > 0 repeat
+
+   begin case
+      case response = 'L'
+         execute 'CATALOG ' : in.file.name : ' ' : in.record.name : ' LOCAL'
+      case response = 'P'
+         execute 'CATALOG ' : in.file.name : ' ' : in.record.name
+      case response = 'G'
+         execute 'CATALOG ' : in.file.name : ' ' : in.record.name : ' GLOBAL'
+      case response = 'N'
+         crt in.file.name : ' ' : in.record.name : ' not cataloged'
+   end case
 return
 
 * ---------------------------------------------------------------------------

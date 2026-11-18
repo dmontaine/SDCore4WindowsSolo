@@ -18,6 +18,9 @@
 * 
 * 
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 2, the case fallbacks (the Linux audit session's decision; Solo has no
+*           unconverted VOC): the pointer name is read once and the default QFILE as Linux Solo reads it; the account name is
+*           folded lower, as Linux Solo, so the Q-pointer names it in lower case.
 * 8 Nov 26 Windows port - from Linux d241df26 (S.87): multifiles are gone; the parser key PARSER$MFILE is retired and this program asks for PARSER$GET.TOKEN.
 * 18 Oct 26 Windows port - from Linux fa146d9 (16 Oct 26): QM4 Fixes 32: the target may be a Q-pointer (a chain).
 * 14 Sep 26 Windows port - RELEASE_1.1 5.  The pointer name is found in any
@@ -73,7 +76,7 @@ $include int$keys.h
          if account = '' then stop sysmsg(2059) ;* Command aborted
       end
 
-      account = upcase(account)
+      account = downcase(account)   ;* 18 Nov 26: register ids are lower case, as Linux Solo
       read acc.rec from acc.f, account then exit
 
       display sysmsg(2201, account) ;* Account name '%1' is not in register
@@ -146,10 +149,7 @@ $include int$keys.h
          read voc.rec from @voc, pointer else
             read voc.rec from @voc, downcase(pointer) then
                pointer = downcase(pointer)
-            end else
-               pointer = downcase(pointer)   ;* RELEASE_1.1 5 - a new id is lower case
-               exit
-            end
+            end else exit
          end
          if voc.rec[1,1] = 'Q' then exit
          display sysmsg(6875) ;* QFILE is already in the VOC but not as a Q-pointer
@@ -164,18 +164,9 @@ $include int$keys.h
 *     beside an existing myptr instead of reaching 6876.  As typed, then down,
 *     then up: a hit keeps the id it matched and takes the existing-record path
 *     (owner, 14 Sep 2026: "treat it as the same id"); no hit writes downcase().
-      read voc.rec from @voc, pointer else
-         read voc.rec from @voc, downcase(pointer) then
-            pointer = downcase(pointer)
-         end else
-            read voc.rec from @voc, upcase(pointer) then
-               pointer = upcase(pointer)
-            end else
-               pointer = downcase(pointer)
-               exit
-            end
-         end
-      end
+* 18 Nov 26 SD Core Solo - four-version audit round 2 (the case fallbacks, the Linux audit session's decision): ONE READ,
+*     as Linux Solo.  The VOC is NOCASE and Solo has no unconverted VOC, so the read finds an existing pointer in any case.
+      read voc.rec from @voc, pointer else exit
 
       display sysmsg(6876) ;* Pointer name is already in VOC
 

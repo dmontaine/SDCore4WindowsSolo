@@ -35,6 +35,10 @@
 *              cursor is parked by $tk_aipage('cursor', ...) as on every Windows page (RELEASE_1.1 328; Linux Solo already has it).
 * 17 Nov 26 SD Core Solo - four-version audit, Linux Solo 3b1316cc (P-4666): the setup box no longer raises ctx<TK.C.GEN> a second time
 *              after after.box has raised it (SD Core's shape).
+* 18 Nov 26 SD Core Solo - four-version audit round 2: the body is cleared from body.y (the frame's first body row), as Linux Solo
+*              (P-5930); the S help line is Linux Solo's (P-5929); the CA prompt is SD Core's (P-5928).  Linux's confirmed
+*              P-1921, P-1931, P-1935, P-1936, P-1941: the menu labels are SD Core's, the page opens with no message and the
+*              summary stands on the box's last row, as Linux Solo.
 * END-HISTORY
 *
 * START-DESCRIPTION:
@@ -103,13 +107,14 @@ $include tk.h
    call $tk_keys('add', keys, 'ctrl-q', 'quit', 'quit', '', 1)
    call $tk_keys('add', keys, 'esc', 'menu', 'menu', '', 1)                ;* Esc opens the menu bar, as on every page
    call $tk_keys('menu', keys, 'quit', '&File', '&Quit', '', '')
-   call $tk_keys('menu', keys, 'change', '&Setting', '&Change the setting', '', '')
+   * 18 Nov 26 (Linux's confirmed P-1931, P-1936, P-1941): the menus are SD Core's labels and mnemonics, as Linux Solo
+   call $tk_keys('menu', keys, 'change', '&Provider', '&Select this provider', '', '')
    call $tk_keys('menu', keys, 'setup', '&Provider', '&Key and model (setup)', '', '')
-   call $tk_keys('menu', keys, 'clearkey', '&Provider', 'C&lear the key', '', '')
+   call $tk_keys('menu', keys, 'clearkey', '&Provider', 'Clear ke&y', '', '')
    call $tk_keys('menu', keys, 'custom', '&Provider', 'C&ustom provider', '', '')
-   call $tk_keys('menu', keys, 'dropcustom', '&Provider', '&Drop the custom provider', '', '')
-   call $tk_keys('menu', keys, 'ca', '&Provider', 'C&A file', '', '')
-   call $tk_keys('menu', keys, 'limit', '&Provider', 'L&imit', '', '')
+   call $tk_keys('menu', keys, 'dropcustom', '&Provider', '&Drop custom provider', '', '')
+   call $tk_keys('menu', keys, 'ca', '&Provider', 'CA &file', '', '')
+   call $tk_keys('menu', keys, 'limit', '&Provider', '&Limit', '', '')
    call $tk_keys('menu', keys, 'context', '&Provider', 'S&tanding text', '', '')
    call $tk_keys('menu', keys, 'refresh', '&View', '&Refresh', '', '')
    call $tk_keys('menu', keys, 'help', '&Help', '&Help on this box', '', '')
@@ -128,7 +133,7 @@ $include tk.h
    ci = 1                                                      ;* the account row under the cursor
    ta = 0                                                      ;* the account rows scrolled off the top
    gen = 0
-   msg = 'Enter selects the provider with the check box; S sets up its key and model'
+   msg = ''                                                    ;* 18 Nov 26 (P-1935): the page opens with no message, as SD Core and Linux Solo (the key row names the keys)
    done = 0
 
    gosub read.all
@@ -250,6 +255,7 @@ lay.get:
    lay.id = 'effect'
    gosub lay.rect
    ef.x = lay.x ; ef.y = lay.y ; ef.w = lay.w ; ef.h = lay.h
+   body.y = ctx<TK.C.YBODY>                                     ;* 18 Nov 26 (P-5930): the body's first row, from the frame, as Linux Solo and SD Core take it
    tx = pr.x + 2
    tw = pr.w - 4
    mk.px = pr.x + pr.w - 5                                      ;* the [?] button of each of the two boxes that have one, at the right end of its first row
@@ -274,7 +280,7 @@ lay.rect:
 draw.all:
    cw = ctx<TK.C.W>
    chh = ctx<TK.C.H> - 5
-   screen clear at 0,1 size cw,chh
+   screen clear at 0,body.y size cw,chh
    screen box at pr.x,pr.y size pr.w,pr.h title 'AI provider'
    screen box at dt.x,dt.y size dt.w,dt.h title 'The row under the cursor'
    screen box at ac.x,ac.y size ac.w,ac.h title 'May this account use the AI?'
@@ -323,7 +329,7 @@ draw.providers:
          end case
       end
    end
-   screen text s at tx,pr.y + 8 attr 'bold' width tw
+   screen text s at tx,pr.y + pr.h - 2 attr 'bold' width tw      ;* 18 Nov 26 (P-1921): the box's last row, as SD Core and Linux Solo place it
    call $tk_help('mark', mk.px, mk.py, 0, 0)
    return
 
@@ -399,7 +405,7 @@ draw.accounts:
 draw.effect:
    lines = ''
    lines<-1> = 'One provider and one model serve the account.  The AI is off as delivered: it needs a provider, its key (a default model comes with each named provider) and the ai gate turned on.'
-   lines<-1> = "S sets up the provider under the cursor: the key (shown as *) and the model, chosen from the provider's own list; the key is kept for the AI helper only and this page never shows it (set.ai key at the prompt keeps it out of SD altogether).  What the account sends leaves this machine for the provider checked above, over https with the certificate checked."
+   lines<-1> = "S sets up the provider under the cursor: its key (shown as *) and its model, from the provider's own list. The key is kept by the AI helper; what the account sends goes only to the provider checked above, over https."
    if pane = 1 then
       p = provs<pi>
       if p = sel then
@@ -1234,7 +1240,7 @@ do.dropcustom:
 do.ca:
    * S.244 (2): the field opens empty, the file in force is shown in the question and Ctrl-R puts it in; an empty answer changes nothing
    ca.now = (if ca = '' then '-' else ca)
-   screen ask 'File of certificate authorities, written with / (a dash is the system store) ' : sysmsg(15115, ca.now) width 100 value '' title 'Certificate authorities' history ca.now returning cv else return
+   screen ask 'File of certificate authorities for a private CA, written with /, a dash for the system store ' : sysmsg(15115, ca.now) width 100 value '' title 'Certificate authorities' history ca.now returning cv else return
    cv = trim(cv)
    if cv = '' then
       msg = 'nothing changed'

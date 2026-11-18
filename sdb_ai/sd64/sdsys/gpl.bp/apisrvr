@@ -19,6 +19,11 @@
 *
 *
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 2, from Linux Solo S.62 (P-5912): an account with no register path is refused
+*           before entry with 10003 and audited branch=1 no.path.in.register; acc.rec and acc.suspended (@false) start fresh each call
+*           (P-5915, P-5916); the version refusal says "not version 2" (P-5914); in Linux Solo's order: the deffuns above the common
+*           block, master.login.done last in it, file.names and master.login.done set at the top, scram.via set where it is used,
+*           scram.check.proof after vb.scram.final (P-4398, P-4400, P-4401, P-4404, P-4405, P-5913).
 * 17 Nov 26 SD Core Solo - from Linux Solo 04d8c8d5 (S.62, P-1904): an OPENSEQ by pathname asks K$EDIT.OS.OK, so an API client
 *           without ADMIN opens a VOC record named by its path for reading only (it set the answer true).  Audit P-4396, P-4398, P-4402,
 *           P-4403: four lines in Linux Solo's order (the sshkey refusal's audit after error.msg; file.names, scram.fail.delay); no change.
@@ -295,35 +300,34 @@ $include dictdict.h
 
 * 20240219 mab user must be member of sdusers
 * 13 Aug 26 Windows port - is_grp_member removed, no callers remain here
+* 19 Aug 26 Windows port - DECLARED HERE, NOT IN vb.login.  Both the old login
+*   and the SCRAM one screen the user name with it, and phase 5 of
+*   docs/SCRAM_AUTH.md deletes vb.login - which would have taken the
+*   declaration with it and left vb.scram.first calling an undeclared function.
+*   18 Nov 26 (audit P-4405): above the common block, as Linux Solo.
+deffun valid_os_name(name) calling '!valid_os_name'
 deffun voc_refusal(f) calling '!voc_refusal'   ;* 18 Oct 26, SOLO 46 (Linux Solo 2a9b736): check.voc.edit
+* 26 Sep 26 SD Core Solo - SOLO 3 step 5: the is_grp_member declaration that
+*   stood here is gone; its callers (the ACC$GROUP and sdapi tests) went on
+*   25 Sep.
 
 
 common /$APISRVR/ logged.in,          ;* Process is logged in
 files(100),         ;* Array of file variables
 file.names,         ;* 12 Nov 26 (SD Core's S.73 item 3, SOLO 56 group 8): the name each open file was opened under, field = file number (a dictionary as "dict name"); request 70 names its file by it
 logging,            ;* Logging network traffic?
-master.login.done,  ;* The MASTER.LOGIN paragraph has been run (it is run once per session)
 seqfiles(SEQ.MAX),  ;* Sequential files opened by vb.openseq, numbered SEQ.BASE + their index (sheet 441)
 seq.state(SEQ.MAX), ;* 1 while the slot holds an open sequential file
-seq.unbuf(SEQ.MAX)  ;* 1 when it was opened unbuffered: every line written is flushed
-
-* 19 Aug 26 Windows port - DECLARED HERE, NOT IN vb.login.  Both the old login
-*   and the SCRAM one screen the user name with it, and phase 5 of
-*   docs/SCRAM_AUTH.md deletes vb.login - which would have taken the
-*   declaration with it and left vb.scram.first calling an undeclared function.
-*   Below the common block, not above it: CPROC is the only program here that
-*   shows the two together and it declares its functions after syscom.h's
-*   common, so that is the order known to compile.
-deffun valid_os_name(name) calling '!valid_os_name'
-* 26 Sep 26 SD Core Solo - SOLO 3 step 5: the is_grp_member declaration that
-*   stood here is gone; its callers (the ACC$GROUP and sdapi tests) went on
-*   25 Sep.
+seq.unbuf(SEQ.MAX), ;* 1 when it was opened unbuffered: every line written is flushed
+master.login.done   ;* The MASTER.LOGIN paragraph has been run (it is run once per session; last, as Linux Solo, audit P-4401)
 
 * If this is the first time through, initialise various things in
 * the SYSCOM common block.
 
 if not(kernel(K$CPROC.LEVEL,0)) then
    abort.message = ""
+   file.names = ''            ;* 12 Nov 26, SD Core's S.73 item 3 (SOLO 56 group 8): no file is open yet (18 Nov 26, P-4398: here, as Linux Solo)
+   master.login.done = @false ;* MASTER.LOGIN is run once, at the first entry to the account (vb.account)
 
    parser = "!PARSER"          ;* Command parser subroutine
 
@@ -380,8 +384,6 @@ if not(kernel(K$CPROC.LEVEL,0)) then
    abort.code = 0
 
    tty = 'apisrvr'
-   file.names = ''            ;* 12 Nov 26, SD Core's S.73 item 3 (SOLO 56 group 8): no file is open yet
-   master.login.done = @false      ;* MASTER.LOGIN is run once, at the first entry to an account
 
    openpath "voc" to voc else
       abort.message = sysmsg(2026) ;* Cannot open VOC
@@ -452,7 +454,6 @@ scram.storedkey = ''   ;* From $cred, base64
 scram.serverkey = ''   ;* From $cred, base64
 scram.gstored = ''     ;* $GLOBAL's StoredKey, when it shares the salt (ruling 19)
 scram.gserver = ''     ;* $GLOBAL's ServerKey, likewise
-scram.via = ''         ;* 'user' or 'global': which record the proof matched
 * THE AUDIT TRAIL'S TWO VARIABLES.  scram.refuse.reason is the whole mechanism:
 * '' means "this exchange has not been refused", and any other value is written
 * once at exit.vb.scram.fail.  Keeping it here with the rest of the state is
@@ -804,7 +805,8 @@ end
 *   test, went with it - SOLO 3 step 5.)
 account.path = ''
 * 15 Nov 26 SD Core Solo - from Core 8daeff9d (RELEASE_1.1 286): acc.group is gone (assigned, never read; the compiler said so).
-acc.suspended = ''
+acc.rec = ''            ;* 18 Nov 26 (audit P-5916), as Linux Solo: never judge entry on a record an earlier call read
+acc.suspended = @false  ;* 18 Nov 26 (audit P-5915), as Linux Solo and Core
 * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH (Linux Solo 7c6bbfc, "api should read switches").  The account's SH and
 *   OS.EXECUTE switches are read here from its register record, as LOGIN reads them at sign-on, and are set only once the account has
 *   been entered (below), so a refusal or a revert leaves the previous account's switches with the previous account.  FAIL CLOSED:
@@ -833,6 +835,17 @@ openpath @sdsys:@ds:'accounts' to acc.f then
       api.net.grant = (upcase(trim(acc.rec<ACC$NET>)) = 'YES')
    end
    close acc.f
+end
+
+* 18 Nov 26 SD Core Solo - from Linux Solo S.62 (four-version audit round 2, P-5912): no register record (no such account, an
+*   unreadable register, a record with no path) is refused here, before anything is entered; the caller sees 10003, as for every
+*   refusal of this routine, and the trail names the branch.
+if account.path = '' then
+   void kernel(K$AUDIT, 'account refused branch=1 no.path.in.register account=' : new.account)
+   server.error = SV$ERROR
+   error.msg = sysmsg(10003) ;* User not allowed in requested account
+   abort.message = error.msg
+   goto revert.to.old.account
 end
 
 * 20 Oct 26 dm - THE RULE FOR ENTERING AN ACCOUNT (a suspended account is not entered; the account must be the session's own, SDSYS never; every refusal
@@ -1639,7 +1652,7 @@ vb.scram.first:
                   if scram.cred<CRED$VERSION> # SCRAM$CRED.VERSION then
                      scram.cred = ''
                      scram.gcred = ''
-                     scram.refuse.reason = 'credential is version 1 - run set.password'
+                     scram.refuse.reason = 'credential is not version 2 - run set.password'   ;* 18 Nov 26 (audit P-5914): SD Core's and Linux Solo's words
                      goto scram.bad.cred
                   end
                   scram.salt = scram.cred<CRED$SALT>
@@ -1993,6 +2006,31 @@ vb.scram.final:
                   void kernel(K$AUDIT, 'api login user=' : scram.user : ' via=account')
                end
 
+               return
+
+               * ======================================================================
+               * scram.check.proof - does scram.proof prove the password behind
+               * scram.check.key (a StoredKey)?  25 Sep 26 SD Core Solo, ruling 19:
+               * vb.scram.final's single check, lifted out so it can be run once
+               * per key.  Constant time, as !CRED_VERIFY is.  18 Nov 26 (audit
+               * P-4400): here, after vb.scram.final, as in Linux Solo.
+               *
+               * Out: scram.check.ok     @true only on a match
+               *      scram.check.crypto @true if HMAC failed - a fault, not a guess
+
+scram.check.proof:
+               scram.check.ok = @false
+               scram.csig = SDEXT(scram.check.key : @FM : scram.authmsg, @TRUE, SD_HMACSHA256)
+               if scram.csig = '' then
+                  scram.check.crypto = @true
+                  return
+               end
+               scram.ckey = SDEXT(scram.proof : @FM : scram.csig, @TRUE, SD_XORBYTES)
+               if scram.ckey = '' then return
+               scram.derived = SDEXT(scram.ckey, @TRUE, SD_SHA256)
+               scram.ckey = ''
+               if scram.derived = '' then return
+               if SDEXT(scram.derived : @FM : scram.check.key, @TRUE, SD_CTEQUAL) = '1' then scram.check.ok = @true
                return
 
                * ----------------------------------------------------------------------
@@ -2787,30 +2825,6 @@ vb.sshkey:
                                                                            response = sk.fprs
                                                                      end case
 
-                                                                     return
-
-                                                                     * ======================================================================
-                                                                     * scram.check.proof - does scram.proof prove the password behind
-                                                                     * scram.check.key (a StoredKey)?  25 Sep 26 SD Core Solo, ruling 19:
-                                                                     * vb.scram.final's single check, lifted out so it can be run once
-                                                                     * per key.  Constant time, as !CRED_VERIFY is.
-                                                                     *
-                                                                     * Out: scram.check.ok     @true only on a match
-                                                                     *      scram.check.crypto @true if HMAC failed - a fault, not a guess
-
-scram.check.proof:
-                                                                     scram.check.ok = @false
-                                                                     scram.csig = SDEXT(scram.check.key : @FM : scram.authmsg, @TRUE, SD_HMACSHA256)
-                                                                     if scram.csig = '' then
-                                                                        scram.check.crypto = @true
-                                                                        return
-                                                                     end
-                                                                     scram.ckey = SDEXT(scram.proof : @FM : scram.csig, @TRUE, SD_XORBYTES)
-                                                                     if scram.ckey = '' then return
-                                                                     scram.derived = SDEXT(scram.ckey, @TRUE, SD_SHA256)
-                                                                     scram.ckey = ''
-                                                                     if scram.derived = '' then return
-                                                                     if SDEXT(scram.derived : @FM : scram.check.key, @TRUE, SD_CTEQUAL) = '1' then scram.check.ok = @true
                                                                      return
 
 * ======================================================================

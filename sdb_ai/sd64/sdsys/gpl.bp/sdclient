@@ -18,6 +18,7 @@
 *
 * 
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 2 (P-4438, P-4439): recordlocked() stands after release, as Linux Solo.  Order only.
 * 12 Nov 26 SD Core Solo - SOLO 56 group 7: SD Core for Windows' class (as Linux Solo's: the 15 Oct 26 QMClient methods, requests 49 to 69), with Solo's
 *           two differences: the default port is 4249, and SrvrSshKey is 72 (SOLO 55).  The older entries below are SD Core for Windows'.
 * 25 Oct 26 Windows port - from Linux 7fd83ad (21 Oct 26) S.73 item 3, D1 (the index QUERY statements of a remote file): selectindexv(fno, name) (request 38) and selectindexk(fno, name, value)
@@ -886,6 +887,34 @@ release.error:
 end
 
 * ======================================================================
+* RECORDLOCKED   (15 Oct 26 dm, sheet 262)
+* -3 -2 -1 another user holds a file, update or read lock; 0 not locked; 1 2 3 this session holds a read, update or file lock.
+* The answer is a four byte integer on the wire; it is made signed here.
+
+* 25 Oct 26 Windows port - from Linux eb9ef4a (S.72b, with fc8e304): a login that is not in the server's sdfileswrite group is refused request 34 with an ON ERROR reply (message 12526).
+* Like filelock() and fileunlock() this aborts the caller on that reply unless quiet is set; with quiet it returns 0 and LastError / LastText say what the reply was (text.request ignored
+* quiet, which would have stopped the $netfile handler's own program instead of giving the person its message).  26 Oct 26: this was carried as a second function of the same name above
+* and the duplicate stopped sdclient compiling; there is one, here, after release, as on Linux (18 Nov 26, P-4438, P-4439).
+
+public function recordlocked(fno, id)
+   reply = ''
+   if not(context.error(CX.CONNECTED)) then
+      if message.pair(SrvrRecordlocked, iconv(fno, 'ISL') : id) then
+         begin case
+            case server.error = SV$OK
+               reply = in.pkt
+            case server.error = SV$ON.ERROR
+               if not(quiet) then abort 'RECORDLOCKED generated an abort event'
+         end case
+      end
+   end
+   if len(reply) < 4 then return 0
+   n = oconv(reply[1,4], 'ILL')
+   if n > 2147483647 then n -= 4294967296
+   return n
+end
+
+* ======================================================================
 * RESPOND
 
 public function respond(response, err)
@@ -1063,34 +1092,6 @@ end
 
 public function fcontrol(fno, key, value)
    return text.request(SrvrFcontrol, iconv(fno, 'ISL') : iconv(key, 'ISL') : value, 'FCONTROL generated an abort event')
-end
-
-* ======================================================================
-* RECORDLOCKED   (15 Oct 26 dm, sheet 262)
-* -3 -2 -1 another user holds a file, update or read lock; 0 not locked; 1 2 3 this session holds a read, update or file lock.
-* The answer is a four byte integer on the wire; it is made signed here.
-
-* 25 Oct 26 Windows port - from Linux eb9ef4a (S.72b, with fc8e304): a login that is not in the server's sdfileswrite group is refused request 34 with an ON ERROR reply (message 12526).
-* Like filelock() and fileunlock() this aborts the caller on that reply unless quiet is set; with quiet it returns 0 and LastError / LastText say what the reply was (text.request ignored
-* quiet, which would have stopped the $netfile handler's own program instead of giving the person its message).  26 Oct 26: this was carried as a second function of the same name above
-* and the duplicate stopped sdclient compiling; there is one, here, as on Linux.
-
-public function recordlocked(fno, id)
-   reply = ''
-   if not(context.error(CX.CONNECTED)) then
-      if message.pair(SrvrRecordlocked, iconv(fno, 'ISL') : id) then
-         begin case
-            case server.error = SV$OK
-               reply = in.pkt
-            case server.error = SV$ON.ERROR
-               if not(quiet) then abort 'RECORDLOCKED generated an abort event'
-         end case
-      end
-   end
-   if len(reply) < 4 then return 0
-   n = oconv(reply[1,4], 'ILL')
-   if n > 2147483647 then n -= 4294967296
-   return n
 end
 
 * ======================================================================

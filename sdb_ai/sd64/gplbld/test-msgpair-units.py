@@ -44,7 +44,6 @@ ALLOWED = {
     ('11458', '12463'): 'OS: a Windows user, not a Linux user',
     ('11609', '12614'): 'OS: SET.AI CA takes a Windows path, written C:/... (a set.ai word cannot hold a backslash) (RELEASE_1.1 246)',
     ('11899', '12904'): 'OS: a viewer is a full Windows path to an .exe, not a name looked up in /usr/bin (SOLO 47)',
-    ('11983', '12988'): 'OS: Windows has no file-permission refusal of that kind here, so the parenthesis is dropped; one VOC, as Linux Solo (SOLO 9; audit P-4346)',
     ('14932', '15932'): 'OS: a job is started by its Task Scheduler task, not a systemd timer (SOLO 74, Linux Solo 2d3db81)',
 }
 

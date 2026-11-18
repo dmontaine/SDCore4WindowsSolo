@@ -180,9 +180,23 @@ def checks(t):
     ck("V5 the verb is in newvoc and voc_template, catalogued as $setosacc",
        t["newvoc"] == t["voctemplate"] == "V\nCA\n$setosacc\n")
     fields = dict(re.findall(r"\$define (ACC\$[A-Z.]+)\s+(\d+)", t["syscom_keys"]))
-    ck("V6 the register fields are 7 and 8 (ACC$SH, ACC$OS.EXEC), after SUSPENDED at 5 and with 6 left deleted",
-       fields.get("ACC$SH") == "7" and fields.get("ACC$OS.EXEC") == "8" and fields.get("ACC$SUSPENDED") == "5" and "ACC$PRIOR.TIER" not in fields,
-       "fields %s" % fields)
+    # 18 Nov 26 (four-version audit round 2, P-6168): field 6 keeps its retired NAME, ACC$PRIOR.TIER, as the other three trees do,
+    # so that it is never given to anything else; what this asserts is that 6 is that name alone and no program here uses it.
+    bp_dir = os.path.join(SD64, "sdsys", "gpl.bp")
+    prior_users = []
+    for n in sorted(os.listdir(bp_dir)):
+        pth = os.path.join(bp_dir, n)
+        if n.endswith(".h") or not os.path.isfile(pth):
+            continue
+        with open(pth, encoding="latin-1") as f:
+            for ln in f:
+                if "ACC$PRIOR.TIER" in ln and not ln.lstrip().startswith("*"):
+                    prior_users.append(n)
+                    break
+    ck("V6 the register fields are 7 and 8 (ACC$SH, ACC$OS.EXEC), after SUSPENDED at 5, and 6 only the retired name no program uses",
+       fields.get("ACC$SH") == "7" and fields.get("ACC$OS.EXEC") == "8" and fields.get("ACC$SUSPENDED") == "5"
+       and fields.get("ACC$PRIOR.TIER") in (None, "6") and prior_users == [],
+       "fields %s; programs using ACC$PRIOR.TIER: %s" % (fields, prior_users))
     ck("V7 messages: 12185 names the user (%1) and the remedy, 12931 is the syntax line, 10102 is the Solo wording",
        has(t["m12185"], "%1 has no OS access", "set.os.access os on") and t["m12931"].startswith("Syntax: set.os.access")
        and t["m10102"].strip() == "Account %1 has SH %2, OS.EXECUTE %3")

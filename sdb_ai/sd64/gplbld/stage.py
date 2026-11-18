@@ -1041,10 +1041,13 @@ def retarget_sdsys_account(sdsys, production):
     the install does not carry a build path.  Rewriting one field is the entire
     cost of pre-bootstrapping - see PROJECT_STATUS.md 5.16.
 
-    The tracked record ships holding /usr/local/sdsys, the Linux development
-    tree, which is what made the first call necessary: on this machine the
-    bootstrap silently compiled 190 programs there and catalogued them into the
-    staged gcat, and on a clean machine that path does not exist at all.
+    The tracked record held /usr/local/sdsys, the Linux development tree, which
+    is what made the first call necessary: on this machine the bootstrap
+    silently compiled 190 programs there and catalogued them into the staged
+    gcat, and on a clean machine that path does not exist at all.  (18 Nov 26,
+    four-version audit round 2 P-0618: the tracked record holds @SDSYS, as
+    Linux Solo's does; the staged tree still needs its own path for the
+    bootstrap, so both calls stay.)
     """
     rec = os.path.join(sdsys, 'accounts', 'sdsys')
     if not os.path.isfile(rec):

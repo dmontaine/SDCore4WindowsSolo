@@ -3,6 +3,38 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+18 Nov 26  SOCKET TRACES; THE API REFUSES AN ACCOUNT WITH NO REGISTER PATH; ONE VOC READ WHERE THERE WERE THREE.
+
+             What        - SET.SOCKET.MODE(skt, SKT$INFO.TRACE, pathname) logs the data a socket sends and receives,
+                           as the other SD Core versions do.  The log is made readable by the session's own Windows
+                           user, SYSTEM and Administrators only, and a link or a folder is refused as the log.  An
+                           account with the OS switch off may trace only into its own directory.
+                         - an API session asking for an account that has no register record is refused (10003),
+                           and the audit trail says "account refused branch=1 no.path.in.register".
+                         - the API's line in the system log says "API connection over TCP from <address> port <n>
+                           (SD login required)"; a peer that is not an IPv4 address is shown as "?".
+                         - CNAME, .S, SET.FILE, LIST (a record id) and the login's VOC update read a VOC record
+                           once: the VOC ignores case, so the second and third tries in other cases found nothing
+                           new.  SET.FILE writes the account name in its Q-pointer in lower case.
+                         - LIST of a directory file asks Windows about a record that was not found only when the
+                           id names an entry of that directory itself.
+                         - set.ai key with no key to read (none typed, nothing piped) says so and changes nothing;
+                           it used to send an empty key.  A key piped in is read only once it has arrived.
+                         - TOOL.REMOTE and TOOL.CONFIG say "Making the change (a few seconds)..." while a change
+                           runs, and TOOL.CONFIG "Reading the settings (a few seconds)..." while it reads them.
+             Also        - OPEN.SOCKET closes the socket after a failed connect, so a program that retries does not
+                           run out of sockets.
+                         - the AI page's menus carry SD Core's names; CONFIG GPL / CONTRIB say when the file is
+                           empty; the contributors list and the licence's first lines are the same in all four
+                           products; set.password's version refusal is audited as "credential is not version 2".
+                         - a NETDIRS value is still at most 191 characters; the shared memory is laid out anew, so
+                           SD must be stopped and started again after an upgrade.
+                         - list.voc.removed names 2.0-0 for the records this release removes.
+                         - the administrator's home screen has the Scheduled jobs tile (People and access);
+                           TOOL.REMOTE says "Reading the settings (a few seconds)..." while it reads, as TOOL.CONFIG;
+                           sd-solo -internal with another account says "sd: -internal may only be used with the
+                           SDSYS account" (lower case).
+
 17 Nov 26  THE SSH LOCK-OUT NOW SEES WRONG PASSWORDS: SOLO'S SSH SERVER LOGS TO THE WINDOWS EVENT LOG.
 
              What        - Solo's own ssh server no longer writes C:\ProgramData\SDCoreSolo\ssh\sshd.log; it logs to

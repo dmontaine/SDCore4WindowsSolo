@@ -3,11 +3,12 @@ PROGRAM COMP_PCODE
 * compile all recursive files (pcode)
 $internal
 
-$include GPL.BP revstamp.h
+* 18 Nov 26 SD Core Solo - four-version audit round 2 (P-6425): the lower case names, as the other three (NTFS ignored the case).
+$include gpl.bp revstamp.h
 
-$include GPL.BP syscom.h
-$include GPL.BP int$keys.h
-$include GPL.BP header.h
+$include gpl.bp syscom.h
+$include gpl.bp int$keys.h
+$include gpl.bp header.h
 
 $include err.h
 $include keys.h

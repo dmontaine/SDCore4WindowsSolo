@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 2: the old name is read once (the VOC is NOCASE), as Linux Solo; the
+*           as-typed / lower / upper retries are gone.
 * 17 Nov 26 SD Core Solo - four-version audit, Linux Solo 3b1316cc (SD Core's P-4641): a rename that differs from the old
 *           name only in case is refused (6151), as SD Core and Linux Solo do; the record being renamed is no longer excused
 *           from the clash test.
@@ -127,25 +129,15 @@ rename.file:
       stop sysmsg(2027) ;* Null file name not allowed
    end
 
-* 14 Sep 26 Windows port - RELEASE_1.1 5.  THE OLD NAME FOLDS.  This read was
-*   exact, so once CREATE.FILE stores new ids lower case "CNAME ZZX TO ZZY"
-*   answered 2014 for a file that exists.  As typed, then down, then up.
+* 18 Nov 26 SD Core Solo - four-version audit round 2 (the case fallbacks, decided by the Linux audit session): ONE READ, as
+*   Linux Solo.  The VOC folds case itself (NOCASE), and Solo has no unconverted VOC, so the as-typed / lower / upper retries
+*   of 14 Sep 26 (RELEASE_1.1 5) found nothing the first read does not.
    readu rec from voc.f, old.file.name else
-      release voc.f, old.file.name
-      readu rec from voc.f, downcase(old.file.name) then
-         old.file.name = downcase(old.file.name)
+      @system.return.code = -status()
+      if status() = ER$RNF then
+         stop sysmsg(2014, old.file.name) ;* xx is not defined in your VOC
       end else
-         release voc.f, downcase(old.file.name)
-         readu rec from voc.f, upcase(old.file.name) then
-            old.file.name = upcase(old.file.name)
-         end else
-            @system.return.code = -status()
-            if status() = ER$RNF then
-               stop sysmsg(2014, old.file.name) ;* xx is not defined in your VOC
-            end else
 
-            end
-         end
       end
    end
 

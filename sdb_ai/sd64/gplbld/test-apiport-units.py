@@ -164,7 +164,9 @@ def callers_problems(name, t):
 
 
 def help_problems(name, t, want, minimum):
-    got = all_ints(r"listens on port (\d+)", t)
+    # 18 Nov 26 (four-version audit round 2, P-5891): 10131's LOCAL line says "listens on 127.0.0.1:4249", Linux Solo's words, so the
+    # address form counts as naming the port too.
+    got = all_ints(r"listens on (?:port |127\.0\.0\.1:)(\d+)", t)
     if len(got) < minimum:
         return ["%s names the port %d time(s), want at least %d" % (name, len(got), minimum)]
     return ["%s says %d, want %d" % (name, p, want) for p in got if p != want]

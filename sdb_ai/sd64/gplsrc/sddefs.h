@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - four-version audit round 2 (P-6164), as Core (P-1973): SD_POSIX_SEM_FMT removed; nothing read it (the semaphores are Win32 ones).
+ *           (P-4314) SD_SERVER_NAME and SOLO_ACCOUNT_NAME after SD_CONFIG_ENV, as Linux Solo; the values are unchanged.
  * 15 Nov 26 SD Core Solo - from Core 4371897d (RELEASE_1.1 299): _XOPEN_CRYPT is defined only when MSYS2's headers have not (sd_sftp.c's include order).
  * 01 Oct 26 SD Core Solo - SD_API_PORT, 4249, fixed (owner's port ruling)
  * 02 Oct 26 SD Core Solo - SD Core's own IPC keys, 0x53435711/12, and the
@@ -198,12 +200,6 @@
  * gplbld/test-apiport-units.py.                                              */
 #define SD_API_PORT 4249
 
-/* 01 Oct 26 SD Core Solo - the installed server is sd-solo.exe ("sd" is the full
- * product's name on both platforms; owner's ruling).  The daemon starts it by
- * this name, beside itself.  gplbld/test-soloexe-units.py checks the
- * installer, stage.py and the client library against the same name.           */
-#define SD_SERVER_NAME "sd-solo"
-
 /* System V IPC (shmget/semget) is not implemented by the MSYS2 runtime and
  * does not exist on native Windows, so this Windows port uses POSIX named
  * shared memory and named semaphores throughout.  The keys above are retained
@@ -212,10 +208,10 @@
  */
 
 #define SD_POSIX_SHM_NAME "/sd_shm_53435711"
-#define SD_POSIX_SEM_FMT  "/sd_sem_716d0302_%d"
 
-/* 16 Aug 26 Windows port - THE SEMAPHORES ARE NATIVE Win32 OBJECTS NOW, and
- * the POSIX name above is kept only for removing sets left by older builds.
+/* 16 Aug 26 Windows port - THE SEMAPHORES ARE NATIVE Win32 OBJECTS NOW.
+ * (18 Nov 26, as Core: the POSIX semaphore name that stood above, SD_POSIX_SEM_FMT, is
+ * gone; nothing read it.)
  *
  * WHY.  POSIX sem_open() on the MSYS2 runtime does not work in session 0: as
  * LocalSystem it BLOCKS FOR TEN SECONDS AND FAILS WITH ETIMEDOUT, measured
@@ -281,12 +277,6 @@
  */
 
 #define SD_USERS_GROUP "sdusers"
-
-/* 28 Sep 26 SD Core Solo - RULING 29: the one account, and every session's
-   user name (kernel.c init_kernel), whatever the Windows user.  The BASIC
-   side spells it in gpl.bp/solo_account; solo-setup.ps1 and verify-solo.ps1
-   use the same literal. */
-#define SOLO_ACCOUNT_NAME "sduser"
 
 #ifndef SD_ADMIN_GID
 #define SD_ADMIN_GID 544
@@ -367,7 +357,21 @@
  * (inipath.c), so no machine path is compiled in.
  */
 #define SD_CONFIG_ENV     "SD_CONFIG"
-#define MAX_ID_LEN 255          /* Increasing requires major file changes */
+
+/* 01 Oct 26 SD Core Solo - the installed server is sd-solo.exe ("sd" is the full
+ * product's name on both platforms; owner's ruling).  The daemon starts it by
+ * this name, beside itself.  gplbld/test-soloexe-units.py checks the
+ * installer, stage.py and the client library against the same name.
+ * (18 Nov 26, four-version audit round 2 P-4314: here, as Linux Solo.)        */
+#define SD_SERVER_NAME "sd-solo"
+
+/* 28 Sep 26 SD Core Solo - RULING 29: the one account, and every session's
+   user name (kernel.c init_kernel), whatever the Windows user.  The BASIC
+   side spells it in gpl.bp/solo_account; solo-setup.ps1 and verify-solo.ps1
+   use the same literal. */
+#define SOLO_ACCOUNT_NAME "sduser"
+
+#define MAX_ID_LEN 255         /* Increasing requires major file changes */
 #define MAX_CALL_NAME_LEN 63    /* Cannot exceed MAX_ID_LEN */
 #define MAX_TRIGGER_NAME_LEN 32 /* Increasing would alter file header */
 #define MAX_PROGRAM_NAME_LEN 128

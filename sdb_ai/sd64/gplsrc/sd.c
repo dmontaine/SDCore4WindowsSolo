@@ -669,7 +669,7 @@ Private bool comlin(int argc, char *argv[]) {
 
   if (internal_mode) {
     if ((forced_account != NULL) && stricmp(forced_account, "SDSYS")) {
-      fprintf(stderr, "sd: -INTERNAL may only be used with the SDSYS account\n");
+      fprintf(stderr, "sd: -internal may only be used with the SDSYS account\n");   /* 18 Nov 26: lower case, as Linux Solo aea031c */
       exit(1);
     }
     forced_account = "SDSYS";

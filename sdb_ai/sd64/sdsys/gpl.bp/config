@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 2 (P-5918, P-5919): show.doc is SD Core's (the file read first, an empty one said).
 * 17 Nov 26 SD Core Solo - four-version audit round 1: CONFIG GPL and CONFIG CONTRIB show the files licence and contrib of the
 *           system directory, as Linux Solo does; the $licence and $contrib VOC records they read left the VOC set on 16 Nov.
 *           Read with OPENSEQ and SD's own paging, not sh less (OS: no less on Windows, and SH needs the shell switch).
@@ -246,9 +247,23 @@ return
 * ----------------------------------------------------------------------
 
 show.doc:
+*  18 Nov 26 (four-version audit round 2, P-5918, P-5919): SD Core's form - the file is read into doc.rec first ('X' in field 1),
+*  so an empty one is said, and then printed from field 2.
    doc.path = @sdsys : @ds : doc.name
-   openseq doc.path readonly to doc.f else
-      display doc.path : ' cannot be opened, so it cannot be shown.'
+   openseq doc.path to doc.f else
+      display 'Cannot open ' : doc.path : ', so it cannot be shown.'
+      return
+   end
+   doc.rec = 'X'
+   loop
+      readseq doc.line from doc.f else exit
+      doc.rec<-1> = doc.line
+   repeat
+   close doc.f
+
+   doc.lines = dcount(doc.rec, @fm)
+   if doc.lines < 2 then
+      display doc.path : ' holds no text.'
       return
    end
 
@@ -259,11 +274,10 @@ show.doc:
    void kernel(K$PAGINATE, @true)
 
    crt @(-1) :
-   loop
-      readseq doc.line from doc.f else exit
-      print doc.line
-   repeat
-   close doc.f
+*  Field 1 is the record type, X.  The text starts at field 2.
+   for doc.i = 2 to doc.lines
+      print doc.rec<doc.i>
+   next doc.i
 
    void kernel(K$PAGINATE, pagination.state)
 return

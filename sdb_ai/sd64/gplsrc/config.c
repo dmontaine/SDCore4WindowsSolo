@@ -17,6 +17,9 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - four-version audit round 2 (P-4283, P-5870 to P-5873): the limit is MAX_NETDIRS_LEN (191) on one line, a
+ *               line's end is read as Core reads it (one CR skipped, then the next character tested), and fu has no initialiser, as the
+ *               other three (no path reaches exit_read_config before the fopen).
  * 17 Nov 26 SD Core Solo - four-version audit, Linux Solo 3b1316cc (S.62 NETDIRS): a NETDIRS line too long for the 199-character
  *               line buffer, or a value over NETDIRS_VALUE_MAX (191), is refused by name and never cut (it was read in two pieces).
  * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4282): the STARTUP refusal says "it never ran on Windows", as SD Core's.
@@ -125,7 +128,7 @@ Private void copy_section_name(char* section, const char* src) {
 /* ====================================================================== */
 
 struct CONFIG* read_config(char* errmsg) {
-  FILE* fu = NULL;
+  FILE* fu;
   char path[MAX_PATHNAME_LEN + 1];
   char home[MAX_PATHNAME_LEN + 1];
   bool home_ok;
@@ -254,13 +257,9 @@ struct CONFIG* read_config(char* errmsg) {
       *p = '\0';
     else {
       int c = getc(fu);
-      if (c == '\r') {
-        int c2 = getc(fu);
-        if ((c2 != EOF) && (c2 != '\n')) {
-          ungetc(c2, fu);
-          line_whole = FALSE;
-        }
-      } else if ((c != EOF) && (c != '\n')) {
+      if (c == '\r')
+        c = getc(fu);
+      if ((c != EOF) && (c != '\n')) {
         ungetc(c, fu);
         line_whole = FALSE;
       }
@@ -370,13 +369,12 @@ struct CONFIG* read_config(char* errmsg) {
    BOUNDS CHECKED, and the refusal is deliberate rather than a truncation - a
    truncated pathname is a SHORTER one, which as a containment root would
    match MORE than the administrator asked for, not less.                   */
-/* 17 Nov 26 SD Core Solo - Linux Solo 3b1316cc (S.62): the limit is what one sd.conf line holds after "NETDIRS=" (NETDIRS_VALUE_MAX,
-   191), and a longer line is refused by name rather than read in two pieces.  Each entry is judged where the list is used (op_dio2.c
+/* 17 Nov 26 SD Core Solo - Linux Solo 3b1316cc (S.62): the limit is what one sd.conf line holds after "NETDIRS=" (MAX_NETDIRS_LEN,
+   191; 18 Nov 26: the one name, as the other three), and a longer line is refused by name rather than read in two pieces.  Each entry is judged where the list is used (op_dio2.c
    netdirs_load()); one SD ignores is named in the error log at sd-solo -start. */
       else if (strncmp(rec, "NETDIRS=", 8) == 0) {
-        if (!line_whole || (strlen(rec + 8) > NETDIRS_VALUE_MAX)) {
-          sprintf(errmsg, "NETDIRS value is longer than %d characters.",
-                  NETDIRS_VALUE_MAX);
+        if (!line_whole || (strlen(rec + 8) > MAX_NETDIRS_LEN)) {
+          sprintf(errmsg, "NETDIRS value is longer than %d characters.", MAX_NETDIRS_LEN);
           goto exit_read_config;
         }
         strcpy(cfg->netdirs, rec + 8);

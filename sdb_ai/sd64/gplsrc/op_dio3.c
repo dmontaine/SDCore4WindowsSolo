@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - four-version audit round 2 (P-4296): op_write() does not set id_len a second time (its declaration sets it), as Linux Solo.
  * 17 Nov 26 SD Core Solo - four-version audit round 1, from Linux Solo 04d8c8d (S.62 P-1773, P-1774): op_writev() counts PROF_WRITE before
  *               the remote and VOC / global refusals, as SD Core does and as op_write() and op_delete() do.
  * 16 Nov 26 Windows port - from Linux Solo c8dac7a: op_clrfile()'s refusals are messages 15897 and 15915 (were 12008 and 12028), text unchanged.
@@ -1205,7 +1206,6 @@ void op_write() {
   process.status = 0;
 
   rid_descr = e_stack - 1; /* the record id, or for CREATING.SEQKEY the address of the id variable: read below */
-  id_len = 0;
 
   /* Find the file variable descriptor */
 

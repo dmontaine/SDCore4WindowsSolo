@@ -161,6 +161,12 @@ TEMPSRCS := $(notdir $(wildcard $(GPLSRC)*.c))
 SRCS     := $(TEMPSRCS)
 OBJS     := $(SRCS:.c=.o)
 DIROBJS  := $(addprefix $(GPLOBJ),$(OBJS))
+
+# 18 Nov 26 SD Core Solo - four-version audit round 2 (P-6462, P-6463, P-6465), as Core bc1eb7b1 and Linux: the object and binary
+#           directories are made when make starts (gplobj/README, which kept gplobj in git, is gone; bin/README stays), and a plain
+#           "make" checks the generated BASIC includes against the C headers before building sd.  "make sd" is unchanged.
+$(shell mkdir -p $(GPLOBJ) $(GPLBIN))
+all: check-includes sd
 	
 sd: ARCH :=
 sd: BITSIZE := 64
@@ -445,7 +451,7 @@ sdwind: sdwind.o sdsem.o win32sem.o win32peer.o exepath.o inipath.o
 terminfo:
 	@echo Compiling terminfo library
 	@rm -Rf $(TERMINFO)
-	@mkdir $(TERMINFO)
+	@mkdir -p $(TERMINFO)
 	@$(GPLBIN)sdtic -pterminfo $(MAIN)terminfo.src
 
 
@@ -516,14 +522,14 @@ $(OBJS): $(SDHDRS)
 # regenerate with:  python3 gplbld/gen_includes.py
 # clean takes the objects and the programs built into bin\ (every .exe and .dll there; bin\README stays) and
 # the compiled terminfo.  Windows: the programs carry .exe and the client library is a .dll.
-.PHONY: clean check-includes
+.PHONY: all clean check-includes
 
 check-includes:
-	@python3 gplbld/gen_includes.py --check
+	@python gplbld/gen_includes.py --check
 
 clean:
 	@echo Cleaning build files
 	@$(RM) -f $(GPLOBJ)*.o
-	@$(RM) -f $(GPLBIN)*.exe $(GPLBIN)*.dll
+	@$(RM) -f $(GPLBIN)*.exe $(GPLBIN)*.dll $(GPLBIN)*.dll.a
 	@$(RM) -Rf $(TERMINFO)
 	

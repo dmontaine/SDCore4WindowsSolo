@@ -12,8 +12,12 @@
 # startup task's "sd -start" at boot and "sd -restart" by hand both come
 # through there.  SD starts afterwards whatever this answers.
 #
-# Exit 0 applied; 1 failed (put back, marker kept); 2 not run because an SD
-# process from this install is still running (marker kept); 3 nothing pending.
+# Exit 0 applied, or nothing pending (NONE); 1 failed (put back, marker kept);
+# 2 not run because an SD process from this install is still running (marker
+# kept).  The three values of the installed scripts' convention (18 Nov 26,
+# four-version audit round 2: "nothing pending" was 3, which start_sd() would
+# have reported as a restore NOT applied; it only runs this when the marker
+# exists, so NONE is the race of a marker gone in between, and nothing to do).
 # The LAST line is exactly one of
 #    SOLO-RESTORE APPLIED <account> from <archive>
 #    SOLO-RESTORE FAILED <reason>
@@ -122,7 +126,7 @@ function Get-AncestorPids([int]$start) {
 if ($Root -eq '') { $Root = $PSScriptRoot }
 $Root   = [System.IO.Path]::GetFullPath($Root).TrimEnd('\')
 $marker = Join-Path $Root '.sdrestore.pending'
-if (-not (Test-Path -LiteralPath $marker -PathType Leaf)) { Write-Output 'SOLO-RESTORE NONE'; exit 3 }
+if (-not (Test-Path -LiteralPath $marker -PathType Leaf)) { Write-Output 'SOLO-RESTORE NONE'; exit 0 }
 
 $log = Join-Path $Root 'sdrestore.log'
 function Log([string]$m) {

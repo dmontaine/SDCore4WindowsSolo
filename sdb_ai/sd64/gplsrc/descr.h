@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - from Core bc1eb7b1 (Linux 400500c): SOCKVAR gains trace_fd (SKT$INFO.TRACE), after found.
  * 18 Oct 26 Windows port - from Linux 7c53377 - Solo carry from SD Core (v1.1-3 to 5315c65), LSOLO 52: Core's text without NET_FILE and the NET member of FILE_VAR (S.65).
  * 18 Oct 26 Windows port - from Linux 7c53377 - S.65 slice 3e: the NET member of the FILE_VAR union gains write (the handle was opened in write mode) and edit_kind (the S.64
  *           kind of the remote file's name), after server; 16 + 2 + 2 + 17 + 2 = 39 bytes, within the union's 40.
@@ -494,6 +495,9 @@ struct SOCKVAR {
      SKT_EXCEPTION_EVENT 4) and those the last SELECT.SOCKET() found.  Every k_alloc of a SOCKVAR must set both. */
   int16_t events;
   int16_t found;
+  /* 18 Nov 26 SD Core Solo - from Core bc1eb7b1 (Linux 400500c) - SKT$INFO.TRACE: the file descriptor of the trace log, or -1 for
+     none.  Every k_alloc of a SOCKVAR must set it to -1 (k_alloc does not zero); close_skt() closes it. */
+  int trace_fd;
 };
 
 /* --------------------- COLL (data collection) --------------------- */

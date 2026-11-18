@@ -98,6 +98,7 @@ win32group
 win32token
 win32dpapi
 win32ai
+win32trace
 sdtermlb
 strings
 sysdump

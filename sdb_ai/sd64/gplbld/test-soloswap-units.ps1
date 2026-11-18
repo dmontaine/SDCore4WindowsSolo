@@ -134,7 +134,7 @@ try {
     Write-Host ''
     Write-Host '3. nothing pending'
     $r = Run-Swap
-    Check "exit 3 and NONE ($($r.Code): $($r.Last))" ($r.Code -eq 3 -and $r.Last -eq 'SOLO-RESTORE NONE')
+    Check "exit 0 and NONE ($($r.Code): $($r.Last))" ($r.Code -eq 0 -and $r.Last -eq 'SOLO-RESTORE NONE')   # 18 Nov 26: 0, the three-value convention (was 3)
 
     # --- 4. a second restore replaces .sdrestore.previous ----------------------
     Write-Host ''

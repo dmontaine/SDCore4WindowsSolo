@@ -1,7 +1,10 @@
 # SD Core Solo — source tree
 
-The source of SD Core Solo, a personal, single-user SD for one Windows user.
-The repository's top-level `README.md` describes the product.
+The source of SD Core Solo for Windows, the single-user edition of SD Core, the
+multivalue String Database, for one Windows user. SD Core for Linux is the version
+the other SD Core versions follow; this edition has its features except those that
+exist to serve more than one person. The repository's top-level `README.md`
+describes the product.
 
 SD is a multivalue database in the Pr1me Information tradition. It contains open
 source code from OpenQM and ScarletDME, code written by the SD developers after

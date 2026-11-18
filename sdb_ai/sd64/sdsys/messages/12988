@@ -1,1 +1,1 @@
-%1: this session cannot write that VOC, so it was left as it was. The installer's upgrade updates it.
+%1: this session cannot write that VOC (its file permissions refuse it), so it was left as it was. The installer's upgrade updates it.

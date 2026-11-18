@@ -18,6 +18,9 @@
 * 
 *  
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 2: check.record reads the id once, as Linux Solo (P-3444, the case fallbacks:
+*           Solo has no unconverted VOC); record.not.found asks the file system only for an id that names an entry of the
+*           directory itself (Core's P-5489, from Linux Solo S.62).
 * 17 Nov 26 SD Core Solo - from Linux Solo 04d8c8d5 (S.62, P-1908, P-1909): a delimited report TO a pathname asks K$EDIT.OS.OK before
 *           the open (15897), and AS asks !voc_guard of the file as opened, as SD Core asks its edit gates there.
 * 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230, RELEASE_1.1 286): the unused sorted.sample.done and json.count are gone.
@@ -4589,19 +4592,14 @@ check.record:
 *
 *   ADDITIVE: an exact match still wins, so nothing that works today changes.
 *   Only a lookup that fails outright gets the two extra attempts.
+* 18 Nov 26 SD Core Solo - four-version audit round 2 (P-3444; the case fallbacks, the Linux audit session's decision): ONE
+*   READ, as Linux Solo.  The VOC is NOCASE and Solo has no unconverted VOC, so LIST VOC $HOLD finds $hold without a retry;
+*   for any other file the id is user data and SUE and sue are two records (the owner's plan M ruling of 12 Sep).
    record.found = @true
    readv s from data.f, id, 0 else
-      readv s from data.f, downcase(id), 0 then
-         id = downcase(id)
-      end else
-         readv s from data.f, upcase(id), 0 then
-            id = upcase(id)
-         end else
-            if not(absent.null) then
-               gosub record.not.found
-               record.found = @false
-            end
-         end
+      if not(absent.null) then
+         gosub record.not.found
+         record.found = @false
       end
    end
 
@@ -7671,11 +7669,12 @@ record.not.found:
 *  test is exact rather than a guess about '%': ask the file system whether a
 *  file of exactly this id is sitting in the directory.  It runs only on the
 *  failure path, so it costs nothing on a normal read.
+*  18 Nov 26 SD Core Solo - four-version audit round 2 (Core's P-5489, "Solo too"), from Linux Solo S.62 (SD Core's P-1258):
+*  only for an id that names an entry of the directory itself (not empty, no separator, not . or ..), so the question can never
+*  reach a file outside it.  The backslash is a separator too here (Windows paths).
    inv.name = @false
-   if is.dir then
-      if ospath(fileinfo(data.f, FL$PATH) : @ds : id, OS$EXISTS) then
-         inv.name = @true
-      end
+   if is.dir and id # '' and index(id, @ds, 1) = 0 and index(id, '\', 1) = 0 and id # '.' and id # '..' then
+      if ospath(fileinfo(data.f, FL$PATH) : @ds : id, OS$EXISTS) then inv.name = @true
    end
 
    if inv.name then

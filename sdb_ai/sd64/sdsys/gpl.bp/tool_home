@@ -4,6 +4,8 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - from Linux Solo aea031c (P-1943): the administrator's People and access group has SD Core's Scheduled jobs tile
+*               (tool.jobs, Solo's $tool_solojobs); the 02 Nov 26 line below had said so, but the tile was not in the code.
 * 16 Nov 26 SD Core Solo - RELEASE_1.1 303, from Linux Solo 738e5de (Core b5adf503): F6 and AI > Ask the AI say "the AI is not set up on this
 *               computer" when the computer has no provider, model or key, and "the AI is not on for this account" only when the AI's switch
 *               (set.ai gate) is off ($tk_ai 'why'; ai.off.text).
@@ -375,6 +377,8 @@ build.page:
       gr<g> = 'People and access' : @vm : bnd : @vm : 2
       id = 'sessions' ; grp = g ; label = 'Sessions and locks' ; glyph = '[~]' ; sub = 'who is on' ; act = 'cmd:tool.sessions' ; pal = 'amber' ; size = 'n' ; pause = 0 ; why = '' ; gosub add.tile
       id = 'gates' ; grp = g ; label = 'Gates' ; glyph = '[#]' ; sub = 'who may do what' ; act = 'cmd:tool.gates' ; pal = 'amber' ; size = 'n' ; pause = 0 ; why = '' ; gosub add.tile
+      * 18 Nov 26 (Linux Solo aea031c, P-1943): the Scheduled jobs tile, as SD Core's; Solo's tool.jobs is its own page ($tool_solojobs)
+      id = 'jobs' ; grp = g ; label = 'Scheduled jobs' ; glyph = '[:]' ; sub = 'what runs when' ; act = 'cmd:tool.jobs' ; pal = 'amber' ; size = 'n' ; pause = 0 ; why = '' ; gosub add.tile
       * the data copies, the doors to other machines, and the AI
       g += 1
       gr<g> = 'Data, network and AI' : @vm : bnd : @vm : 2

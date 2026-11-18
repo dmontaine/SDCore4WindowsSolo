@@ -18,6 +18,9 @@
   	  * 
   	  * 
 	  * START-HISTORY:
+	  * 18 Nov 26 SD Core Solo - four-version audit round 2: K$JOB.MARK (172) in step with SD Core's header, as Linux Solo (P-1315); the
+	  *               keys in Linux Solo's order, K$GLOBAL.SESSION and USR$GLOBAL at the end (P-4417 to P-4421, P-5921, P-5922); the
+	  *               AI keys' stale "nohelper" notes go (the helper is here since RELEASE_1.1 246).  No number changes.
 	  * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-3509..P-3511): K$WINPID (59), K$INTERACTIVE (64) and K$OS.ELEVATED (65) retired; no Solo program asks them.
 	  * 16 Nov 26 SD Core Solo - RELEASE_1.1 247, from Windows Core: K$LOCK.TRACE (115), LOCK.TRACER.
 	  * 11 Nov 26 SD Core Solo - SOLO 53: the FCONTROL keys are FCI$ (the internal function is FCONTROL.INT), with 8 and 9, the CREATING.SEQKEY counter.
@@ -179,27 +182,31 @@
 *   -1 COULD NOT TELL - and a caller that reads -1 as 0 restores the defect
 *   this replaced, where a failed lookup read as "not granted".
       $define K$GROUP.MEMBER     68      ;* 1 member, 0 not, -1 could not tell
-* 28 Sep 26 SD Core Solo - RULING 33.  Admitted with the GLOBAL password?  26
-*   cannot say ($ADMIN and $GLOBAL both set it).  Get -1; set 1 / clear 0
-*   from $internal code only.  gplsrc/keys.h carries the same note.
-      $define K$GLOBAL.SESSION   69      ;* Signed in with $GLOBAL ($internal to set)
-* 25 Oct 26 Windows port - from Linux Solo 1f5f703 (SDNET CARRY 9) - SD Core's S.65 K$NET, at SD Core's number: the NET gate, settable only from $internal (LOGIN and APISRVR load it from
-*   register field 15 at account entry; the same field guards API request 29), -1 asks.  Must match gplsrc/keys.h.
-      $define K$NET             127      ;* may open a file on another SD server (SDNet); account-scoped like K$SH; set from $internal, -1 asks
-* 11 Nov 26 SD Core Solo - SOLO 56 group 4: SD Core's edit keys at SD Core's numbers, answered with Solo's rules (gplsrc/keys.h, op_kernel.c), as Linux Solo.
-      $define K$SD.ACCOUNTS     118      ;* Solo: always 0 (one account)
-      $define K$VOC.EDIT        121      ;* Solo: 1 for the administrator
-      $define K$BP.EDIT         122      ;* Solo: always 1
-      $define K$DICT.EDIT       123      ;* Solo: always 1
-      $define K$EDIT.OK         124      ;* the pathname of an open file: Solo always 1 (the VOC rule is !voc_refusal at the save)
-      $define K$EDIT.KIND       125      ;* the same argument: 0 none of the three, 1 a VOC, 2 a dictionary, 3 a program file (for the message)
-      $define K$EDIT.OS.OK      126      ;* an OS pathname about to be written, created, deleted or copied into: 1 unless it runs through a VOC the session may not change
-      $define K$SHARED.READ     128      ;* Solo: always 0 (no shared account)
-      $define K$SHARED.WRITE    129      ;* Solo: always 0
+* 18 Nov 26 SD Core Solo - four-version audit round 2 (P-4417 to P-4421, P-5921, P-5922): the keys below are in Linux Solo's order; the
+*   numbers are unchanged.  K$GLOBAL.SESSION and USR$GLOBAL are at the end of the file, as Linux Solo has them.
+* 18 Nov 26 SD Core Solo - four-version audit round 2 (P-1315), as Linux Solo: the header in step with SD Core's (the scheduled
+*   administrator job a process is).  Solo has no administrator jobs; nothing here asks it.  Must match gplsrc/keys.h.
+      $define K$JOB.MARK       172      ;* The scheduled job this session is, or '' (SD Core; not implemented in Solo)
+* 15 Nov 26 SD Core Solo - from Core f6c20e51 / Linux Solo 9b69caa (S.242 stage 3, RELEASE_1.1 299).  kernel(K$XFER, op {: @fm : ...}): the file
+*   transfer slot (open, close, state) and the transfer server's side (find, serve, refuse).  The arguments and answers are at k_xfer() in
+*   gplsrc/sd_sftp.c.  Must match gplsrc/keys.h.  174 is SD Core for Windows' K$OS.SDSYS.USER, not used here.
+      $define K$XFER           173      ;* File transfer over the ssh login: the slot and the server (S.242)
+      * 13 Oct 26 dm (Linux 7ff476f) - The terminal's own size: kernel(K$WINSIZE, '') answers width, a field mark, height as the kernel last
+      *   read them from the tty (start-up and every SIGWINCH), or null when it could not.  Must match gplsrc/keys.h.
+      $define K$WINSIZE          92      ;* The terminal's size from the tty
+      * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH (Linux Solo 7c6bbfc): SD Core's S.63 keys at SD Core's numbers (Solo only).
+      *   K$SH and K$OS.EXEC are settable only from $internal code (LOGIN and APISRVR load them from ACC$SH / ACC$OS.EXEC at account
+      *   entry; get with -1); K$PATH.OK asks whether THIS ACCOUNT may open a pathname.  Must match gplsrc/keys.h.
+      $define K$SH                93      ;* may use SH and "!"
+      $define K$OS.EXEC           94      ;* may use OS.EXECUTE and reach OS paths outside its account
+      $define K$PATH.OK           95      ;* 1 if this account may open the pathname
+      * 25 Oct 26 Windows port - from Linux Solo ff1a253 (SD Core's S.73 item 1).  K$PATH.IN: "directory : @fm : pathname", 1 if the pathname is inside the directory (the
+      *   real path, so ".." and links out do not count).  The geometry only: the OS gate is not asked.  API request 29 uses it with the named account's directory.
+      $define K$PATH.IN           96      ;* 1 if the pathname is inside the directory
 * 18 Oct 26 Windows port - from Linux 0b6a207 (14 Oct 26): sheet items 24, 29 and 38 (LISTU).  K$SET.ACCOUNT: the account the session is in, for the user
 *   table; settable only from $internal (LOGIN, CPROC's logto, APISRVR), the name as it stands is returned.
 *   K$USER.PEAK: the most user table cells in use at once since SD started.  Linux's numbers, kept exactly
-*   (its block is 90-99; 90-96 are left empty here).  Must match gplsrc/keys.h.
+*   (its block is 90-99).  Must match gplsrc/keys.h.
       $define K$SET.ACCOUNT     97       ;* Set the session's account name (user table)
       $define K$USER.PEAK       98       ;* Peak number of users since SD started
       $define K$INPUT.FILL.SET  99       ;* The fill string for the next INPUT / INPUT @ (14 Oct 26, openQM 389)
@@ -214,37 +221,35 @@
       $define K$CMDLOG          108      ;* COMMAND.LOGGING: 1 on, 0 off, -1 ask; the log's pathname when it is on, else null (15 Oct 26, Q-8)
       $define K$CMDLOG.WRITE    109      ;* "origin<FM>command": one line in the command log if it is on (15 Oct 26, Q-8)
       $define K$GROUP.PHANTOM   110      ;* Mark the phantom with this user number as grouped with this process: 1 if marked (15 Oct 26, Q-8, PHANTOM GROUP)
-      $define K$USER.STATS      112     ;* File activity counts of a user (0: all): uid, 11 counts, when counting began, login name (15 Oct 26, Q-8)
       $define K$NON.DURABLE.TXN 113      ;* 1: the next COMMIT is non-durable, a nested transaction goes to its parent (15 Oct 26, sheet 442; Solo 12 Nov 26, SOLO 56 group 7)
+      $define K$USER.STATS      112     ;* File activity counts of a user (0: all): uid, 11 counts, when counting began, login name (15 Oct 26, Q-8)
       $define K$PHANTOM.USER    114      ;* The next phantom() is to be this user number (one PHANTOMS keeps, not in use); 0 cancels (16 Oct 26, PHANTOM USER)
-      $define K$LOCK.TRACE      115      ;* 1 start lock tracing (administrator: makes the locktrace file), 0 stop, -1 ask; the state, -1 if refused (16 Oct 26; Solo 16 Nov 26, RELEASE_1.1 247)
-      $define K$PROFILER        116      ;* n > 0 start the application event profiler (the events in n), 0 stop, -1 ask, -2 the table (16 Oct 26)
-      $define K$PROFILER.USER   117      ;* user * 4096 + 2048 + n start it in another process, user * 4096 alone stop it and have it write F<user> to $ipc; administrator only
+      $define K$PHANTOM.NONCE   144      ;* 'S':secret stages the secret the next phantom() gives the new process (its environment); 'G' answers the one this process was started with (26 Oct 26, W.11 F10)
+      $define K$CLASS.MAIN      120      ;* 1: the next call may run a class module through its MAIN subroutine (CPROC, before it calls a catalogued command) (16 Oct 26, Fixes item 484)
       $define K$IS.SDAPISRVR     25      ;* Is this process an API server?  (kernel.h K_IS_SDAPISRVR; named here 16 Oct 26)
       $define K$RESET.ALL       119      ;* LOGTO ... RESET ALL: with a command, keep it and return to the bottom command processor, which takes it back with a null argument; 1 accepted, 0 refused (an API session) (16 Oct 26, Fixes item 30)
-      $define K$CLASS.MAIN      120      ;* 1: the next call may run a class module through its MAIN subroutine (CPROC, before it calls a catalogued command) (16 Oct 26, Fixes item 484)
-      * 13 Oct 26 dm (Linux 7ff476f) - The terminal's own size: kernel(K$WINSIZE, '') answers width, a field mark, height as the kernel last
-      *   read them from the tty (start-up and every SIGWINCH), or null when it could not.  Must match gplsrc/keys.h.
-      $define K$PHANTOM.NONCE   144      ;* 'S':secret stages the secret the next phantom() gives the new process (its environment); 'G' answers the one this process was started with (26 Oct 26, W.11 F10)
-      $define K$WINSIZE          92      ;* The terminal's size from the tty
+* 11 Nov 26 SD Core Solo - SOLO 56 group 4: SD Core's edit keys at SD Core's numbers, answered with Solo's rules (gplsrc/keys.h, op_kernel.c), as Linux Solo.
+      $define K$SD.ACCOUNTS     118      ;* Solo: always 0 (one account)
+      $define K$VOC.EDIT        121      ;* Solo: 1 for the administrator
+      $define K$BP.EDIT         122      ;* Solo: always 1
+      $define K$DICT.EDIT       123      ;* Solo: always 1
+      $define K$EDIT.OK         124      ;* the pathname of an open file: Solo always 1 (the VOC rule is !voc_refusal at the save)
+      $define K$EDIT.KIND       125      ;* the same argument: 0 none of the three, 1 a VOC, 2 a dictionary, 3 a program file (for the message)
+      $define K$EDIT.OS.OK      126      ;* an OS pathname about to be written, created, deleted or copied into: 1 unless it runs through a VOC the session may not change
+* 25 Oct 26 Windows port - from Linux Solo 1f5f703 (SDNET CARRY 9) - SD Core's S.65 K$NET, at SD Core's number: the NET gate, settable only from $internal (LOGIN and APISRVR load it from
+*   register field 15 at account entry; the same field guards API request 29), -1 asks.  Must match gplsrc/keys.h.
+      $define K$NET             127      ;* may open a file on another SD server (SDNet); account-scoped like K$SH; set from $internal, -1 asks
+      $define K$SHARED.READ     128      ;* Solo: always 0 (no shared account)
+      $define K$SHARED.WRITE    129      ;* Solo: always 0
+      * 130 and 131 are SD Core's K$SHARED.REF and K$SHARED.ONCE: Solo has no shared account and its kernel answers neither (as Linux Solo)
+      $define K$PROFILER        116      ;* n > 0 start the application event profiler (the events in n), 0 stop, -1 ask, -2 the table (16 Oct 26)
+      $define K$PROFILER.USER   117      ;* user * 4096 + 2048 + n start it in another process, user * 4096 alone stop it and have it write F<user> to $ipc; administrator only
       $define K$SHOW.SAFE       151     ;* any text: the same text with every byte of the kernel's one rule (0-31, 127, 128-159, 248-255) as '?', the same length; for printing another session's text (10 Nov 26, Linux d35f5e31, S.88)
-      $define K$AI.START        160     ;* system:@fm:maxtokens:@fm:prompt, answered 'OK' or 'ERR':@fm:why (Windows: 'ERR':@fm:'nohelper')
-      $define K$AI.POLL         161     ;* 'W' waiting, 'D':@fm:the helper's reply (JSON), or 'E':@fm:why (Windows: 'E':@fm:'nohelper')
-      $define K$AI.CANCEL       162     ;* give the request up ('OK')
-      $define K$AI.STATUS       163     ;* the helper's status line, 'D':@fm:json, or 'E':@fm:why (Windows: 'E':@fm:'nohelper')
-* 15 Nov 26 SD Core Solo - from Core f6c20e51 / Linux Solo 9b69caa (S.242 stage 3, RELEASE_1.1 299).  kernel(K$XFER, op {: @fm : ...}): the file
-*   transfer slot (open, close, state) and the transfer server's side (find, serve, refuse).  The arguments and answers are at k_xfer() in
-*   gplsrc/sd_sftp.c.  Must match gplsrc/keys.h.  174 is SD Core for Windows' K$OS.SDSYS.USER, not used here.
-      $define K$XFER           173      ;* File transfer over the ssh login: the slot and the server (S.242)
-      * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH (Linux Solo 7c6bbfc): SD Core's S.63 keys at SD Core's numbers (Solo only).
-      *   K$SH and K$OS.EXEC are settable only from $internal code (LOGIN and APISRVR load them from ACC$SH / ACC$OS.EXEC at account
-      *   entry; get with -1); K$PATH.OK asks whether THIS ACCOUNT may open a pathname.  Must match gplsrc/keys.h.
-      $define K$SH                93      ;* may use SH and "!"
-      $define K$OS.EXEC           94      ;* may use OS.EXECUTE and reach OS paths outside its account
-      $define K$PATH.OK           95      ;* 1 if this account may open the pathname
-      * 25 Oct 26 Windows port - from Linux Solo ff1a253 (SD Core's S.73 item 1).  K$PATH.IN: "directory : @fm : pathname", 1 if the pathname is inside the directory (the
-      *   real path, so ".." and links out do not count).  The geometry only: the OS gate is not asked.  API request 29 uses it with the named account's directory.
-      $define K$PATH.IN           96      ;* 1 if the pathname is inside the directory
+      $define K$AI.START        160     ;* the in-SD AI helper (op_ai.c): system:@fm:maxtokens:@fm:prompt, answered 'OK' or 'ERR':@fm:why; the kernel writes the audit line itself
+      $define K$AI.POLL         161     ;* 'W' waiting, 'D':@fm:the helper's reply (JSON), or 'E':@fm:why
+      $define K$AI.CANCEL       162     ;* give the request up
+      $define K$AI.STATUS       163     ;* the helper's status line, 'D':@fm:json, or 'E':@fm:why
+      $define K$LOCK.TRACE      115      ;* 1 start lock tracing (administrator: makes the locktrace file), 0 stop, -1 ask; the state, -1 if refused (16 Oct 26; Solo 16 Nov 26, RELEASE_1.1 247)
 
       * PTERM() action keys
       $define PT$BREAK           1       ;* Trap break character as break?
@@ -296,7 +301,6 @@
       $define USR$SDNET        0x0010    ;* SDNet process (USR$SDVBSRVR also set)
       $define USR$CHGPHANT     0x0020    ;* Chargeable phantom
       $define USR$MSG.OFF      0x0040    ;* Messge reception disabled
-      $define USR$GLOBAL       0x0100    ;* Signed in with $GLOBAL (ruling 33)
       $define USR$GROUPED      0x0800    ;* (K$USERS only) a phantom grouped with its parent: logged out when the parent ends
 
       * USER_ENTRY events word
@@ -498,3 +502,10 @@
       $define READ.ONLY.AT.VARS 'ABORT.CODE,ANS,CRTHIGH,CRTWIDE,DATE,DAY,GID,HOSTNAME,IP.ADDR,LEVEL,LOGNAME,LPTRHIGH,LPTRWIDE,MONTH,PARASENTENCE,PATH,PIB,POB,SDSYS,SELECTED,SIB,SOB,TERM.TYPE,TIME,TTY,UID,USER,USERNO,USER.NO,WHO,YEAR,YEAR4'
 
       * END-CODE
+
+* Solo's own (kept by the carry of 18 Oct 26, LSOLO 52; here at the end, as Linux Solo, 18 Nov 26, P-4417, P-4421)
+* 28 Sep 26 SD Core Solo - RULING 33.  Admitted with the GLOBAL password?  26
+*   cannot say ($ADMIN and $GLOBAL both set it).  Get -1; set 1 / clear 0
+*   from $internal code only.  gplsrc/keys.h carries the same note.
+      $define K$GLOBAL.SESSION   69      ;* Signed in with $GLOBAL ($internal to set)
+      $define USR$GLOBAL       0x0100    ;* Signed in with $GLOBAL (ruling 33)

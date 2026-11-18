@@ -79,7 +79,7 @@ Constants beginning `DHE$` in `sdsys/syscom/err.h` (error codes: STATUS() after 
 - `DHE$ECB.TYPE` = 8900 - ECB has incorrect type
 
 ### sys:err:er$
-> kind=sys.keys tier=reference since=- src=sdsys/syscom/err.h:50#a99e7c81
+> kind=sys.keys tier=reference since=- src=sdsys/syscom/err.h:53#a99e7c81
 
 Constants beginning `ER$` in `sdsys/syscom/err.h` (error codes: STATUS() after a failed statement, and the return codes of the verbs):
 
@@ -180,8 +180,6 @@ Constants beginning `ER$` in `sdsys/syscom/err.h` (error codes: STATUS() after a
 - `ER$TWIN` = 3042 - Two record ids differ only by case
 - `ER$MAXRLOCK` = 3060 - MAXRLOCK record lock limit reached
 - `ER$SRVRMEM` = 4000 - Insufficient memory for packet buffer
-- `ER$SRVRERR` = 4100 - Undefined Server Error
-- `ER$INV.NBR` = 4101 - Invalid File Number
 - `ER$NO.DLL` = 5000 - DLL not found
 - `ER$NO.API` = 5001 - API not found
 - `ER$NO.TEMP` = 5002 - Cannot open temporary file (os.error)
@@ -279,14 +277,14 @@ Constants beginning `SD$` in `sdsys/syscom/err.h` (error codes: STATUS() after a
 - `SD$PyErr.PrivUnknown` = -12042 - the OS permission could not be determined
 
 ### sys:ikeys:ah$
-> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:443#0398ee0f
+> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:447#0398ee0f
 
 Constants beginning `AH$` in `sdsys/gpl.bp/int$keys.h` (internal programs only (`$internal`)):
 
 - `AH$AUTO.DELETE` = 0x0002 - Self-deleting common block
 
 ### sys:ikeys:cred$
-> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:400#c92cfbe8
+> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:404#c92cfbe8
 
 Constants beginning `CRED$` in `sdsys/gpl.bp/int$keys.h` (internal programs only (`$internal`)):
 
@@ -298,7 +296,7 @@ Constants beginning `CRED$` in `sdsys/gpl.bp/int$keys.h` (internal programs only
 - `CRED$SERVERKEY` = 6 - HMAC(SaltedPassword,"Server Key"), b64
 
 ### sys:ikeys:evt$
-> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:303#9e4f33b2
+> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:307#9e4f33b2
 
 Constants beginning `EVT$` in `sdsys/gpl.bp/int$keys.h` (internal programs only (`$internal`)):
 
@@ -315,7 +313,7 @@ Constants beginning `EVT$` in `sdsys/gpl.bp/int$keys.h` (internal programs only 
 - `EVT$MESSAGE` = 0x0400 - Send immediate message
 
 ### sys:ikeys:fci$
-> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:483#7a0ef939
+> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:487#7a0ef939
 
 Constants beginning `FCI$` in `sdsys/gpl.bp/int$keys.h` (internal programs only (`$internal`)):
 
@@ -332,7 +330,7 @@ Constants beginning `FCI$` in `sdsys/gpl.bp/int$keys.h` (internal programs only 
 - `FCI$NET.CREATE` = 11 - ... CREATE.FILE on a server, no file yet: "server<FM>words"; the file variable is any local file (the VOC the verb has open)
 
 ### sys:ikeys:fl$
-> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:330#88f57ef4
+> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:334#88f57ef4
 
 Constants beginning `FL$` in `sdsys/gpl.bp/int$keys.h` (internal programs only (`$internal`)):
 
@@ -365,7 +363,7 @@ Constants beginning `FL$` in `sdsys/gpl.bp/int$keys.h` (internal programs only (
 - `FL$SETRDONLY` = 10005 - Make file read only (cannot reverse)
 
 ### sys:ikeys:in$
-> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:60#7a2659c9
+> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:63#7a2659c9
 
 Constants beginning `IN$` in `sdsys/gpl.bp/int$keys.h` (internal programs only (`$internal`)):
 
@@ -391,7 +389,7 @@ Constants beginning `IN$` in `sdsys/gpl.bp/int$keys.h` (internal programs only (
 - `IN$RAW` = 0x00200000 - INPUT ... RAW: exactly `length` characters, no interpretation of newline or erase (openQM 548)
 
 ### sys:ikeys:k$
-> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:82#4721cdd6
+> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:85#4721cdd6
 
 Constants beginning `K$` in `sdsys/gpl.bp/int$keys.h` (internal programs only (`$internal`)):
 
@@ -465,17 +463,13 @@ Constants beginning `K$` in `sdsys/gpl.bp/int$keys.h` (internal programs only (`
 - `K$SET.USERNAME` = 60 - Set the session user name ($internal)
 - `K$OS.ADMINISTRATOR` = 63 - Is the signed-in person an OS administrator?
 - `K$GROUP.MEMBER` = 68 - 1 member, 0 not, -1 could not tell
-- `K$GLOBAL.SESSION` = 69 - Signed in with $GLOBAL ($internal to set)
-- `K$NET` = 127 - may open a file on another SD server (SDNet); account-scoped like K$SH; set from $internal, -1 asks
-- `K$SD.ACCOUNTS` = 118 - Solo: always 0 (one account)
-- `K$VOC.EDIT` = 121 - Solo: 1 for the administrator
-- `K$BP.EDIT` = 122 - Solo: always 1
-- `K$DICT.EDIT` = 123 - Solo: always 1
-- `K$EDIT.OK` = 124 - the pathname of an open file: Solo always 1 (the VOC rule is !voc_refusal at the save)
-- `K$EDIT.KIND` = 125 - the same argument: 0 none of the three, 1 a VOC, 2 a dictionary, 3 a program file (for the message)
-- `K$EDIT.OS.OK` = 126 - an OS pathname about to be written, created, deleted or copied into: 1 unless it runs through a VOC the session may not change
-- `K$SHARED.READ` = 128 - Solo: always 0 (no shared account)
-- `K$SHARED.WRITE` = 129 - Solo: always 0
+- `K$JOB.MARK` = 172 - The scheduled job this session is, or '' (SD Core; not implemented in Solo)
+- `K$XFER` = 173 - File transfer over the ssh login: the slot and the server (S.242)
+- `K$WINSIZE` = 92 - The terminal's size from the tty
+- `K$SH` = 93 - may use SH and "!"
+- `K$OS.EXEC` = 94 - may use OS.EXECUTE and reach OS paths outside its account
+- `K$PATH.OK` = 95 - 1 if this account may open the pathname
+- `K$PATH.IN` = 96 - 1 if the pathname is inside the directory
 - `K$SET.ACCOUNT` = 97 - Set the session's account name (user table)
 - `K$USER.PEAK` = 98 - Peak number of users since SD started
 - `K$INPUT.FILL.SET` = 99 - The fill string for the next INPUT / INPUT @ (14 Oct 26, openQM 389)
@@ -489,33 +483,38 @@ Constants beginning `K$` in `sdsys/gpl.bp/int$keys.h` (internal programs only (`
 - `K$CMDLOG` = 108 - COMMAND.LOGGING: 1 on, 0 off, -1 ask; the log's pathname when it is on, else null (15 Oct 26, Q-8)
 - `K$CMDLOG.WRITE` = 109 - "origin<FM>command": one line in the command log if it is on (15 Oct 26, Q-8)
 - `K$GROUP.PHANTOM` = 110 - Mark the phantom with this user number as grouped with this process: 1 if marked (15 Oct 26, Q-8, PHANTOM GROUP)
-- `K$USER.STATS` = 112 - File activity counts of a user (0: all): uid, 11 counts, when counting began, login name (15 Oct 26, Q-8)
 - `K$NON.DURABLE.TXN` = 113 - 1: the next COMMIT is non-durable, a nested transaction goes to its parent (15 Oct 26, sheet 442; Solo 12 Nov 26, SOLO 56 group 7)
+- `K$USER.STATS` = 112 - File activity counts of a user (0: all): uid, 11 counts, when counting began, login name (15 Oct 26, Q-8)
 - `K$PHANTOM.USER` = 114 - The next phantom() is to be this user number (one PHANTOMS keeps, not in use); 0 cancels (16 Oct 26, PHANTOM USER)
-- `K$LOCK.TRACE` = 115 - 1 start lock tracing (administrator: makes the locktrace file), 0 stop, -1 ask; the state, -1 if refused (16 Oct 26; Solo 16 Nov 26, RELEASE_1.1 247)
-- `K$PROFILER` = 116 - n > 0 start the application event profiler (the events in n), 0 stop, -1 ask, -2 the table (16 Oct 26)
-- `K$PROFILER.USER` = 117 - user * 4096 + 2048 + n start it in another process, user * 4096 alone stop it and have it write F<user> to $ipc; administrator only
+- `K$PHANTOM.NONCE` = 144 - 'S':secret stages the secret the next phantom() gives the new process (its environment); 'G' answers the one this process was started with (26 Oct 26, W.11 F10)
+- `K$CLASS.MAIN` = 120 - 1: the next call may run a class module through its MAIN subroutine (CPROC, before it calls a catalogued command) (16 Oct 26, Fixes item 484)
 - `K$IS.SDAPISRVR` = 25 - Is this process an API server?  (kernel.h K_IS_SDAPISRVR; named here 16 Oct 26)
 - `K$RESET.ALL` = 119 - LOGTO ... RESET ALL: with a command, keep it and return to the bottom command processor, which takes it back with a null argument; 1 accepted, 0 refused (an API session) (16 Oct 26, Fixes item 30)
-- `K$CLASS.MAIN` = 120 - 1: the next call may run a class module through its MAIN subroutine (CPROC, before it calls a catalogued command) (16 Oct 26, Fixes item 484)
-- `K$PHANTOM.NONCE` = 144 - 'S':secret stages the secret the next phantom() gives the new process (its environment); 'G' answers the one this process was started with (26 Oct 26, W.11 F10)
-- `K$WINSIZE` = 92 - The terminal's size from the tty
+- `K$SD.ACCOUNTS` = 118 - Solo: always 0 (one account)
+- `K$VOC.EDIT` = 121 - Solo: 1 for the administrator
+- `K$BP.EDIT` = 122 - Solo: always 1
+- `K$DICT.EDIT` = 123 - Solo: always 1
+- `K$EDIT.OK` = 124 - the pathname of an open file: Solo always 1 (the VOC rule is !voc_refusal at the save)
+- `K$EDIT.KIND` = 125 - the same argument: 0 none of the three, 1 a VOC, 2 a dictionary, 3 a program file (for the message)
+- `K$EDIT.OS.OK` = 126 - an OS pathname about to be written, created, deleted or copied into: 1 unless it runs through a VOC the session may not change
+- `K$NET` = 127 - may open a file on another SD server (SDNet); account-scoped like K$SH; set from $internal, -1 asks
+- `K$SHARED.READ` = 128 - Solo: always 0 (no shared account)
+- `K$SHARED.WRITE` = 129 - Solo: always 0
+- `K$PROFILER` = 116 - n > 0 start the application event profiler (the events in n), 0 stop, -1 ask, -2 the table (16 Oct 26)
+- `K$PROFILER.USER` = 117 - user * 4096 + 2048 + n start it in another process, user * 4096 alone stop it and have it write F<user> to $ipc; administrator only
 - `K$SHOW.SAFE` = 151 - any text: the same text with every byte of the kernel's one rule (0-31, 127, 128-159, 248-255) as '?', the same length; for printing another session's text (10 Nov 26, Linux d35f5e31, S.88)
-- `K$AI.START` = 160 - system:@fm:maxtokens:@fm:prompt, answered 'OK' or 'ERR':@fm:why (Windows: 'ERR':@fm:'nohelper')
-- `K$AI.POLL` = 161 - 'W' waiting, 'D':@fm:the helper's reply (JSON), or 'E':@fm:why (Windows: 'E':@fm:'nohelper')
-- `K$AI.CANCEL` = 162 - give the request up ('OK')
-- `K$AI.STATUS` = 163 - the helper's status line, 'D':@fm:json, or 'E':@fm:why (Windows: 'E':@fm:'nohelper')
-- `K$XFER` = 173 - File transfer over the ssh login: the slot and the server (S.242)
-- `K$SH` = 93 - may use SH and "!"
-- `K$OS.EXEC` = 94 - may use OS.EXECUTE and reach OS paths outside its account
-- `K$PATH.OK` = 95 - 1 if this account may open the pathname
-- `K$PATH.IN` = 96 - 1 if the pathname is inside the directory
+- `K$AI.START` = 160 - the in-SD AI helper (op_ai.c): system:@fm:maxtokens:@fm:prompt, answered 'OK' or 'ERR':@fm:why; the kernel writes the audit line itself
+- `K$AI.POLL` = 161 - 'W' waiting, 'D':@fm:the helper's reply (JSON), or 'E':@fm:why
+- `K$AI.CANCEL` = 162 - give the request up
+- `K$AI.STATUS` = 163 - the helper's status line, 'D':@fm:json, or 'E':@fm:why
+- `K$LOCK.TRACE` = 115 - 1 start lock tracing (administrator: makes the locktrace file), 0 stop, -1 ask; the state, -1 if refused (16 Oct 26; Solo 16 Nov 26, RELEASE_1.1 247)
 - `K$LOGOUT` = 3 - LOGOUT of phantom process
 - `K$RESET.ALL.CODE` = 4 - LOGTO ... RESET ALL: every level was cast off and the bottom command processor called again
 - `K$EXIT.ABORT` = 3
+- `K$GLOBAL.SESSION` = 69 - Signed in with $GLOBAL ($internal to set)
 
 ### sys:ikeys:lgn$
-> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:367#765ea182
+> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:371#765ea182
 
 Constants beginning `LGN$` in `sdsys/gpl.bp/int$keys.h` (internal programs only (`$internal`)):
 
@@ -531,7 +530,7 @@ Constants beginning `LGN$` in `sdsys/gpl.bp/int$keys.h` (internal programs only 
 - `LGN$BANNED.ACCOUNTS` = 10 - Banned accounts
 
 ### sys:ikeys:mki$
-> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:476#688308c0
+> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:480#688308c0
 
 Constants beginning `MKI$` in `sdsys/gpl.bp/int$keys.h` (internal programs only (`$internal`)):
 
@@ -541,7 +540,7 @@ Constants beginning `MKI$` in `sdsys/gpl.bp/int$keys.h` (internal programs only 
 - `MKI$NO.CASE` = 8 - NO.CASE (for create mode)
 
 ### sys:ikeys:os$
-> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:262#aad0ea3f
+> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:267#aad0ea3f
 
 Constants beginning `OS$` in `sdsys/gpl.bp/int$keys.h` (internal programs only (`$internal`)):
 
@@ -564,7 +563,7 @@ Constants beginning `OS$` in `sdsys/gpl.bp/int$keys.h` (internal programs only (
 - `OS$CHOWN` = 100 - Chown on file / directory
 
 ### sys:ikeys:p$
-> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:317#9d1e6209
+> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:321#9d1e6209
 
 Constants beginning `P$` in `sdsys/gpl.bp/int$keys.h` (internal programs only (`$internal`)):
 
@@ -575,7 +574,7 @@ Constants beginning `P$` in `sdsys/gpl.bp/int$keys.h` (internal programs only (`
 - `P$PICKREAD` = 32
 
 ### sys:ikeys:pt$
-> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:250#cc748e70
+> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:255#cc748e70
 
 Constants beginning `PT$` in `sdsys/gpl.bp/int$keys.h` (internal programs only (`$internal`)):
 
@@ -591,7 +590,7 @@ Constants beginning `PT$` in `sdsys/gpl.bp/int$keys.h` (internal programs only (
 - `PT$CTRL.FILTER` = 11 - Discard control characters in INPUT and INPUT@?
 
 ### sys:ikeys:scram$
-> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:410#9f6a931d
+> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:414#9f6a931d
 
 Constants beginning `SCRAM$` in `sdsys/gpl.bp/int$keys.h` (internal programs only (`$internal`)):
 
@@ -602,7 +601,7 @@ Constants beginning `SCRAM$` in `sdsys/gpl.bp/int$keys.h` (internal programs onl
 - `SCRAM$MAX.ITER` = 10000000 - Ceiling on a server's i=
 
 ### sys:ikeys:usr$
-> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:292#c59bfa25
+> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:297#c59bfa25
 
 Constants beginning `USR$` in `sdsys/gpl.bp/int$keys.h` (internal programs only (`$internal`)):
 
@@ -613,11 +612,11 @@ Constants beginning `USR$` in `sdsys/gpl.bp/int$keys.h` (internal programs only 
 - `USR$SDNET` = 0x0010 - SDNet process (USR$SDVBSRVR also set)
 - `USR$CHGPHANT` = 0x0020 - Chargeable phantom
 - `USR$MSG.OFF` = 0x0040 - Messge reception disabled
-- `USR$GLOBAL` = 0x0100 - Signed in with $GLOBAL (ruling 33)
 - `USR$GROUPED` = 0x0800 - (K$USERS only) a phantom grouped with its parent: logged out when the parent ends
+- `USR$GLOBAL` = 0x0100 - Signed in with $GLOBAL (ruling 33)
 
 ### sys:ikeys:v$
-> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:433#0ebace4f
+> kind=sys.keys tier=reference since=- src=sdsys/gpl.bp/int$keys.h:437#0ebace4f
 
 Constants beginning `V$` in `sdsys/gpl.bp/int$keys.h` (internal programs only (`$internal`)):
 
@@ -644,7 +643,7 @@ Constants beginning `V$` in `sdsys/gpl.bp/int$keys.h` (internal programs only (`
 - `V$JSON.NULL` = 21
 
 ### sys:keys:acc$
-> kind=sys.keys tier=reference since=- src=sdsys/syscom/keys.h:362#1255e51e
+> kind=sys.keys tier=reference since=- src=sdsys/syscom/keys.h:364#1255e51e
 
 Constants beginning `ACC$` in `sdsys/syscom/keys.h` (an ordinary program may include it):
 
@@ -652,26 +651,27 @@ Constants beginning `ACC$` in `sdsys/syscom/keys.h` (an ordinary program may inc
 - `ACC$DESCR` = 2 - Account description
 - `ACC$GROUP` = 3 - Windows group for this Account
 - `ACC$SUSPENDED` = 5 - 'SUSPENDED' or '' - whether the
+- `ACC$PRIOR.TIER` = 6 - retired with the tier model (18 Sep 26); nothing writes or reads it
 - `ACC$SH` = 7 - may use the SH verb and "!" (yes/no)
 - `ACC$OS.EXEC` = 8 - may use OS.EXECUTE, and reach OS paths outside its account (yes/no)
 - `ACC$SD.ACCOUNTS` = 9 - SD Core: may reach files in the accounts its user could LOGTO (yes/no) - blank in Solo
 - `ACC$VOC.EDIT` = 10 - SD Core: may save changes to a VOC (yes/no) - blank in Solo (the VOC needs ADMIN)
 - `ACC$BP.EDIT` = 11 - SD Core: may save changes to a program file (yes/no) - blank in Solo
 - `ACC$DICT.EDIT` = 12 - SD Core: may save changes to a dictionary (yes/no) - blank in Solo
+- `ACC$NET` = 15 - may have its files opened over the API by request 29 (yes/no)
 - `ACC$SHARED.READ` = 13 - SD Core: may open the files of the shared account by name - blank in Solo
 - `ACC$SHARED.WRITE` = 14 - SD Core: may write records in the files of the shared account - blank in Solo
-- `ACC$RECOVERY` = 19 - the editors keep a recovery copy of unsaved text (yes/no; blank = no; nothing sets it in Solo)
-- `ACC$NET` = 15 - may have its files opened over the API by request 29 (yes/no)
 - `ACC$START` = 16 - menu, terminal, or blank = the system default
 - `ACC$TILES.OFF` = 17 - tile ids that are off for this account, separated by spaces
 - `ACC$PINS` = 18 - may add its own programs to the home screen (yes/no; blank = no)
+- `ACC$RECOVERY` = 19 - the editors keep a recovery copy of unsaved text (yes/no; blank = no; nothing sets it in Solo)
 - `ACC$MCP` = 20 - an MCP agent may use the account through the launcher (yes/no; blank = no)
 - `ACC$MCP.WRITE` = 21 - the same agent may also run a sentence of its own, sd_run (yes/no; blank = no)
 - `ACC$XFER` = 22 - may move files in and out over ssh with RECEIVE / SEND (yes/no; blank = no)
 - `ACC$JOBS` = 23 - SD's scheduled jobs (set.job, run.job) may be made and run (yes/no; blank = no)
 
 ### sys:keys:csv$
-> kind=sys.keys tier=reference since=- src=sdsys/syscom/keys.h:341#ea4c0227
+> kind=sys.keys tier=reference since=- src=sdsys/syscom/keys.h:343#ea4c0227
 
 Constants beginning `CSV$` in `sdsys/syscom/keys.h` (an ordinary program may include it):
 
@@ -685,7 +685,7 @@ Constants beginning `CSV$` in `sdsys/syscom/keys.h` (an ordinary program may inc
 - `CSV$QUOTE3` = 128 - CSVBUILD: enclose every field (CSV.MODE 3)
 
 ### sys:keys:fc$
-> kind=sys.keys tier=reference since=- src=sdsys/syscom/keys.h:699#f7761cf5
+> kind=sys.keys tier=reference since=- src=sdsys/syscom/keys.h:706#f7761cf5
 
 Constants beginning `FC$` in `sdsys/syscom/keys.h` (an ordinary program may include it):
 
@@ -846,7 +846,7 @@ Constants beginning `IT$` in `sdsys/syscom/keys.h` (an ordinary program may incl
 - `IT$BRIGHT.WHITE` = 15
 
 ### sys:keys:jb$
-> kind=sys.keys tier=reference since=- src=sdsys/syscom/keys.h:331#d5fc125e
+> kind=sys.keys tier=reference since=- src=sdsys/syscom/keys.h:333#d5fc125e
 
 Constants beginning `JB$` in `sdsys/syscom/keys.h` (an ordinary program may include it):
 
@@ -860,7 +860,7 @@ Constants beginning `JB$` in `sdsys/syscom/keys.h` (an ordinary program may incl
 - `JB$PRETTY` = 128 - SD's own: one element to a line, indented (used by CT)
 
 ### sys:keys:jp$
-> kind=sys.keys tier=reference since=- src=sdsys/syscom/keys.h:329#002df50b
+> kind=sys.keys tier=reference since=- src=sdsys/syscom/keys.h:331#002df50b
 
 Constants beginning `JP$` in `sdsys/syscom/keys.h` (an ordinary program may include it):
 
@@ -910,7 +910,7 @@ Constants beginning `LPTR$` in `sdsys/syscom/keys.h` (an ordinary program may in
 - `LPTR$HIGH.PRINT.UNIT` = 255 - Highest available print unit number
 
 ### sys:keys:ml$
-> kind=sys.keys tier=reference since=- src=sdsys/syscom/keys.h:687#b3260586
+> kind=sys.keys tier=reference since=- src=sdsys/syscom/keys.h:694#b3260586
 
 Constants beginning `ML$` in `sdsys/syscom/keys.h` (an ordinary program may include it):
 
@@ -929,7 +929,7 @@ Constants beginning `NLS$` in `sdsys/syscom/keys.h` (an ordinary program may inc
 - `NLS$DECIMAL` = 3
 
 ### sys:keys:oi$
-> kind=sys.keys tier=reference since=- src=sdsys/syscom/keys.h:357#ea938b71
+> kind=sys.keys tier=reference since=- src=sdsys/syscom/keys.h:359#ea938b71
 
 Constants beginning `OI$` in `sdsys/syscom/keys.h` (an ordinary program may include it):
 
@@ -937,7 +937,7 @@ Constants beginning `OI$` in `sdsys/syscom/keys.h` (an ordinary program may incl
 - `OI$CLASS` = 1 - Class name
 
 ### sys:keys:os$
-> kind=sys.keys tier=reference since=- src=sdsys/syscom/keys.h:651#de908335
+> kind=sys.keys tier=reference since=- src=sdsys/syscom/keys.h:658#de908335
 
 Constants beginning `OS$` in `sdsys/syscom/keys.h` (an ordinary program may include it):
 
@@ -1044,6 +1044,7 @@ Constants beginning `SKT$` in `sdsys/syscom/keys.h` (an ordinary program may inc
 - `SKT$INFO.FAMILY.IPV4` = 1 - Socket address family IPV4
 - `SKT$INFO.FAMILY.IPV6` = 2 - Socket address family IPV6
 - `SKT$INFO.EVENTS` = 9 - SET.SOCKET.MODE: events to watch.  SOCKET.INFO: the letters last found
+- `SKT$INFO.TRACE` = 10 - SET.SOCKET.MODE: pathname of a log of the data sent and received (null turns it off)
 - `SKT$INFO.TLS.SPKI` = 11 - hash of the server's public key
 - `SKT$READ.EVENT` = 1 - Data to read, a connection waiting on a server socket, or the peer closed
 - `SKT$WRITE.EVENT` = 2 - Data can be sent
@@ -1058,7 +1059,7 @@ Constants beginning `SL$` in `sdsys/syscom/keys.h` (an ordinary program may incl
 - `SL$COUNT` = 3 - Fetch number of entries in select list
 
 ### sys:keys:srt$
-> kind=sys.keys tier=reference since=- src=sdsys/syscom/keys.h:678#c4cbc5d3
+> kind=sys.keys tier=reference since=- src=sdsys/syscom/keys.h:685#c4cbc5d3
 
 Constants beginning `SRT$` in `sdsys/syscom/keys.h` (an ordinary program may include it):
 
@@ -1073,7 +1074,7 @@ Constants beginning `SRT$` in `sdsys/syscom/keys.h` (an ordinary program may inc
 - `SRT$DATA` = 128 - SORT(): sort has an associated data element
 
 ### sys:keys:sys$
-> kind=sys.keys tier=reference since=- src=sdsys/syscom/keys.h:544#6bc3f689
+> kind=sys.keys tier=reference since=- src=sdsys/syscom/keys.h:551#6bc3f689
 
 Constants beginning `SYS$` in `sdsys/syscom/keys.h` (an ordinary program may include it):
 
@@ -1190,7 +1191,7 @@ Constants beginning `SYS$` in `sdsys/syscom/keys.h` (an ordinary program may inc
 - `SYS$CASING` = 1086 - Is case sensitivity of string comparisons on in this program?
 
 ### sys:keys:vt$
-> kind=sys.keys tier=reference since=- src=sdsys/syscom/keys.h:712#4692cf70
+> kind=sys.keys tier=reference since=- src=sdsys/syscom/keys.h:719#4692cf70
 
 Constants beginning `VT$` in `sdsys/syscom/keys.h` (an ordinary program may include it):
 
@@ -1216,7 +1217,7 @@ Constants beginning `VT$` in `sdsys/syscom/keys.h` (an ordinary program may incl
 - `VT$SORT` = 20
 
 ### sys:keys:xml$
-> kind=sys.keys tier=reference since=- src=sdsys/syscom/keys.h:351#e2aedf5e
+> kind=sys.keys tier=reference since=- src=sdsys/syscom/keys.h:353#e2aedf5e
 
 Constants beginning `XML$` in `sdsys/syscom/keys.h` (an ordinary program may include it):
 

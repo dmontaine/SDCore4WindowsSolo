@@ -69,6 +69,16 @@ api=
 
 ssh=
 
+# deny-verbs
+#   Commands the user of this computer may not run.  A comma-separated list
+#   of verb names; each then needs the administrator or global password
+#   first, like SD's own administrator commands.  ADMIN, OFF, QUIT and LO are
+#   never denied.  Leave it blank to deny nothing extra.  The SD Core server
+#   can change the list later with DENY.VERBS.
+#deny-verbs=LISTU,CREATE.FILE
+
+deny-verbs=
+
 # reload-data
 #   Only where the folder %USERPROFILE%\SDCoreSolo holds data kept by an
 #   earlier uninstall (the account sduser, sd.conf, the passwords and the
@@ -83,17 +93,6 @@ ssh=
 
 reload-data=
 
-# deny-verbs
-#   Commands the user of this computer may not run.  A comma-separated list
-#   of verb names; each then needs the administrator or global password
-#   first, like SD's own administrator commands.  ADMIN, OFF, QUIT and LO are
-#   never denied.  Leave it blank to deny nothing extra.  The SD Core server
-#   can change the list later with DENY.VERBS - so on a computer with no
-#   global password the list stays as given until a reinstall.
-#deny-verbs=LISTU,CREATE.FILE
-
-deny-verbs=
-
 # os-access
 #   The shell and OS access (20 Oct 2026).  Both are OFF as delivered, and the
 #   administrator can change them later (ADMIN, then set.os.access).  none =
@@ -105,15 +104,6 @@ deny-verbs=
 #os-access=none
 
 os-access=
-
-# start
-#   Where new sessions start (12 Nov 2026): menu = the home screen, as
-#   delivered; terminal = the command prompt.  The administrator can change it
-#   later (ADMIN, then set.start.default).  Blank: the installer asks.  Used on
-#   a new installation only: an upgrade keeps what the installation has.
-#start=terminal
-
-start=
 
 # viewer
 #   A PDF reader the pdf command may start to show the documentation, even
@@ -127,3 +117,12 @@ start=
 #viewer=msedge
 
 viewer=
+
+# start
+#   Where new sessions start (12 Nov 2026): menu = the home screen, as
+#   delivered; terminal = the command prompt.  The administrator can change it
+#   later (ADMIN, then set.start.default).  Blank: the installer asks.  Used on
+#   a new installation only: an upgrade keeps what the installation has.
+#start=terminal
+
+start=

@@ -82,8 +82,9 @@ RESERVED = {
     # have no record HERE.
     "10190": ("SD Core for Linux", "20 Sep 2026", "root is not SD's administrator"),
     "10191": ("SD Core for Linux", "20 Sep 2026", "SD administration needs a local session"),
-    "10192": ("SD Core for Linux", "20 Sep 2026", "Account %1 is no longer suspended"),
-    "10193": ("SD Core for Linux", "20 Sep 2026", "Account %1 is now suspended"),
+    # 18 Nov 26 - four-version audit round 2 (as Core's P-3213): 10192 and 10193 are carried here with Linux's words, so that a
+    # number means the same in all four (nothing in Solo prints them: Solo has no modify.account suspend), and they leave this
+    # table of Linux-only ids.
     "10194": ("SD Core for Linux", "20 Sep 2026", "%1 is not suspended; nothing changed"),
     "10195": ("SD Core for Linux", "20 Sep 2026", "sdsys without an sdsys login"),
     # ***10922 - THE FIFTH COLLISION THIS PROJECT HAS HAD, AND THE ONLY ONE OF THE FOUR THE

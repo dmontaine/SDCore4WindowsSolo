@@ -18,6 +18,9 @@
 * 
 * 
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 2, the case fallbacks (the Linux audit session's decision: Solo has no
+*           unconverted VOC): .S reads the sentence name once and saves a new one lower case (P-4642), the command stack is
+*           read as $command.stack only (P-3267, P-3268), and the denied-verb list is read once, folded (P-4647), as Linux Solo.
 * 16 Nov 26 Windows port - from Linux Solo c8dac7a: the VOC refusal is message 15897 (was 12008), text unchanged.
 * 12 Nov 26 Windows port - from Linux ca3c6f41 (RELEASE_1.1 252, P-21): RUN folds the program name (as typed, lower, upper), as Linux.
 * 12 Nov 26 SD Core Solo - RELEASE_1.1 245: a refused login sets exit status 1 (it was 0), for the session's own window and for scripts.
@@ -1498,19 +1501,12 @@ stack.manipulation:
 *   one rather than ask 5045.  So: as typed, then down, then up (the fold .D
 *   uses above) - a hit keeps the id it matched and asks 5045 about it (owner,
 *   14 Sep 2026: "treat it as the same id"); no hit saves under downcase().
+* 18 Nov 26 SD Core Solo - four-version audit round 2 (the case fallbacks, decided by the Linux audit session): ONE READ, as
+*   Linux Solo.  The VOC folds case itself (NOCASE) and Solo has no unconverted VOC, so the as-typed / lower / upper retries
+*   above it are gone; an existing sentence is found in any case by the read below, and a new one is saved lower case.
          readvu voc.rec from voc, arg1, 0 else
             release voc, arg1
-            readvu voc.rec from voc, downcase(arg1), 0 then
-               arg1 = downcase(arg1)
-            end else
-               release voc, downcase(arg1)
-               readvu voc.rec from voc, upcase(arg1), 0 then
-                  arg1 = upcase(arg1)
-               end else
-                  release voc, upcase(arg1)
-                  arg1 = downcase(arg1)
-               end
-            end
+            arg1 = downcase(arg1)
          end
 
          readvu voc.rec from voc, arg1, 0 then
@@ -3728,12 +3724,11 @@ exit.actions:
 *   cs.id KEEPS WHICHEVER ONE MATCHED because the release below has to name the
 *   record the readu locked; releasing the other spelling would leave the lock
 *   held for the life of the session.
+*   18 Nov 26 SD Core Solo - four-version audit round 2 (P-3267, P-3268; the case fallbacks): ONE READ, as Linux Solo.
+*   The VOC is NOCASE and Solo has no unconverted VOC, so $COMMAND.STACK is the same record; the second try is gone.
             cs.id = '$command.stack'
             readu voc.rec from voc,cs.id else
-               cs.id = '$COMMAND.STACK'
-               readu voc.rec from voc,cs.id else
-                  voc.rec = ''
-               end
+               voc.rec = ''
             end
             if voc.rec[1,1] = "X" then
 						s = initial.account.path:@ds:'stacks'
@@ -3889,9 +3884,8 @@ check.denied.verb:
                dv.i += 1
             while dv.i <= dv.n and not(verb.denied)
                dv.other = ''
-               read dv.other from voc, dv.rec<dv.i> else
-                  read dv.other from voc, downcase(dv.rec<dv.i>) else dv.other = ''
-               end
+*              VOC ids are lower case here; the list holds upper-case names.  (18 Nov 26, P-4647: one read, as Linux Solo.)
+               read dv.other from voc, downcase(dv.rec<dv.i>) else dv.other = ''
                if upcase(dv.other<1>)[1,1] = 'V' then
                   if upcase(dv.other<2>) : @vm : downcase(dv.other<3>) : @vm : dv.other<4> = dv.key then
                      verb.denied = @true

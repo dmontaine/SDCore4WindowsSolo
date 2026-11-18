@@ -17,6 +17,9 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - four-version audit round 2: SKT_INFO_TRACE (10) from Core bc1eb7b1 (P-6163); K_JOB_MARK (172) in step with
+ *           SD Core's header, as Linux Solo (P-1323, P-5875); the kernel keys in Linux Solo's order, K_GLOBAL_SESSION last (P-4288,
+ *           P-4289); the stale "118 left free" note goes (K_SD_ACCOUNTS has been 118 since 11 Nov).  No number changes.
  * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-3512..P-3514): K_WINPID (59), K_INTERACTIVE (64) and K_OS_ELEVATED (65) retired;
  *           no Solo program asks them.  Keep the numbers unused.
  * 16 Nov 26 SD Core Solo - RELEASE_1.1 247, from Windows Core f43a0a43 (Linux 7f7a4fd4): K_LOCK_TRACE (115), LOCK.TRACER.
@@ -294,14 +297,22 @@
    answers about Windows groups, which any caller can already read.        */
 #define K_GROUP_MEMBER       68
 
-/* 28 Sep 26 SD Core Solo - RULING 33.  WAS THIS SESSION ADMITTED WITH THE
-   GLOBAL PASSWORD?  K_ADMINISTRATOR (26) cannot say: $ADMIN and $GLOBAL both
-   set it.  Only a $GLOBAL session may change the global catalog (the master
-   server's global.bp.out, SYNC.GLOBAL.CATALOG).  Same shape as 26: get with
-   -1; set with 1 or clear with 0 only from a program compiled $internal
-   (LOGIN, ADMIN, APISRVR), so user code can neither grant nor forge it.
-   Held in the user table as USR_GLOBAL.  int$keys.h carries the same key. */
-#define K_GLOBAL_SESSION     69
+/* 18 Nov 26 SD Core Solo - four-version audit round 2 (P-1323), as Linux Solo: the HEADER is kept in step with SD Core.  In Core,
+   kernel(K$JOB.MARK, 0) answers the name of the scheduled administrator job a process is; Solo has no administrator jobs, so nothing here
+   implements or asks it (the kernel answers it as any unknown key).  The number stays Core's so that it is never given to another key.
+   GPL.BP/INT$KEYS.H carries the same number. */
+#define K_JOB_MARK           172
+/* 15 Nov 26 SD Core Solo - from Core f6c20e51 (Linux Solo 9b69caa, S.242 stage 3, file transfer over the ssh login, RELEASE_1.1 299).
+   kernel(K$XFER, 'op' {: @fm : ...}) from a $internal program: the slot a session opens with RECEIVE / SEND (open, close, state) and the
+   transfer server's side of it (find, serve, refuse); sd_sftp.c k_xfer() has the arguments and answers.  Same number as SD Core and Linux
+   Solo; GPL.BP/INT$KEYS.H carries it.  174 is reserved for SD Core for Windows' K$OS.SDSYS.USER and not used here. */
+#define K_XFER               173
+/* 13 Oct 26 dm (Linux 7ff476f) - THE TERMINAL'S OWN SIZE.  kernel(K$WINSIZE, '') answers the terminal's width, a field mark and
+   its height, as the kernel last read them from the tty (TIOCGWINSZ, at start-up and again whenever the terminal is resized:
+   SIGWINCH), or null when it has not been able to - no tty (a phantom, a pipe, the API) or a terminal that reports 0 by 0.  LOGIN
+   keeps what the kernel read and no longer overrides it with terminfo's 120 by 36.  Linux's number (its block 90-99), kept exactly;
+   GPL.BP/INT$KEYS.H carries the same number. */
+#define K_WINSIZE            92
 
 /* 18 Oct 26 Windows port - from Linux 0b6a207 (14 Oct 26 dm): 1.2-0 sheet items 24, 29 and 38 (LISTU).
    THE NUMBERS ARE LINUX'S, in its own block 90-99, and are kept exactly (kernel key numbers are
@@ -392,6 +403,13 @@
                        those the PHANTOMS parameter keeps and not be in use, or phantom() returns 0.  0 cancels.  phantom() clears
                        it, made or not.  Returns 1. */
 #define K_PHANTOM_USER       114
+/* 28 Oct 26 Windows port - from Linux ec8459b - W.11 F10 (the start-up records of a phantom are written to $ipc, a file every SD user's process may write).
+     K_PHANTOM_NONCE   'S' followed by 16 to 64 characters of the base64 alphabet: the secret the next phantom() of this process is to
+                       give the new process (in its environment, SD_PHANTOM_NONCE, which only the same operating-system user can read).
+                       Returns 1, or 0 and nothing staged if the text is not of that shape.  phantom() clears it, made or not.
+                       'G' answers the secret THIS process was started with, or the null string when it was not started by a phantom()
+                       that gave one (the environment variable is removed when the process starts, so nothing it runs inherits it). */
+#define K_PHANTOM_NONCE      144
 /* 16 Oct 26 dm - QM4 gaps (LOCK.TRACER).  16 Nov 26 SD Core Solo - from Windows Core f43a0a43 (Linux 7f7a4fd4; RELEASE_1.1 247).
    It was left out because the trace file sits in the system directory, which no ordinary Windows user may write in Core; Solo's
    tree belongs to its one Windows user (installed per user), so the session appends as Linux Solo's does.
@@ -400,13 +418,43 @@
                        after that is appended to it by lock_trace() in op_lock.c.  Returns the state after the call, -1 if the
                        caller may not change it or the file could not be made. */
 #define K_LOCK_TRACE         115
-/* 28 Oct 26 Windows port - from Linux ec8459b - W.11 F10 (the start-up records of a phantom are written to $ipc, a file every SD user's process may write).
-     K_PHANTOM_NONCE   'S' followed by 16 to 64 characters of the base64 alphabet: the secret the next phantom() of this process is to
-                       give the new process (in its environment, SD_PHANTOM_NONCE, which only the same operating-system user can read).
-                       Returns 1, or 0 and nothing staged if the text is not of that shape.  phantom() clears it, made or not.
-                       'G' answers the secret THIS process was started with, or the null string when it was not started by a phantom()
-                       that gave one (the environment variable is removed when the process starts, so nothing it runs inherits it). */
-#define K_PHANTOM_NONCE      144
+/* 11 Nov 26 SD Core Solo - SOLO 56 group 4, as Linux Solo (S.117, 10 Nov 26; carry 19, 24 Oct 26): SD Core's edit keys at SD Core's numbers, which
+   SD Core's editors and toolkit ask, answered with Solo's rules (op_kernel.c): K_EDIT_OK, K_BP_EDIT and K_DICT_EDIT always 1 (the VOC rule is
+   !voc_refusal at the save), K_VOC_EDIT the administrator, K_SD_ACCOUNTS and K_SHARED_READ/WRITE 0 (one account, no shared account),
+   K_EDIT_KIND the kind of file by its last component, K_EDIT_OS_OK edit_os_path_refusal() (op_dio2.c, the VOC alone).  None can be set.
+   18 Nov 26 (four-version audit round 2, P-4288, P-4289, P-5875): these keys are in Linux Solo's order; the numbers are unchanged. */
+#define K_SD_ACCOUNTS        118
+/* 16 Oct 26 dm - QM4 Fixes item 30 (LOGTO ... RESET ALL).  K_RESET_ALL with a command: keep it, cast off every programme and
+   stacked command processor and return to the bottom one (k_exit_cause K_RESET_ALL_EXIT), which takes the command back with a
+   null argument and runs it.  Returns 1 when accepted, 0 when refused (an API server has no bottom command processor to go
+   back to).  With a null argument it returns the kept command, or the null string, and forgets it. */
+#define K_RESET_ALL          119
+/* 16 Oct 26 dm - QM4 Fixes item 484.  K_CLASS_MAIN with 1: the next k_call() may run a class module through its MAIN subroutine
+   (kernel.c, class_main_ok).  CPROC sets it just before it calls a catalogued command; op_run() and op_chain() set it themselves.
+   Used by that one call whatever becomes of it. */
+#define K_CLASS_MAIN         120
+#define K_VOC_EDIT           121
+#define K_BP_EDIT            122
+#define K_DICT_EDIT          123
+#define K_EDIT_OK            124
+#define K_EDIT_KIND          125
+#define K_EDIT_OS_OK         126
+/* 20 Oct 26 SD Core for Linux Solo (SDNet carry 9; SD Core's S.65 slice 1, 17 Oct 26).  K_NET: 1 / 0 sets (only from a $internal program), -1 asks;
+   may the session open a file on another SD server.  Loaded at sign-on (LOGIN) and by the API server from register field 15 (ACC$NET), as
+   K_SH and K_OS_EXEC are; the administrator is never refused.  SD Core keeps it in a gates word; Solo has none, so it is the user flag USR_NET
+   (sysseg.h).  GPL.BP/INT$KEYS.H carries the same number. */
+#define K_NET                127
+#define K_SHARED_READ        128
+#define K_SHARED_WRITE       129
+/* 16 Oct 26 dm - QM4 gaps (PROFILER).
+     K_PROFILER        n > 0 starts the application event profiler in this process, logging the events whose PROF_x bits are in n (and
+                       emptying the table); 0 stops it, leaving what was found; -1 asks which are being logged; -2 returns what was
+                       found (see profiler.c).  Returns the events being logged, or the table.
+     K_PROFILER_USER   user * 4096 + 2048 + n starts it in another process, user * 4096 alone stops it and has that process
+                       write its table to the $ipc record F<user>.  The administrator only.  Returns 1 if the process was found,
+                       0 if not, -1 if the caller may not. */
+#define K_PROFILER           116
+#define K_PROFILER_USER      117
 /* 10 Nov 26 Windows port - from Linux d35f5e31 (S.88 phase 2, the readers of $IPC).  K_SHOW_SAFE: the argument is any text; the answer is
    that text with every byte of THE ONE RULE (op_lock.c show_unsafe_byte(): 0-31, 127, 128-159, 248-255) made '?', the same length.  It
    reads and changes nothing else and any program may ask: PSTAT, PROFILER DISPLAY and HSM USER n print the $IPC records S<n>, F<n> and
@@ -419,54 +467,16 @@
 #define K_AI_POLL            161
 #define K_AI_CANCEL          162
 #define K_AI_STATUS          163
-/* 16 Oct 26 dm - QM4 gaps (PROFILER).
-     K_PROFILER        n > 0 starts the application event profiler in this process, logging the events whose PROF_x bits are in n (and
-                       emptying the table); 0 stops it, leaving what was found; -1 asks which are being logged; -2 returns what was
-                       found (see profiler.c).  Returns the events being logged, or the table.
-     K_PROFILER_USER   user * 4096 + 2048 + n starts it in another process, user * 4096 alone stops it and has that process
-                       write its table to the $ipc record F<user>.  The administrator only.  Returns 1 if the process was found,
-                       0 if not, -1 if the caller may not. */
-/* 118 is Linux's K_SD_ACCOUNTS (the SD.ACCOUNTS per-account gate, S.63 family, held); left free so the numbers agree. */
-/* 16 Oct 26 dm - QM4 Fixes item 30 (LOGTO ... RESET ALL).  K_RESET_ALL with a command: keep it, cast off every programme and
-   stacked command processor and return to the bottom one (k_exit_cause K_RESET_ALL_EXIT), which takes the command back with a
-   null argument and runs it.  Returns 1 when accepted, 0 when refused (an API server has no bottom command processor to go
-   back to).  With a null argument it returns the kept command, or the null string, and forgets it. */
-#define K_RESET_ALL          119
-/* 16 Oct 26 dm - QM4 Fixes item 484.  K_CLASS_MAIN with 1: the next k_call() may run a class module through its MAIN subroutine
-   (kernel.c, class_main_ok).  CPROC sets it just before it calls a catalogued command; op_run() and op_chain() set it themselves.
-   Used by that one call whatever becomes of it. */
-#define K_CLASS_MAIN         120
-/* 20 Oct 26 SD Core for Linux Solo (SDNet carry 9; SD Core's S.65 slice 1, 17 Oct 26).  K_NET: 1 / 0 sets (only from a $internal program), -1 asks;
-   may the session open a file on another SD server.  Loaded at sign-on (LOGIN) and by the API server from register field 15 (ACC$NET), as
-   K_SH and K_OS_EXEC are; the administrator is never refused.  SD Core keeps it in a gates word; Solo has none, so it is the user flag USR_NET
-   (sysseg.h).  GPL.BP/INT$KEYS.H carries the same number. */
-#define K_NET                127
-/* 11 Nov 26 SD Core Solo - SOLO 56 group 4, as Linux Solo (S.117, 10 Nov 26; carry 19, 24 Oct 26): SD Core's edit keys at SD Core's numbers, which
-   SD Core's editors and toolkit ask, answered with Solo's rules (op_kernel.c): K_EDIT_OK, K_BP_EDIT and K_DICT_EDIT always 1 (the VOC rule is
-   !voc_refusal at the save), K_VOC_EDIT the administrator, K_SD_ACCOUNTS and K_SHARED_READ/WRITE 0 (one account, no shared account),
-   K_EDIT_KIND the kind of file by its last component, K_EDIT_OS_OK edit_os_path_refusal() (op_dio2.c, the VOC alone).  None can be set. */
-#define K_SD_ACCOUNTS        118
-#define K_VOC_EDIT           121
-#define K_BP_EDIT            122
-#define K_DICT_EDIT          123
-#define K_EDIT_OK            124
-#define K_EDIT_KIND          125
-#define K_EDIT_OS_OK         126
-#define K_SHARED_READ        128
-#define K_SHARED_WRITE       129
-#define K_PROFILER           116
-#define K_PROFILER_USER      117
-/* 13 Oct 26 dm (Linux 7ff476f) - THE TERMINAL'S OWN SIZE.  kernel(K$WINSIZE, '') answers the terminal's width, a field mark and
-   its height, as the kernel last read them from the tty (TIOCGWINSZ, at start-up and again whenever the terminal is resized:
-   SIGWINCH), or null when it has not been able to - no tty (a phantom, a pipe, the API) or a terminal that reports 0 by 0.  LOGIN
-   keeps what the kernel read and no longer overrides it with terminfo's 120 by 36.  Linux's number (its block 90-99), kept exactly;
-   GPL.BP/INT$KEYS.H carries the same number. */
-#define K_WINSIZE            92
-/* 15 Nov 26 SD Core Solo - from Core f6c20e51 (Linux Solo 9b69caa, S.242 stage 3, file transfer over the ssh login, RELEASE_1.1 299).
-   kernel(K$XFER, 'op' {: @fm : ...}) from a $internal program: the slot a session opens with RECEIVE / SEND (open, close, state) and the
-   transfer server's side of it (find, serve, refuse); sd_sftp.c k_xfer() has the arguments and answers.  Same number as SD Core and Linux
-   Solo; GPL.BP/INT$KEYS.H carries it.  174 is reserved for SD Core for Windows' K$OS.SDSYS.USER and not used here. */
-#define K_XFER               173
+
+/* 28 Sep 26 SD Core Solo - RULING 33.  WAS THIS SESSION ADMITTED WITH THE
+   GLOBAL PASSWORD?  K_ADMINISTRATOR (26) cannot say: $ADMIN and $GLOBAL both
+   set it.  Only a $GLOBAL session may change the global catalog (the master
+   server's global.bp.out, SYNC.GLOBAL.CATALOG).  Same shape as 26: get with
+   -1; set with 1 or clear with 0 only from a program compiled $internal
+   (LOGIN, ADMIN, APISRVR), so user code can neither grant nor forge it.
+   Held in the user table as USR_GLOBAL.  int$keys.h carries the same key.
+   18 Nov 26: here, after the shared keys, as Linux Solo has it. */
+#define K_GLOBAL_SESSION     69
 
 /* PTERM() function action keys */
 #define PT_BREAK              1
@@ -656,9 +666,10 @@
 /* 15 Oct 26 dm - QM4 gaps Q-5, SELECT.SOCKET().  The key (SD's own number: openQM's list does not give one) and the events
    a program can watch for.  Mirrored in sdsys/syscom/keys.h. */
 #define SKT_INFO_EVENTS          9    /* Events to watch (SET.SOCKET.MODE) / events last found (SOCKET.INFO) */
+/* 18 Nov 26 SD Core Solo - from Core bc1eb7b1 (Linux 400500c; four-version audit round 2, P-6163).  Mirrored in sdsys/syscom/keys.h. */
+#define SKT_INFO_TRACE          10    /* SET.SOCKET.MODE: the pathname of a log of the data sent and received; null turns it off */
 /* 25 Oct 26 Windows port - from Linux Solo 1f5f703 / Linux 6815cdc (S.65 slice 2).  SOCKET.INFO only: the SHA-256 of the SubjectPublicKeyInfo of the certificate the server of
-   a socket opened with SKT$TLS presented, as 64 lower case hex digits; "" for any other socket.  What a server definition pins.  Mirrored in sdsys/syscom/keys.h.  (Linux's
-   SKT_INFO_TRACE 10 is not carried here.) */
+   a socket opened with SKT$TLS presented, as 64 lower case hex digits; "" for any other socket.  What a server definition pins.  Mirrored in sdsys/syscom/keys.h. */
 #define SKT_INFO_TLS_SPKI       11
 #define SKT_READ_EVENT           1   /* Data can be read, or a connection is waiting on a server socket, or it was closed */
 #define SKT_WRITE_EVENT          2    /* Data can be sent */

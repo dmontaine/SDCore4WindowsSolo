@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - four-version audit round 2 (P-6165, P-6459), as Core: MAX_NETDIRS_LEN 191 (Linux's; what one sd.conf line leaves);
+ *               a layout change, as APILOCAL's was.
  * 17 Nov 26 SD Core Solo - from Core 8bd42f1a (RELEASE_1.1 317): api_local after api_port (APILOCAL); the layout of the shared memory changes,
  *               so a running SD must be restarted after an upgrade.
  * 15 Nov 26 SD Core Solo - from Core f6c20e51 (Linux Solo 9b69caa, S.242 stage 3, RELEASE_1.1 299): the user table gains the file transfer slot
@@ -47,7 +49,10 @@
    pulls in sysseg.h, and config.h is included AFTER sd.h by every file that
    wants it, so a definition in config.h is not in scope for the struct
    below.  config.h uses this one.                                         */
-#define MAX_NETDIRS_LEN 1023
+/* 18 Nov 26 SD Core Solo - as Core (Linux 1557e270, S.62): 191, Linux's number.  read_config() reads a line of at most 199 characters,
+   so 191 is all "NETDIRS=" leaves; 1023 could never be reached.  A longer value is refused by name (config.c).  THE SEGMENT LAYOUT
+   CHANGES with it, as APILOCAL's did: a running SD is restarted after an upgrade. */
+#define MAX_NETDIRS_LEN 191
 
 /* System shared segment. */
 

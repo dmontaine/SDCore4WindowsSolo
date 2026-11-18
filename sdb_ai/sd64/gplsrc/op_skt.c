@@ -17,6 +17,11 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - four-version audit round 2 (P-4308, P-6446, P-6447, P-6163; owner's answer 5 of 17 Nov): SET.SOCKET.MODE
+ *            SKT$INFO.TRACE is carried from Core bc1eb7b1 (Linux 400500c, b6186ccb; Linux Solo's account gate): the log of the data
+ *            sent and received, the OS-path gate, the VOC edit gate, and win32trace.c's protected DACL in place of Linux's 0600.
+ *            op_openskt() closes the socket and frees the address list after a failed connect (Core's P-3094, Linux 14 Oct 26).
+ *            (P-5885) one space after "skt," as the other three.
  * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4307): no (int) cast of skt for sd_tls_client_start(); SOCKET is int here (sdnet.h).
  * rev 0.9-3 SIGPIPE Error in op_writeskt() (WRITE.SOCKET)  issue #89 / ScarletDME 
  * 20 Oct 26 Windows port - from Linux 1f5f703 - SDNet carry 9 (SD Core's S.65 slice 2, 6815cdc): SOCKET.INFO(SKT$INFO.TLS.SPKI), the hash of the server's public key.
@@ -101,6 +106,7 @@
    return; see the history above and gplbld/test-noreturn-units.py. */
 
 #include "sd.h"
+#include "header.h" /* HDR_INTERNAL: the edit gates of SKT$INFO.TRACE (18 Nov 26, from Core bc1eb7b1) */
 #include "keys.h"
 #include "sdnet.h"
 #include "sd_tls.h"
@@ -114,6 +120,8 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <string.h>
+
+#include "win32trace.h" /* 18 Nov 26 SD Core Solo, from Core bc1eb7b1 - SKT$INFO.TRACE's log, made owner-only (Linux's 0600) */
 
 #define SOCKET_DEBUG
 
@@ -164,6 +172,53 @@ Private int tls_read_by_deadline(SD_TLS_CLIENT* tls, SOCKET skt, char* buf, int 
     }
   }
 }
+
+/* ======================================================================
+   skt_trace_log()  -  One entry of a socket trace (SKT$INFO.TRACE; 18 Nov 26 SD Core Solo, from Core bc1eb7b1 and Linux 400500c)
+
+   "SEND n bytes" or "RECV n bytes", then the data sixteen bytes to a line: the offset, the bytes in hexadecimal, and the
+   same bytes as characters, a full stop for one that is not printable.  What is written is what the program handed to the
+   socket or got from it, so on a TLS socket it is the data before encryption and after decryption.  A failed write to the
+   log is not reported: a trace must not stop the traffic it is watching.                                              */
+
+Private void skt_trace_log(SOCKVAR* sock, const char* dir, const char* data, int bytes) {
+  char line[160];
+  int off;
+  int i;
+  int n;
+  int len;
+  u_char c;
+
+  if ((sock->trace_fd < 0) || (bytes <= 0))
+    return;
+
+  len = snprintf(line, sizeof(line), "%s %d bytes\n", dir, bytes);
+  if (write(sock->trace_fd, line, len) < 0)
+    return;
+
+  for (off = 0; off < bytes; off += 16) {
+    n = bytes - off;
+    if (n > 16)
+      n = 16;
+    len = snprintf(line, sizeof(line), "%06x ", off);
+    for (i = 0; i < 16; i++) {
+      if (i < n)
+        len += snprintf(line + len, sizeof(line) - len, " %02x", (u_char)data[off + i]);
+      else
+        len += snprintf(line + len, sizeof(line) - len, "   ");
+    }
+    line[len++] = ' ';
+    line[len++] = ' ';
+    for (i = 0; i < n; i++) {
+      c = (u_char)data[off + i];
+      line[len++] = ((c >= 32) && (c < 127)) ? (char)c : '.';
+    }
+    line[len++] = '\n';
+    if (write(sock->trace_fd, line, len) < 0)
+      return;
+  }
+}
+
 int translate_sockerr(int errval) {
   /* simply translates Posix error constants to SD error
      * constants.
@@ -278,6 +333,7 @@ void op_accptskt() {
   sock->tls = NULL; /* 15 Sep 26 Windows port - S.19: k_alloc does not zero */
   sock->events = 0;
   sock->found = 0;
+  sock->trace_fd = -1; /* 18 Nov 26 - SKT$INFO.TRACE: none */
   sock->family = sockvar->family;
 
   switch (sock->family) {
@@ -573,6 +629,14 @@ void op_openskt() {
     }
   }
 
+  /* 18 Nov 26 SD Core Solo - from Core bc1eb7b1^ (Linux 14 Oct 26, Core's P-3094): a failed connect left the socket open (and
+     the address list unfreed); a program that retries in a loop with a timeout would run out of descriptors */
+
+  if (process.status == ER_CONNECT) {
+    closesocket(skt);
+    freeaddrinfo(res);
+  }
+
   /* Create socket descriptor and SOCKVAR structure */
 
   if (process.status == 0) {
@@ -584,6 +648,7 @@ void op_openskt() {
     sock->tls = NULL; /* 15 Sep 26 Windows port - S.19 */
     sock->events = 0;
     sock->found = 0;
+    sock->trace_fd = -1; /* 18 Nov 26 - SKT$INFO.TRACE: none */
     struct sockaddr_in const* sin;
     struct sockaddr_in6 const* sin6;
     switch (res->ai_family) {
@@ -617,7 +682,7 @@ void op_openskt() {
 
       /* 20 Oct 26 dm - S.73 item 2: the fourth argument (seconds to wait for the connection; NETWAIT for every SDNet caller) bounds the
          handshake too, as it was said to ("the connection"); it was 15 seconds fixed.  Without the argument it is still 15. */
-      sock->tls = sd_tls_client_start(skt,(connect_timeout > 0) ? (connect_timeout * 1000) : (SD_TLS_HANDSHAKE_MS + 5000),
+      sock->tls = sd_tls_client_start(skt, (connect_timeout > 0) ? (connect_timeout * 1000) : (SD_TLS_HANDSHAKE_MS + 5000),
                                       tls_err, sizeof(tls_err));
       if (sock->tls == NULL) {
         process.status = ER_CONNECT;
@@ -768,6 +833,7 @@ void op_readskt() {
 
   ts_copy(skt_buff, rcvd_bytes);
   ts_terminate();
+  skt_trace_log(sock, "RECV", skt_buff, rcvd_bytes);
 
 exit_op_readskt:
   k_pop(3);
@@ -859,6 +925,43 @@ void op_setskt() {
         sockvar->found = 0;
       }
       break;
+
+    /* 18 Nov 26 SD Core Solo - from Core bc1eb7b1 (Linux 400500c and b6186ccb; Linux Solo's case); four-version audit round 2,
+       P-6446.  SKT$INFO.TRACE: the pathname of a log of the data sent and received on this socket, which is overwritten; a
+       null pathname (or closing the socket) ends the trace.  The log is a file the program names, so the account's OS-access
+       gate applies as it does to OPENSEQ: an account without OS.EXECUTE may trace only into its own directory, and a path
+       through a VOC the session may not change is refused, as Linux Solo.  OWNER-ONLY, LIKE LINUX'S 0600: win32_trace_open()
+       makes it with a protected DACL of this process's user, SYSTEM and Administrators, before a byte is written, and does
+       not follow a link at the last name (Linux's O_NOFOLLOW).  It holds the traffic, which can include credentials. */
+    case SKT_INFO_TRACE: {
+      char trace_path[MAX_PATHNAME_LEN + 1];
+      int trace_len;
+      int fd;
+
+      trace_len = k_get_c_string(descr, trace_path, MAX_PATHNAME_LEN);
+      if (sockvar->trace_fd >= 0) {
+        close(sockvar->trace_fd);
+        sockvar->trace_fd = -1;
+      }
+      if (trace_len > 0) {
+        if (!os_path_ok_for_account(trace_path)) {
+          process.status = ER_PERM;
+          break;
+        }
+        if (!(process.program.flags & HDR_INTERNAL) && (edit_os_path_refusal(trace_path, FALSE) != EDIT_NONE)) {
+          process.status = ER_PERM;
+          break;
+        }
+        fd = win32_trace_open(trace_path);
+        if (fd < 0) {
+          process.status = ER_IOE;
+          process.os_error = errno;
+        } else {
+          (void)fcntl(fd, F_SETFD, FD_CLOEXEC); /* Linux's O_CLOEXEC */
+          sockvar->trace_fd = fd;
+        }
+      }
+    } break;
 
     default:
       process.status = ER_BAD_KEY;
@@ -1266,6 +1369,7 @@ void op_srvrskt() {
       sock->tls = NULL; /* 15 Sep 26 Windows port - S.19: k_alloc does not zero */
       sock->events = 0;
       sock->found = 0;
+      sock->trace_fd = -1; /* 18 Nov 26 - SKT$INFO.TRACE: none */
 
       struct sockaddr_in const* sin;
       struct sockaddr_in6 const* sin6;
@@ -1421,6 +1525,7 @@ void op_writeskt() {
         goto exit_op_writeskt;
       }
 
+      skt_trace_log(sock, "SEND", p, bytes_sent);
       bytes -= bytes_sent;
       total_bytes += bytes_sent;
       p += bytes_sent;
@@ -1444,6 +1549,10 @@ void close_skt(SOCKVAR* sock) {
   if (sock->tls != NULL) {
     sd_tls_client_end((SD_TLS_CLIENT*)sock->tls);
     sock->tls = NULL;
+  }
+  if (sock->trace_fd >= 0) { /* 18 Nov 26 SD Core Solo - SKT$INFO.TRACE, from Core bc1eb7b1 */
+    close(sock->trace_fd);
+    sock->trace_fd = -1;
   }
   closesocket((SOCKET)(sock->socket_handle));
 }

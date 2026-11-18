@@ -18,6 +18,7 @@
 *
 *
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 2 (P-5911): a space after "12028," as SD Core.  Layout only.
 * 17 Nov 26 SD Core Solo - four-version audit, Solo's messages back to Core's numbers (Linux Solo 14983>11023): "Not in the backup"
 *           is 12028, SD Core's (free here since !voc_refusal's moved to 15915); 15983 is retired.
 * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4393, P-4344, P-4348), from SD Core 482d821a (RELEASE_1.1 289): a reparse point
@@ -241,7 +242,7 @@ read.result:
 *           Taken from both<ln>: trim() would fold blanks in the path.
             sk = both<ln>
             if sk[len(sk), 1] = char(13) then sk = sk[1, len(sk) - 1]
-            crt sysmsg(12028,sk[index(sk, 'SKIPPED ', 1) + 8, len(sk)]) ;* Not in the backup: %1
+            crt sysmsg(12028, sk[index(sk, 'SKIPPED ', 1) + 8, len(sk)]) ;* Not in the backup: %1
          case tag = 'ERROR'
             why = line[19, len(line)]
          case tag = 'WARNING'

@@ -17,6 +17,9 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - four-version audit round 2, Core's forms where the result is the same (P-5880, P-5881, P-6439, P-6440,
+ *               P-6442, P-6443): os_path_inside() hands the names to fullpath() (which bounds its output) without copying them; the
+ *               register record is read "r" and cut at LF then CR; a directory entry holding "/" is skipped; cand[0].
  * 17 Nov 26 SD Core Solo - four-version audit, Linux Solo 3b1316cc (S.62 NETDIRS, the owner's decision of 17 Nov): os_path_ok_for_account()
  *               asks netdirs_admit() last, and net_path_permitted() asks it in place of its own loop.  Entries are judged once per process in
  *               the Windows form and ignored (named in the error log at sd-solo -start, netdirs_report()) when not absolute, not a directory,
@@ -2298,13 +2301,9 @@ bool os_path_inside(const char* rootdir, const char* name) {
 
   if ((rootdir == NULL) || (name == NULL) || (rootdir[0] == '\0') || (name[0] == '\0'))
     return FALSE;
-  if ((strlen(rootdir) > MAX_PATHNAME_LEN) || (strlen(name) > MAX_PATHNAME_LEN))
-    return FALSE;
   if (!os_root_absolute(rootdir))
     return FALSE;
-  strcpy(rr, rootdir);
-  strcpy(cc, name);
-  if (!fullpath(rr, rr) || !fullpath(cc, cc))
+  if (!fullpath(rr, (char*)rootdir) || !fullpath(cc, (char*)name)) /* 18 Nov 26 (P-5880, P-5881): as Core; fullpath bounds its output */
     return FALSE;
   if (!net_normalise(rr, root) || !net_normalise(cc, cand))
     return FALSE;
@@ -2430,16 +2429,18 @@ Private int netdir_account_clash(char* root, char* which, size_t which_len) {
   if ((d = opendir(regdir)) == NULL)
     return -1;
   while ((clash == 0) && ((ent = readdir(d)) != NULL)) {
-    if ((ent->d_name[0] == '.') || (ent->d_name[0] == '%'))
+    if ((ent->d_name[0] == '.') || (ent->d_name[0] == '%') || (strchr(ent->d_name, '/') != NULL))
       continue;
     if (snprintf(recpath, sizeof(recpath), "%s%c%s", regdir, DS, ent->d_name) >= (int)sizeof(recpath))
       continue;
-    if ((fp = fopen(recpath, "rb")) == NULL)
+    if ((fp = fopen(recpath, "r")) == NULL)
       continue;
     got = fread(body, 1, sizeof(body) - 1, fp);
     fclose(fp);
     body[got] = '\0';
-    if ((p = strpbrk(body, "\r\n")) != NULL)
+    if ((p = strchr(body, '\n')) != NULL)
+      *p = '\0';
+    if ((p = strchr(body, '\r')) != NULL)
       *p = '\0';
     if (!os_root_absolute(body) || !netdir_winform(body, acct))
       continue; /* no directory there to protect */
@@ -2554,7 +2555,7 @@ Private bool netdirs_admit(char* cand) {
 
   if (sysseg->netdirs[0] == '\0')
     return FALSE;
-  if ((cand == NULL) || (*cand == '\0') || has_parent_ref(cand) || netdir_dot_component(cand))
+  if ((cand == NULL) || (cand[0] == '\0') || has_parent_ref(cand) || netdir_dot_component(cand))
     return FALSE;
   if (netdirs_count < 0)
     netdirs_load(FALSE);

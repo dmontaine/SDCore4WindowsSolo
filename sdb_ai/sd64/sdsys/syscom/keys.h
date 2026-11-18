@@ -318,8 +318,10 @@
       $define SKT$INFO.FAMILY.IPV6     2    ;* Socket address family IPV6
       * 18 Oct 26 Windows port - from Linux cc03bed (15 Oct 26): - QM4 gaps Q-5, SELECT.SOCKET().  SKT$INFO.EVENTS is SD's own number; the events are openQM's.
       $define SKT$INFO.EVENTS          9    ;* SET.SOCKET.MODE: events to watch.  SOCKET.INFO: the letters last found
+      * 18 Nov 26 SD Core Solo - from Core bc1eb7b1 (Linux 400500c; four-version audit round 2, P-6163): the socket trace.
+      $define SKT$INFO.TRACE           10   ;* SET.SOCKET.MODE: pathname of a log of the data sent and received (null turns it off)
       * 25 Oct 26 Windows port - from Linux Solo 1f5f703 (S.65 slice 2): SOCKET.INFO only.  The SHA-256 of the server certificate's public key
-      *   (SubjectPublicKeyInfo) of a socket opened with SKT$TLS, 64 lower case hex digits; "" otherwise.  What set.server pins.  (Linux's SKT$INFO.TRACE 10 is not carried.)
+      *   (SubjectPublicKeyInfo) of a socket opened with SKT$TLS, 64 lower case hex digits; "" otherwise.  What set.server pins.
       $define SKT$INFO.TLS.SPKI        11   ;* hash of the server's public key
       $define SKT$READ.EVENT           1    ;* Data to read, a connection waiting on a server socket, or the peer closed
       $define SKT$WRITE.EVENT          2    ;* Data can be sent
@@ -397,6 +399,10 @@
       *   delta any more, so nothing writes or reads it.  FIELD 4 REMAINS
       *   POISONED, per the note above: records written between 13 and 14 Aug
       *   2026 still carry a grant list there.
+      *   18 Nov 26 (four-version audit round 2, P-6168): the NAME is kept, as
+      *   the other three trees keep it, so that field 6 is never given to
+      *   anything else.
+      $define ACC$PRIOR.TIER   6     ;* retired with the tier model (18 Sep 26); nothing writes or reads it
       * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH (Linux Solo 7c6bbfc; the owner: "carry the switch").  FIELDS 7 AND 8 ARE
       *   BACK, at SD Core's field numbers, for Solo's one account: ACC$SH and ACC$OS.EXEC.  yes means on and anything else, blank
       *   included, is off, so a record with fewer fields is off.  LOGIN and APISRVR load them as K$SH and K$OS.EXEC at account entry;
@@ -412,14 +418,14 @@
       $define ACC$VOC.EDIT     10    ;* SD Core: may save changes to a VOC (yes/no) - blank in Solo (the VOC needs ADMIN)
       $define ACC$BP.EDIT      11    ;* SD Core: may save changes to a program file (yes/no) - blank in Solo
       $define ACC$DICT.EDIT    12    ;* SD Core: may save changes to a dictionary (yes/no) - blank in Solo
-      $define ACC$SHARED.READ  13    ;* SD Core: may open the files of the shared account by name - blank in Solo
-      $define ACC$SHARED.WRITE 14    ;* SD Core: may write records in the files of the shared account - blank in Solo
-      $define ACC$RECOVERY     19    ;* the editors keep a recovery copy of unsaved text (yes/no; blank = no; nothing sets it in Solo)
       *   FIELD 15 (ACC$NET, 20 Oct 26, Solo carry 8; SD Core's number for SD Core's S.65 NET gate): the account's
       *   permission to have its files opened by API request 29 (the SDNet open, apisrvr's vb.open.sdnet).  yes means
       *   on and anything else, blank and an absent field included, is OFF.  Fields 9 to 14 are SD Core's and are not
       *   used here; a record written with field 15 has them empty.  The administrator changes it with SET.NET.ACCESS.
+      *   18 Nov 26 (four-version audit round 2, P-4458, P-4459): fields 15, 13, 14 and 19 in Linux Solo's order.
       $define ACC$NET         15     ;* may have its files opened over the API by request 29 (yes/no)
+      $define ACC$SHARED.READ  13    ;* SD Core: may open the files of the shared account by name - blank in Solo
+      $define ACC$SHARED.WRITE 14    ;* SD Core: may write records in the files of the shared account - blank in Solo
       * 23 Oct 26 dm - Solo carry 14: FIELDS 16, 17 AND 18 with SD Core's numbers (S.75, the home screen).  Solo has ONE account, so none of the three is set per account name:
       *   FIELD 16 (ACC$START) is never written here - where a session starts is the one word in the file start.default in the SD system directory (SET.START.DEFAULT),
       *   which !HOME_ENTRY reads when the field is blank ("menu" when the file is absent; Core's delivered default).  FIELD 17 (ACC$TILES.OFF) lists the tile ids the administrator
@@ -428,6 +434,7 @@
       $define ACC$START        16    ;* menu, terminal, or blank = the system default
       $define ACC$TILES.OFF    17    ;* tile ids that are off for this account, separated by spaces
       $define ACC$PINS         18    ;* may add its own programs to the home screen (yes/no; blank = no)
+      $define ACC$RECOVERY     19    ;* the editors keep a recovery copy of unsaved text (yes/no; blank = no; nothing sets it in Solo)
       * 11 Nov 26 Windows port - from Linux Solo 531d829 (S.211; SOLO 57, the owner, 11 Nov 26: "Yes, carry it"): FIELDS 20 AND 21, SOLO ONLY.  Whether an AI agent's MCP
       *   client may use the account through the MCP launcher (solo-mcp.py in the SD Core Solo folder), and whether it may also run a sentence of its own.  yes/no each; BLANK
       *   MEANS NO (delivered off; the administrator turns them on with SET.MCP ON and SET.MCP WRITE ON).  mcp_call reads both at EVERY call.  Field 19 is SD Core's

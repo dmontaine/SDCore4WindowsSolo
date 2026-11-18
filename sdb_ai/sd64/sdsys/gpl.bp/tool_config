@@ -6,6 +6,9 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 2 (P-5931, P-5893): the status line before !settings_os is 15150 ("Reading the
+*           settings (a few seconds)..."), as SD Core (Linux's 14150).  From Linux 10767826 (P-4630): before SET.CONFIG runs, 15172
+*           (Making the change (a few seconds)...), Linux's 14172.
 * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4334): set.config now changes the file SD_CONFIG names (as Linux Solo), so the box
 *               no longer says it changes the Solo folder's sd.conf only.
 * 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230, RELEASE_1.1 286): the SCREEN MSGBOX keeps no unused answer.
@@ -367,6 +370,10 @@ read.backup:
 
 read.report:
    repl = '' ; rtop = 1
+   held.msg = msg                                               ;* 18 Nov 26 (P-5931, from Core): !settings_os starts PowerShell, a few seconds;
+   msg = sysmsg(15150)                                          ;* the status line says so first, as tool.remote's does
+   call $tk_frame(ctx, keys, panes<view>, msg)
+   msg = held.msg
    call !settings_os(os.lines, rerr)
    if rerr # '' then
       repl = 'the report could not be made'
@@ -833,6 +840,8 @@ change.param:
       msg = cmsg
       return
    end
+   msg = sysmsg(15172)                                          ;* Making the change (a few seconds)...  18 Nov 26, Linux 10767826 (14172 + 1000)
+   call $tk_frame(ctx, keys, panes<view>, msg)
    call $tk_run(allow, sent, out, stat, err)
    gosub read.all
    gosub draw.all

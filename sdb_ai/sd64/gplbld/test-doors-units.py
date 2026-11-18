@@ -14,7 +14,7 @@ WHY (12 Nov 2026, the VM witness in Win11VM Solo WS2.0-0).  Each check below is 
      the same literal and the same field order, or every change is refused as a bad proof.
   R  every key the verb writes into doors.request is one the helper reads, and the other way round.
   W  the owner's rule (12 Nov 2026): a line before any wait over 2 s - the verb displays 12982 or 12981 before EACH
-     ps_script_out, and the page puts 12982 on its status line (through $tk_frame) before read.all runs the reports.
+     ps_script_out, and the page puts 15150 (18 Nov 26; was 12982) on its status line (through $tk_frame) before read.all runs the reports.
 
 It reads files; no SD, no install, no elevation.  CONTROLS: every check is also run on an in-memory copy with one planted
 fault (a mutant), which must be refused, and each mutant is asserted to have changed the text (a replace that matched nothing
@@ -174,9 +174,10 @@ def chk_page_wait(page):
     if not m:
         return ["tool_remote has no read.all block"]
     code = "\n".join(basic_code(m.group(1)))
-    i_msg, i_frame, i_run = code.find("sysmsg(12982)"), code.find("$tk_frame("), code.find("gosub run.report")
+    # 18 Nov 26: the page says 15150 "Reading the settings (a few seconds)...", as Core and Linux Solo (14150); the verb keeps 12982.
+    i_msg, i_frame, i_run = code.find("sysmsg(15150)"), code.find("$tk_frame("), code.find("gosub run.report")
     if min(i_msg, i_frame, i_run) < 0 or not (i_msg < i_frame < i_run):
-        return ["read.all: 12982 at %d, $tk_frame at %d, first report at %d (want all present, in that order)"
+        return ["read.all: 15150 at %d, $tk_frame at %d, first report at %d (want all present, in that order)"
                 % (i_msg, i_frame, i_run)]
     return []
 
@@ -234,7 +235,7 @@ def main():
         ("A", "verb", "authmsg = 'sd-solo-doors|v1|'", "authmsg = 'sd-solo-doors|v2|'"),
         ("R", "doors", "req['proof']", "req['proofs']"),
         ("W", "verb", "display sysmsg(12981)", "crt ''"),
-        ("W", "page", "msg = sysmsg(12982)", "msg = ''"),
+        ("W", "page", "msg = sysmsg(15150)", "msg = ''"),
     ]
     for k, key, old, new in planted:
         m, changed = mutant(t, key, old, new)

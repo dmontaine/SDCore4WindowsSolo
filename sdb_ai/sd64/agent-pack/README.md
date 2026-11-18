@@ -1,6 +1,6 @@
 # agent-pack: what an AI agent needs to work in SD Core Solo for Windows
 
-S.69 rows 1 and 1b of the AI plan, carried to SD Core Solo for Linux (LSOLO 55, 20 Oct 2026) and from there to SD Core Solo for Windows (15 Nov 2026, RELEASE_1.1 253). Documents, a generator and a free check. **Nothing here is installed, compiled into SD or shipped by the installer**, as in SD Core Solo for Linux (SD Core for Windows installs its guide and pack as text; the Solo products do not), and nothing here calls a model, holds a key, opens a wall or changes ssh.
+S.69 rows 1 and 1b of the AI plan, carried to SD Core Solo for Linux (LSOLO 55, 20 Oct 2026) and from there to SD Core Solo for Windows (15 Nov 2026, RELEASE_1.1 253). Documents, a generator and a free check. **Only two parts of this directory are installed, and only as text** (since 17 Nov 2026, as SD Core Solo for Linux's AGENTPACK block and SD Core for Windows): `guide/` and `pack/` are copied by the installer to `<Solo folder>\sdsys\agent-pack\guide` (`%USERPROFILE%\SDCoreSolo\sdsys\...` by default) and `...\pack` (gplbld/stage.py, ship name `agent-pack`). The skill, the templates, the recipe, the generator and these notes are not installed. Nothing here is compiled into SD, nothing in SD reads it, and nothing here calls a model, holds a key, opens a wall or changes ssh.
 
 | path | what | made by |
 |---|---|---|

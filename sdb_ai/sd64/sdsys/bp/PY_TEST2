@@ -39,7 +39,9 @@ end
 * use var to name test files and records
 *
 * 12 Nov 26 Windows port - RELEASE_1.1 256: Solo's root is its own tree, so an account's directory is /user_accounts (Linux: /home/sd).
-fn = '/user_accounts/xxxx/EXAMPLES_DATA'
+* 18 Nov 26 SD Core Solo - four-version audit round 2 (P-6472), as Linux Solo: Solo has one account, so the file is the
+*   account's own EXAMPLES_DATA.
+fn = @path : @ds : 'EXAMPLES_DATA'
 rec_id = 'xrate.csv'
 str_id = 'xrate_csv'
 

@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - four-version audit round 2 (P-5878, P-5879): a TCP peer whose family is not AF_INET reads "?", as the
+ *            other three; the syslog line says "API connection over TCP from ... (SD login required)" as Core and Linux Solo.
  * 17 Nov 26 SD Core Solo - four-version audit, Linux Solo 3b1316cc (CARRY-linuxio, SD Core's P-4606): the TLS-directory refusal says
  *            "cannot derive the TLS directory beside <sd.conf>" (it said "no usable data directory in").
  * 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230, RELEASE_1.1 286): socket_byte() gives a NUL on an ended read, the key
@@ -309,8 +311,10 @@ bool start_connection(int unused) {
           socklen_t palen = sizeof(pa);
 
           /* The PEER address, not our own - getsockname() above answered the
-             family, and what is worth logging is who connected. */
-          if (getpeername(0, (struct sockaddr *)&pa, &palen) == 0) {
+             family, and what is worth logging is who connected.
+             18 Nov 26 SD Core Solo - as Linux and Core: a peer whose family
+             is not AF_INET is "?" too, never read as a sockaddr_in. */
+          if ((getpeername(0, (struct sockaddr *)&pa, &palen) == 0) && (pa.ss_family == AF_INET)) {
             struct sockaddr_in* s = (struct sockaddr_in*)&pa;
             port_no = ntohs(s->sin_port);
             /* MAX_SOCKET_ADDR_STR_LEN, not the MAX_IP_ADDR_STR_LEN the dead
@@ -332,7 +336,7 @@ bool start_connection(int unused) {
             syslog(LOG_INFO, "Refusing PF_INET connection (not API server) from %s", ip_addr);
             return FALSE; /* Error */
           }
-          syslog(LOG_INFO, "API connection from %s port %d", ip_addr,
+          syslog(LOG_INFO, "API connection over TCP from %s port %d (SD login required)", ip_addr,
                  (int)port_no);
         }
         break;

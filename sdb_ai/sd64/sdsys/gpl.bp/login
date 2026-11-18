@@ -18,6 +18,10 @@
 * 
 * 
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 2: the refusal's reason is "not in the register" (P-5924) and the
+*           login record names initial.account (P-5925), as the other three.  The case fallbacks go (the Linux audit
+*           session's decision; Solo has no unconverted VOC): $release and $command.stack are read once, and update.voc
+*           reads each id once, with no upper-case takeover and no delete of an old id (P-3362 to P-3376).
 * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4657): the dead admin.login block (the elevation grant
 *           for an SDSYS landing, which ruling 11 removed) and its variable are gone; nothing set admin.login true.
 * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4425, P-4426, P-4431, P-4433, P-4435): the first password's prompts and refusals
@@ -745,7 +749,7 @@ deffun pw_complex(pw) calling '!pw_complex'
          read acc.rec from acc.f, initial.account else
             display sysmsg(5018, initial.account) ;* Account %1 not in register
             audit.account = initial.account
-            audit.reason = 'no such account in the register'
+            audit.reason = 'not in the register'
             goto terminate.connection
          end
 
@@ -997,7 +1001,7 @@ deffun pw_complex(pw) calling '!pw_complex'
          read acc.rec from acc.f, initial.account else
             display sysmsg(5018, initial.account) ;* Account %1 not in register
             audit.account = initial.account
-            audit.reason = 'no such account in the register'
+            audit.reason = 'not in the register'
             goto terminate.connection
          end
    end case
@@ -1136,10 +1140,10 @@ deffun pw_complex(pw) calling '!pw_complex'
 *   session (5028), so an exact read of the new id would lock every older
 *   account out at its next login.  Lower, then upper; update.voc renames the
 *   upper one when this account is next refreshed.
+*   18 Nov 26 SD Core Solo - four-version audit round 2 (P-3369; the case fallbacks): ONE READ, as Linux Solo.  The VOC is
+*   NOCASE and Solo has no unconverted VOC, so $RELEASE is the same record.
       release.found = @true
-      read voc.rec from voc, "$release" else
-         read voc.rec from voc, "$RELEASE" else release.found = @false
-      end
+      read voc.rec from voc, "$release" else release.found = @false
       if release.found then
 * 16 Sep 26 Windows port - RELEASE_1.1 39.  THE OLD PER-LOGIN RELEASE-MISMATCH
 *   PROMPT (5025/5026/5027, Field 2) IS REMOVED.  It ran an unguarded `input` on
@@ -1178,10 +1182,9 @@ deffun pw_complex(pw) calling '!pw_complex'
 *   fold on it - and an account created before the rename still holds the upper
 *   case one.  See CPROC's copy of this for the full reasoning.
 *   PROJECT_STATUS.md 5.12 (b).
+*   18 Nov 26 SD Core Solo - four-version audit round 2 (P-3376; the case fallbacks): one read, as Linux Solo (the VOC is NOCASE).
       read voc.rec from voc,'$command.stack' else
-         read voc.rec from voc,'$COMMAND.STACK' else
-            voc.rec = ''
-         end
+         voc.rec = ''
       end
       if upcase(voc.rec[1,1]) = "X" THEN
 
@@ -1331,10 +1334,12 @@ deffun pw_complex(pw) calling '!pw_complex'
 *   22 Aug 26 - THE COMMAND IS NAMED IN THE RECORD when there is one, because
 *   "LOGIN account=x" alone cannot distinguish a person signing in from a job
 *   that ran something.  It is empty for every interactive session.
+*   18 Nov 26 (four-version audit round 2, P-5925, P-4427, P-4429): the account named is initial.account, as the
+*   other three - the one the session entered, which the register walk above may have found after audit.account was set.
    if batch.command = '' then
-      void kernel(K$AUDIT, 'login account=' : audit.account)
+      void kernel(K$AUDIT, 'login account=' : initial.account)
    end else
-      void kernel(K$AUDIT, 'login account=' : audit.account : ' command=' : batch.command)
+      void kernel(K$AUDIT, 'login account=' : initial.account : ' command=' : batch.command)
    end
 
    ok = @true
@@ -1908,21 +1913,11 @@ update.voc:
 *   takes the same lock, type and [locked] tests as an exact match, and the
 *   write below then stores the new id and deletes old.id.  Only the upper
 *   variant is tried: it is the only other case SD ever shipped.
-         old.id = id
-         old.found = @false
+* 18 Nov 26 SD Core Solo - four-version audit round 2 (P-3362 to P-3374; the case fallbacks, the Linux audit session's
+*   decision): ONE READ, as Linux Solo.  Solo's VOC is NOCASE and Solo has no unconverted VOC, so the exact read already
+*   finds a record held under the upper-case id; the old.id takeover (and its delete, which on a case-blind file would
+*   remove the record just written) is gone.
          readu old.rec from update.voc.f, id then
-            old.found = @true
-         end else
-            if upcase(id) # id then
-               readu old.rec from update.voc.f, upcase(id) then
-                  old.found = @true
-                  old.id = upcase(id)
-               end else
-                  release update.voc.f, upcase(id)
-               end
-            end
-         end
-         if old.found then
 * 02 Sep 26 Windows port - PRE_RELEASE_FIXES 70, THE LOCK, AND IT IS TESTED
 *   HERE BECAUSE HERE IS THE ONLY PLACE THAT HAS THE ACCOUNT'S OWN RECORD.
 *   Owner's design: a site marks a VOC record it has customised by putting
@@ -1971,9 +1966,8 @@ update.voc:
                   overridden.ids<-1> = id
                end else
                   locked.count += 1
-                  locked.ids<-1> = old.id
+                  locked.ids<-1> = id
                   release update.voc.f, id
-                  if old.id # id then release update.voc.f, old.id
                   continue
                end
             end
@@ -2002,7 +1996,6 @@ update.voc:
                   repeat
                   if yn = 'N' then
                      release update.voc.f, id
-                     if old.id # id then release update.voc.f, old.id
                      continue
                   end
                end
@@ -2032,10 +2025,7 @@ update.voc:
 *   on it every day.  CPROC:1194 and :1282 read [1,1] and [1,2] and tolerate
 *   everything after, which is why new.type is still derived that way above.
 
-*        14 Sep 26 - RELEASE_1.1 5: a record found under its old upper-case id
-*        is written under the new id and the old one deleted, even when the
-*        contents already match - the rename IS the change.
-         if compare(old.rec, rec) or old.id # id then
+         if compare(old.rec, rec) then
 * 7 Nov 26 Windows port - from Linux 69533c53 (26 Oct 26): A REFUSED WRITE ENDS THIS ACCOUNT'S UPDATE, NOT THE COMMAND.  A write the session may not
 *   make (an account folder whose ACL does not let this session write its VOC) used to stop the whole UPDATE.ACCOUNTS with "Error 3018 ... (Possible
 *   full disk?)" and the other accounts and the count were lost.  Now the account is left as it was, the caller says why (12988), the walk goes on and
@@ -2043,7 +2033,6 @@ update.voc:
             upd.wrote = @true
             write rec to update.voc.f, id on error upd.wrote = @false
             if upd.wrote then
-               if old.id # id then delete update.voc.f, old.id
                display '.' :
             end else
                upd.denied = 1

@@ -1165,11 +1165,15 @@ def core_chunks(ctx, voc, since, shapes, chunks_so_far):
         h1, b1, l1 = ds.section(r"^The position in one paragraph")
         h2, b2, l2 = ds.section(r"^What ships secured")
         h3, b3, l3 = do.section(r"^A filter on the command")
-        h4, b4, l4 = do.section(r"^`OS.EXECUTE` and the editors")   # SOLO WINDOWS (15 Nov 26): Windows Solo's 06b heading; Linux Solo's is "`OS.EXECUTE` is not filtered"
+        h4, b4, l4 = do.section(r"is not filtered")   # 18 Nov 26 (P-3502): Linux Solo's pattern; Windows Solo's 06b has Linux Solo's heading since the docs split of 18 Nov
         h5, b5, l5 = do.section(r"^The two switches")      # 20 Oct 26 (the OS switch): the shell and OS access are two switches, off as delivered
-        body = ["Solo has ONE account, `sduser`, and two per-account switches, the shell (`sh`, `!`) and OS access (`os.execute`, a path outside the account, "
-                "the embedded Python and the editors that run outside SD), both OFF as delivered and turned on by the administrator with `set.os.access`; it has no other gate and no "
-                "gate words. What limits a session is below, quoted from Solo's own pages (`%s`, `%s`)." % (SEC[5:], OSA[5:]),
+        # 18 Nov 26 (P-6141, P-3503): Linux Solo's text - Solo has more switches than the two: set.net.access, set.xfer.access, set.jobs.access,
+        #   set.ai gate and set.mcp, each off as delivered (newvoc); the text said "no other gate".
+        body = ["Solo has ONE account, `sduser`, and no gate words. Its switches are each OFF as delivered and turned on by the administrator, after `admin`, "
+                "with a verb of its own: the shell (`sh`, `!`) and OS access (`os.execute`, a path outside the account, the embedded Python and the editors "
+                "that run outside SD) with `set.os.access`; another SD server opening this account's files with `set.net.access`; file transfer (`receive`, "
+                "`send`) with `set.xfer.access`; scheduled jobs with `set.jobs.access`; the AI with `set.ai gate`; and the MCP door with `set.mcp` (its write "
+                "tool with `set.mcp write`). What limits a session is below, quoted from Solo's own pages (`%s`, `%s`)." % (SEC[5:], OSA[5:]),
                 "", "**%s**" % h1, "", b1, "", "**%s**" % h2, "", b2, "", "**%s**" % h5, "", b5, "", "**%s**" % h3, "", b3, "", "**%s**" % h4, "", b4]
         out.append(Chunk("core:walls", "core.digest", "core", "-", [ctx.src(SEC, l1), ctx.src(SEC, l2), ctx.src(OSA, l5), ctx.src(OSA, l3), ctx.src(OSA, l4)],
                          "\n".join(body), "core"))
