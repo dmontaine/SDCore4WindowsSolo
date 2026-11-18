@@ -19,6 +19,8 @@
 *
 *
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 5 (P-8158): request 72's "ssh is not set up" refusal shows Linux Solo's words, "ssh is
+*           not set up on this Solo", where it showed "the request could not be carried out".  The audit line keeps the helper's text.
 * 18 Nov 26 SD Core Solo - four-version audit round 3, Linux Solo's layout: master.login.done after logging in /$APISRVR/ (P-1895,
 *           P-1902) and set with file.names after tty in the first-time block (P-1899, P-7384); cproc.date / cproc.time after the request
 *           gates (P-1900, P-7383); vb.account skips the register for a name with a separator and reads downcase(new.account) (P-1274,
@@ -2806,6 +2808,8 @@ vb.sshkey:
                                                                               sk.shown = 'four Solo ssh keys are already installed'
                                                                            case sk.text = 'no public key given' or sk.text = 'no fingerprint given' or index(sk.text, 'character that is not allowed', 1) > 0 or sk.text = 'not a public key line' or sk.text = 'unsupported key type' or sk.text = 'the key is not base64' or sk.text = 'the key does not decode' or sk.text = 'not a SHA256 fingerprint'
                                                                               sk.shown = 'the key or fingerprint is not valid'
+                                                                           case index(sk.text, 'ssh is not set up', 1) = 1   ;* 18 Nov 26 P-8158: Linux Solo's NOSSH
+                                                                              sk.shown = 'ssh is not set up on this Solo'
                                                                         end case
                                                                         server.error = SV$ERROR
                                                                         error.msg = sysmsg(12884, sk.shown) ;* The ssh key request was refused: %1

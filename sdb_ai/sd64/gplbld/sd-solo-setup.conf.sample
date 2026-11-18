@@ -82,7 +82,6 @@ deny-verbs=
 #   A public key file (on this computer) whose owner may ssh straight into
 #   sd-solo, on Solo's own ssh port (4251).  A key is optional: ssh also takes
 #   the user's Windows account name and password.  Leave it blank for none.
-#   It needs ssh local or open: with ssh off the key is not added.
 #   (The SD Core server that manages a computer installs its own key through
 #   the API.)
 #ssh-public-key-file=C:\Users\alex\.ssh\id_ed25519.pub
@@ -105,17 +104,13 @@ ssh-public-key-file=
 reload-data=
 
 # os-access
-#   The shell and OS access (20 Oct 2026).  Both are OFF as delivered, and the
-#   administrator can change them later (ADMIN, then set.os.access).  none =
-#   turn on neither; sh = the SH verb and "!"; os = OS.EXECUTE, files and
-#   directories outside the account, Python and the editors that run outside
-#   SD; both = both.  Blank: the installer asks, and a silent install takes
-#   none.  Either switch lets whoever
-#   signs in do what the Windows user can do.  Used on a new installation
-#   only, like the rest of this file: an upgrade asks nothing and keeps what
-#   the installation has, unless the installer's command line says
-#   /OSACCESS=sh, os or both, which turns on what it names (and wins over
-#   this line on a new installation).
+#   Whether to turn on the shell and OS access for the account (20 Oct 2026).  Both are OFF as
+#   delivered.  none = leave both as they are (off on a new account); sh = turn on the SH verb and
+#   "!"; os = turn on OS.EXECUTE, files and directories outside the account, Python and the
+#   editors that run outside SD; both = both.  Blank = the installer asks, and a silent install
+#   takes none.  Either switch lets whoever signs in do what the Windows user can do; the
+#   administrator can change them later (ADMIN, then set.os.access).  The installer's command line
+#   /OSACCESS=sh, os or both wins over this line, and also works on an upgrade.
 #os-access=none
 
 os-access=

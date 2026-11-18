@@ -304,8 +304,9 @@ var
   { 17 Nov 26 - four-version audit round 4 (P-7877), Linux Solo's --os-access: /OSACCESS=none|sh|os|both on the installer's command
     line, '' when not given or not one of those.  It answers the question on a new tree (over the control file, as Linux Solo's
     command line wins) AND on an upgrade, where it turns on what it names and turns nothing off.  An upgrade with no /OSACCESS keeps
-    the switches the installation has.  CfSshKey (P-7371) is the control file's ssh-public-key-file=, '' for none. }
-  CmdOsAccess, CfSshKey: String;
+    the switches the installation has.  CfSshKey (P-7371) is the control file's ssh-public-key-file=, '' for none.  CfRefusal
+    (18 Nov 26, P-8156) is why the control file stops the install before anything is written, '' when it does not. }
+  CmdOsAccess, CfSshKey, CfRefusal: String;
   { 12 Nov 26 - SOLO 56 group 6, THE START QUESTION (Linux Solo S.221 START-ASK / START-SET, control file start=; SD Core for Windows
     RELEASE_1.1 210, task startprompt): where new sessions start.  The control file's start=, menu or terminal; '' when not given or not
     one of those (then the page asks).  StartPage is one unticked box, shown on a new tree only: an upgrade keeps the site's start. }
@@ -558,12 +559,14 @@ end;
 procedure LoadControlFile;
 var
   F, P: String;
+  KeyText: AnsiString;
 begin
   F := ExpandConstant('{src}\sd-solo-setup.conf');
   UseControl := DataTreeWasAbsent and FileExists(F);
   CfAdminOk := False;
   CfGlobalOk := False;
   CfSshKey := '';
+  CfRefusal := '';
   { 17 Nov 26 - P-7877: the command line's /OSACCESS=, read on every install, a new tree and an upgrade alike. }
   CmdOsAccess := Lowercase(Trim(ExpandConstant('{param:OSACCESS|}')));
   if (CmdOsAccess <> 'none') and (CmdOsAccess <> 'sh') and (CmdOsAccess <> 'os') and (CmdOsAccess <> 'both') then
@@ -631,14 +634,24 @@ begin
   Log('SD Core Solo: control file deny-verbs "' + CfDeny + '"');
   { 17 Nov 26 - four-version audit round 4 (P-7371), Linux Solo's ssh-public-key-file=: a public key file on this computer whose
     owner may ssh straight into sd-solo on Solo's own port.  Optional and used only when given; solo-setup.ps1 checks the key and
-    adds its one line to Solo's own key file.  A file that is not there is not an answer and is logged. }
+    adds its one line to Solo's own key file.
+    18 Nov 26 - four-version audit round 5 (P-8156), as Linux Solo (installsdsolo.sh:574, :826): a key file the installer cannot
+    read, or a key with ssh=off, REFUSES the install (InitializeSetup, before anything is written); it used to go on without the
+    key.  A key with no ssh answer is ssh local, as Linux Solo's ssh_default_choice, so the Tasks page does not ask. }
   CfSshKey := Trim(GetIniString('install', 'ssh-public-key-file', '', F));
-  if (CfSshKey <> '') and not FileExists(CfSshKey) then
-  begin
-    Log('SD Core Solo: control file ssh-public-key-file "' + CfSshKey + '" is not a file - no key is added');
-    CfSshKey := '';
-  end;
   Log('SD Core Solo: control file ssh-public-key-file "' + CfSshKey + '"');
+  if CfSshKey <> '' then
+  begin
+    if not LoadStringFromFile(CfSshKey, KeyText) then
+      CfRefusal := 'Cannot read the ssh public key ' + CfSshKey + ' (ssh-public-key-file in ' + F + ').'
+    else if CfSsh = 'off' then
+      CfRefusal := 'An ssh public key needs ssh on: ' + F + ' says ssh=off and also gives ssh-public-key-file.'
+    else if CfSsh = '' then
+    begin
+      CfSsh := 'local';
+      Log('SD Core Solo: control file gives an ssh public key and no ssh answer - ssh local');
+    end;
+  end;
   { 20 Oct 26 - RELEASE_1.1 165: os-access= answers the shell and OS access question (see OsAccessPage).  Anything else is not an
     answer and the page asks. }
   CfOsAccess := Lowercase(Trim(GetIniString('install', 'os-access', '', F)));
@@ -798,6 +811,13 @@ begin
   end;
   GlobalWasFound := FileExists(SoloRoot + '\sdsys\$cred\$GLOBAL');
   LoadControlFile;
+  if CfRefusal <> '' then
+  begin
+    Log('SD Core Solo: NOT INSTALLED - ' + CfRefusal);
+    SuppressibleMsgBox('SD Core Solo was not installed.' + #13#10#13#10 + CfRefusal, mbError, MB_OK, IDOK);
+    Result := False;
+    Exit;
+  end;
   PythonWasFound := PythonInHive(HKCU) or PythonInHive(HKLM64) or PythonInHive(HKLM32);
   Log('SD Core Solo: beside the installer: msi="' + SshMsiPath + '" python="' +
       PythonExePath + '"; Python 3.13+ already registered=' + IntToStr(Ord(PythonWasFound)));
@@ -1601,15 +1621,10 @@ begin
       (an existing tree keeps its list; the server changes it with DENY.VERBS). }
     if UseControl and (CfDeny <> '') then
       SetEnvironmentVariable('SD_SOLO_DENY_VERBS', CfDeny);
-    { 17 Nov 26 - P-7371: the control file's ssh public key, on a new tree with Solo's ssh on (Linux Solo refuses a key with ssh
-      off; here the install goes on and the key is not added, and the log says so). }
+    { 17 Nov 26 - P-7371: the control file's ssh public key, on a new tree.  Its ssh is on: a key with ssh=off, or one that cannot
+      be read, never gets this far (18 Nov 26, P-8156: InitializeSetup refuses the install, as Linux Solo). }
     if UseControl and (CfSshKey <> '') then
-    begin
-      if SshWanted then
-        SetEnvironmentVariable('SD_SOLO_SSH_KEY_FILE', CfSshKey)
-      else
-        Log('SD Core Solo: ssh-public-key-file "' + CfSshKey + '" is NOT added: ssh is off (a key needs ssh local or open)');
-    end;
+      SetEnvironmentVariable('SD_SOLO_SSH_KEY_FILE', CfSshKey);
   end
   else
     { A data tree already existed: its one account's live VOC predates

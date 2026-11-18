@@ -69,12 +69,11 @@ request in the same words. Request 49 asks the server for its revision, as in SD
   fingerprint, `ADDED` or `PRESENT`, the fingerprint of Solo's own sshd's host key,
   and the port to connect to (4251). `REMOVE` gives `REMOVED` or `ABSENT` and how
   many Solo lines are left. `LIST` gives one fingerprint per field.
-- **The refusals,** message 12884, "The ssh key request was refused: %1", with the
-  reason "no public key given", "no fingerprint given", "unknown request", "the
-  argument holds a character that is not allowed", or the helper's own: "not a
-  public key line", "unsupported key type", "the key is not base64", "not a SHA256
-  fingerprint", "already 4 SD Core Solo keys installed" or "ssh is not set up for SD
-  Core Solo (...)".
+- **The refusals,** message 12884, "The ssh key request was refused: %1", with the reason
+  "the key or fingerprint is not valid", "four Solo ssh keys are already installed",
+  "ssh is not set up on this Solo", "unknown request, use ADD, REMOVE or LIST" or "the
+  request could not be carried out". The audit trail keeps the helper's own, more exact
+  reason.
 - **What it writes:** one line in **Solo's own key file**, `<Solo folder>\ssh\
   authorized_keys` (not the user's `~\.ssh\authorized_keys`), marked
   `sdcoresolo-managed`. The work is `gplbld/solo-sshkey.ps1`, unelevated, which

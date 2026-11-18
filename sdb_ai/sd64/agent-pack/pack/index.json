@@ -3911,7 +3911,7 @@
 "part": "core.md",
 "since": "-",
 "tier": "core",
-"words": 1525
+"words": 1527
 },
 "dict:chaining": {
 "kind": "dict.conv",
@@ -27410,7 +27410,7 @@
 "part": "reference/tcl-keywords.md",
 "since": "-",
 "tier": "reference",
-"words": 65
+"words": 63
 },
 "tcl:inform": {
 "kind": "tcl.keyword",
@@ -28950,7 +28950,7 @@
 "part": "reference/tcl-verbs.md",
 "since": "-",
 "tier": "reference",
-"words": 110
+"words": 117
 },
 "tcl:tool.files": {
 "kind": "tcl.verb",
@@ -29027,7 +29027,7 @@
 "part": "reference/tcl-verbs.md",
 "since": "-",
 "tier": "reference",
-"words": 103
+"words": 108
 },
 "tcl:top.margin": {
 "kind": "tcl.keyword",
@@ -29405,7 +29405,7 @@
 "part": "reference/voc.md",
 "since": "-",
 "tier": "reference",
-"words": 415
+"words": 402
 },
 "voc:type:X": {
 "kind": "voc.type",

@@ -12,8 +12,8 @@ one account, `sduser`, and no commands to create accounts or grant access to the
 [SD Core Solo for Linux](https://github.com/dmontaine/SDCore4LinuxSolo) is the
 Linux counterpart of this edition.
 
-**Version WS1.1-2.** WS1.1-1 was the first release. See `sdb_ai/sd64/sdsys/changelog` for
-what has changed.
+**Version WS1.1-3, released 10 October 2026.** WS1.1-1 was the first release. See
+`sdb_ai/sd64/sdsys/changelog` for what each release contains.
 
 SD Core is English only: it has no support for other languages or locales.
 
@@ -46,8 +46,8 @@ firewall rules).
   where a master SD Core server holds the central data and manages its clients.
   A global password lets the master server reach the client.
 
-There is one install for both. The installer asks for a global password and you
-can leave it blank if no SD Core server manages this computer; a computer is
+There is one install for both. The installer asks for a global password last and
+you can leave it blank if no SD Core server manages this computer; a computer is
 managed if, and only if, it has a global password. The API and ssh are always your
 choice (off, this computer only, or reachable from the network), with or without a
 global password; a computer that a server manages needs both open to the network.

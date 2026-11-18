@@ -70,7 +70,7 @@ account directory. It is how a program opens "the account I am in" by
 name rather than by path.
 
 ### voc:type:K
-> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:256#4f0b8cdd
+> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:255#4f0b8cdd
 
 **The K record — a keyword**
 
@@ -106,7 +106,7 @@ and they are what makes a sentence like `list stock with qty > 100 by
 supplier` parse.
 
 ### voc:type:PA
-> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:221#9486a7c4
+> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:220#9486a7c4
 
 **The PA record — a paragraph**
 
@@ -144,7 +144,7 @@ expands to `grand.total "'L'"` wherever `gt.l` appears in a query.
 in the command instead.
 
 ### voc:type:PH
-> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:238#7acc327c
+> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:237#7acc327c
 
 **The PH record — a phrase**
 
@@ -165,7 +165,7 @@ expands to `grand.total "'L'"` wherever `gt.l` appears in a query.
 in the command instead.
 
 ### voc:type:Q
-> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:178#b10fccd2
+> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:177#b10fccd2
 
 **The Q record — an indirect pointer**
 
@@ -181,7 +181,7 @@ target of `set.file` may itself be a Q-pointer, which makes a chain (not recomme
 followed under the same rules, so a chain cannot reach where its links alone could not.
 
 ### voc:type:R
-> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:191#7919279b
+> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:190#7919279b
 
 **The R record — a remote record reference**
 
@@ -203,7 +203,7 @@ keywords, `"PA"` paragraphs, `"PH"` phrases, `"Q"` Q-pointers, `"R"` R-records,
 `"S"` sentences).
 
 ### voc:type:S
-> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:210#e478fff6
+> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:209#e478fff6
 
 **The S record — a sentence**
 
@@ -257,10 +257,9 @@ and field 4 — so two names that dispatch identically are denied together.
 
 `IN` verbs are numbered, and the numbers are positional in the command
 processor's dispatch list. Several names share one: `off` and `quit` are
-both internal verb 1, and `clr` is internal verb 2. (`cs` for `clr`, and the
-run-together `cleardata`, `clearinput`, `clearprompts` and `clearselect` for
-`clear.data` and the rest, were second names for the same numbers and were
-removed in 2.0-0.)
+both internal verb 1, and `clr` is internal verb 2. The `clear.data`,
+`clear.input`, `clear.prompts` and `clear.select` verbs are internal verbs 19,
+25, 20 and 6.
 
 **The four keyword-verbs**
 
@@ -274,7 +273,7 @@ records whose field 1 begins with `V` misses all four, and `count` is not
 a marginal verb.
 
 ### voc:type:X
-> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:289#f1c700c1
+> kind=voc.type tier=reference since=- src=docs:User/markdown/32-sd-voc-structure-and-usage.md:288#f1c700c1
 
 **The X record — text**
 

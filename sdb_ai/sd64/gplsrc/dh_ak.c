@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY):
+ * 18 Nov 26 SD Core Solo - four-version audit round 5 (P-1223, P-8044, P-8045, P-8048): every node-0 test after get_ak_node() is laid out as
+ *           Linux Solo's and Core's (no braces, no blank line before the allocation).
  * 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230, RELEASE_1.1 286): a failed truncate in an index clear is an error.
  * 12 Nov 26 SD Core Solo - RELEASE_1.1 251, from Linux 413312f3: get_ak_node() checks the chsize64() that makes room for a new node.
  * 12 Nov 26 SD Core Solo - SOLO 56 group 9, as Linux Solo e671dae and SD Core for Windows (RELEASE_1.1 240 b): a right justified index made now has the magic
@@ -2578,11 +2580,10 @@ Private bool ak_write(DH_FILE *dh_file, /* File descriptor */
 
   /* Create leftmost new node */
 
+  /* PRE_RELEASE 100: get_ak_node() answers "I could not" with 0, and node 0 is the AK header, not a node. */
   new_node1_num = get_ak_node(dh_file, subfile);
-  if (new_node1_num == 0) { /* PRE_RELEASE 100: 0 is the AK header, not a node */
+  if (new_node1_num == 0)
     goto exit_ak_write;
-  }
-
   new_node1 = (DH_TERM_NODE *)k_alloc(50, DH_AK_NODE_SIZE);
   memset((char *)new_node1, '\0', DH_AK_NODE_SIZE);
   new_node1->node_type = AK_TERM_NODE;
@@ -2603,11 +2604,9 @@ Private bool ak_write(DH_FILE *dh_file, /* File descriptor */
 
   /* Create new node to right */
 
-  new_node2_num = get_ak_node(dh_file, subfile);
-  if (new_node2_num == 0) { /* PRE_RELEASE 100: 0 is the AK header, not a node */
+  new_node2_num = get_ak_node(dh_file, subfile);   /* PRE_RELEASE 100: see above */
+  if (new_node2_num == 0)
     goto exit_ak_write;
-  }
-
   new_node2 = (DH_TERM_NODE *)k_alloc(50, DH_AK_NODE_SIZE);
   memset((char *)new_node2, '\0', DH_AK_NODE_SIZE);
   new_node2->node_type = AK_TERM_NODE;
@@ -2735,11 +2734,9 @@ Private bool ak_write(DH_FILE *dh_file, /* File descriptor */
      node and we add a new right node.                                    */
 
   if (rec_offset < used_bytes) {
-    new_node3_num = get_ak_node(dh_file, subfile);
-    if (new_node3_num == 0) { /* PRE_RELEASE 100: 0 is the AK header, not a node */
+    new_node3_num = get_ak_node(dh_file, subfile);   /* PRE_RELEASE 100: see above */
+    if (new_node3_num == 0)
       goto exit_ak_write;
-    }
-
     new_node3 = (DH_TERM_NODE *)k_alloc(50, DH_AK_NODE_SIZE);
     memset((char *)new_node3, '\0', DH_AK_NODE_SIZE);
     new_node3->node_type = AK_TERM_NODE;
@@ -3921,11 +3918,9 @@ Private bool update_internal_node(DH_FILE *dh_file,  /* DH file affected and... 
        buffer becomes the left half, a new node buffer is allocated for
        the right half.                                                     */
 
-    new_node_num = get_ak_node(dh_file, subfile);
-    if (new_node_num == 0) { /* PRE_RELEASE 100: 0 is the AK header, not a node */
+    new_node_num = get_ak_node(dh_file, subfile);   /* PRE_RELEASE 100: 0 is the AK header, not a node */
+    if (new_node_num == 0)
       goto exit_update_internal_node;
-    }
-
     new_node = (DH_INT_NODE *)k_alloc(55, DH_AK_NODE_SIZE);
     /* Modified by Composer AI - 2026/06/10.
        k_alloc() can return NULL; abort the split on allocation failure. */
@@ -3983,10 +3978,8 @@ Private bool update_internal_node(DH_FILE *dh_file,  /* DH file affected and... 
          the AK header - into the node structure, and the test would then be
          reading a value it had already committed to. */
       old_root_node_num = get_ak_node(dh_file, subfile);
-      if (old_root_node_num == 0) {
+      if (old_root_node_num == 0)
         goto exit_update_internal_node;
-      }
-
       node_ptr->node_num = old_root_node_num;
 
       /* Create a new root internal node to point to the old and new
@@ -4383,13 +4376,11 @@ Private int32_t write_ak_big_rec(DH_FILE *dh_file, int16_t subfile, STRING_CHUNK
     goto exit_write_ak_big_rec;
   }
 
+  /* PRE_RELEASE 100: 0 is the AK header, not a node.  This function already reports failure as head == 0, and ak_write() already
+     tests it. */
   head = get_ak_node(dh_file, subfile);
-  if (head == 0) { /* PRE_RELEASE 100: 0 is the AK header, not a node.  This
-                      function already reports failure as head == 0, and
-                      ak_write() already tests it (:1990). */
+  if (head == 0)
     goto exit_write_ak_big_rec;
-  }
-
   node_num = head;
 
   memset((char *)buff, '\0', DH_AK_NODE_SIZE);
@@ -4423,15 +4414,13 @@ Private int32_t write_ak_big_rec(DH_FILE *dh_file, int16_t subfile, STRING_CHUNK
 
     if (data_len != 0) /* More */
     {
+      /* PRE_RELEASE 100: 0 is the AK header, not a node.  Untested, this was also stored as a forward link, so the chain would
+         have pointed at the header too. */
       next_node_num = get_ak_node(dh_file, subfile);
-      if (next_node_num == 0) { /* PRE_RELEASE 100: 0 is the AK header, not a
-                                   node.  Untested, this was also stored as a
-                                   forward link, so the chain would have pointed
-                                   at the header too. */
+      if (next_node_num == 0) {
         head = 0;
         goto exit_write_ak_big_rec;
       }
-
       buff->next = SetAKFwdLink(dh_file, next_node_num);
     }
 
