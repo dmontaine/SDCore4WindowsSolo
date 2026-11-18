@@ -120,11 +120,13 @@ $ruleRows = {
     Row 'two wrong passwords on a Solo connection do not lock the address' ((Lk $st 1001) -eq '' -and $r -eq 'CONN,COUNT,COUNT') ('events ' + $r + ', locked [' + (Lk $st 1001) + ']')
     $r = Feed $st @((Cn 102 $A), (Fp 102 $A)) 1020
     Row 'the third within ten minutes (a second connection) LOCKS that address' ((Lk $st 1021) -eq $A -and $r -eq 'CONN,LOCK') ('events ' + $r + ', locked [' + (Lk $st 1021) + ']')
+    $r = Feed $st @((Cn 104 $A), (Fp 104 $A), (Fp 104 $A)) 1025
+    Row 'a failure from an address already locked extends the lock and is not a new LOCK (logged once, as Linux)' ((Lk $st 1026) -eq $A -and $r -eq 'CONN,RELOCK,RELOCK' -and $st.Addrs[$A].Until -eq (1025 + $LockFor)) ('events ' + $r + ', until ' + $st.Addrs[$A].Until)
     $r = Feed $st @((Cn 103 $B), (Fp 103 $B)) 1030
     Row 'another address is not affected by the lock (one failure, not locked)' ((Lk $st 1031) -eq $A -and $r -eq 'CONN,COUNT' -and $st.Addrs[$B].Fails.Count -eq 1) ('locked [' + (Lk $st 1031) + ']')
-    Row 'the lock still holds at 599 s' ((Lk $st 1619) -eq $A) ('locked at 1619 [' + (Lk $st 1619) + ']')
-    Limit-State $st 1620
-    Row 'the lock ends after ten minutes and the address is forgotten' ((Lk $st 1620) -eq '' -and -not $st.Addrs.ContainsKey($A)) ('locked at 1620 [' + (Lk $st 1620) + '], known: ' + (@($st.Addrs.Keys) -join ','))
+    Row 'the lock still holds at 599 s after the last failure' ((Lk $st 1624) -eq $A) ('locked at 1624 [' + (Lk $st 1624) + ']')
+    Limit-State $st 1625
+    Row 'the lock ends ten minutes after the last failure and the address is forgotten' ((Lk $st 1625) -eq '' -and -not $st.Addrs.ContainsKey($A)) ('locked at 1625 [' + (Lk $st 1625) + '], known: ' + (@($st.Addrs.Keys) -join ','))
 
     $st = New-State
     $k = { param($p) Rc $p ('Failed publickey for don from ' + $A + ' port 5' + $p + ' ssh2') }

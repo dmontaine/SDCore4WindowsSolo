@@ -275,8 +275,11 @@ function Limit-State($st, [long]$now) {
     }
 }
 
-# One counting event against the state -> 'LOCK' (this failure locked the address), 'COUNT' (a failure, not yet a
-# lock), 'FORGET' (a sign-in), or ''.
+# One counting event against the state -> 'LOCK' (this failure locked the address), 'RELOCK' (a failure from an
+# address already locked: the lock is extended, as Linux's locked_until is, and nothing new is logged), 'COUNT' (a
+# failure, not yet a lock), 'FORGET' (a sign-in), or ''.
+# 17 Nov 26 - SOLO 79 note: before RELOCK every failure past the third logged "locking ..." again (three identical
+# lines at 20:36:48 on the 20:26 install); Linux says it once per lock.
 function Add-Event($st, $ev, [long]$now) {
     if ($null -eq $ev) { return '' }
     if ($ev.Kind -eq 'accept') {
@@ -286,8 +289,13 @@ function Add-Event($st, $ev, [long]$now) {
     if ($ev.Kind -ne 'fail') { return '' }
     if (-not $st.Addrs.ContainsKey($ev.Addr)) { $st.Addrs[$ev.Addr] = @{ Fails = @(); Until = [long]0 } }
     $e = $st.Addrs[$ev.Addr]
+    $wasLocked = ($e.Until -gt $now)
     $e.Fails = @(@($e.Fails | Where-Object { ($now - $_) -lt $Window }) + $now)
-    if ($e.Fails.Count -ge $MaxFails) { $e.Until = $now + $LockFor; return 'LOCK' }
+    if ($e.Fails.Count -ge $MaxFails) {
+        $e.Until = $now + $LockFor
+        if ($wasLocked) { return 'RELOCK' }
+        return 'LOCK'
+    }
     return 'COUNT'
 }
 
@@ -791,6 +799,7 @@ function Invoke-Pass([bool]$fromEnd) {
                 Say ('locking ' + $ev.Addr + ' for ' + ($LockFor / 60) + ' minutes: ' + $MaxFails + ' wrong passwords within ' + ($Window / 60) + ' minutes')
                 $cut += $ev.Addr
             }
+            elseif ($a.R -eq 'RELOCK') { $cut += $ev.Addr }
             elseif ($a.R -eq 'COUNT') { Say ('a wrong password from ' + $ev.Addr + ' (pid ' + $rec.Pid + ')') }
             elseif ($a.R -eq 'FORGET') { Say ('a sign-in from ' + $ev.Addr + ': its failures are forgotten') }
             elseif ($a.R -eq 'LISTEN') { Say ('Solo''s sshd is listening: pid ' + $rec.Pid + ' (' + $rec.Text + ')') }
