@@ -39,7 +39,7 @@
 #      the file on its first upgrade and has the shipped programs refreshed on every later one.  A failure is a WARNING line in the
 #      report and does not fail the install (Linux Solo's EXAMPLES block; SD Core for Windows' LoadExamples never stops one either).
 #   4b. (18 Nov 26, P-5661) -Upgrade: sd -internal RUN gpl.bp upgrade_nocase NO.PAGE, the older tree's files to case-insensitive
-#      record ids; its output to <Solo folder>\nocase-upgrade.log; a file it left is a WARNING, no COMPLETE a failure.
+#      record ids; its output to <Solo folder>\nocase-upgrade.log; a file it left, or no COMPLETE, is a WARNING (18 Nov 26, as Linux Solo).
 #   5. sd -internal DELETE VOC gpl.bp   (ruling 26 - no system BASIC source
 #      in the installed tree; every install and upgrade), then
 #      sd -internal SYNC.GLOBAL.CATALOG  (ruling 33 - the server's programs in
@@ -684,8 +684,9 @@ try {
     # differ only by case, converts only a file proven clean, and leaves and NAMES a file that holds such a pair, an indexed file and a
     # file outside its account.  Its whole output goes to <Solo folder>\nocase-upgrade.log.  After the compile and before DELETE VOC
     # gpl.bp below (RUN gpl.bp needs that pointer); the marker is written by Invoke-Sd, as for every internal step.  Judged as Core's
-    # script judges it: COMPLETE is the success line; "could not be read or rebuilt" (10183) or no COMPLETE fails the step; a file left
-    # (10178, 12041, 15993, 10186) is a WARNING naming the log, not a failure - the files are safe as they are.  Up to 30 minutes.
+    # script judges it: COMPLETE is the success line; "could not be read or rebuilt" (10183), no COMPLETE, or a file left
+    # (10178, 12041, 15993, 10186) is a WARNING naming the log, not a failure - the files are safe as they are (round 6: Linux Solo
+    # warns and goes on).  Up to 30 minutes.
     if ($Upgrade) {
         $t = Invoke-Sd '-internal RUN gpl.bp upgrade_nocase NO.PAGE' '' 1800000
         $nocaseLog = Join-Path $AppDir 'nocase-upgrade.log'
@@ -697,9 +698,10 @@ try {
                   ($t -match '\d+\s+indexed file\(s\)\s+were left')
         $ncBad = @($disqualify | Where-Object { $t.IndexOf($_, [StringComparison]::OrdinalIgnoreCase) -ge 0 })
         Note ('  nocase: complete=' + $ncComplete + ' trouble=' + $ncTrouble + ' left=' + $ncLeft + '   (the report: ' + $nocaseLog + ')')
+        # 18 Nov 26 - four-version audit round 6 (Linux T0754): an unfinished conversion is a WARNING and the install goes on, as Linux
+        # Solo's solo-stage.sh:333 ("the case-insensitive conversion of the kept account did not finish"); the files are safe as they are.
         if (-not $ncComplete -or $ncTrouble -or $ncBad.Count -gt 0) {
-            Note ('  FAIL  case-insensitive record ids (upgrade_nocase did not finish cleanly; ' + $nocaseLog + ' has its output)')
-            $script:fails += 'case-insensitive record ids'
+            Note ('  WARNING  the case-insensitive conversion did not finish; the files are as they were (' + $nocaseLog + ' has its output)')
         }
         elseif ($ncLeft) { Note ('  WARNING  some files were left with case-sensitive record ids, each named in ' + $nocaseLog + '; convert each with configure.file no.case') }
         else { Note '  PASS  case-insensitive record ids (every file converted)' }

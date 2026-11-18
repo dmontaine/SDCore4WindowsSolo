@@ -273,6 +273,7 @@ var
   { Sampled ONCE in InitializeSetup: a live DirExists is changed by the first
     file this installer writes (sd.iss records the ~3,260 files that cost). }
   DataTreeWasAbsent: Boolean;
+  DataTreeBeforeHome: Boolean;   { 18 Nov 26 - round 6 (P-1435, P-2329): an upgraded tree from before the home screen keeps the prompt }
   { Solo's own uninstall key: present means an UPGRADE of a live install, which
     skips every page and re-runs only the startup task.  Absent with a data
     tree means a reinstall over kept data: the tasks are asked again, the
@@ -745,8 +746,14 @@ end;
 function StartWord: String;
 begin
   Result := '';
+  { 18 Nov 26 - round 6 (P-1435, P-2329): an upgrade keeps the site's start, and a tree from before the home screen with no
+    start.default keeps the prompt every session of that release started at (SD Core for Windows and Linux Solo do the same). }
   if not DataTreeWasAbsent then
+  begin
+    if DataTreeBeforeHome and not FileExists(SoloRoot + '\sdsys\start.default') then
+      Result := 'terminal';
     Exit;
+  end;
   { 16 Nov 26 - SOLO 72 (Linux Solo S.234 N9, SD Core's START-ASK): a reload takes where sessions start from the kept start.default,
     which solo-setup.ps1 copies back, and asks nothing.  (ReloadChosen's test, written out: that function comes later.) }
   if KeptWasFound and (ReloadPage.SelectedValueIndex = 0) and KeptStartFound then
@@ -782,6 +789,11 @@ begin
   KeptWasFound := FileExists(SoloRoot + '\.sdcore-kept') and DirExists(SoloRoot + '\user_accounts\sduser') and
                   not DirExists(SoloRoot + '\sdsys\gcat');
   DataTreeWasAbsent := KeptWasFound or not DirExists(SoloRoot + '\sdsys');
+  { 18 Nov 26 - four-version audit round 6 (P-1435, P-2329), as SD Core for Windows' DataTreeBeforeHome and Linux Solo's START-KEEP: a
+    tree kept from a release before the home screen (WS1.1-3 and earlier: its newvoc has no set.start.default), where every session
+    started at the prompt.  Sampled before [Files] replaces newvoc. }
+  DataTreeBeforeHome := (not DataTreeWasAbsent) and DirExists(SoloRoot + '\sdsys\newvoc') and
+                        not FileExists(SoloRoot + '\sdsys\newvoc\set.start.default');
   KeptPwFound := KeptWasFound and FileExists(SoloRoot + '\sdsys\$cred\sduser') and
                  FileExists(SoloRoot + '\sdsys\$cred\$admin') and FileExists(SoloRoot + '\sdsys\$cred\$stored');
   KeptGlobalFound := KeptPwFound and FileExists(SoloRoot + '\sdsys\$cred\$global');
