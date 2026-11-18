@@ -2492,27 +2492,6 @@ That action is not available now.
 
 cited by: `sl_palette`
 
-### msg:12181
-> kind=message tier=reference since=- src=sdsys/messages/12181:1#df081086
-
-```
-%1 is not a file in account %2
-```
-
-### msg:12182
-> kind=message tier=reference since=- src=sdsys/messages/12182:1#e25b2aaa
-
-```
-%1 is not an option run.in gives to %2 (allowed: %3), or it was given twice
-```
-
-### msg:12183
-> kind=message tier=reference since=- src=sdsys/messages/12183:1#90c49ebb
-
-```
-run.in is already running a command; it does not nest
-```
-
 ### msg:12184
 > kind=message tier=reference since=- src=sdsys/messages/12184:1#4bed3361
 
@@ -3023,20 +3002,6 @@ Messages
 ```
 
 cited by: `ide`
-
-### msg:12246
-> kind=message tier=reference since=- src=sdsys/messages/12246:1#91cbd356
-
-```
-run.in works in the other accounts; the administrator's own commands are typed at the SDSYS prompt
-```
-
-### msg:12247
-> kind=message tier=reference since=- src=sdsys/messages/12247:1#21da0903
-
-```
-run.in: the command did not finish; the session is back in account %1
-```
 
 ### msg:12248
 > kind=message tier=reference since=- src=sdsys/messages/12248:1#1c97aafe
@@ -4622,27 +4587,6 @@ cited by: `setserver`
 ```
 
 cited by: `setserver`
-
-### msg:12452
-> kind=message tier=reference since=- src=sdsys/messages/12452:1#eb329ff5
-
-```
-run.in account command name ...; the commands are basic, catalog, decatalog, delete.catalog, debug and compile.dict
-```
-
-### msg:12453
-> kind=message tier=reference since=- src=sdsys/messages/12453:1#312a4fb5
-
-```
-%1 is not a command run.in runs (it runs basic, catalog, decatalog, delete.catalog, debug and compile.dict)
-```
-
-### msg:12454
-> kind=message tier=reference since=- src=sdsys/messages/12454:1#8bf50d4e
-
-```
-%1 cannot be given to a command by run.in (a name is a-z, 0-9, dot, dash and underscore, starts with a letter or digit, and is not an SD keyword)
-```
 
 ### msg:12455
 > kind=message tier=reference since=- src=sdsys/messages/12455:1#17fdc305
