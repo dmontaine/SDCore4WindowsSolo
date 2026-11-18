@@ -2,8 +2,8 @@
 # gplbld/solo-sshguard.py (LSOLO 29; the owner, 2 Oct 2026, asked for the lockout), carried 17 Nov 2026 in the
 # four-version audit (decision D1: "a feature parity needs; it tightens, so nothing ships looser").
 #
-#   -Serve                  (the SYSTEM task "SD Core Solo SSH Guard")  watch sshd.log and keep the lock rules
-#   -List                   (anyone)    who is locked, who has failures
+#   -Serve                  (the SYSTEM task "SD Core Solo SSH Guard")  watch sshd's lines and keep the lock rules
+#   -List                   (anyone)    who is locked, who has failures, what the guard has read
 #   -Unlock <ADDRESS|all>   (ELEVATED)  forget one address, or every address, and take its lock rule away
 # All with: powershell -NoProfile -ExecutionPolicy Bypass -File "%ProgramData%\SDCoreSolo\ssh\solo-sshguard.ps1" <switch>
 #
@@ -12,14 +12,28 @@
 # does not know fails publickey over and over and must not be punished for it).  A sign-in forgets that address's
 # failures.  The Windows account is never locked by this, and the computer's own sshd (port 22) is not touched.
 #
-# THE MECHANISM, WINDOWS' (the OS decides it; one line for the record): a SYSTEM task tails the log Solo's sshd
-# writes (-E %ProgramData%\SDCoreSolo\ssh\sshd.log, LogLevel INFO), counts "Failed password for ... from <addr>"
-# per address, and refuses a locked address with a Windows Firewall BLOCK rule on port 4251 for that address alone
-# (named SD-Solo-SSH-Guard-<addr>, group "SD Core Solo ssh lock-out"), removed when the ten minutes are up; the
-# connection that made the third wrong try is ended by stopping the sshd child that holds it.  Linux runs the guard
-# per connection in front of sshd (systemd socket activation, the address from the socket); Windows' sshd has no
-# per-connection launcher, so the address is read from sshd's own log line, anchored on the END of the line, where
-# sshd puts the peer address after the user name (a user name cannot move the address a lock is put on).
+# THE SOURCE, WINDOWS' (17 Nov 2026, SOLO 77).  The first build tailed the -E file sshd.log and NEVER READ A LINE:
+# Win32-OpenSSH holds its -E log open for writing without FILE_SHARE_READ, so every open by the guard failed with a
+# sharing violation (measured on the installed Solo, 17 Nov 16:44 - 17:02: "pass failed: ... being used by another
+# process" every 2 s, guard.state "offset -1").  No sshd_config option changes how that file is opened.  So Solo's
+# sshd now runs WITHOUT -E and logs where Windows' sshd always logs, the event channel OpenSSH/Operational (payload
+# = sshd's message, no prefix; System/ProcessID = the sshd process that wrote it - set by Windows, not by the
+# writer), and this guard reads that channel from a record-number bookmark.  The computer's own sshd (port 22)
+# logs to the same channel, so a line is Solo's only when the PROCESS that wrote it first wrote
+#     Connection from <addr> port <n> on <laddr> port 4251
+# (LogLevel VERBOSE in Solo's sshd_config; sshd writes it from the socket, before the client has sent a byte, in the
+# per-connection process that later writes that connection's "Failed password" / "Accepted" lines - measured on the
+# port-22 sshd: one pid per connection across "User ... not allowed", "Failed password" and "... [preauth]").
+# That is Linux's per-connection view (its guard sits on the connection's own stderr) rebuilt from the log: a
+# failure counts against the address of ITS CONNECTION's socket, and only when the "from <addr>" sshd appends at the
+# END of the failure line is the same address (a user name cannot move the address a lock is put on).  A pid is
+# Solo's connection until it writes "Disconnected from" / "Connection closed by" / "Connection reset by", a sign-in,
+# a "Connection from" for another port, or $ConnLife seconds pass (Solo's sshd_config pins LoginGraceTime 120, and
+# every password try of a connection falls inside it).
+#
+# THE MECHANISM: a locked address gets a Windows Firewall BLOCK rule on port 4251 for that address alone (named
+# SD-Solo-SSH-Guard-<addr>, group "SD Core Solo ssh lock-out"), removed when the ten minutes are up; the connection
+# that made the third wrong try is ended by stopping the sshd child that holds it.
 #
 # WHAT A SYSTEM PROCESS MAY NEVER DO: run a script a user can edit.  So the task runs THIS FILE from the admin-only
 # machine folder, where solo-sshd.ps1 -Install copies it (and reads its permissions back); the copy in the user's
@@ -32,17 +46,39 @@
 # not filter LOOPBACK traffic, so a lock on 127.0.0.1 or ::1 cuts the connection but cannot refuse the next one -
 # the person at the computer.  Windows' own account lockout policy (if the computer has one) still counts the same
 # wrong passwords against the Windows ACCOUNT; this guard cuts an address off at three, before that policy's count.
+# WHO MAY WRITE A RECORD THE GUARD BELIEVES.  The channel's own access list lets INTERACTIVE users write to it
+# (channelAccess "(A;;0x3;;;IU)", read 17 Nov 2026), so any program the signed-in user runs can write sshd-shaped
+# records - under ITS OWN pid, which Windows sets.  So a record that would change the state (a connection or listener
+# start on 4251, a failure or sign-in of a Solo connection) is believed only when its pid is Solo's sshd as SYSTEM
+# sees it (Win32_Process): the process that owns port 4251, or a process whose PARENT is that one and that started
+# after it, both running an sshd.exe / sshd-session.exe of System32\OpenSSH or Program Files\OpenSSH.  A user cannot
+# make a SYSTEM sshd its parent or put its program at those paths.  The guard lists the sshd processes every 100 ms
+# and verifies each new one while it runs, remembering it with its creation time: a record whose process has exited
+# is believed only if that pid was verified while alive and the record is no later than the moment the process was
+# seen gone; a reused pid (another creation time) is a new process and is judged again.  Anything else is dropped,
+# with "unverified record from pid P dropped (...)" in sshguard.log once per pid.
 #
-# NOT MEASURED (written 17 Nov 2026, nothing here has run against a real sshd or the real firewall - the guard
-# test-sshguard-units.ps1 drives the logic on recorded log lines): the exact prefix Windows' sshd puts before each
-# line in a -E log (the match allows a prefix of digits, dates, times and an "sshd...:" tag, and nothing else); that
-# OpenSSH's sshd-session.exe children log to the same file; that the block rule refuses a NEW connection from the
-# address; that stopping the child that owns the established connection ends only that connection.
+# WHAT IT CANNOT SEE OR TRUST, after that: a Solo connection whose process starts AND exits between two 100 ms
+# listings is never verified, so its records are dropped (logged) and its wrong passwords are not counted - not
+# measured how short a real connection with one password try lives (verify-solo.ps1 leg 18e tries exactly that); a
+# forger whose process takes a pid that a verified, just-exited Solo process had, within the 100 ms before the guard
+# sees it gone, would be believed (Windows chooses the pid, not the forger).  If an administrator disables the
+# channel the guard goes blind after the install's check; and a pid of a Solo connection killed without a closing
+# line and reused within $ConnLife seconds by a port-22 connection would be read as Solo's - except that the reused
+# process's parent is the port-22 listener, so its records now fail the check and are dropped.
+#
+# NOT MEASURED (17 Nov 2026): Solo's own sshd writing "Connection from ... port 4251" at LogLevel VERBOSE to the
+# channel (the port-22 sshd runs at INFO, so its records never carry that line); Win32_Process's ExecutablePath as
+# SYSTEM for the sshd processes (unelevated it is empty - measured); that the block rule refuses a NEW connection
+# from the address; that stopping the child that owns the established connection ends only that one.
 #
 # OUTPUT: -List ends "SOLO SSH GUARD LOCKED <n>", -Unlock ends "SOLO SSH GUARD UNLOCKED <n>" (Linux's words); a
-# refusal is "ERROR=<text>", exit 1.  TEST HOOK, NOT A FEATURE: -TestDir <folder> uses that folder for the log and
-# the state, honours SDSOLO_TEST_NOW (seconds since 1970) as the clock, makes -Serve do ONE pass, and never touches
-# the firewall, a process or the machine folder; a real task never passes it.
+# refusal is "ERROR=<text>", exit 1.  -Serve writes "watching OpenSSH/Operational: ok, from record <n>" to
+# sshguard.log after its FIRST successful read and "Solo's sshd is listening: pid <p> (...)" when it reads Solo's
+# listener start - solo-machine.ps1 waits for both.  TEST HOOK, NOT A FEATURE: -TestDir <folder> uses that folder
+# for the state, reads records from <folder>\events.txt ("<record> <pid> <message>" per line) in place of the
+# channel and the sshd processes from <folder>\procs.txt in place of Win32_Process, honours SDSOLO_TEST_NOW (seconds since 1970) as the clock, makes -Serve do ONE pass, and never touches the
+# firewall, a process or the machine folder; a real task never passes it.
 
 param(
     [switch]$Serve,
@@ -58,30 +94,110 @@ $env:PSModulePath = "$env:ProgramFiles\WindowsPowerShell\Modules;$env:SystemRoot
 $MaxFails = 3        # wrong passwords from one address ...
 $Window = 600        # ... within this many seconds lock it ...
 $LockFor = 600       # ... for this many seconds
+$ConnLife = 180      # a Solo connection's pid is trusted this long (LoginGraceTime 120 in Solo's sshd_config, + 60)
 $SshPort = 4251      # SOLO_SSH_PORT - solo-sshd.ps1 carries the same number
+$Channel = 'OpenSSH/Operational'
+$Provider = 'OpenSSH'
 $RulePrefix = 'SD-Solo-SSH-Guard-'
 $RuleGroup = 'SD Core Solo ssh lock-out'
 
-# One sshd log line -> $null, or @{ Kind = 'fail' | 'accept'; Addr = <address> }.  The line may carry a prefix
-# of digits, dates and times (a pid, a time stamp) and an "sshd...:" tag; the message must START after it, so a
-# user name that contains the words cannot make another message count.  The address is the LAST
-# "from <addr> port <n> ssh2" - the one sshd appends (a key sign-in adds ": <key type> <fingerprint>" after it) -
-# and must parse as an IP address.
-function Get-LineEvent([string]$line) {
-    $m = [regex]::Match($line, '^[0-9 :./T+-]*(?:sshd[^ :]*:\s*)?(Failed password|Accepted \S+) for .* from (\S+) port \d+ ssh2(?:: .*)?\s*$')
-    if (-not $m.Success) { return $null }
-    $a = $m.Groups[2].Value
+# One address as sshd writes it -> its canonical text, or '' when it is not an IP address.
+function Get-Addr([string]$a) {
     if ($a.StartsWith('::ffff:')) { $a = $a.Substring(7) }
     $a = ($a -split '%')[0]
     $ip = $null
-    if (-not [Net.IPAddress]::TryParse($a, [ref]$ip)) { return $null }
-    $kind = if ($m.Groups[1].Value -eq 'Failed password') { 'fail' } else { 'accept' }
-    return @{ Kind = $kind; Addr = $ip.ToString() }
+    if (-not [Net.IPAddress]::TryParse($a, [ref]$ip)) { return '' }
+    return $ip.ToString()
 }
 
-function New-State { return @{ Offset = [long]-1; Addrs = @{} } }
+# One sshd message (the channel's payload: no prefix) -> $null, or one of
+#   @{ Kind = 'conn';   Addr = <peer>; Port = <local port> }   "Connection from A port N on L port P"
+#   @{ Kind = 'listen'; Port = <port> }                         "Server listening on L port P."
+#   @{ Kind = 'end' }                                           the connection's closing lines
+#   @{ Kind = 'fail' | 'accept'; Addr = <address> }             "Failed password ..." / "Accepted <method> ..."
+# Every pattern is anchored at the START of the message, so a user name holding the words cannot make another
+# message count.  The failure's address is the LAST "from <addr> port <n> ssh2" - the one sshd appends (a key
+# sign-in adds ": <key type> <fingerprint>" after it) - and must parse as an IP address.
+function Get-LineEvent([string]$line) {
+    $m = [regex]::Match($line, '^(Failed password|Accepted \S+) for .* from (\S+) port \d+ ssh2(?:: .*)?\s*$')
+    if ($m.Success) {
+        $a = Get-Addr $m.Groups[2].Value
+        if ($a -eq '') { return $null }
+        $kind = if ($m.Groups[1].Value -eq 'Failed password') { 'fail' } else { 'accept' }
+        return @{ Kind = $kind; Addr = $a }
+    }
+    $m = [regex]::Match($line, '^Connection from (\S+) port \d+ on \S+ port (\d+)(?: rdomain .*)?\s*$')
+    if ($m.Success) {
+        $a = Get-Addr $m.Groups[1].Value
+        if ($a -eq '') { return $null }
+        return @{ Kind = 'conn'; Addr = $a; Port = [int]$m.Groups[2].Value }
+    }
+    $m = [regex]::Match($line, '^Server listening on \S+ port (\d+)\.?\s*$')
+    if ($m.Success) { return @{ Kind = 'listen'; Port = [int]$m.Groups[1].Value } }
+    if ($line -match '^(Disconnected from|Connection closed by|Connection reset by) ') { return @{ Kind = 'end' } }
+    return $null
+}
 
-# Drops failures older than the window and locks that have ended; an address with neither is forgotten.
+function New-State { return @{ Offset = [long]-1; Addrs = @{}; Conns = @{} } }
+
+# ---- WHO WROTE A RECORD (17 Nov 26, SOLO 77: the channel is writable by interactive users) ----------------------
+# A "world" is what the guard saw of the computer's sshd processes: @{ Procs = @{ "<pid>" = @{ Pid; Parent; Image;
+# Created (UTC ticks) } }; Listener = <the Procs entry of the pid that owns port 4251, or $null>; Vc = the cache of
+# verified pids, "<pid>" = @{ Created; Gone (UTC ticks when first seen gone, 0 while alive) } }.  A record that would
+# change the state is believed only when its pid IS Solo's sshd: the listener itself, or a process whose parent is
+# the listener and that started after it, both running an sshd image Windows' OpenSSH installs.  Measured on the
+# port-22 sshd, 17 Nov 2026: the per-connection process (sshd.exe, parent = the listener) writes the connection's
+# records; its own child (sshd.exe, the unprivileged one) writes none.
+$SshdImages = @(foreach ($d in @((Join-Path ([Environment]::SystemDirectory) 'OpenSSH'), (Join-Path ([Environment]::GetFolderPath('ProgramFiles')) 'OpenSSH'))) {
+    foreach ($n in @('sshd.exe', 'sshd-session.exe')) { (Join-Path $d $n).ToLowerInvariant() } })
+$VerifiedLife = [long]6000000000   # 10 minutes in ticks: a gone pid's verification is kept this long
+
+function Test-SoloProcess($p, $listener) {
+    if ($null -eq $p -or $null -eq $listener -or -not $p.Image -or -not $listener.Image) { return $false }
+    if ($SshdImages -notcontains ([string]$p.Image).ToLowerInvariant()) { return $false }
+    if ($SshdImages -notcontains ([string]$listener.Image).ToLowerInvariant()) { return $false }
+    if ($p.Pid -eq $listener.Pid) { return $true }
+    return ($p.Parent -eq $listener.Pid -and $p.Created -ge $listener.Created)
+}
+
+# Every snapshot: a running Solo sshd process is verified (with its creation time); a verified pid no longer running,
+# or running with another creation time (reused), is marked gone; a gone one is forgotten after $VerifiedLife.
+function Update-Verified($world, [long]$nowTicks) {
+    foreach ($p in @($world.Procs.Values)) {
+        $k = [string]$p.Pid
+        if ((Test-SoloProcess $p $world.Listener) -and -not ($world.Vc.ContainsKey($k) -and $world.Vc[$k].Created -eq $p.Created -and $world.Vc[$k].Gone -eq 0)) {
+            $world.Vc[$k] = @{ Created = $p.Created; Gone = [long]0 }
+        }
+    }
+    foreach ($k in @($world.Vc.Keys)) {
+        $c = $world.Vc[$k]
+        $p = $world.Procs[$k]
+        if ($c.Gone -eq 0 -and ($null -eq $p -or $p.Created -ne $c.Created)) { $c.Gone = $nowTicks }
+        if ($c.Gone -gt 0 -and ($nowTicks - $c.Gone) -gt $VerifiedLife) { $world.Vc.Remove($k) }
+    }
+}
+
+# One record's writer -> 'ok' (running, Solo's), 'cached' (verified earlier and the same process), or a reason to
+# drop it: 'forged' (running, not Solo's sshd, or a reused pid), 'unverified' (gone, never verified), 'gone' (written
+# after the verified process was seen gone), 'nolistener'.
+function Test-RecordProcess($world, $rec) {
+    if ($null -eq $world -or $null -eq $world.Listener) { return 'nolistener' }
+    $k = [string]$rec.Pid
+    $p = $world.Procs[$k]
+    $c = $world.Vc[$k]
+    if ($null -ne $p) {
+        if (Test-SoloProcess $p $world.Listener) { $world.Vc[$k] = @{ Created = $p.Created; Gone = [long]0 }; return 'ok' }
+        if ($null -ne $c -and $c.Created -eq $p.Created -and $c.Gone -eq 0) { return 'cached' }
+        if ($null -ne $c) { $world.Vc.Remove($k) }
+        return 'forged'
+    }
+    if ($null -eq $c) { return 'unverified' }
+    if ($c.Gone -gt 0 -and $null -ne $rec.Time -and $rec.Time -gt $c.Gone) { return 'gone' }
+    return 'cached'
+}
+
+# Drops failures older than the window, locks that have ended and connections older than $ConnLife; an address
+# with neither failures nor a lock is forgotten.
 function Limit-State($st, [long]$now) {
     foreach ($a in @($st.Addrs.Keys)) {
         $e = $st.Addrs[$a]
@@ -89,16 +205,20 @@ function Limit-State($st, [long]$now) {
         if ($e.Until -le $now) { $e.Until = [long]0 }
         if ($e.Fails.Count -eq 0 -and $e.Until -eq 0) { $st.Addrs.Remove($a) }
     }
+    foreach ($p in @($st.Conns.Keys)) {
+        if (($now - $st.Conns[$p].Time) -ge $ConnLife) { $st.Conns.Remove($p) }
+    }
 }
 
-# One event against the state -> 'LOCK' (this failure locked the address), 'COUNT' (a failure, not yet a lock),
-# 'FORGET' (a sign-in), or ''.
+# One counting event against the state -> 'LOCK' (this failure locked the address), 'COUNT' (a failure, not yet a
+# lock), 'FORGET' (a sign-in), or ''.
 function Add-Event($st, $ev, [long]$now) {
     if ($null -eq $ev) { return '' }
     if ($ev.Kind -eq 'accept') {
         if ($st.Addrs.ContainsKey($ev.Addr)) { $st.Addrs.Remove($ev.Addr) }
         return 'FORGET'
     }
+    if ($ev.Kind -ne 'fail') { return '' }
     if (-not $st.Addrs.ContainsKey($ev.Addr)) { $st.Addrs[$ev.Addr] = @{ Fails = @(); Until = [long]0 } }
     $e = $st.Addrs[$ev.Addr]
     $e.Fails = @(@($e.Fails | Where-Object { ($now - $_) -lt $Window }) + $now)
@@ -106,11 +226,51 @@ function Add-Event($st, $ev, [long]$now) {
     return 'COUNT'
 }
 
+# One channel record (@{ Id; Pid; Provider; Text; Time }) against the state: works out whether it is Solo's sshd's,
+# and returns @{ R = <Add-Event's answer, or 'CONN' / 'LISTEN' / 'MISMATCH' / 'DROP' / ''>; Ev = <the event>;
+# V = <Test-RecordProcess's answer when dropped> }.  Only a record that would CHANGE the state - a connection or a
+# listener start on Solo's port, a failure or sign-in from a Solo connection's pid - has its writer checked, so the
+# port-22 sshd's records are never looked at twice; a record that only takes a pid OFF the connections (a closing
+# line, a connection on another port) is not checked, because it can only stop the writer's own pid counting.
+function Add-Record($st, $rec, [long]$now, $world) {
+    $none = @{ R = ''; Ev = $null; V = '' }
+    if ($null -eq $rec -or $rec.Provider -ne $Provider -or $null -eq $rec.Pid) { return $none }
+    $ev = Get-LineEvent $rec.Text
+    if ($null -eq $ev) { return $none }
+    $p = [string]$rec.Pid
+    switch ($ev.Kind) {
+        'conn' {
+            if ($ev.Port -eq $SshPort) {
+                $v = Test-RecordProcess $world $rec
+                if ($v -ne 'ok' -and $v -ne 'cached') { return @{ R = 'DROP'; Ev = $ev; V = $v } }
+                $st.Conns[$p] = @{ Addr = $ev.Addr; Time = $now }; return @{ R = 'CONN'; Ev = $ev; V = $v }
+            }
+            if ($st.Conns.ContainsKey($p)) { $st.Conns.Remove($p) }
+            return $none
+        }
+        'listen' {
+            if ($ev.Port -ne $SshPort) { return $none }
+            $v = Test-RecordProcess $world $rec
+            if ($v -ne 'ok' -and $v -ne 'cached') { return @{ R = 'DROP'; Ev = $ev; V = $v } }
+            return @{ R = 'LISTEN'; Ev = $ev; V = $v }
+        }
+        'end' { if ($st.Conns.ContainsKey($p)) { $st.Conns.Remove($p) }; return $none }
+    }
+    # 'fail' / 'accept': only from a pid that opened a connection on Solo's port, and only for that socket's address.
+    if (-not $st.Conns.ContainsKey($p)) { return $none }
+    $v = Test-RecordProcess $world $rec
+    if ($v -ne 'ok' -and $v -ne 'cached') { return @{ R = 'DROP'; Ev = $ev; V = $v } }
+    if ($st.Conns[$p].Addr -ne $ev.Addr) { return @{ R = 'MISMATCH'; Ev = $ev } }
+    if ($ev.Kind -eq 'accept') { $st.Conns.Remove($p) }
+    return @{ R = (Add-Event $st $ev $now); Ev = $ev }
+}
+
 function Get-LockedAddrs($st, [long]$now) {
     return @($st.Addrs.Keys | Where-Object { $st.Addrs[$_].Until -gt $now } | Sort-Object)
 }
 
-# guard.state: "offset <n>" then one "addr <address> <locked-until> <failure times...>" line per address.
+# guard.state: "offset <record>" (-1: the source was never read), one "addr <address> <locked-until> <failure
+# times...>" line per address, one "conn <pid> <address> <seen>" line per Solo connection in flight.
 function Read-State([string]$path) {
     $st = New-State
     if (-not (Test-Path -LiteralPath $path)) { return $st }
@@ -118,9 +278,14 @@ function Read-State([string]$path) {
         $f = @($l.Trim() -split '\s+')
         if ($f.Count -eq 2 -and $f[0] -eq 'offset') { $st.Offset = [long]$f[1] }
         elseif ($f.Count -ge 3 -and $f[0] -eq 'addr') {
-            $ip = $null
-            if (-not [Net.IPAddress]::TryParse($f[1], [ref]$ip)) { continue }
-            $st.Addrs[$ip.ToString()] = @{ Until = [long]$f[2]; Fails = @($f | Select-Object -Skip 3 | ForEach-Object { [long]$_ }) }
+            $a = Get-Addr $f[1]
+            if ($a -eq '') { continue }
+            $st.Addrs[$a] = @{ Until = [long]$f[2]; Fails = @($f | Select-Object -Skip 3 | ForEach-Object { [long]$_ }) }
+        }
+        elseif ($f.Count -eq 4 -and $f[0] -eq 'conn' -and $f[1] -match '^\d+$') {
+            $a = Get-Addr $f[2]
+            if ($a -eq '') { continue }
+            $st.Conns[$f[1]] = @{ Addr = $a; Time = [long]$f[3] }
         }
     }
     return $st
@@ -133,31 +298,74 @@ function Write-State($st, [string]$path, [long]$now) {
         $e = $st.Addrs[$a]
         $out += ('addr ' + $a + ' ' + $e.Until + ' ' + (@($e.Fails) -join ' ')).TrimEnd()
     }
+    foreach ($p in @($st.Conns.Keys | Sort-Object)) { $out += ('conn ' + $p + ' ' + $st.Conns[$p].Addr + ' ' + $st.Conns[$p].Time) }
     $tmp = $path + '.tmp'
     [IO.File]::WriteAllLines($tmp, [string[]]$out, (New-Object Text.UTF8Encoding($false)))
     if (Test-Path -LiteralPath $path) { [IO.File]::Replace($tmp, $path, [NullString]::Value) } else { [IO.File]::Move($tmp, $path) }
 }
 
-# The complete lines added to the log since the state's offset.  A first run ($st.Offset -1) starts at the END
-# when $fromEnd (the real task: old failures are not counted again); a log shorter than the offset was replaced,
-# and is read from its start.  An incomplete last line is left for the next pass.
-function Read-NewLines($st, [string]$log, [bool]$fromEnd) {
-    if (-not (Test-Path -LiteralPath $log)) { return @() }
-    $fs = [IO.File]::Open($log, 'Open', 'Read', 'ReadWrite, Delete')
+# THE SOURCE.  $src is an event channel's name, or "file:<path>" (the test hook's recorded records, one
+# "<record> <pid> <message>" per line, provider OpenSSH, no time).  Get-Records returns the records numbered above $after,
+# oldest first, at most $max; Get-LastId the newest record's number (0 for an empty source).  A channel that does
+# not exist or cannot be read THROWS - a pass that read nothing must never look like a pass that read the source.
+function Get-Records([string]$src, [long]$after, [int]$max = 20000) {
+    $out = New-Object System.Collections.ArrayList
+    if ($src.StartsWith('file:')) {
+        $fp = $src.Substring(5)
+        if (-not (Test-Path -LiteralPath $fp)) { return @() }
+        foreach ($l in @([IO.File]::ReadAllLines($fp))) {
+            $m = [regex]::Match($l, '^(\d+) (\d+) (.*)$')
+            if ($m.Success -and [long]$m.Groups[1].Value -gt $after -and $out.Count -lt $max) {
+                [void]$out.Add(@{ Id = [long]$m.Groups[1].Value; Pid = [int]$m.Groups[2].Value; Provider = 'OpenSSH'; Text = $m.Groups[3].Value; Time = $null })
+            }
+        }
+        return @($out | Sort-Object { $_.Id })
+    }
+    $q = New-Object System.Diagnostics.Eventing.Reader.EventLogQuery($src, [System.Diagnostics.Eventing.Reader.PathType]::LogName, ('*[System[EventRecordID > ' + $after + ']]'))
+    $rd = New-Object System.Diagnostics.Eventing.Reader.EventLogReader($q)
     try {
-        $len = $fs.Length
-        if ($st.Offset -lt 0) { $st.Offset = $(if ($fromEnd) { $len } else { 0 }) }
-        if ($len -lt $st.Offset) { $st.Offset = 0 }
-        if ($len -eq $st.Offset) { return @() }
-        $fs.Position = $st.Offset
-        $buf = New-Object byte[] ($len - $st.Offset)
-        $n = $fs.Read($buf, 0, $buf.Length)
-        if ($n -le 0) { return @() }
-        $last = [Array]::LastIndexOf($buf, [byte]10, $n - 1)
-        if ($last -lt 0) { return @() }
-        $st.Offset += ($last + 1)
-        return @([Text.Encoding]::UTF8.GetString($buf, 0, $last + 1) -split "`r?`n" | Where-Object { $_ -ne '' })
-    } finally { $fs.Dispose() }
+        while ($out.Count -lt $max) {
+            $r = $rd.ReadEvent()
+            if ($null -eq $r) { break }
+            try {
+                $txt = ''
+                if ($r.Properties.Count -ge 2) { $txt = [string]$r.Properties[1].Value }
+                $tc = $null
+                if ($null -ne $r.TimeCreated) { $tc = [long]$r.TimeCreated.ToUniversalTime().Ticks }
+                [void]$out.Add(@{ Id = [long]$r.RecordId; Pid = $r.ProcessId; Provider = [string]$r.ProviderName; Text = $txt; Time = $tc })
+            } finally { $r.Dispose() }
+        }
+    } finally { $rd.Dispose() }
+    return @($out | Sort-Object { $_.Id })
+}
+
+function Get-LastId([string]$src) {
+    if ($src.StartsWith('file:')) {
+        $ids = @(Get-Records $src ([long]-1) | ForEach-Object { $_.Id })
+        if ($ids.Count -eq 0) { return [long]0 }
+        return [long]($ids | Measure-Object -Maximum).Maximum
+    }
+    $q = New-Object System.Diagnostics.Eventing.Reader.EventLogQuery($src, [System.Diagnostics.Eventing.Reader.PathType]::LogName)
+    $q.ReverseDirection = $true
+    $rd = New-Object System.Diagnostics.Eventing.Reader.EventLogReader($q)
+    try {
+        $r = $rd.ReadEvent()
+        if ($null -eq $r) { return [long]0 }
+        try { return [long]$r.RecordId } finally { $r.Dispose() }
+    } finally { $rd.Dispose() }
+}
+
+# The records added since the state's bookmark.  A first run ($st.Offset -1) starts at the END when $fromEnd (the
+# real task: old lines are not counted again, at a time they did not happen); a source whose newest record is
+# older than the bookmark was cleared, and is read from its start.
+function Read-NewRecords($st, [string]$src, [bool]$fromEnd) {
+    $last = Get-LastId $src
+    if ($st.Offset -lt 0) { $st.Offset = $(if ($fromEnd) { $last } else { [long]0 }) }
+    if ($last -lt $st.Offset) { $st.Offset = [long]0 }
+    if ($last -eq $st.Offset) { return @() }
+    $recs = @(Get-Records $src $st.Offset)
+    if ($recs.Count -gt 0) { $st.Offset = [long]$recs[$recs.Count - 1].Id }
+    return $recs
 }
 
 function Get-RuleName([string]$addr) { return $RulePrefix + ($addr -replace '[^0-9A-Za-z.]', '-') }
@@ -181,8 +389,8 @@ if ($TestDir) { $dir = $TestDir }
 else { $dir = Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) 'SDCoreSolo\ssh' }
 if (-not (Test-Path -LiteralPath $dir)) { Stop-With ($dir + ' does not exist: Solo''s ssh is not set up') }
 $statePath = Join-Path $dir 'guard.state'
-$logPath = Join-Path $dir 'sshd.log'
 $ownLog = Join-Path $dir 'sshguard.log'
+$source = $(if ($TestDir) { 'file:' + (Join-Path $dir 'events.txt') } else { $Channel })
 
 function Test-Elevated {
     return ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -240,41 +448,104 @@ function Stop-Connections([string]$addr) {
     }
 }
 
+# ---- the world: Solo's sshd processes, seen by SYSTEM (17 Nov 26, SOLO 77) ----------------------------------------
+# Real: every 100 ms the guard lists the sshd processes by name (cheap); when the set changes, and before every pass,
+# it reads each one's image, parent and creation time from Win32_Process and the pid that owns port 4251, and
+# verifies what it can (Update-Verified) - so a connection's process is seen while it runs, normally well before the
+# pass reads its records.  -TestDir: from <folder>\procs.txt, "proc <pid> <parent> <created ticks> <image>" and
+# "listener <pid>" lines, read fresh on each run.
+$script:World = @{ Procs = @{}; Listener = $null; Vc = @{} }
+$script:lastIds = $null
+$script:dropSaid = @{}
+
+function Get-NowTicks {
+    if ($TestDir -and $env:SDSOLO_TEST_NOW) { return [DateTimeOffset]::FromUnixTimeSeconds([long]$env:SDSOLO_TEST_NOW).UtcTicks }
+    return [DateTime]::UtcNow.Ticks
+}
+
+function Update-World([bool]$force) {
+    $procs = @{}
+    $lp = @()
+    if ($TestDir) {
+        $pf = Join-Path $dir 'procs.txt'
+        foreach ($l in @(Get-Content -LiteralPath $pf -ErrorAction SilentlyContinue)) {
+            $m = [regex]::Match($l, '^proc (\d+) (\d+) (\d+) (.+)$')
+            if ($m.Success) { $procs[$m.Groups[1].Value] = @{ Pid = [int]$m.Groups[1].Value; Parent = [int]$m.Groups[2].Value; Created = [long]$m.Groups[3].Value; Image = $m.Groups[4].Value.Trim() } }
+            $m = [regex]::Match($l, '^listener (\d+)\s*$')
+            if ($m.Success) { $lp += $m.Groups[1].Value }
+        }
+    }
+    else {
+        $ids = @(@([Diagnostics.Process]::GetProcessesByName('sshd')) + @([Diagnostics.Process]::GetProcessesByName('sshd-session')) | ForEach-Object { $i = $_.Id; $_.Dispose(); $i } | Sort-Object)
+        $key = ($ids -join ',')
+        if (-not $force -and $key -eq $script:lastIds) { return }
+        foreach ($c in @(Get-CimInstance Win32_Process -Filter "Name='sshd.exe' OR Name='sshd-session.exe'" -ErrorAction Stop)) {
+            $cr = [long]0
+            if ($c.CreationDate) { $cr = [long]$c.CreationDate.ToUniversalTime().Ticks }
+            $procs[[string]$c.ProcessId] = @{ Pid = [int]$c.ProcessId; Parent = [int]$c.ParentProcessId; Image = [string]$c.ExecutablePath; Created = $cr }
+        }
+        $lp = @(Get-NetTCPConnection -State Listen -LocalPort $SshPort -ErrorAction SilentlyContinue | ForEach-Object { [string]$_.OwningProcess })
+        $script:lastIds = $key
+    }
+    $lp = @($lp | Sort-Object -Unique)
+    $listener = $null
+    if ($lp.Count -eq 1 -and $procs.ContainsKey($lp[0])) { $listener = $procs[$lp[0]] }
+    elseif ($lp.Count -gt 1 -and -not $script:dropSaid.ContainsKey('listeners')) { $script:dropSaid['listeners'] = 1; Say ('more than one process listens on ' + $SshPort + ' (pid ' + ($lp -join ', ') + '): no record is believed until one does') }
+    $script:World.Procs = $procs
+    $script:World.Listener = $listener
+    Update-Verified $script:World (Get-NowTicks)
+}
+
 function Invoke-Pass([bool]$fromEnd) {
+    Update-World $true
     $mx = Enter-Lock
     try {
         $now = Get-Now
         $st = Read-State $statePath
-        # The task's first pass starts at the END of the log: lines written while no guard ran are not counted
-        # now, at a time they did not happen.
+        # The task's first pass starts at the END of the source: records written while no guard ran are not
+        # counted now, at a time they did not happen.
         if ($fromEnd) { $st.Offset = -1 }
         $cut = @()
-        foreach ($l in (Read-NewLines $st $logPath $fromEnd)) {
-            $ev = Get-LineEvent $l
-            $r = Add-Event $st $ev $now
-            if ($r -eq 'LOCK') {
+        foreach ($rec in (Read-NewRecords $st $source $fromEnd)) {
+            $a = Add-Record $st $rec $now $script:World
+            $ev = $a.Ev
+            if ($a.R -eq 'DROP') {
+                $dk = [string]$rec.Pid
+                if ($script:dropSaid.Count -gt 1000) { $script:dropSaid = @{} }
+                if (-not $script:dropSaid.ContainsKey($dk)) {
+                    $script:dropSaid[$dk] = 1
+                    Say ('unverified record from pid ' + $rec.Pid + ' dropped (' + $a.V + ', listener pid ' + $(if ($script:World.Listener) { $script:World.Listener.Pid } else { 'none' }) + '): ' + $rec.Text)
+                }
+            }
+            elseif ($a.R -eq 'LOCK') {
                 Say ('locking ' + $ev.Addr + ' for ' + ($LockFor / 60) + ' minutes: ' + $MaxFails + ' wrong passwords within ' + ($Window / 60) + ' minutes')
                 $cut += $ev.Addr
             }
-            elseif ($r -eq 'FORGET') { Say ('a sign-in from ' + $ev.Addr + ': its failures are forgotten') }
+            elseif ($a.R -eq 'COUNT') { Say ('a wrong password from ' + $ev.Addr + ' (pid ' + $rec.Pid + ')') }
+            elseif ($a.R -eq 'FORGET') { Say ('a sign-in from ' + $ev.Addr + ': its failures are forgotten') }
+            elseif ($a.R -eq 'LISTEN') { Say ('Solo''s sshd is listening: pid ' + $rec.Pid + ' (' + $rec.Text + ')') }
+            elseif ($a.R -eq 'MISMATCH') { Say ('NOT counted: pid ' + $rec.Pid + ' wrote "' + $rec.Text + '" for a connection from ' + $st.Conns[[string]$rec.Pid].Addr) }
         }
         Write-State $st $statePath $now
         $locked = Get-LockedAddrs $st $now
     } finally { Exit-Lock $mx }
+    if (-not $script:readOnce) { $script:readOnce = $true; Say ('watching ' + $source + ': ok, from record ' + $st.Offset) }
     # The firewall is asked only when the locked set changed, or once a minute (a rule removed by hand comes back).
     $key = ($locked -join ',')
     if ($TestDir -or $key -ne $script:lastKey -or ($now - $script:lastSync) -ge 60) {
         Sync-Rules $locked
         $script:lastKey = $key; $script:lastSync = $now
     }
-    foreach ($a in ($cut | Sort-Object -Unique)) { Stop-Connections $a }
+    foreach ($x in ($cut | Sort-Object -Unique)) { Stop-Connections $x }
 }
-$script:lastKey = $null; $script:lastSync = [long]0
+$script:lastKey = $null; $script:lastSync = [long]0; $script:readOnce = $false
 
 if ($List) {
     $now = Get-Now
     $st = Read-State $statePath
     Limit-State $st $now
+    if ($st.Offset -lt 0) { Write-Output ('source ' + $source + ': NEVER READ (guard.state offset -1, or no guard.state)') }
+    else { Write-Output ('source ' + $source + ': read up to record ' + $st.Offset + ', ' + $st.Conns.Count + ' Solo connection(s) in flight') }
     $n = 0
     foreach ($a in @($st.Addrs.Keys | Sort-Object)) {
         $e = $st.Addrs[$a]
@@ -289,9 +560,8 @@ if ($Unlock -ne '') {
     if (-not $TestDir -and -not (Test-Elevated)) { Stop-With 'this needs an ELEVATED PowerShell - the lock-out state and its firewall rules are the administrator''s' }
     $target = $Unlock
     if ($target -ne 'all') {
-        $ip = $null
-        if (-not [Net.IPAddress]::TryParse($target, [ref]$ip)) { Stop-With ('not an address: ' + $target + ' (give an IP address, or all)') }
-        $target = $ip.ToString()
+        $target = Get-Addr $target
+        if ($target -eq '') { Stop-With ('not an address: ' + $Unlock + ' (give an IP address, or all)') }
     }
     $mx = Enter-Lock
     try {
@@ -310,12 +580,19 @@ if ($Unlock -ne '') {
     exit 0
 }
 
-# -Serve.  The task's: a pass every two seconds, for as long as it runs.  With -TestDir: one pass, the log read
-# from its start.
+# -Serve.  The task's: a pass every two seconds, for as long as it runs.  With -TestDir: one pass, the source
+# read from its start.
 if ($TestDir) { Invoke-Pass $false; exit 0 }
-Say ('started: watching ' + $logPath + ' (' + $MaxFails + ' wrong passwords in ' + ($Window / 60) + ' minutes lock an address for ' + ($LockFor / 60) + ' minutes)')
+Say ('started: watching ' + $source + ' for Solo''s sshd on port ' + $SshPort + ' (' + $MaxFails + ' wrong passwords in ' + ($Window / 60) + ' minutes lock an address for ' + ($LockFor / 60) + ' minutes)')
 $first = $true
+$tick = 0
 while ($true) {
-    try { Invoke-Pass $first; $first = $false } catch { Say ('pass failed: ' + $_.Exception.Message) }
-    Start-Sleep -Seconds 2
+    if ($tick % 20 -eq 0) {
+        try { Invoke-Pass $first; $first = $false } catch { Say ('pass failed: ' + $_.Exception.Message) }
+    }
+    else {
+        try { Update-World $false } catch { if (-not $script:dropSaid.ContainsKey('world')) { $script:dropSaid['world'] = 1; Say ('process snapshot failed: ' + $_.Exception.Message) } }
+    }
+    $tick++
+    Start-Sleep -Milliseconds 100
 }

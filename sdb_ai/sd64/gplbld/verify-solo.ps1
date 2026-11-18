@@ -95,6 +95,10 @@
 #      cataloged subroutine and a D-type index in the account, no ADMIN.
 #      Ported from SD Core for Windows' verify-trigak.ps1, which was measured
 #      red on the pre-fix install; this leg's first run is owed.
+# 18e. the ssh lock-out guard counts a LIVE wrong password (SOLO 77): one or two
+#      tries at 127.0.0.1:4251 for a made-up user, and the guard's -List must
+#      show 127.0.0.1's count up by that many, never reaching the lock; a guard
+#      that never read its source fails first.  Its first run is owed.
 #  19. the daemon runs on a standard token: Medium integrity, Administrators
 #      deny-only or absent                                         (ruling 16)
 # Not measured here, because they need hands or another machine: ssh landing in
@@ -1496,7 +1500,7 @@ public static class SdSuiteCli {
         $akBefore = $(if (Test-Path -LiteralPath $akf) { (Get-FileHash -LiteralPath $akf -Algorithm SHA256).Hash } else { '(absent)' })
         $listen = @(Get-NetTCPConnection -State Listen -LocalPort $sshPort -ErrorAction SilentlyContinue)
         Say ('    Solo''s sshd listening on ' + $sshPort + ': ' + $listen.Count + ' socket(s); key file ' + $akf + ' (' + $akBefore + ')')
-        Check ('Solo''s own sshd is listening on port ' + $sshPort) ($listen.Count -gt 0) 'nothing listens on 4251 - the "SD Core Solo SSH" SYSTEM task did not start sshd (its log: %ProgramData%\SDCoreSolo\ssh\sshd.log)'
+        Check ('Solo''s own sshd is listening on port ' + $sshPort) ($listen.Count -gt 0) 'nothing listens on 4251 - the "SD Core Solo SSH" SYSTEM task did not start sshd (its records: the OpenSSH/Operational event log)'
         $kdir = Join-Path $env:TEMP ('sdsshkey-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
         New-Item -ItemType Directory -Path $kdir | Out-Null
         $kf = Join-Path $kdir 'k'
@@ -1552,6 +1556,98 @@ public static class SdSuiteCli {
             $akOk = $(if ($akBefore -eq '(absent)') { $akLeft -eq 0 } else { $akAfter -eq $akBefore })
             Check 'Solo''s key file is as it was before the leg (empty or absent if it was absent)' $akOk ('before ' + $akBefore + ', after ' + $akAfter + ', key lines left ' + $akLeft)
             Remove-Item -LiteralPath $kdir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # 17 Nov 26 - SOLO 77: the ssh lock-out guard COUNTS A LIVE WRONG PASSWORD.  The first build's guard ran for a
+    # day and read nothing (a sharing violation on sshd's -E log, every pass), and the install said PASS because the
+    # task was running.  So this leg measures the count, not the task: one or two ssh tries at 127.0.0.1:4251 with a
+    # made-up password for a MADE-UP user (never a real account, so Windows' own lock-out count is untouched), then
+    # the guard's -List must show 127.0.0.1's wrong passwords up by exactly that many.  It stays BELOW the lock (three):
+    # with 127.0.0.1 already at two it does not try (SKIP), so the suite never locks the machine's own address.  The
+    # failures it leaves expire by themselves in ten minutes.  REFUSES ITS NULL CASE: no guard copy in the machine
+    # folder, no guard.state, or a guard.state whose offset is -1 (the guard never read its source) FAILS before any
+    # try, and a try sshd did not answer with "Permission denied" FAILS rather than counting as measured.
+    Say ''
+    Say '== 18e. the ssh lock-out guard counts a live wrong password (SOLO 77)'
+    $sshc = Join-Path $env:SystemRoot 'System32\OpenSSH\ssh.exe'
+    $gDir = Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) 'SDCoreSolo\ssh'
+    $gScript = Join-Path $gDir 'solo-sshguard.ps1'
+    $gState = Join-Path $gDir 'guard.state'
+    $lockAddr = '127.0.0.1'
+    function Get-GuardOffset {
+        $l = @(Get-Content -LiteralPath $gState -ErrorAction SilentlyContinue | Where-Object { $_ -match '^offset -?\d+\s*$' })
+        if ($l.Count -eq 0) { return $null }
+        return [long](($l[0].Trim() -split '\s+')[1])
+    }
+    function Get-GuardList {
+        $o = (& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $gScript -List | Out-String)
+        foreach ($x in (($o -replace "`r", '') -split "`n")) { if ($x.Trim()) { Say ('    -List | ' + $x) } }
+        $n = -1
+        if ($o -match '(?m)^SOLO SSH GUARD LOCKED \d+\s*$') {
+            $n = 0
+            $m = [regex]::Match($o, '(?m)^' + [regex]::Escape($lockAddr) + '  (\d+) wrong password\(s\), not locked\s*$')
+            if ($m.Success) { $n = [int]$m.Groups[1].Value }
+            if ($o -match ('(?m)^' + [regex]::Escape($lockAddr) + '  LOCKED until ')) { $n = 99 }
+        }
+        return $n
+    }
+    $listen = @(Get-NetTCPConnection -State Listen -LocalPort 4251 -ErrorAction SilentlyContinue)
+    Say ('    guard ' + $gScript + '   state ' + $gState + '   Solo''s sshd listening on 4251: ' + $listen.Count + ' socket(s)')
+    if (-not (Test-Path -LiteralPath $sshc)) { Skip '18e: the ssh lock-out guard' 'no OpenSSH client in System32' }
+    elseif ($listen.Count -eq 0) { Check 'Solo''s own sshd is listening on 4251 (the leg needs it)' $false 'nothing listens on 4251' }
+    elseif (-not (Test-Path -LiteralPath $gScript)) { Check 'the ssh lock-out guard is installed in the machine folder' $false ('no ' + $gScript) }
+    else {
+        $off0 = Get-GuardOffset
+        Say ('    guard.state offset before: ' + $(if ($null -eq $off0) { '(no guard.state, or no offset line)' } else { [string]$off0 }))
+        Check 'CONTROL: the guard has read its source at least once (guard.state offset is not -1)' ($null -ne $off0 -and $off0 -ge 0) 'the guard never read OpenSSH/Operational - it cannot count anything, and the rest of this leg would measure nothing'
+        $before = Get-GuardList
+        Check 'CONTROL: the guard''s -List answers (it ends "SOLO SSH GUARD LOCKED <n>")' ($before -ge 0) '-List printed no closing line'
+        if ($null -eq $off0 -or $off0 -lt 0 -or $before -lt 0) { Say '    the leg stops here: the guard cannot be measured' }
+        elseif ($before -ge 2) { Skip '18e: a live wrong password' ($lockAddr + ' already has ' + $before + ' wrong password(s) in the last ten minutes; one more would lock it - rerun in ten minutes') }
+        else {
+            $tries = 2 - $before
+            $fake = 'zzsdguard' + [guid]::NewGuid().ToString('N').Substring(0, 6)
+            $real = $null
+            try { $real = Get-LocalUser -Name $fake -ErrorAction Stop } catch { $real = $null }
+            if ($null -ne $real) { Check ('the made-up user ' + $fake + ' is not a Windows account') $false 'it exists - refusing to send a wrong password for it' }
+            else {
+                $gdir2 = Join-Path $env:TEMP ('sdsshguard-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+                New-Item -ItemType Directory -Path $gdir2 | Out-Null
+                $askpass = Join-Path $gdir2 'askpass.cmd'
+                [IO.File]::WriteAllText($askpass, "@echo not-a-real-password-zz`r`n", (New-Object Text.ASCIIEncoding))
+                $gArgs = @('-p', '4251', '-o', 'PubkeyAuthentication=no', '-o', 'PreferredAuthentications=password', '-o', 'NumberOfPasswordPrompts=1',
+                           '-o', 'StrictHostKeyChecking=no', '-o', ('UserKnownHostsFile=' + (Join-Path $gdir2 'kh')), '-o', 'ConnectTimeout=10', ($fake + '@' + $lockAddr))
+                $denied = 0
+                try {
+                    $env:SSH_ASKPASS = $askpass; $env:SSH_ASKPASS_REQUIRE = 'force'; $env:DISPLAY = 'verify'
+                    for ($k = 1; $k -le $tries; $k++) {
+                        $so = Join-Path $gdir2 ('t' + $k + '.out'); $se = Join-Path $gdir2 ('t' + $k + '.err')
+                        Say ('  $ ssh ' + ($gArgs -join ' ') + '   (try ' + $k + ' of ' + $tries + ', a made-up password through SSH_ASKPASS)')
+                        $p = Start-Process -FilePath $sshc -ArgumentList $gArgs -NoNewWindow -PassThru -RedirectStandardOutput $so -RedirectStandardError $se
+                        if (-not $p.WaitForExit(30000)) { $null = & taskkill.exe /PID $p.Id /T /F 2>$null; Say '    ssh TIMED OUT after 30 s - killed.' }
+                        $txt = ((Get-Content -LiteralPath $so -Raw -ErrorAction SilentlyContinue) + (Get-Content -LiteralPath $se -Raw -ErrorAction SilentlyContinue))
+                        foreach ($l in (($txt -replace "`r", '') -split "`n")) { if ($l.Trim()) { Say ('    | ' + $l) } }
+                        if ($txt -match 'Permission denied') { $denied++ }
+                    }
+                }
+                finally {
+                    Remove-Item Env:\SSH_ASKPASS, Env:\SSH_ASKPASS_REQUIRE, Env:\DISPLAY -ErrorAction SilentlyContinue
+                }
+                Check ('CONTROL: sshd refused each of the ' + $tries + ' tries ("Permission denied")') ($denied -eq $tries) ('refused ' + $denied + ' of ' + $tries + ' - a try sshd did not answer measured nothing')
+                # The guard reads every two seconds; give it up to fifteen.
+                $after = $before
+                $deadline = (Get-Date).AddSeconds(15)
+                while ($after -ne ($before + $tries) -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 2; $after = Get-GuardList }
+                $off1 = Get-GuardOffset
+                Say ('    127.0.0.1 wrong passwords: before ' + $before + ', after ' + $after + ' (want ' + ($before + $tries) + ');  guard.state offset ' + $off0 + ' -> ' + $off1)
+                Check ('the guard counted the live wrong password(s) for ' + $lockAddr + ': ' + $before + ' -> ' + ($before + $tries)) ($after -eq ($before + $tries)) ('after ' + $after + ' - the guard did not see Solo''s sshd''s "Failed password" records')
+                Check 'and it moved its bookmark in the event channel' ($null -ne $off1 -and $off1 -gt $off0) ('offset ' + $off0 + ' -> ' + $off1)
+                Check ('and ' + $lockAddr + ' is NOT locked (the leg stays below three)') ($after -lt 3) ('after ' + $after)
+                Say ('    the ' + ($before + $tries) + ' failure(s) for ' + $lockAddr + ' expire by themselves ten minutes after the tries')
+                Remove-Item -LiteralPath $gdir2 -Recurse -Force -ErrorAction SilentlyContinue
+            }
         }
     }
 

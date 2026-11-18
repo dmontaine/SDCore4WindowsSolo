@@ -3,6 +3,16 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+17 Nov 26  THE SSH LOCK-OUT NOW SEES WRONG PASSWORDS: SOLO'S SSH SERVER LOGS TO THE WINDOWS EVENT LOG.
+
+             What        - Solo's own ssh server no longer writes C:\ProgramData\SDCoreSolo\ssh\sshd.log; it logs to
+                           the Windows event log OpenSSH/Operational, and the lock-out reads it there.  It held that
+                           file so no other program could read it, so the lock-out counted no wrong password at all.
+                           Only Solo's own connections (port 4251) count, and only lines Solo's ssh server wrote.
+             Also        - the install fails if the lock-out has not read the event log once and seen Solo's ssh
+                           server start; solo-sshguard.ps1 -List says how far it has read, or NEVER READ.
+             Note        - Solo's ssh lines in that event log can be read by any signed-in Windows user.
+
 17 Nov 26  NETDIRS ALSO WIDENS THE OS SWITCH, AND JUDGES EACH DIRECTORY IT IS GIVEN.
 
              What        - the directories NETDIRS in sd.conf lists may be read and written by pathname by a session

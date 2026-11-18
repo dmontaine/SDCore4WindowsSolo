@@ -119,7 +119,7 @@ $machineDir = Join-Path $machineRoot 'SDCoreSolo\ssh'
 $cfg     = Join-Path $machineDir 'sshd_config'
 $hostKey = Join-Path $machineDir 'ssh_host_ed25519_key'
 $pidFile = Join-Path $machineDir 'sshd.pid'
-$logFile = Join-Path $machineDir 'sshd.log'
+$logFile = Join-Path $machineDir 'sshd.log'     # 17 Nov 26 - SOLO 77: no longer written; -Install deletes an old one
 $guardFile = Join-Path $machineDir 'solo-sshguard.ps1'     # 17 Nov 26 - D1: the lock-out guard the SYSTEM task runs
 
 function Test-Elevated {
@@ -178,7 +178,11 @@ function Get-Config([string]$app, [string]$user, [string]$mdir) {
         'PermitEmptyPasswords no',
         ('AllowUsers ' + $user),
         'DisableForwarding yes',
-        'LogLevel INFO',
+        # 17 Nov 26 - SOLO 77: VERBOSE so each connection writes "Connection from A port N on L port 4251" to the
+        # OpenSSH/Operational channel, which is how solo-sshguard.ps1 tells Solo's records from the port-22 sshd's;
+        # LoginGraceTime pinned because the guard trusts a connection's pid for that long (+ 60 s, its $ConnLife).
+        'LogLevel VERBOSE',
+        'LoginGraceTime 120',
         'Subsystem sftp sftp-server.exe',
         ('ForceCommand "' + (Join-Path $app 'usr\bin\sd-solo.exe') + '"')
     ) -join "`n") + "`n"
@@ -341,6 +345,9 @@ function Invoke-Install {
     $want = Get-Config $AppDir $OsUser $machineDir
     [IO.File]::WriteAllText($cfg, $want, (New-Object Text.UTF8Encoding($false)))
     Invoke-Icacls @($cfg, '/setowner', ('*' + $SidAdmins))
+    # 17 Nov 26 - SOLO 77: sshd runs without -E now (it logs to the OpenSSH/Operational channel); the -E file an
+    # earlier build left would only mislead whoever reads it.
+    Remove-Item -LiteralPath $logFile -Force -ErrorAction SilentlyContinue
 
     # 17 Nov 26 - four-version audit D1 (Linux Solo's solo-sshguard.py, LSOLO 29): the lock-out guard.  Its task runs as
     # SYSTEM, so it runs THIS copy, made here by the elevated step from the one in the Solo folder, and never the user's.

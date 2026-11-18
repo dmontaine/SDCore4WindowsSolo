@@ -531,9 +531,11 @@ function Register-SshTask {
     Register-SshGuardTask
 
     # The task runs sshd.exe ITSELF, as SYSTEM, against the admin-only config.  Never a script of the user's.
+    # 17 Nov 26 - SOLO 77: NO -E.  Win32-OpenSSH holds a -E log open without FILE_SHARE_READ, so the lock-out guard
+    # could never read it (measured: a sharing violation on every pass); sshd logs to the OpenSSH/Operational event
+    # channel instead, which the guard reads.
     $cfgPath = Join-Path $MachineSshDir 'sshd_config'
-    $logPath = Join-Path $MachineSshDir 'sshd.log'
-    $arg = '-D -f "' + $cfgPath + '" -E "' + $logPath + '"'
+    $arg = '-D -f "' + $cfgPath + '"'
     Register-ScheduledTask -TaskName $SshTaskName `
         -Action (New-ScheduledTaskAction -Execute $sshd -Argument $arg -WorkingDirectory (Split-Path -Parent $sshd)) `
         -Principal (New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest) `
@@ -569,8 +571,9 @@ function Register-SshTask {
     $info = Get-ScheduledTaskInfo -TaskName $SshTaskName
     Note ('  ssh task state ' + (Get-ScheduledTask -TaskName $SshTaskName).State + ', last result 0x' + ('{0:X}' -f $info.LastTaskResult) + ', port ' + $SshPort + ' listening: ' + $listening)
     if (-not $listening) {
-        if (Test-Path -LiteralPath $logPath) { Get-Content -LiteralPath $logPath -Tail 8 -ErrorAction SilentlyContinue | ForEach-Object { Note ('  | sshd.log: ' + $_) } }
-        else { Note ('  no ' + $logPath + ' - sshd did not start from the task') }
+        $evs = @(Get-WinEvent -LogName 'OpenSSH/Operational' -MaxEvents 8 -ErrorAction SilentlyContinue | Where-Object { $_.TimeCreated -ge $startedAt.AddSeconds(-2) })
+        foreach ($ev in $evs) { Note ('  | OpenSSH/Operational pid ' + $ev.ProcessId + ': ' + $ev.Properties[1].Value) }
+        if ($evs.Count -eq 0) { Note '  no OpenSSH/Operational record since the task was started - sshd did not start from the task' }
         Fail ('nothing is listening on port ' + $SshPort + ' after the ssh task was started')
         return
     }
@@ -583,6 +586,26 @@ function Register-SshTask {
     }
     if ($mine.Count -eq 0) { Fail ('port ' + $SshPort + ' listens, but no sshd.exe made from ' + $cfgPath + ' is running as SYSTEM'); return }
     Note ('  PASS  Solo''s own sshd is running as SYSTEM (session ' + $mine[0].SessionId + ') and listening on ' + $SshPort)
+
+    # 17 Nov 26 - SOLO 77: THE GUARD MUST HAVE READ THIS sshd's OWN START.  A running guard task proved nothing (the
+    # first build ran for a day reading nothing); its "Solo's sshd is listening: pid <p>" line, written when it reads
+    # the listener's "Server listening on ... port 4251" record from the channel, naming a pid that IS Solo's sshd,
+    # proves it reads Solo's sshd's records live.
+    $listenPids = @(Get-NetTCPConnection -State Listen -LocalPort $SshPort -ErrorAction SilentlyContinue | ForEach-Object { [int]$_.OwningProcess } | Sort-Object -Unique)
+    $seenPid = ''
+    $deadline = (Get-Date).AddSeconds(20)
+    while ($seenPid -eq '' -and (Get-Date) -lt $deadline) {
+        foreach ($l in @(Get-SshGuardLogSince $startedAt)) {
+            $m = [regex]::Match($l, 'sd-solo-sshguard: Solo''s sshd is listening: pid (\d+) ')
+            if ($m.Success -and ($listenPids -contains [int]$m.Groups[1].Value)) { $seenPid = $m.Groups[1].Value }
+        }
+        if ($seenPid -eq '') { Start-Sleep -Milliseconds 500 }
+    }
+    if ($seenPid -ne '') { Note ('  PASS  the ssh lock-out guard read Solo''s sshd start from OpenSSH/Operational (listener pid ' + $seenPid + ')') }
+    else {
+        foreach ($l in @(Get-SshGuardLogSince $startedAt | Select-Object -Last 6)) { Note ('  | sshguard.log: ' + $l) }
+        Fail ('the ssh lock-out guard did not read Solo''s sshd start within 20 s (listener pid ' + ($listenPids -join ', ') + ') - it cannot see a wrong password')
+    }
 
     # The thing answering is Solo's: its ed25519 host key is the one on disk.
     $keyscan = Find-Keyscan
@@ -641,7 +664,7 @@ function Register-SshTask {
 # ---- 17 Nov 26 - four-version audit D1: the ssh lock-out guard (Linux Solo's solo-sshguard.py, LSOLO 29) ---------------
 # A third SYSTEM task, "SD Core Solo SSH Guard", at startup, no time limit, restarted on failure: PowerShell running the copy
 # of solo-sshguard.ps1 that solo-sshd.ps1 -Install put in the ADMIN-ONLY machine folder (never the one in the user's Solo
-# folder).  It reads sshd.log, and a locked address gets a Windows Firewall block rule SD-Solo-SSH-Guard-<address> on 4251
+# folder).  It reads the OpenSSH/Operational event channel (SOLO 77: not sshd.log, which it could never open), and a locked address gets a Windows Firewall block rule SD-Solo-SSH-Guard-<address> on 4251
 # (group "SD Core Solo ssh lock-out") for ten minutes.  It ships ON wherever Solo's ssh is set up, as Linux Solo's guard is
 # part of its ssh unit.  Remove takes the task and every such rule away.  NOT MEASURED: the task running, a real lock.
 $SshGuardTaskName = 'SD Core Solo SSH Guard'
@@ -664,14 +687,40 @@ function Register-SshGuardTask {
                        -MultipleInstances IgnoreNew) | Out-Null
     $t = Get-ScheduledTask -TaskName $SshGuardTaskName -ErrorAction SilentlyContinue
     if (-not $t) { Fail 'the ssh lock-out task was not registered'; return }
+    $startedAt = Get-Date
     Start-ScheduledTask -TaskName $SshGuardTaskName
     $running = $false
     for ($k = 0; $k -lt 20 -and -not $running; $k++) {
         if ((Get-ScheduledTask -TaskName $SshGuardTaskName).State -eq 'Running') { $running = $true } else { Start-Sleep -Milliseconds 500 }
     }
     Note ('  task "' + $SshGuardTaskName + '" as ' + $t.Principal.UserId + ', at startup, runs ' + $t.Actions[0].Execute + ' ' + $t.Actions[0].Arguments)
-    if ($running) { Note '  PASS  the ssh lock-out guard is running (three wrong passwords from one address in ten minutes lock it for ten minutes)' }
-    else { Fail ('the ssh lock-out task is not running (state ' + (Get-ScheduledTask -TaskName $SshGuardTaskName).State + ')') }
+    if (-not $running) { Fail ('the ssh lock-out task is not running (state ' + (Get-ScheduledTask -TaskName $SshGuardTaskName).State + ')'); return }
+    # 17 Nov 26 - SOLO 77: RUNNING IS NOT READING.  The first build's guard ran with a sharing violation on every pass
+    # and this line said PASS.  It passes now only on the guard's own "watching ...: ok" line, written after its
+    # FIRST successful read of the source, by this start of the task; and Solo's sshd is started only after it, so
+    # the guard's bookmark is before that sshd's first record (Register-SshTask then checks it read that start).
+    $okLine = ''
+    $deadline = (Get-Date).AddSeconds(30)
+    while ($okLine -eq '' -and (Get-Date) -lt $deadline) {
+        $okLine = [string](@(Get-SshGuardLogSince $startedAt | Where-Object { $_ -match 'sd-solo-sshguard: watching OpenSSH/Operational: ok, from record \d+' }) | Select-Object -First 1)
+        if ($okLine -eq '') { Start-Sleep -Milliseconds 500 }
+    }
+    $state = Join-Path $MachineSshDir 'guard.state'
+    $offset = [string](@(Get-Content -LiteralPath $state -ErrorAction SilentlyContinue | Where-Object { $_ -match '^offset ' }) | Select-Object -First 1)
+    Note ('  guard.state: "' + $offset + '"')
+    if ($okLine -ne '' -and $offset -match '^offset \d+\s*$') { Note ('  PASS  the ssh lock-out guard is running and reads OpenSSH/Operational (' + ($okLine -replace '^.*sd-solo-sshguard: ', '') + ')') }
+    else {
+        foreach ($l in @(Get-SshGuardLogSince $startedAt | Select-Object -Last 6)) { Note ('  | sshguard.log: ' + $l) }
+        Fail 'the ssh lock-out guard runs but has not read its source within 30 s (no "watching OpenSSH/Operational: ok" line, or guard.state offset -1)'
+    }
+}
+
+# The guard's own log lines written at or after $since (its lines start with Get-Date -Format s, which sorts as text).
+function Get-SshGuardLogSince([datetime]$since) {
+    $p = Join-Path $MachineSshDir 'sshguard.log'
+    if (-not (Test-Path -LiteralPath $p)) { return @() }
+    $from = $since.AddSeconds(-1).ToString('s')
+    return @(Get-Content -LiteralPath $p -ErrorAction SilentlyContinue | Where-Object { $_.Length -ge 19 -and $_.Substring(0, 19) -ge $from })
 }
 
 function Remove-SshGuardTask {
