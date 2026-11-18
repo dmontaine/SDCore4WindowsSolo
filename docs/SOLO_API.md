@@ -67,7 +67,8 @@ request in the same words. Request 49 asks the server for its revision, as in SD
 - **The request:** a verb, then a field mark and an argument. `ADD` and a one-line public
   key; `REMOVE` and a `SHA256:...` fingerprint; `LIST` alone.
 - **The reply:** `ADD` gives six fields: the Windows user, the host name, the key's
-  fingerprint, `ADDED` or `PRESENT`, the fingerprint of Solo's own sshd's host key,
+  `SHA256:` fingerprint, `ADDED` or `PRESENT`, the fingerprint of **Solo's own** sshd's
+  ed25519 host key,
   and the port to connect to (4251); a client that reads only the first five fields is
   unaffected by the sixth. `REMOVE` gives `REMOVED` or `ABSENT` and how
   many Solo lines are left. `LIST` gives one fingerprint per field.
