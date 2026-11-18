@@ -1662,7 +1662,7 @@ clause of `execute` — take the list the command left
 `sendmail` *to*, *from*, *subject*, *body* {, *attachments*} `then` … `else` …
 
 - a statement of SD BASIC
-- docs: `User/markdown/16a-sd-basic-status-and-the-machine.md` line 223
+- docs: `User/markdown/16a-sd-basic-status-and-the-machine.md` line 224
 
 ### basic:stmt:set
 > kind=basic.statement tier=reference since=- src=sdsys/gpl.bp/bcomp:506#0e29ff12 src2=docs:tools/syntax-shapes.txt:206#e1fd1c40
