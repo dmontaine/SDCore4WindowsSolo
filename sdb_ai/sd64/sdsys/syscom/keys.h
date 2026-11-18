@@ -3,6 +3,8 @@
       * Copyright (c) 2004, Ladybridge Systems, All Rights Reserved
       
       $list off
+      * 18 Nov 26 SD Core Solo - four-version audit round 3 (P-3486, P-7397): SD_KEYRING after SD_USER_HOME and SKT$INFO.TLS.SPKI after
+      *   TLS.CBIND, in Linux's order; no number changes.
       * 11 Nov 26 SD Core Solo - from SD Core 284a91cd (SOLO 53): FC$, the actions of the public FCONTROL().
       * 9 Nov 26 SD Core Solo - from Linux debd0698 / S.88: SD_USER_HOME (112), the running user's home and a private directory below it.
       * 26 Sep 26 SD Core Solo - SD_DPAPI_PROTECT 111, SD_DPAPI_UNPROTECT 112
@@ -314,15 +316,16 @@
       *   c= value for a socket opened with SKT$TLS: base64("p=tls-exporter,," +
       *   binding); "" otherwise.
       $define SKT$INFO.TLS.CBIND       8    ;* SCRAM c= for this TLS session
+      * 25 Oct 26 Windows port - from Linux Solo 1f5f703 (S.65 slice 2): SOCKET.INFO only.  The SHA-256 of the server certificate's public key
+      *   (SubjectPublicKeyInfo) of a socket opened with SKT$TLS, 64 lower case hex digits; "" otherwise.  What set.server pins.
+      *   18 Nov 26 SD Core Solo (audit round 3, P-7397): after TLS.CBIND, as the other three.
+      $define SKT$INFO.TLS.SPKI        11   ;* hash of the server's public key
       $define SKT$INFO.FAMILY.IPV4     1    ;* Socket address family IPV4
       $define SKT$INFO.FAMILY.IPV6     2    ;* Socket address family IPV6
       * 18 Oct 26 Windows port - from Linux cc03bed (15 Oct 26): - QM4 gaps Q-5, SELECT.SOCKET().  SKT$INFO.EVENTS is SD's own number; the events are openQM's.
       $define SKT$INFO.EVENTS          9    ;* SET.SOCKET.MODE: events to watch.  SOCKET.INFO: the letters last found
       * 18 Nov 26 SD Core Solo - from Core bc1eb7b1 (Linux 400500c; four-version audit round 2, P-6163): the socket trace.
       $define SKT$INFO.TRACE           10   ;* SET.SOCKET.MODE: pathname of a log of the data sent and received (null turns it off)
-      * 25 Oct 26 Windows port - from Linux Solo 1f5f703 (S.65 slice 2): SOCKET.INFO only.  The SHA-256 of the server certificate's public key
-      *   (SubjectPublicKeyInfo) of a socket opened with SKT$TLS, 64 lower case hex digits; "" otherwise.  What set.server pins.
-      $define SKT$INFO.TLS.SPKI        11   ;* hash of the server's public key
       $define SKT$READ.EVENT           1    ;* Data to read, a connection waiting on a server socket, or the peer closed
       $define SKT$WRITE.EVENT          2    ;* Data can be sent
       $define SKT$EXCEPTION.EVENT      4    ;* An exception condition
@@ -485,15 +488,16 @@
       *   $internal callers only.
       $define SD_DPAPI_PROTECT   130  ;* win32dpapi encrypt, 1 arg; 130 to 139 are Windows-only keys (was 111, 112)
       $define SD_DPAPI_UNPROTECT 131  ;* win32dpapi decrypt, 1 arg
-      * 20 Oct 26 SD Core Solo - from Linux 00a5888, mirrored from gplsrc/keys.h: encryption layer 3, the key ring of the XE conversion.
-      *   Args: 'set', name, base64 key (answers the key id, 8 hex digits) / 'clear', name or * (answers how many) / 'list'.
-      $define SD_KEYRING      120  ;* sd_keyring key ring: set, clear, list
       * 25 Oct 26 Windows port - from Linux Solo 1f5f703 (S.65 slice 2b), mirrored from gplsrc/keys.h: is a path a file or directory only the running user can touch
       *   (Windows: owned by the running user, nobody else but SYSTEM and Administrators in its ACL).  Args: path, FILE or DIR.
       $define SD_FILE_PRIVATE 111  ;* op_sdext private-file test, 2 args: path, FILE|DIR
       * 9 Nov 26 Windows port - from Linux debd0698 / S.88, mirrored from gplsrc/keys.h: the running user's home (AppData\Local) and a
       *   trusted directory below it, made private when missing.  Arg: relative path, '' for the home.  Answers the path or ''.
       $define SD_USER_HOME    112  ;* op_sdext the user's home (+ a trusted directory below it), 1 arg: relative path
+      * 20 Oct 26 SD Core Solo - from Linux 00a5888, mirrored from gplsrc/keys.h: encryption layer 3, the key ring of the XE conversion.
+      *   Args: 'set', name, base64 key (answers the key id, 8 hex digits) / 'clear', name or * (answers how many) / 'list'.
+      *   18 Nov 26 (audit round 3, P-3486): after SD_USER_HOME, in Linux's order.
+      $define SD_KEYRING      120  ;* sd_keyring key ring: set, clear, list
 
       * 13 Aug 26 Windows port - embedded python keys removed with the
       *   interpreter.  See PROJECT_STATUS.md 5.15.

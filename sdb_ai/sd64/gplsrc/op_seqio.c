@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - four-version audit round 3 (P-1782, P-1783): blocking_user and record_locked declared in Linux's place; no change.
  * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4305, P-4306): op_openseq()'s locals in the template's order; no change.
  * 15 Nov 26 SD Core Solo - from Core e861651e (RELEASE_1.1 279, 236): WRITESEQ writes LF for an explicit FC$CRLF mode 0, 2 or 3; CR LF stays
  *               for mode 1 and a file with no mode (Core's OS deviation, RELEASE_1.1 271).
@@ -459,12 +460,12 @@ Private void openseq(bool map_name) {
   OSFILE fu = INVALID_FILE_HANDLE;
   u_int16_t op_flags;
   bool read_only = FALSE;
-  int16_t blocking_user;
-  bool record_locked = FALSE; /* 14 Sep 26 - lock_record() succeeded */
   bool edit_blocked = FALSE;  /* 11 Nov 26 SOLO 56 group 4 (Linux Solo carry 19): a path in a VOC, which the session may not change */
   bool leaf_is_link = FALSE; /* 30 Oct 26 S.88 E2: the name given is itself a symbolic link (fullpath() follows it below) */
   struct stat leaf_stat_buf;
   bool create_after_lock = FALSE; /* 02 Nov 26 S.88 A3: CREATING of a name that is not there: the file is made once the SD lock is held */
+  int16_t blocking_user;        /* 18 Nov 26 (audit round 3, P-1782, P-1783): these two in Linux's place */
+  bool record_locked = FALSE; /* 14 Sep 26 - lock_record() succeeded */
   int status;
   u_int16_t flags = 0;
   char* p;

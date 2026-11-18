@@ -17,6 +17,9 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - four-version audit round 3: op_login() discards both arguments unread, as Linux S.18 and SD Core for Windows
+ *               (P-3088..P-3090: the password was copied to the stack and never wiped); the K_OS_ADMINISTRATOR case is gone with the key
+ *               (P-6161, P-5876).
  * 18 Nov 26 SD Core Solo - four-version audit round 2 (P-4303, P-5884): the K_SHOW_SAFE case after K_NET and the AI cases before K_XFER,
  *               as Linux Solo.  Order only.
  * 17 Nov 26 SD Core Solo - four-version audit, Linux Solo 3b1316cc (CARRY-phantom): a phantom child that cannot start writes
@@ -655,16 +658,8 @@ void op_kernel() {
        still fails closed; what is new is that the log now says which of the
        two happened.                                                        */
 
-    case K_OS_ADMINISTRATOR: {
-      PRIV_WHY why;
-      bool is_admin = IsAdmin(&why);
-
-      if (why != PRIV_ANSWERED)
-        priv_log_undetermined("K$OS.ADMINISTRATOR", why);
-
-      result.data.value =
-          (is_admin && (connection_type != CN_SOCKET)) ? TRUE : FALSE;
-    } break;
+    /* 18 Nov 26 SD Core Solo - K_OS_ADMINISTRATOR (63) is retired (four-version audit round 3, P-6161, P-5876; keys.h), as SD Core
+       for Windows did in round 1 (P-1969): no Solo program asks it. */
 
     /* 20 Oct 26 SD Core Solo - RELEASE_1.1 165, THE OS SWITCH (Linux Solo 7c6bbfc, SD Core's S.63 carried onto the one account).  The
        account's OS-access switches, set exactly like K_ADMINISTRATOR: only a $internal program (LOGIN and APISRVR, which own entry to
@@ -1661,25 +1656,6 @@ void op_login() {
      |================================|=============================|
  */
 
-  bool ok;
-  DESCRIPTOR *descr;
-  char username[32 + 1];
-  char password[32 + 1];
-
-  /* Get password */
-
-  descr = e_stack - 1;
-  (void)k_get_c_string(descr, password, 32);
-  k_dismiss();
-
-  /* Get username */
-
-  descr = e_stack - 1;
-  (void)k_get_c_string(descr, username, 32);
-  k_dismiss();
-
-  InitDescr(e_stack, INTEGER);
-
 /* 17 Aug 26 Windows port - FAILS CLOSED, and the opcode is kept only because
    opcodes.h is positional (section 6: retire in place, never delete a line -
    and BCOMP's int.intrinsics and its "on i goto" list are matched to it by
@@ -1693,8 +1669,17 @@ void op_login() {
    against $CRED in APISRVR now and sets its identity with K$SET.USERNAME.
 
    Anything still calling login() is therefore using a route that was broken
-   and is now absent, so FALSE is the honest answer rather than a silent one. */
-  ok = FALSE;
+   and is now absent, so FALSE is the honest answer rather than a silent one.
+
+   18 Nov 26 SD Core Solo - as Linux S.18 and SD Core for Windows (four-version
+   audit round 3, P-3088, P-3089, P-3090): the arguments are discarded unread.
+   The password is never copied into a buffer, so there is nothing to wipe (it
+   used to be copied to the stack and left there).                          */
+
+  k_dismiss();   /* Password */
+  k_dismiss();   /* User name */
+
+  InitDescr(e_stack, INTEGER);
 /* 20240219 mab move to only allow AF_UNIX socket types                                                           */
 /*   As part of this mod:                                                                                         */
 /*     if config APILOGIN = 0 (ignor)                                                                             */
@@ -1709,7 +1694,7 @@ void op_login() {
    login, and chose between two paths on pcfg.api_login, is gone with APILOGIN
    (parity audit PAW-5).  ok is FALSE above, so it never ran; the comment above
    about APILOGIN = 0 and 1 describes the retired setting.                    */
-  (e_stack++)->data.value = ok;
+  (e_stack++)->data.value = FALSE;
 }
 
 /* ======================================================================

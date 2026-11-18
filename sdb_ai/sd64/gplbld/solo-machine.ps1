@@ -22,6 +22,8 @@
 #   Remove   both tasks, the sshd it started, both firewall rules, and any old
 #            system-sshd block.  Microsoft's own OpenSSH rule for port 22 is
 #            never touched: it is the full product's.
+#   All three, 18 Nov 26 (P-0288): the Application event log source sd-audit is
+#            registered on Install and Upgrade and removed on Remove (best effort).
 #
 # THE STARTUP TASK (SOLO 3, SOLO 1's measurement): an S4U task for the user, at
 # startup, running "sd.exe -start" - so SD runs while nobody is signed in
@@ -188,6 +190,7 @@ function Get-SectionLabel([string]$heading) {
     if ($heading -like '--- the old ssh route*')      { return 'ssh' }
     if ($heading -like '--- ssh:*')                   { return 'ssh' }
     if ($heading -like '--- doors*')                  { return 'doors' }
+    if ($heading -like '--- audit event log*')        { return 'audit event log source' }
     if ($heading -like '--- scheduled jobs*')         { return 'scheduled jobs' }
     return 'setup'
 }
@@ -891,6 +894,30 @@ $JobTaskPath = '\' + $JobFolderName + '\'
 $JobPrefix = 'sd-solo-job-'
 $JobFolderSddl = 'O:BAG:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)'      # SD Core's \SD folder (sd-taskfolder.ps1): SYSTEM and Administrators
 
+# 18 Nov 26 - four-version audit (P-0288), as SD Core for Windows' sd.iss [Registry] (aa750298) and Linux Solo's journal copy
+# (a71033e): the Application event log source sd-audit.  Its message file is the .NET Framework's EventLogMessages.dll, whose
+# every id is "%1" - what New-EventLog registers.  HKLM, so it is this elevated step's (sd-solo.iss runs at PrivilegesRequired=lowest).
+# Written on an upgrade as well: it opens nothing and closes nothing an administrator chose.  BEST EFFORT, AS CORE'S: a key that
+# cannot be written is a WARNING here and not a failed step - the sessions still write the trail, and an unregistered source
+# still logs (Windows files the event under Application with no message text of its own).
+$AuditSourceKey = 'HKLM:\SYSTEM\CurrentControlSet\Services\EventLog\Application\sd-audit'
+function Register-AuditEventSource {
+    try {
+        if (-not (Test-Path -LiteralPath $AuditSourceKey)) { $null = New-Item -Path $AuditSourceKey -Force -ErrorAction Stop }
+        $null = New-ItemProperty -LiteralPath $AuditSourceKey -Name 'EventMessageFile' -PropertyType ExpandString -Force -ErrorAction Stop `
+            -Value '%SystemRoot%\Microsoft.NET\Framework64\v4.0.30319\EventLogMessages.dll'
+        $null = New-ItemProperty -LiteralPath $AuditSourceKey -Name 'TypesSupported' -PropertyType DWord -Value 7 -Force -ErrorAction Stop
+        $v = Get-ItemProperty -LiteralPath $AuditSourceKey -ErrorAction Stop
+        Note ('  registered: ' + $AuditSourceKey + '  EventMessageFile=' + $v.EventMessageFile + '  TypesSupported=' + $v.TypesSupported)
+    }
+    catch { Note ('  WARNING: the source could not be registered (' + $_.Exception.Message.Trim() + '); the audit file is written as before') }
+}
+function Remove-AuditEventSource {
+    if (-not (Test-Path -LiteralPath $AuditSourceKey)) { Note '  none registered'; return }
+    try { Remove-Item -LiteralPath $AuditSourceKey -Recurse -Force -ErrorAction Stop; Note ('  removed: ' + $AuditSourceKey) }
+    catch { Note ('  WARNING: the source could not be removed (' + $_.Exception.Message.Trim() + ')') }
+}
+
 function Test-JobName([string]$n) { return ($n -cmatch '^[a-z]([a-z0-9-]{0,30}[a-z0-9])?$') }
 function Test-JobTime([string]$t) { return ($t -cmatch '^([01][0-9]|2[0-3]):[0-5][0-9]$') }
 
@@ -1366,6 +1393,12 @@ try {
     Note ''
     Note '--- doors helper'
     if ($Action -eq 'Remove') { Remove-DoorsTask } else { Register-DoorsTask }
+
+    # 18 Nov 26 - P-0288: the event log source sd-audit, to which every session copies each audit record (k_error.c audit_message(),
+    # win32audit.c win32_audit_event()), as SD Core for Windows' sd.iss registers it; on every install and upgrade, removed on removal.
+    Note ''
+    Note '--- audit event log source sd-audit'
+    if ($Action -eq 'Remove') { Remove-AuditEventSource } else { Register-AuditEventSource }
 
     # 16 Nov 26 - S.247: every definition in $jobs gets its task (a reload's kept ones; on an upgrade, the tasks are made again whole).
     if ($Action -ne 'Remove') {

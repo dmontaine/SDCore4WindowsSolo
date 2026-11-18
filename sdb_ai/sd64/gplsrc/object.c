@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - four-version audit round 3 (P-3086): the runfile name's tail is copied with strcpy, as Linux and SD Core.
  * 11 Nov 26 SD Core Solo - SOLO 56 group 2, from Windows Core (S.88 phase 2, as in Linux Solo): hsm_dump() writes each program name by
  *               the kernel's one rule (show_ts_safe(), op_lock.c: 0-31, 127, 128-159, 248-255 as '?'); it went out raw into the $IPC
  *               record H<n> that HSM USER n prints, and into kernel(K$HSM, 2).
@@ -308,11 +309,13 @@ found:
      truncated name can never strcmp-equal the full path the next call passes,
      so the LRU search above cannot return a different program: the file is
      simply reloaded, which is correct.                                     */
+  /* 18 Nov 26 SD Core Solo (audit round 3, P-3086): Linux's form - the tail is at most MAX_PROGRAM_NAME_LEN characters, so strcpy fits. */
   {
-    size_t n = strlen(name);
-    const char* src = (n > MAX_PROGRAM_NAME_LEN) ? name + (n - MAX_PROGRAM_NAME_LEN) : name;
-    strncpy(obj->code.ext_hdr.prog.program_name, src, MAX_PROGRAM_NAME_LEN);
-    obj->code.ext_hdr.prog.program_name[MAX_PROGRAM_NAME_LEN] = '\0';
+    size_t name_len = strlen(name);
+    strcpy(obj->code.ext_hdr.prog.program_name,
+           (name_len > MAX_PROGRAM_NAME_LEN)
+               ? name + (name_len - MAX_PROGRAM_NAME_LEN)
+               : name);
   }
 
   if (is_runfile)

@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - four-version audit round 3 (P-1222, P-7374, P-5445 to P-5447): BACKUPDIR= is accepted and ignored with no
+ *               length test (it could never refuse), before SDSYS=; the SH / SH1 refusals are laid out as Linux's and SD Core's.
  * 18 Nov 26 SD Core Solo - four-version audit round 2 (P-4283, P-5870 to P-5873): the limit is MAX_NETDIRS_LEN (191) on one line, a
  *               line's end is read as Core reads it (one CR skipped, then the next character tested), and fu has no initialiser, as the
  *               other three (no path reaches exit_read_config before the fopen).
@@ -300,22 +302,6 @@ struct CONFIG* read_config(char* errmsg) {
          CREATUSR are gone.  CREATUSR was accepted and discarded here so that a
          file carrying it still loaded; now, as on Linux, the installer removes a
          retired parameter's line from a kept sd.conf (sd.iss, RetiredConf). */
-      /* 01 Oct 26 Windows port - BACKUPDIR, THE DIRECTORY BACKUP.ACCOUNT AND
-         RESTORE.ACCOUNT USE WHEN THEY ARE NOT GIVEN ONE.  SET.BACKUP.DIRECTORY
-         writes this line; the CHAIN BELOW ENDS IN "Unrecognised configuration
-         parameter", which aborts read_config() and stops SD starting, so a
-         file carrying the line would not start without this branch.  It is
-         accepted and NOT stored: SD BASIC reads the file itself, through
-         !acc_os_bakdir, each time it needs the value, so a change takes
-         effect without restarting SD.  Bounded like SH= above, so an overlong
-         value is refused by name rather than silently kept.                  */
-      else if (strncmp(rec, "BACKUPDIR=", 10) == 0) {
-        if (strlen(rec + 10) > MAX_PATHNAME_LEN) {
-          sprintf(errmsg, "BACKUPDIR value is longer than %d characters.",
-                  MAX_PATHNAME_LEN);
-          goto exit_read_config;
-        }
-      }
       else if (sscanf(rec, "DEADLOCK=%d", &n) == 1)
         cfg->deadlock = n; /* 0, 1 or 2: rangecheck below (openQM item 500) */
       else if (sscanf(rec, "DEBUG=%d", &n) == 1)
@@ -421,6 +407,21 @@ struct CONFIG* read_config(char* errmsg) {
          127.0.0.1 only (remote.api local), as Linux Solo's LOCAL. */
       else if (sscanf(rec, "APILOCAL=%d", &n) == 1)
         cfg->api_local = (n != 0);
+      /* 01 Oct 26 Windows port - BACKUPDIR, THE DIRECTORY BACKUP.ACCOUNT AND
+         RESTORE.ACCOUNT USE WHEN THEY ARE NOT GIVEN ONE.  SET.BACKUP.DIRECTORY
+         writes this line; the CHAIN BELOW ENDS IN "Unrecognised configuration
+         parameter", which aborts read_config() and stops SD starting, so a
+         file carrying the line would not start without this branch.  It is
+         accepted and NOT stored: SD BASIC reads the file itself, through
+         !acc_os_bakdir, each time it needs the value, so a change takes
+         effect without restarting SD.  18 Nov 26 SD Core Solo (audit round 3,
+         P-1222, P-7374): its length test is gone, as Linux and SD Core for
+         Windows have none - fgets() into rec leaves at most 189 characters
+         after BACKUPDIR=, below MAX_PATHNAME_LEN, so it could never refuse
+         anything; and it is placed before SDSYS=, where they have it.      */
+      else if (strncmp(rec, "BACKUPDIR=", 10) == 0) {
+        /* ignored */
+      }
       else if (strncmp(rec, "SDSYS=", 6) == 0) {
         if (!(command_options & CMD_FLASH))
           strcpy(cfg->sysdir, rec + 6);
@@ -435,15 +436,14 @@ struct CONFIG* read_config(char* errmsg) {
          the error named an unrelated parameter.  Refuse the value instead. */
       else if (strncmp(rec, "SH=", 3) == 0) {
         if (strlen(rec + 3) > MAX_SH_CMD_LEN) {
-          sprintf(errmsg, "SH value is longer than %d characters.",
-                  MAX_SH_CMD_LEN);
+          sprintf(errmsg, "SH value is longer than %d characters.", MAX_SH_CMD_LEN);
           goto exit_read_config;
         }
         strcpy(pcfg.sh, rec + 3);
-      } else if (strncmp(rec, "SH1=", 4) == 0) {
+      }
+      else if (strncmp(rec, "SH1=", 4) == 0) {
         if (strlen(rec + 4) > MAX_SH_CMD_LEN) {
-          sprintf(errmsg, "SH1 value is longer than %d characters.",
-                  MAX_SH_CMD_LEN);
+          sprintf(errmsg, "SH1 value is longer than %d characters.", MAX_SH_CMD_LEN);
           goto exit_read_config;
         }
         strcpy(pcfg.sh1, rec + 4);

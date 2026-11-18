@@ -28,8 +28,8 @@
 # failure counts against the address of ITS CONNECTION's socket, and only when the "from <addr>" sshd appends at the
 # END of the failure line is the same address (a user name cannot move the address a lock is put on).  A pid is
 # Solo's connection until it writes "Disconnected from" / "Connection closed by" / "Connection reset by", a sign-in,
-# a "Connection from" for another port, or $ConnLife seconds pass (Solo's sshd_config pins LoginGraceTime 120, and
-# every password try of a connection falls inside it).
+# a "Connection from" for another port, or $ConnLife seconds pass (Solo's sshd_config pins LoginGraceTime 30, Linux
+# Solo's value since 18 Nov 2026 (SOLO 79), and every password try of a connection falls inside it).
 #
 # THE MECHANISM: a locked address gets a Windows Firewall BLOCK rule on port 4251 for that address alone (named
 # SD-Solo-SSH-Guard-<addr>, group "SD Core Solo ssh lock-out"), removed when the ten minutes are up; the connection
@@ -44,7 +44,8 @@
 # WHAT IT DOES NOT DO (as on Linux): stop a guess spread over MANY addresses (each gets its three); and connections
 # already open when the lock engages are each cut at their next wrong password.  WINDOWS ONLY: Windows Firewall does
 # not filter LOOPBACK traffic, so a lock on 127.0.0.1 or ::1 cuts the connection but cannot refuse the next one -
-# the person at the computer.  Windows' own account lockout policy (if the computer has one) still counts the same
+# the person at the computer (the owner accepted this, 18 Nov 2026, SOLO 79: -List marks such a lock "(this computer:
+# not stopped by the firewall)", and the ssh server's own MaxAuthTries and LoginGraceTime hold those tries).  Windows' own account lockout policy (if the computer has one) still counts the same
 # wrong passwords against the Windows ACCOUNT; this guard cuts an address off at three, before that policy's count.
 # WHO MAY WRITE A RECORD THE GUARD BELIEVES.  The channel's own access list lets INTERACTIVE users write to it
 # (channelAccess "(A;;0x3;;;IU)", read 17 Nov 2026), so any program the signed-in user runs can write sshd-shaped
@@ -103,7 +104,7 @@ $env:PSModulePath = "$env:ProgramFiles\WindowsPowerShell\Modules;$env:SystemRoot
 $MaxFails = 3        # wrong passwords from one address ...
 $Window = 600        # ... within this many seconds lock it ...
 $LockFor = 600       # ... for this many seconds
-$ConnLife = 180      # a Solo connection's pid is trusted this long (LoginGraceTime 120 in Solo's sshd_config, + 60)
+$ConnLife = 90       # a Solo connection's pid is trusted this long (LoginGraceTime 30 in Solo's sshd_config, + 60; SOLO 79)
 $SshPort = 4251      # SOLO_SSH_PORT - solo-sshd.ps1 carries the same number
 $Channel = 'OpenSSH/Operational'
 $Provider = 'OpenSSH'
@@ -117,6 +118,15 @@ function Get-Addr([string]$a) {
     $ip = $null
     if (-not [Net.IPAddress]::TryParse($a, [ref]$ip)) { return '' }
     return $ip.ToString()
+}
+
+# 18 Nov 26 - SOLO 79 condition 2 (the owner's ruling (a), Linux mail 2026-11-18T0540): is a canonical address this
+# computer's own (127.0.0.0/8 or ::1)?  Windows Firewall does not filter loopback traffic, so -List says so beside
+# such a lock.  The lock is still kept, counted, listed and cleared like any other, and its rule is still made.
+function Test-Loopback([string]$a) {
+    $ip = $null
+    if (-not [Net.IPAddress]::TryParse($a, [ref]$ip)) { return $false }
+    return [Net.IPAddress]::IsLoopback($ip)
 }
 
 # One sshd message (the channel's payload: no prefix) -> $null, or one of
@@ -828,7 +838,12 @@ if ($List) {
     $n = 0
     foreach ($a in @($st.Addrs.Keys | Sort-Object)) {
         $e = $st.Addrs[$a]
-        if ($e.Until -gt $now) { $n++; Write-Output ($a + '  LOCKED until ' + (Format-Time $e.Until) + '  (' + @($e.Fails).Count + ' wrong passwords)') }
+        if ($e.Until -gt $now) {
+            $n++
+            $own = ''
+            if (Test-Loopback $a) { $own = '  (this computer: not stopped by the firewall)' }
+            Write-Output ($a + '  LOCKED until ' + (Format-Time $e.Until) + '  (' + @($e.Fails).Count + ' wrong passwords)' + $own)
+        }
         else { Write-Output ($a + '  ' + @($e.Fails).Count + ' wrong password(s), not locked') }
     }
     Write-Output ('SOLO SSH GUARD LOCKED ' + $n)

@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - four-version audit round 3 (P-3082, P-3083, P-5448, P-5449): the TCP peer's address is read in Linux's
+ *            code form, as SD Core for Windows: the failure test first, "?" on a failed inet_ntop() with no process.status.
  * 18 Nov 26 SD Core Solo - four-version audit round 2 (P-5878, P-5879): a TCP peer whose family is not AF_INET reads "?", as the
  *            other three; the syslog line says "API connection over TCP from ... (SD login required)" as Core and Linux Solo.
  * 17 Nov 26 SD Core Solo - four-version audit, Linux Solo 3b1316cc (CARRY-linuxio, SD Core's P-4606): the TLS-directory refusal says
@@ -309,26 +311,22 @@ bool start_connection(int unused) {
       case PF_INET: {
           struct sockaddr_storage pa;
           socklen_t palen = sizeof(pa);
+          struct sockaddr_in* s = (struct sockaddr_in*)&pa;
 
           /* The PEER address, not our own - getsockname() above answered the
-             family, and what is worth logging is who connected.
-             18 Nov 26 SD Core Solo - as Linux and Core: a peer whose family
-             is not AF_INET is "?" too, never read as a sockaddr_in. */
-          if ((getpeername(0, (struct sockaddr *)&pa, &palen) == 0) && (pa.ss_family == AF_INET)) {
-            struct sockaddr_in* s = (struct sockaddr_in*)&pa;
-            port_no = ntohs(s->sin_port);
-            /* MAX_SOCKET_ADDR_STR_LEN, not the MAX_IP_ADDR_STR_LEN the dead
-               code above names - that constant is defined nowhere in the
-               tree, so the commented-out original could never have compiled
-               even if it had been enabled. */
-            if (inet_ntop(AF_INET, &s->sin_addr, ip_addr,
-                          MAX_SOCKET_ADDR_STR_LEN) == NULL) {
-              process.status = ER_BADADDR;
-              strcpy(ip_addr, "?");
-            }
+             family, and what is worth logging is who connected.  A peer whose
+             family is not AF_INET is "?", never read as a sockaddr_in.
+             18 Nov 26 SD Core Solo - four-version audit round 3 (P-3082, P-3083,
+             P-5448, P-5449): Linux's code form, line for line, as SD Core for
+             Windows; a failed inet_ntop() gives "?" and no longer sets
+             process.status. */
+          if ((getpeername(0, (struct sockaddr *)&pa, &palen) != 0) || (pa.ss_family != AF_INET)) {
+            strncpy(ip_addr, "?", MAX_SOCKET_ADDR_STR_LEN - 1);
+            port_no = 0;
           } else {
-            strcpy(ip_addr, "?");
-            port_no = 0;    /* 12 Nov 26 (RELEASE_1.1 252, P-23): as Linux e79f6499, no port for a peer that cannot be read */
+            port_no = ntohs(s->sin_port);
+            if (inet_ntop(AF_INET, &s->sin_addr, ip_addr, MAX_SOCKET_ADDR_STR_LEN) == NULL)
+              strncpy(ip_addr, "?", MAX_SOCKET_ADDR_STR_LEN - 1);
           }
           /* 12 Nov 26 Windows port - from Linux e79f6499, as Linux Solo (RELEASE_1.1 252, audit P-23): TCP is for the API server
              ONLY (-Q sets is_sdApiSrvr); a plain "sd-solo -N" with a TCP socket on descriptor 0 is nothing SD starts, so it is refused. */
@@ -336,8 +334,7 @@ bool start_connection(int unused) {
             syslog(LOG_INFO, "Refusing PF_INET connection (not API server) from %s", ip_addr);
             return FALSE; /* Error */
           }
-          syslog(LOG_INFO, "API connection over TCP from %s port %d (SD login required)", ip_addr,
-                 (int)port_no);
+          syslog(LOG_INFO, "API connection over TCP from %s port %d (SD login required)", ip_addr, port_no);
         }
         break;
 

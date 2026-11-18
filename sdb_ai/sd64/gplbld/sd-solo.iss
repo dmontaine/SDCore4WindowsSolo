@@ -298,7 +298,7 @@ var
   CfDeny: String;
   { 20 Oct 26 - RELEASE_1.1 165, THE OS SWITCH (Linux Solo acd94b9; the owner: "carry the switch", and Linux's "ask during install"):
     the control file's os-access=, none, sh, os or both; '' when not given or not one of those (then the page asks).  On a new tree only,
-    like the rest of the control file.  OsAccessPage is the question, shown on a new install AND on an upgrade. }
+    like the rest of the control file.  OsAccessPage is the question, shown on a new install only (18 Nov 26, P-7047: an upgrade keeps the switches). }
   CfOsAccess: String;
   OsAccessPage: TInputOptionWizardPage;
   { 12 Nov 26 - SOLO 56 group 6, THE START QUESTION (Linux Solo S.221 START-ASK / START-SET, control file start=; SD Core for Windows
@@ -653,6 +653,12 @@ function OsAccessWord: String;
 var
   ShOn, OsOn: Boolean;
 begin
+  { 18 Nov 26 - P-7047: an upgrade is not asked, and keeps what the installation has. }
+  if not DataTreeWasAbsent then
+  begin
+    Result := 'none';
+    Exit;
+  end;
   if UseControl and (CfOsAccess <> '') then
   begin
     Result := CfOsAccess;
@@ -988,7 +994,8 @@ begin
     outside the account, Python, the editors that run outside SD).  Shown on a new install AND on an upgrade, the one run in which an existing
     Solo, whose shell was never gated before, would otherwise lose it without a word.  The installer's text is options and results only
     (the 20 Sep rule); what each does, and that an upgrade changes the default, is in the installation page of the Solo docs.  After the
-    last password page, so an upgrade, which skips them, reaches it straight after the welcome. }
+    last password page.  18 Nov 26 - four-version audit P-7047, as Linux Solo: shown on a new install only; an upgrade skips it and
+    keeps the switches the installation has (ShouldSkipPage, OsAccessWord). }
   OsAccessPage := CreateInputOptionPage(GlobalPage.ID, 'Shell and OS access',
     'Both are off unless you turn them on.', 'Turn on for your account:', False, False);
   OsAccessPage.Add('Shell (SH)');
@@ -1052,10 +1059,12 @@ begin
     Result := (not DataTreeWasAbsent) or KeptPasswordsUsed or (UseControl and CfGlobalOk)
   { SOLO 36: the page asks the API and ssh in every install; skipped on an
     upgrade, and when the control file answers both. }
-  { 20 Oct 26 - RELEASE_1.1 165: the OS switch question is asked on a new install and on an upgrade, and skipped only when a control
-    file (a new tree) answers it. }
+  { 20 Oct 26 - RELEASE_1.1 165: the OS switch question, skipped when a control file (a new tree) answers it.
+    18 Nov 26 - four-version audit P-7047, as Linux Solo: NOT ASKED ON AN UPGRADE.  The upgrade keeps the switches the installation
+    has (OsAccessWord gives none, which solo-setup.ps1 reads as "leave both as they are"): an upgrade must not shut what the
+    administrator opened, nor open what he shut.  He changes them with ADMIN, then set.os.access. }
   else if PageID = OsAccessPage.ID then
-    Result := UseControl and (CfOsAccess <> '')
+    Result := (not DataTreeWasAbsent) or (UseControl and (CfOsAccess <> ''))
   else if PageID = wpSelectTasks then
     Result := SoloWasInstalled or (ApiAnswered and SshAnswered)
   { 12 Nov 26 - SOLO 56 group 6: the start question on a new tree only, skipped when a control file answers it. }

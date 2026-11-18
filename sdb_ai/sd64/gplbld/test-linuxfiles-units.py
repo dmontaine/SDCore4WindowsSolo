@@ -52,7 +52,7 @@ NOT_HERE = {
     'is_user':          ACCOUNTS,
     'setmode':          'OS: SET.MODE (Linux 3b435253) sets POSIX permission bits; Windows files have ACLs, not mode bits (agreed with Linux, mail 2026-11-11T0630)',
     'peer_local':       'never in Solo: removed from Core with the administrator predicate (RELEASE_1.1 64, fdded05a)',
-    'upgrade_nocase':   'removed with the upgrade it served (SOLO 9, 95c67ce1)',
+    # 18 Nov 26: upgrade_nocase is carried again (four-version audit P-5661; solo-setup.ps1 runs it on an upgrade), so it is not listed.
     # 16 Nov 26: Linux Solo's examples.bp (S.261, fb685f0) is carried (solo_examples, RELEASE_1.1 335), so it is no longer listed here.
 }
 

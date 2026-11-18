@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - four-version audit round 3 (P-5451): the shell child's SD_SESSION is set with setenv(), as Linux and SD Core.
  * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, the OS switch (Linux Solo 7c6bbfc): SOLO 4's "the one user may" is withdrawn.  os_gate_open()
  *           (the administrator, or an account given OS ON) is what os_user_permitted() answers, so OS.EXECUTE, SH and Python are OFF as
  *           delivered and the administrator turns them on (SET.OS.ACCESS).
@@ -564,10 +565,7 @@ Private void sh_execute(char *command) {
 
        Set in the CHILD, after the fork, so SD's own environment is untouched
        and the phantom and client paths - which fork elsewhere - never see it. */
-    {
-      static char sd_session_env[] = "SD_SESSION=1";
-      putenv(sd_session_env);
-    }
+    setenv("SD_SESSION", "1", 1);   /* 18 Nov 26 (audit round 3, P-5451): setenv(), as Linux and SD Core; it was putenv() of a static string */
 
     if (command[0] == '\0') /* Interactive shell */
     {

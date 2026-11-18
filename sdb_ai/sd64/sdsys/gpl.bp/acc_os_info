@@ -18,6 +18,8 @@
 *
 *
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 3 (P-3229, P-5462): includes int$keys.h, as the template (the body needs none); USRDIR's
+*               test is n = 0 alone, as SD Core (the count of '' is 0).
 * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4394): the refusal is SD Core's 12005 in SD Core's words ("Windows could not answer
 *           for %1 (%2)"); it was 12041, which SD Core for Windows uses for another text.
 * 01 Oct 26 SD Core Solo - SOLO 25, ported from the multi-user product's
@@ -61,6 +63,8 @@ $internal
 subroutine acc_os_info(acc.name, acc.rec, info, err)
 $catalog !acc_os_info
 
+$include int$keys.h
+
    info = ''
    err  = ''
 
@@ -76,7 +80,7 @@ $catalog !acc_os_info
          usr.dir = usr.dir[1, len(usr.dir) - 1]
       repeat
       n = count(usr.dir, @ds)
-      if usr.dir = '' or n = 0 then
+      if n = 0 then                                     ;* 18 Nov 26 (P-5462): the count of '' is 0, as SD Core tests it
          err = 12005 : @vm : 'USRDIR' : @vm : usr.dir   ;* 12041 until 17 Nov 26
          return
       end

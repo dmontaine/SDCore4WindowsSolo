@@ -18,6 +18,7 @@
 *
 *
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 3 (P-3226): includes keys.h before int$keys.h, as Linux Solo.
 * 01 Oct 26 SD Core Solo - written, with SET.BACKUP.DIRECTORY (owner's ruling,
 *           1 Oct 2026).  Messages 12042 (Solo's own) and 13046 (shared; Linux
 *           decided that a relative path is refused).
@@ -50,6 +51,7 @@ $internal
 subroutine acc_os_bakdir(mode, dir, err)
 $catalog !acc_os_bakdir
 
+$include keys.h
 $include int$keys.h
 
 deffun ps_script_out(script, want.out) calling '!ps_script_out'

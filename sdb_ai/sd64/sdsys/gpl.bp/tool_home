@@ -4,6 +4,7 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 3 (P-1295, P-1296): the AI line's follow branch is one line before msg = res<5>, as Linux Solo.
 * 18 Nov 26 SD Core Solo - from Linux Solo aea031c (P-1943): the administrator's People and access group has SD Core's Scheduled jobs tile
 *               (tool.jobs, Solo's $tool_solojobs); the 02 Nov 26 line below had said so, but the tile was not in the code.
 * 16 Nov 26 SD Core Solo - RELEASE_1.1 303, from Linux Solo 738e5de (Core b5adf503): F6 and AI > Ask the AI say "the AI is not set up on this
@@ -1291,11 +1292,8 @@ ask.ai:
    call $tk_ai('ask', ctx, actx, res)
    call $tk_ai('clear', ctx, '', '')
    aif = 0
+   if res<1> = 'follow' then gosub ai.focus.on           ;* 15 Nov 26 (RELEASE_1.1 327): Follow up leaves the cursor in the AI line for the next question
    msg = res<5>
-   if res<1> = 'follow' then                              ;* 15 Nov 26 (RELEASE_1.1 327): Follow up leaves the cursor in the AI line for the next question
-      gosub ai.focus.on
-      msg = res<5>
-   end
    begin case
       case res<1> = 'action'
          found = 0

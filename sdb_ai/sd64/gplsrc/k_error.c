@@ -17,6 +17,9 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - four-version audit (P-0288), from SD Core for Windows aa750298 and as Linux Solo a71033e: audit_message()
+ *           copies each record to the Application event log (win32_audit_event(), source sd-audit, registered by the installer),
+ *           after ERRLOG_SEM is released, as data, whether or not the file was written, and never failing the trail.
  * 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230, RELEASE_1.1 286): the error log's truncate and write results are tested.
  * 12 Nov 26 SD Core Solo - RELEASE_1.1 251: SYS.* names for 12353 and 12360 (Linux 11348 and 11355), which are in use here now.
  * 12 Nov 26 Windows port - from Linux 814c5f07 (RELEASE_1.1 240 c): audit_message() writes a control character, DEL or an SD mark in its text as '?'.
@@ -964,42 +967,56 @@ void audit_message(char* msg) {
   timenow = time(NULL);
   ltime = localtime(&timenow);
 
+  /* Newline rather than \n for the reason log_message() gives above - this
+     is a byte count handed to WriteFile, not a text-mode stream.  18 Nov 26:
+     the record is made before the semaphore, as Linux Solo's, so the event
+     log copy below has it whether or not the file's path could be made.    */
+
+  if (my_uptr != NULL) {
+    bytes = snprintf(buff, sizeof(buff),
+                     "%04d-%02d-%02d %02d:%02d:%02d user=%s uid=%d "
+                     "pid=%d %s%s",
+                     ltime->tm_year + 1900, ltime->tm_mon + 1, ltime->tm_mday,
+                     ltime->tm_hour, ltime->tm_min, ltime->tm_sec,
+                     my_uptr->username, my_uptr->uid, my_uptr->pid, msg,
+                     Newline);
+  } else {
+    bytes = snprintf(buff, sizeof(buff),
+                     "%04d-%02d-%02d %02d:%02d:%02d user=? uid=? pid=? "
+                     "%s%s",
+                     ltime->tm_year + 1900, ltime->tm_mon + 1, ltime->tm_mday,
+                     ltime->tm_hour, ltime->tm_min, ltime->tm_sec, msg,
+                     Newline);
+  }
+
+  /* snprintf reports the length it WANTED, not what it wrote, so a long
+     record would otherwise send WriteFile past the end of the buffer.   */
+
+  if (bytes > (int)sizeof(buff) - 1)
+    bytes = (int)sizeof(buff) - 1;
+
   StartExclusive(ERRLOG_SEM, 67);
 
   audit_pathname(path, sizeof(path));
 
-  if (*path != '\0') {
-    /* Newline rather than \n for the reason log_message() gives above - this
-       is a byte count handed to WriteFile, not a text-mode stream.        */
-
-    if (my_uptr != NULL) {
-      bytes = snprintf(buff, sizeof(buff),
-                       "%04d-%02d-%02d %02d:%02d:%02d user=%s uid=%d "
-                       "pid=%d %s%s",
-                       ltime->tm_year + 1900, ltime->tm_mon + 1, ltime->tm_mday,
-                       ltime->tm_hour, ltime->tm_min, ltime->tm_sec,
-                       my_uptr->username, my_uptr->uid, my_uptr->pid, msg,
-                       Newline);
-    } else {
-      bytes = snprintf(buff, sizeof(buff),
-                       "%04d-%02d-%02d %02d:%02d:%02d user=? uid=? pid=? "
-                       "%s%s",
-                       ltime->tm_year + 1900, ltime->tm_mon + 1, ltime->tm_mday,
-                       ltime->tm_hour, ltime->tm_min, ltime->tm_sec, msg,
-                       Newline);
-    }
-
-    /* snprintf reports the length it WANTED, not what it wrote, so a long
-       record would otherwise send WriteFile past the end of the buffer.   */
-
-    if (bytes > (int)sizeof(buff) - 1)
-      bytes = (int)sizeof(buff) - 1;
-
-    if (bytes > 0)
-      (void)win32_audit_append(path, buff, bytes);
-  }
+  if ((*path != '\0') && (bytes > 0))
+    (void)win32_audit_append(path, buff, bytes);
 
   EndExclusive(ERRLOG_SEM);
+
+  if (bytes > 0) {
+    /* 18 Nov 26 SD Core Solo - four-version audit (P-0288), from SD Core for Windows aa750298, as Linux Solo a71033e copies each record
+       to the system journal ("sd-audit").  The same record goes to the Application event log (win32_audit_event(), source sd-audit,
+       registered by sd-solo.iss).  The trail is the Solo user's own file, so any program running as that user can rewrite it; the
+       event log is the copy that user cannot change, and it stamps the event with this process's user SID and its own time.  After
+       the semaphore is released: an event log that stalls must not hold the one every session's logging waits on.  The record is an
+       insertion string, never a format.  Made whether or not the file could be written: when it could not, this is the only copy.
+       Silent, like the file: it never fails the trail.  The line end the file got is taken off first. */
+    while ((bytes > 0) && ((buff[bytes - 1] == '\n') || (buff[bytes - 1] == '\r')))
+      bytes--;
+    buff[bytes] = '\0';
+    win32_audit_event(buff);
+  }
 }
 
 /* ======================================================================

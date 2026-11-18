@@ -21,7 +21,7 @@ QPROC's gate is indented 3 spaces), so --selftest proves those two rows again.
   S   the call sites: OPENSEQ, DELETESEQ, OPENPATH, DIR, DIGEST, the OSPATH keys, a print file, K_PATH_OK
   B   BASIC: LOGIN and APISRVR load the two switches, CPROC's shell gate, EDIT, SETPTR, QPROC, _voc_ref
   V   the verb: setosacc is administrator only, one action, sduser, audited; its records, messages and register fields
-  I   the installer: the control-file key, the question on a new install and an upgrade, the hand-off to solo-setup.ps1, the sample file
+  I   the installer: the control-file key, the question on a new install only (18 Nov 26, P-7047), the hand-off to solo-setup.ps1, the sample file
 
 --selftest breaks each fact in turn and requires the check to say so.
 """
@@ -155,8 +155,9 @@ def checks(t):
     a = t["apisrvr"]
     ck("B3 APISRVR loads them before MASTER.LOGIN runs, and both start off",
        0 <= a.find("api.sh.grant = @false") < a.find("void kernel(K$SH,      api.sh.grant)") < a.find("if not(master.login.done) then"))
-    ck("B4 CPROC's SH verb and \"!\" are the account's SH switch (sh.listed = kernel(K$SH, -1)), refused with 10053",
-       "sh.listed = kernel(K$SH, -1)" in t["cproc"] and "sysmsg(10053, @logname)" in t["cproc"])
+    # 18 Nov 26 (audit round 3, P-3269): CPROC asks the switch in the test itself, as Linux Solo (sh.listed is gone).
+    ck("B4 CPROC's SH verb and \"!\" are the account's SH switch (kernel(K$SH, -1) in the refusal's test), refused with 10053",
+       "if not(kernel(K$ADMINISTRATOR, -1)) and not(kernel(K$SH, -1)) then" in t["cproc"] and "sysmsg(10053, @logname)" in t["cproc"])
     # 17 Nov 26 (four-version audit P-4416): EDIT tests the two in two IFs, as Linux Solo's.
     ck("B5 EDIT needs the administrator or K$OS.EXEC and says what to ask for",
        has(t["edit"], "if kernel(K$ADMINISTRATOR, -1) then", "if kernel(K$OS.EXEC, -1) then", "set.os.access os on"))
@@ -205,10 +206,12 @@ def checks(t):
     i = t["iss"]
     ck("I1 the control file's os-access is read, and only none, sh, os or both is an answer",
        has(i, "GetIniString('install', 'os-access'", "'none'", "'sh'", "'os'", "'both'"))
-    ck("I2 the question is a page of two boxes, both unticked, shown on a new install AND an upgrade (skipped only for a control file's answer)",
+    # 18 Nov 26 - four-version audit P-7047, as Linux Solo: the question is a new install's only; an upgrade skips it and passes none
+    # (solo-setup.ps1's "leave both as they are"), so it keeps the switches the installation has.
+    ck("I2 the question is a page of two boxes, both unticked, shown on a new install only (skipped on an upgrade and for a control file's answer), and an upgrade's answer is none",
        has(i, "OsAccessPage := CreateInputOptionPage(", "OsAccessPage.Values[0] := False;", "OsAccessPage.Values[1] := False;")
-       and "Result := UseControl and (CfOsAccess <> '')" in between(i, "PageID = OsAccessPage.ID", "else if PageID = wpSelectTasks")
-       and "DataTreeWasAbsent" not in between(i, "PageID = OsAccessPage.ID", "else if PageID = wpSelectTasks"))
+       and "Result := (not DataTreeWasAbsent) or (UseControl and (CfOsAccess <> ''))" in between(i, "PageID = OsAccessPage.ID", "else if PageID = wpSelectTasks")
+       and "  if not DataTreeWasAbsent then\n  begin\n    Result := 'none';\n    Exit;\n  end;" in between(i, "function OsAccessWord: String;", "function ViewerWord"))
     ck("I3 the answer reaches solo-setup.ps1 for a new tree and an upgrade alike (set before the new-tree branch, cleared after the run)",
        # 16 Nov 26 - SOLO 72: the new-tree branch now opens with the reload (a reload that keeps the passwords passes no -Passwords).
        0 <= i.find("SetEnvironmentVariable('SD_SOLO_OS_ACCESS', OsAccessWord);") < i.find("if DataTreeWasAbsent then\n  begin\n    { SOLO 37: reload the kept data")
@@ -262,7 +265,7 @@ MUTANTS = [
     # 12 Nov 26 (SOLO 59): anchored on the text as it is now; the 20 Oct SDNet carry put the K$NET line between these two and MASTER.LOGIN.
     ("APISRVR loads them after MASTER.LOGIN", "apisrvr", "void kernel(K$SH,      api.sh.grant)\nvoid kernel(K$OS.EXEC, api.os.grant)\nvoid kernel(K$NET,",
      "void kernel(K$NET,", "B3"),
-    ("the shell is open again", "cproc", "sh.listed = kernel(K$SH, -1)", "sh.listed = @true", "B4"),
+    ("the shell is open again", "cproc", "and not(kernel(K$SH, -1)) then", "and @false then", "B4"),
     ("EDIT is open again", "edit", "if kernel(K$OS.EXEC, -1) then", "if @true then", "B5"),
     ("QPROC writes anywhere", "qproc", "   if not(kernel(K$PATH.OK, csv.pathname)) then", "   if 0 then", "B6"),   # 12 Nov 26 (SOLO 59): the gate is indented 3 spaces now
     ("a VOC pointer is not held to the gate", "voc_ref", "vr.free = vr.admin or kernel(K$OS.EXEC, -1)", "vr.free = @true", "B7"),
@@ -273,8 +276,10 @@ MUTANTS = [
     ("message 12185 loses the remedy", "m12185", "set.os.access os on", "ask somebody", "V7"),
     ("the control file key is ignored", "iss", "GetIniString('install', 'os-access'", "GetIniString('install', 'os-acces'", "I1"),
     ("the question starts ticked", "iss", "OsAccessPage.Values[0] := False;", "OsAccessPage.Values[0] := True;", "I2"),
-    ("the question is skipped on an upgrade", "iss", "    Result := UseControl and (CfOsAccess <> '')\n  else if PageID = wpSelectTasks",
-     "    Result := (not DataTreeWasAbsent) or (UseControl and (CfOsAccess <> ''))\n  else if PageID = wpSelectTasks", "I2"),
+    ("the question is asked on an upgrade", "iss", "    Result := (not DataTreeWasAbsent) or (UseControl and (CfOsAccess <> ''))\n  else if PageID = wpSelectTasks",
+     "    Result := UseControl and (CfOsAccess <> '')\n  else if PageID = wpSelectTasks", "I2"),
+    ("an upgrade takes the page's boxes", "iss", "  if not DataTreeWasAbsent then\n  begin\n    Result := 'none';\n    Exit;\n  end;\n  if UseControl and (CfOsAccess",
+     "  if UseControl and (CfOsAccess", "I2"),
     # 12 Nov 26 (SOLO 59): SOLO 56 group 6 put SD_SOLO_START between the answer and the new-tree branch, so the mutant takes the answer's line out.
     ("the answer is not passed before the new-tree branch", "iss", "  SetEnvironmentVariable('SD_SOLO_OS_ACCESS', OsAccessWord);\n", "", "I3"),
     ("solo-setup accepts any word", "setup", "-notmatch '^(none|sh|os|both)$'", "-notmatch '^.*$'", "I4"),

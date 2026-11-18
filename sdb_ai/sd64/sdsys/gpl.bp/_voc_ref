@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 3 (P-3225): a Q-pointer's account name is looked up in the register lower-cased,
+*               as Linux Solo, Linux Core and SD Core for Windows; one written in capitals missed the register's lower-case key.
 * 16 Nov 26 SD Core Solo - RELEASE_1.1 255 (D-02): a Q-pointer's account path is read raw and expanded by the "if qpath[1,1] = '@'" line after it, as
 *               Linux Solo and SD Core for Windows do; it was expanded twice here (the second a no-op).  The answer is the same.
 * 20 Oct 26 SD Core Solo - RELEASE_1.1 165, the OS switch (Linux Solo 7c6bbfc; SD Core's S.63 second sitting, carried): a VOC pointer is held
@@ -237,7 +239,7 @@ parse.as.q.pointer:
                if index(qpath, @ds, 1) = 0 then  ;* Try lookup in ACCOUNTS file
                   if len(qpath) < 64 then
                      openpath @sdsys:@ds:'accounts' to acc.f then
-                        read acc.rec from acc.f, qpath then
+                        read acc.rec from acc.f, downcase(qpath) then   ;* 18 Nov 26 (P-3225): the register's ids are lower case
                            qpath = acc.rec<ACC$PATH>          ;* 16 Nov 26: expanded below, as Linux Solo and Core read it (D-02)
                         end
                      end

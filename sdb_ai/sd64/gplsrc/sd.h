@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - four-version audit round 3 (P-3095, P-3096): audit_rotate() declared after k_ai(), in Linux's order.
  * 17 Nov 26 SD Core Solo - Linux Solo 3b1316cc (S.62 NETDIRS): netdirs_report() (op_dio2.c), called by start_sd().
  * 16 Nov 26 SD Core Solo - RELEASE_1.1 246, from SD Core for Windows: k_ai() (op_ai.c), the AI helper's transport.
  * 11 Nov 26 SD Core Solo - SOLO 56 group 2, from Windows Core (as in Linux Solo): prototypes of show_unsafe_byte(), show_safe_text() and
@@ -253,8 +254,8 @@ void txn_rollback_to(int depth);                 /* txn.c: roll back the transac
 char * k_var_name(DESCRIPTOR * descr);
 void log_message(char * msg);
 void audit_message(char * msg);
-void audit_rotate(void);
 void k_ai(int action, DESCRIPTOR * descr, DESCRIPTOR * result);   /* op_ai.c: KERNEL(K$AI.START / POLL / CANCEL / STATUS), the in-SD AI helper's transport (16 Nov 26 SD Core Solo, from SD Core for Windows; RELEASE_1.1 246) */
+void audit_rotate(void);
 int log_printf(char * str, ...);
 void log_permissions_error(FILE_VAR * fvar);
 

@@ -12,9 +12,11 @@
 #
 # Each item below is explained in comment lines, then a SAMPLE answer
 # (commented out), then the line for your answer.  Leave an answer blank and
-# the installer asks for it - EXCEPT the global password, where blank means
-# none (see below).  An answer the installer cannot accept (a password that
-# breaks the rules below, a word that is not off, local or open) is asked
+# the installer asks for it - except global-password, where blank means NONE
+# (no SD Core server manages this computer) and nothing is asked.  A silent
+# install (/SILENT or /VERYSILENT) shows no page, so a blank there takes the
+# default the item names.  An answer the installer cannot accept (a password
+# that breaks the rules below, a word that is not off, local or open) is asked
 # for too.
 #
 # The ACCOUNT password is deliberately not here.  With a global password the
@@ -39,32 +41,33 @@
 admin-password=
 
 # global-password
-#   The global password.  The SD Core server uses it to manage this
-#   computer, and it also unlocks the administrator commands.  The same rules
-#   as the administrator password, and it must be different from it.
-#   LEAVE IT BLANK, OR LEAVE THE LINE OUT, and this computer has no global
-#   password: no SD Core server manages it, and nothing is asked.  A mistyped
-#   name here ends the same way.  The installer says so in its log and on its
-#   last page.
+#   The global password.  Only a computer that an SD Core server manages has
+#   one: the server uses it to manage this computer, and it also unlocks the
+#   administrator commands.  LEAVE IT BLANK if no SD Core server manages this
+#   computer: the installer then says so (in its log and on its last page) and
+#   asks nothing.  The same rules as the administrator password, and it must
+#   be different from it.
 #global-password=Gl0bal-Sample!
 
 global-password=
 
 # api
-#   The SD Core API, port 4249.  off = not provided; local = provided to
-#   this computer only; open = provided to other computers too.  Blank: the
-#   installer asks.  An SD Core server that manages this computer needs it
-#   open.
+#   The API listener, always on port 4249: off (no listener), local (this
+#   computer only) or open (reachable from the network).  Blank: the installer
+#   asks, and a silent install takes off.  An SD Core server that manages this
+#   computer reaches it through the API, so a managed computer needs "open".
 #api=open
 
 api=
 
 # ssh
-#   Solo's own ssh server, port 4251.  off = none, and Microsoft's OpenSSH
-#   package is not installed; local = this computer only; open = other
-#   computers too.  local and open install the package from the ssh-server
-#   folder when no OpenSSH server is on the computer.  Blank: the installer
-#   asks.  An SD Core server that manages this computer needs it open.
+#   Solo's own ssh listener, always on port 4251: off, local (this computer
+#   only) or open (reachable from the network).  local and open install
+#   Microsoft's OpenSSH package from the ssh-server folder when no OpenSSH
+#   server is on the computer; off installs nothing.  Blank: the installer
+#   asks, and a silent install takes local (off where no OpenSSH server is on
+#   the computer).  An SD Core server that manages this computer also uses
+#   ssh, so a managed computer needs "open".
 #ssh=open
 
 ssh=
@@ -85,7 +88,8 @@ deny-verbs=
 #   settings, with a .sdcore-kept stamp).  yes = reload it into the new
 #   installation; no = start clean, and the kept data is moved aside to
 #   SDCoreSolo.kept-<date and time>, never deleted.  Blank: the installer asks,
-#   or - when this file answers everything else too - reloads.  Where nothing is
+#   and reloads when nobody can be asked (a silent install, or this file
+#   answers both passwords).  Where nothing is
 #   kept the line does nothing, so one file can say it for every computer.  A
 #   reload keeps the kept passwords, unless this file gives a password: then the
 #   passwords here replace them.
@@ -98,9 +102,10 @@ reload-data=
 #   administrator can change them later (ADMIN, then set.os.access).  none =
 #   turn on neither; sh = the SH verb and "!"; os = OS.EXECUTE, files and
 #   directories outside the account, Python and the editors that run outside
-#   SD; both = both.  Blank: the installer asks.  Either switch lets whoever
+#   SD; both = both.  Blank: the installer asks, and a silent install takes
+#   none.  Either switch lets whoever
 #   signs in do what the Windows user can do.  Used on a new installation
-#   only: an upgrade asks.
+#   only: an upgrade asks nothing and keeps what the installation has.
 #os-access=none
 
 os-access=
@@ -112,7 +117,8 @@ os-access=
 #   foxitpdfreader, sumatrapdf, pdfxedit, firefox or chrome.  The program must
 #   pass the same test as SET.VIEWER ADD (an .exe under Program Files that only
 #   the system and administrators can change).  Nothing is allowed unless it is
-#   named.  Blank: the installer asks when one of those readers is installed.
+#   named.  Blank: the installer asks when one of those readers is installed,
+#   and a silent install takes none.
 #   Later: ADMIN, then SET.VIEWER or the Bypass programs page (TOOL.VIEWERS).
 #viewer=msedge
 
@@ -121,7 +127,9 @@ viewer=
 # start
 #   Where new sessions start (12 Nov 2026): menu = the home screen, as
 #   delivered; terminal = the command prompt.  The administrator can change it
-#   later (ADMIN, then set.start.default).  Blank: the installer asks.  Used on
+#   later (ADMIN, then set.start.default).  Blank: the installer asks (the
+#   home screen unless its box is ticked), and a silent install takes the
+#   home screen.  Used on
 #   a new installation only: an upgrade keeps what the installation has.
 #start=terminal
 

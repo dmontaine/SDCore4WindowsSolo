@@ -6,6 +6,8 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 3 (P-1290, P-5497, P-5498): the answer's paragraph loop in Linux Solo's words (n.para, pa,
+*               para); the same lines result.
 * 18 Nov 26 SD Core Solo - four-version audit round 2 (P-5927): entry.cursor stands before on.key, as the other three.  Order only.
 * 16 Nov 26 SD Core Solo - RELEASE_1.1 303, from Linux Solo 738e5de (Core b5adf503): read.status keeps which test failed in ai.why, 'gate' or
 *               'setup', and the op 'why' gives it back, so HOME can say "not set up on this computer" instead of blaming the account.
@@ -759,17 +761,21 @@ run.ask:
 
    * the popup: what the AI said, the proposal if there is one, and Accept / Reject
    body = ''
-   for sp = 1 to dcount(say, nl)                          ;* 15 Nov 26 (RELEASE_1.1 325): each paragraph wrapped on its own; a blank line stays a blank line
-      sline = field(say, nl, sp)
-      if trim(sline) = '' then
+   * 15 Nov 26 (RELEASE_1.1 325): each paragraph wrapped on its own; a blank line stays a blank line.  18 Nov 26 (P-1290, P-5497, P-5498):
+   *   in Linux Solo's words
+   n.para = dcount(say, char(10))
+   for pa = 1 to n.para
+      para = field(say, char(10), pa)
+      if trim(para) = '' then para = ''                  ;* a line of spaces is an empty line
+      if para = '' then
          body<-1> = ''
       end else
-         call $tk_wrap(sline, wrapw, pieces)
+         call $tk_wrap(para, wrapw, pieces)
          for p = 1 to dcount(pieces, @fm)
             body<-1> = pieces<p>
          next p
       end
-   next sp
+   next pa
    if body = '' then body<-1> = ' '
    if note.p # '' then
       body<-1> = ''

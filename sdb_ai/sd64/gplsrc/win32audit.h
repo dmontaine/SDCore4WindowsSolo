@@ -13,6 +13,7 @@
  * GNU General Public License for more details.
  *
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - win32_audit_event() (P-0288), from SD Core for Windows aa750298.
  * 16 Aug 26 Windows port - written.  The POSIX runtime cannot open a file for
  *           appending without also asking for FILE_WRITE_DATA, which defeats
  *           an append-only ACL.  PROJECT_STATUS.md 7 step 4.
@@ -72,6 +73,19 @@ int win32_audit_append(const char* path, const char* data, int len);
    Returns 0 on success and -1 on any failure.                             */
 
 int win32_audit_rotate(const char* path, const char* rotated);
+
+/* 18 Nov 26 SD Core Solo - from SD Core for Windows aa750298 (four-version audit,
+   P-0288), as Linux Solo copies each record to the system journal (a71033e,
+   "sd-audit").  The same audit record goes to the Windows Application event log
+   under the source sd-audit, which the installer registers (sd-solo.iss).  The
+   trail is the Solo user's own file, so any program running as that user can
+   rewrite it; the event log is the copy that user cannot change, and the event
+   carries the SID of this process's own token, which the Event Log shows as the
+   event's user beside the user= the line names.  Best effort and silent: an
+   event log that cannot be reached never stops or delays the audit file's own
+   write, and no reason is returned.                                         */
+
+void win32_audit_event(const char* text);
 
 #endif
 

@@ -19,6 +19,10 @@
 *
 *
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 3, Linux Solo's layout: master.login.done after logging in /$APISRVR/ (P-1895,
+*           P-1902) and set with file.names after tty in the first-time block (P-1899, P-7384); cproc.date / cproc.time after the request
+*           gates (P-1900, P-7383); vb.account skips the register for a name with a separator and reads downcase(new.account) (P-1274,
+*           P-3247).  The same answers.
 * 18 Nov 26 SD Core Solo - four-version audit round 2, from Linux Solo S.62 (P-5912): an account with no register path is refused
 *           before entry with 10003 and audited branch=1 no.path.in.register; acc.rec and acc.suspended (@false) start fresh each call
 *           (P-5915, P-5916); the version refusal says "not version 2" (P-5914); in Linux Solo's order: the deffuns above the common
@@ -316,18 +320,16 @@ common /$APISRVR/ logged.in,          ;* Process is logged in
 files(100),         ;* Array of file variables
 file.names,         ;* 12 Nov 26 (SD Core's S.73 item 3, SOLO 56 group 8): the name each open file was opened under, field = file number (a dictionary as "dict name"); request 70 names its file by it
 logging,            ;* Logging network traffic?
+master.login.done,  ;* The MASTER.LOGIN paragraph has been run (it is run once per session; after logging, as Linux Solo, audit P-1895)
 seqfiles(SEQ.MAX),  ;* Sequential files opened by vb.openseq, numbered SEQ.BASE + their index (sheet 441)
 seq.state(SEQ.MAX), ;* 1 while the slot holds an open sequential file
-seq.unbuf(SEQ.MAX), ;* 1 when it was opened unbuffered: every line written is flushed
-master.login.done   ;* The MASTER.LOGIN paragraph has been run (it is run once per session; last, as Linux Solo, audit P-4401)
+seq.unbuf(SEQ.MAX)  ;* 1 when it was opened unbuffered: every line written is flushed
 
 * If this is the first time through, initialise various things in
 * the SYSCOM common block.
 
 if not(kernel(K$CPROC.LEVEL,0)) then
    abort.message = ""
-   file.names = ''            ;* 12 Nov 26, SD Core's S.73 item 3 (SOLO 56 group 8): no file is open yet (18 Nov 26, P-4398: here, as Linux Solo)
-   master.login.done = @false ;* MASTER.LOGIN is run once, at the first entry to the account (vb.account)
 
    parser = "!PARSER"          ;* Command parser subroutine
 
@@ -384,6 +386,8 @@ if not(kernel(K$CPROC.LEVEL,0)) then
    abort.code = 0
 
    tty = 'apisrvr'
+   master.login.done = @false      ;* MASTER.LOGIN is run once, at the first entry to the account (vb.account)
+   file.names = ''            ;* 12 Nov 26, SD Core's S.73 item 3 (SOLO 56 group 8): no file is open yet (18 Nov 26, P-1899, P-7384: after tty, as Linux Solo)
 
    openpath "voc" to voc else
       abort.message = sysmsg(2026) ;* Cannot open VOC
@@ -505,9 +509,6 @@ loop
       end
    end
 
-   cproc.date = date()
-   cproc.time = time()
-
 * 12 Nov 26 SD Core Solo - SOLO 56 group 7, as Linux Solo (f084a3f, b1d823f): requests 68 to 71 change files on the server's side (WRITE ... CREATING.SEQKEY,
 *   and the file administration of group 8), so only a session that signed in with the GLOBAL password may send them - the master server administering
 *   this Solo.  Asked of the kernel at every request (K$GLOBAL.SESSION is set at login, vb.scram.final).  The refusal has SD Core's shape: an ON ERROR
@@ -521,6 +522,9 @@ loop
          goto return.status.set
       end
    end
+
+   cproc.date = date()             ;* 18 Nov 26 (P-1900, P-7383): after the request gates, as Linux Solo
+   cproc.time = time()
 
    on action + 1 gosub vb.illegal.action,
    vb.quit,           ;*   1   Quit
@@ -826,15 +830,20 @@ api.net.grant = @false     ;* 25 Oct 26, Linux Solo 1f5f703 (SDNet carry 9; SD C
 *   five fired.  The trail is not the wire: it is readable by an
 *   administrator and by nobody else, so naming the branch there costs the
 *   attacker nothing and costs the operator nothing to have.
-openpath @sdsys:@ds:'accounts' to acc.f then
-   read acc.rec from acc.f, new.account then
-      account.path = parse.pathname.tokens(acc.rec<ACC$PATH>)
-      acc.suspended = (upcase(trim(acc.rec<ACC$SUSPENDED>)) = 'SUSPENDED')   ;* 12 Nov 26: a truth value, as Linux Solo and Core (account.entry.check tests it with IF)
-      api.sh.grant = (upcase(trim(acc.rec<ACC$SH>)) = 'YES')
-      api.os.grant = (upcase(trim(acc.rec<ACC$OS.EXEC>)) = 'YES')
-      api.net.grant = (upcase(trim(acc.rec<ACC$NET>)) = 'YES')
+* 18 Nov 26 SD Core Solo - four-version audit round 3 (P-1274, P-3247), as Linux Solo and SD Core for Windows: a name with a separator
+*   ('/', or on Windows '\') is not looked up at all (it names no register record and is refused below), and the key read is
+*   downcase(new.account) as the template writes it (new.account is already lower case above).
+if index(new.account, @ds, 1) = 0 and index(new.account, '\', 1) = 0 then
+   openpath @sdsys:@ds:'accounts' to acc.f then
+      read acc.rec from acc.f, downcase(new.account) then
+         account.path = parse.pathname.tokens(acc.rec<ACC$PATH>)
+         acc.suspended = (upcase(trim(acc.rec<ACC$SUSPENDED>)) = 'SUSPENDED')   ;* 12 Nov 26: a truth value, as Linux Solo and Core (account.entry.check tests it with IF)
+         api.sh.grant = (upcase(trim(acc.rec<ACC$SH>)) = 'YES')
+         api.os.grant = (upcase(trim(acc.rec<ACC$OS.EXEC>)) = 'YES')
+         api.net.grant = (upcase(trim(acc.rec<ACC$NET>)) = 'YES')
+      end
+      close acc.f
    end
-   close acc.f
 end
 
 * 18 Nov 26 SD Core Solo - from Linux Solo S.62 (four-version audit round 2, P-5912): no register record (no such account, an

@@ -190,8 +190,10 @@ row(i_d > 0 and i_ok > 0, "CONTROL: both statements the reorder mutant moves wer
 if i_d > 0 and i_ok > 0:
     # move the delete to the end of the subroutine, after the decision
     m2 = login.replace("      void ospath(gate.marker, OS$DELETE)\n", "", 1)
-    m2 = m2.replace("   audit.account = initial.account\n   if gate.ok then",
-                    "   void ospath(gate.marker, OS$DELETE)\n   audit.account = initial.account\n   if gate.ok then", 1)
+    # 18 Nov 26: login no longer sets audit.account before the decision (its refusals name the account themselves), so the delete
+    # goes in just before "if gate.ok then".
+    m2 = m2.replace("   end\n\n   if gate.ok then",
+                    "   end\n   void ospath(gate.marker, OS$DELETE)\n\n   if gate.ok then", 1)
     row(any("AFTER" in x for x in gate_problems(m2)), "MUTANT: a delete moved after the decision is caught")
 mut3 = login.replace("gosub internal.gate\n            if not(gate.ok) then goto terminate.connection", "gosub internal.gate")
 row(any("not followed by" in x for x in gate_problems(mut3)), "MUTANT: a call site that ignores gate.ok is caught")

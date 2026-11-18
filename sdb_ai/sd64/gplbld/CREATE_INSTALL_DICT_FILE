@@ -37,14 +37,21 @@ FILES_LIST = ''
 *
 *  list of files to "create" (add ~0 and ~1)
 *
-*                  file      create dict
-FILES_LIST<-1> = "accounts"  :@VM:'Y'
-FILES_LIST<-1> = "$hold"     :@VM:'Y' 
-FILES_LIST<-1> = "$map"      :@VM:'Y'
-FILES_LIST<-1> = "$ipc"      :@VM:'N' 
-FILES_LIST<-1> = "dict.dic"  :@VM:'N'  
-FILES_LIST<-1> = "dir_dict"  :@VM:'N' 
-FILES_LIST<-1> = "voc.dic"   :@VM:'N'  
+* 13 Sep 26 dm - plan M3 D1: the second column is now the directory read,
+*   spelled as it is on disk, and it is also the FILES_DICTS id prefix written
+*   below - so it must match BBPROC's FILES_LIST.
+* 17 Nov 26 dm - S.62 P-1210/P-1211: $hold and $hold.dic in lower case, as
+*   sdsys/$hold is on disk, the FILES_DICTS ids are ($hold.dic^...) and BBPROC's
+*   FILES_LIST has them; the include is int$keys.h, its name on disk.
+*
+*                  file      dictionary directory read
+FILES_LIST<-1> = "accounts"  :@VM:'accounts.dic'
+FILES_LIST<-1> = "$hold"     :@VM:'$hold.dic'
+FILES_LIST<-1> = "$map"      :@VM:'$map.dic'
+FILES_LIST<-1> = "$ipc"      :@VM:'$ipc'
+FILES_LIST<-1> = "dict.dic"  :@VM:'dict.dic'
+FILES_LIST<-1> = "dir_dict"  :@VM:'dir_dict'
+FILES_LIST<-1> = "voc.dic"   :@VM:'voc.dic'
 *
 FILE_CT = DCOUNT(FILES_LIST,@FM)
 
@@ -88,11 +95,7 @@ IF RUN.CREATE.DICT.DATA = 'Y' THEN
        *
 	   * determine actual name
 	   *
-	   IF FILES_LIST<I,2> = 'Y' THEN
-	     DICT_FILE_NAME  = FILES_LIST<I,1> : '.dic'
-       END ELSE
-	     DICT_FILE_NAME  = FILES_LIST<I,1>
-	   END
+	   DICT_FILE_NAME  = FILES_LIST<I,2>
 	   *
        OPENPATH  SOURCE_DATA_PATH:@DS:DICT_FILE_NAME TO DICT.FILE.VAR THEN
          *

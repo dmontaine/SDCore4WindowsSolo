@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 3 (P-3341, P-3342): a new file's names on disk are folded to lower case and its dictionary
+*               is <name>.dic, as Linux Solo and SD Core for Windows (it was <name>.DIC).
 * 16 Nov 26 SD Core Solo - RELEASE_1.1 255 (D-07): the deffun of !voc_guard is gone, as Linux Solo's (Solo carry 22, 9 Nov 26): with multifiles removed,
 *               CREATE.FILE no longer changes a file that exists, so nothing called it.
 * 14 Nov 26 Windows port - from Linux 64561d81 (S.230, RELEASE_1.1 286): the unused no.query is gone.
@@ -352,12 +354,16 @@ $define default.split.load 80
 
    * Form operating system file name from VOC record name
 
-   os.name = ospath(file.name, OS$MAPPED.NAME)  ;* file.name already canonical - RELEASE_1.1 5
+   os.name = ospath(downcase(file.name), OS$MAPPED.NAME)   ;* 18 Nov 26: as Linux Solo (plan M3 D4); file.name is already canonical - RELEASE_1.1 5
 
    * Check if operating system components already exist
 
+* 18 Nov 26 SD Core Solo - four-version audit round 3 (P-3342): the suffix is lower case, as Linux Solo's plan M3 D4 - a literal ".DIC" on
+*   a lower-case name is a mixed name.  NTFS opened either; the name on disk is what the person sees in 6121 and in a directory listing.
+   dict.suffix = '.dic'
+
    if create.dict and not(using.dict) then
-      dict.path = dir.name.with.delimiter : os.name : ".DIC"
+      dict.path = dir.name.with.delimiter : os.name : dict.suffix
       if ospath(dict.path, OS$EXISTS) then        ;* Already exists
          stop sysmsg(6121, dict.path) ;* Dictionary pathname 'xx' already exists
       end

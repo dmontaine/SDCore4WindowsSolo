@@ -4,6 +4,8 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 3 (P-1917), from Linux Solo: the file transfer gate's row, a fourth kind ('record'): the register
+*           field ACC$XFER (set.xfer.access writes it), no kernel key.  It sits between dict and net, as in Linux Solo.
 * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4451): the ai gate's row is in, as Linux Solo and SD Core for Windows have it; the AI helper is
 *           built here now (RELEASE_1.1 246).
 * 10 Nov 26 Windows port - level with Linux e3490a7f: the home gate (S.166) is in; the ai gate's row stays out until the AI helper is built (RELEASE_1.1 173).
@@ -54,6 +56,7 @@ $include tk.h
    rows<-1> = "voc|Save VOC|voc-on|voc-off|register|ACC$VOC.EDIT||K$VOC.EDIT|next sign-on only|off|VOC|save changes to a VOC|read the VOC and run its entries|0|built"
    rows<-1> = "bp|Save programs|bp-on|bp-off|register|ACC$BP.EDIT||K$BP.EDIT|next sign-on only|off|BP|save changes to a program file, and use BASIC and CATALOG|run cataloged programs and read program source|0|built"
    rows<-1> = "dict|Save dictionaries|dict-on|dict-off|register|ACC$DICT.EDIT||K$DICT.EDIT|next sign-on only|off|DICT|save changes to a dictionary|read dictionaries and use them in queries|0|built"
+   rows<-1> = "xfer|File transfer|xfer-on|xfer-off|record|ACC$XFER|||next connection|off|XF|move text files in and out of its transfer folders over its ssh login, with the receive and send commands, while the system's XFER switch is on|everything else its other gates allow, and ssh sign-in itself|1|built"
    rows<-1> = "net|Remote files|net-on|net-off|register|ACC$NET||K$NET|next account entry|off|NET|open a file on another SD server through a server definition|every file on this server that its other gates allow|1|built"
    rows<-1> = "shared-read|Read shared|shared-read-on|shared-read-off|register|ACC$SHARED.READ||K$SHARED.READ|next account entry|on|SR|open the files of the shared account by name, with no LOGTO|its own account, and the shared account by LOGTO if its person may enter it|0|built"
    rows<-1> = "shared-write|Write shared|shared-write-on|shared-write-off|register|ACC$SHARED.WRITE||K$SHARED.WRITE|next account entry|off|SW|write records in the files of the shared account|read them, if shared-read is on|0|built"

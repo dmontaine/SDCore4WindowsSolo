@@ -4,6 +4,8 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 3 (P-1918), from Linux Solo: the file transfer gate (kind 'record') is the register field
+*           ACC$XFER, yes or no (set.xfer.access writes it).
 * 25 Oct 26 Windows port - from Linux 04f1eaa - the toolkit base and tool.keys (S.75 TK-0.1 to TK-1)
 * 22 Oct 26 dm  New (S.75, TK-0.3).
 * 7 Nov 26 dm   S.166: the home gate (kind 'start') is read by $tk_startof from ACC$START.
@@ -100,6 +102,8 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
             state = ''
          case gi<TK.G.KIND> = 'start'                ;* S.166: the home gate, any kind of account (menu, terminal, blank for the system's default)
             call $tk_startof(rec<ACC$START>, state)
+         case gi<TK.G.KIND> = 'record'               ;* 18 Nov 26 (P-1918), as Linux Solo: the file transfer gate, a register field no kernel key holds
+            state = (if upcase(trim(rec<ACC$XFER>)) = 'YES' then 1 else 0)
          case gi<TK.G.KIND> = 'group'
             if atype = 'USER' then
                state = (if is_grp_member(user, gi<TK.G.GROUP>) then 1 else 0)

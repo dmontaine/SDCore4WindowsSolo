@@ -5,6 +5,7 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 3 (P-5126): the typed key's client status is kept in key.stat and tested, as Linux Solo.
 * 17 Nov 26 SD Core Solo - four-version audit, Linux Solo 3b1316cc (as SD Core for Windows c9950057): SET.AI KEY reads the client's exit
 *               status (os.error(), "; exit $LASTEXITCODE" on the command) after both forms; a client that failed no longer reports an earlier
 *               key as set (12613 and nothing audited, before the listing; the hand-over file is still dropped first).
@@ -208,8 +209,9 @@ $include err.h
 *        The console is handed to the helper's client and nothing is captured: the key is typed there, never read by SD.  What happened is then read back, not assumed.
 *        Nothing is redirected: the client writes to standard output only.
          os.execute "& '" : ctl : "' 'key' '" : prov : "'; exit $LASTEXITCODE"
-*        17 Nov 26: the client's exit status first, as in the hand-over form above.
-         if os.error() # 0 then
+         key.stat = os.error()
+*        17 Nov 26: the client's exit status first, as in the hand-over form above (18 Nov 26, P-5126: kept in key.stat, as Linux Solo and SD Core).
+         if key.stat # 0 then
             @system.return.code = -ER$FAILED
             stop sysmsg(12613, 'nokey', 'the key was not set')                             ;* The AI helper refused: %1 (%2)
          end

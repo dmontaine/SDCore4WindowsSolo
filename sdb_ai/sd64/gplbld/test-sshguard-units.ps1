@@ -1,6 +1,9 @@
 # test-sshguard-units.ps1 - free-tier guard for solo-sshguard.ps1, the per-address ssh lock-out in front of Solo's
 # sshd (from Linux Solo's test-sshguard-units.py, LSOLO 29; carried 17 Nov 2026, four-version audit decision D1;
 # 17 Nov 2026, SOLO 77: the source is the OpenSSH/Operational event channel, not sshd's -E log).
+# 18 Nov 2026, SOLO 79 conditions 2 and 3: Test-Loopback (a RULE row and the mutant "loopback never marked"), -List's
+# mark on a loopback lock with -Unlock and the count (SCRIPT rows), and the PIN rows want MaxAuthTries 6, LoginGraceTime 30
+# and $ConnLife 90.
 #
 #   powershell -ExecutionPolicy Bypass -File <this file>
 # Exit 0 = every row passed and every mutant went red, 1 = a row failed or a mutant stayed green, 2 = could not run.
@@ -51,7 +54,7 @@
 #                 native mutants (renamed copies) must each turn a NATIVE row red.  -Serve starts the trace before
 #                 its loop, and a pass judges only ripe records and reads the lives (text pins).
 #   PIN rows    - what the guard relies on elsewhere: Solo's sshd_config (solo-sshd.ps1 Get-Config) says LogLevel
-#                 VERBOSE and LoginGraceTime 120 (and $ConnLife is longer); the sshd task (solo-machine.ps1) has no -E;
+#                 VERBOSE, MaxAuthTries 6 and LoginGraceTime 30 (and $ConnLife is 30 + 60; SOLO 79, 18 Nov 2026); the sshd task (solo-machine.ps1) has no -E;
 #                 the installer's two checks anchor on the words the guard writes.
 #   MUTANTS     - each copy of the logic region below must PARSE and turn at least one RULE row red (a copy that
 #                 does not parse, or a native copy that does not compile, counts as green: it tests nothing).  A
@@ -127,6 +130,12 @@ $ruleRows = {
     Row 'the lock still holds at 599 s after the last failure' ((Lk $st 1624) -eq $A) ('locked at 1624 [' + (Lk $st 1624) + ']')
     Limit-State $st 1625
     Row 'the lock ends ten minutes after the last failure and the address is forgotten' ((Lk $st 1625) -eq '' -and -not $st.Addrs.ContainsKey($A)) ('locked at 1625 [' + (Lk $st 1625) + '], known: ' + (@($st.Addrs.Keys) -join ','))
+
+    # 18 Nov 26 - SOLO 79 condition 2: this computer's own addresses (127.0.0.0/8, ::1) are told apart for -List's mark;
+    # another address, an IPv6 address that is not ::1 and a word are not.
+    $lb = @(@('127.0.0.1', '127.5.6.7', '::1') | Where-Object { -not (Test-Loopback $_) })
+    $nlb = @(@($A, '10.0.0.1', '2001:db8::1', '::', 'localhost') | Where-Object { Test-Loopback $_ })
+    Row 'Test-Loopback: 127.0.0.1, 127.5.6.7 and ::1 are this computer; 192.0.2.7, 10.0.0.1, 2001:db8::1, :: and a word are not' ($lb.Count -eq 0 -and $nlb.Count -eq 0) ('wrong: [' + (($lb + $nlb) -join ',') + ']')
 
     $st = New-State
     $k = { param($p) Rc $p ('Failed publickey for don from ' + $A + ' port 5' + $p + ' ssh2') }
@@ -483,6 +492,17 @@ Check 'no switch is refused (ERROR=, exit 1)' ($script:lastCode -eq 1 -and $o -m
 Remove-Item -LiteralPath (Join-Path $td 'guard.state') -Force
 $o = Run-Guard 20630 @('-List')
 Check 'with no guard.state, -List says the source was NEVER READ' ($o -match 'NEVER READ') 'NEVER READ'
+# 18 Nov 26 - SOLO 79 condition 2: a lock on this computer's own address is listed with the mark, one on another computer's
+# without it, both are counted, and -Unlock clears the loopback one like any other.
+[IO.File]::WriteAllLines((Join-Path $td 'guard.state'), [string[]]@('offset 112', 'addr 127.0.0.1 30500 29990 29991 29992 29993 29994', ('addr ' + $X + ' 30500 29995 29996 29997')))
+$o = Run-Guard 30000 @('-List')
+Check '-List marks the lock on 127.0.0.1 "(5 wrong passwords)  (this computer: not stopped by the firewall)", not the one on 203.0.113.5, and counts both' (
+    $o -match '(?m)^127\.0\.0\.1  LOCKED until \S+  \(5 wrong passwords\)  \(this computer: not stopped by the firewall\)\s*$' -and
+    $o -match ('(?m)^' + [regex]::Escape($X) + '  LOCKED until \S+  \(3 wrong passwords\)\s*$') -and $o -match '(?m)^SOLO SSH GUARD LOCKED 2\s*$') 'LOCKED 2, one marked'
+$o = Run-Guard 30010 @('-Unlock', '127.0.0.1')
+Check '-Unlock 127.0.0.1 ends "SOLO SSH GUARD UNLOCKED 1" and only the other address''s rule is wanted' ($script:lastCode -eq 0 -and $o -match '(?m)^SOLO SSH GUARD UNLOCKED 1\s*$' -and $o -match ('(?m)^RULES=' + [regex]::Escape($X) + '\s*$')) 'UNLOCKED 1'
+$o = Run-Guard 30020 @('-List')
+Check 'after it, -List shows 203.0.113.5 locked, 127.0.0.1 gone, and ends "SOLO SSH GUARD LOCKED 1"' ($o -match '(?m)^SOLO SSH GUARD LOCKED 1\s*$' -and $o -notmatch '127\.0\.0\.1') 'LOCKED 1'
 $env:SDSOLO_TEST_NOW = $saveNow
 
 # ---- PIN rows: what the guard relies on in the other two scripts ---------------------------------------------------
@@ -491,8 +511,8 @@ $sshdText = [IO.File]::ReadAllText($sshdSrc)
 $machText = [IO.File]::ReadAllText($machineSrc)
 $cfgBlock = [regex]::Match($sshdText, '(?s)function Get-Config.*?\n}').Value
 $cl = [regex]::Match($region, '\$ConnLife = (\d+)')
-Check 'Solo''s sshd_config says LogLevel VERBOSE (the "Connection from ... port 4251" line) and LoginGraceTime 120' ($cfgBlock -match "'LogLevel VERBOSE'" -and $cfgBlock -match "'LoginGraceTime 120'" -and $cfgBlock -notmatch "'LogLevel INFO'") 'Get-Config'
-Check '$ConnLife is longer than LoginGraceTime 120' ($cl.Success -and [int]$cl.Groups[1].Value -gt 120) ('ConnLife ' + $cl.Groups[1].Value)
+Check 'Solo''s sshd_config says LogLevel VERBOSE (the "Connection from ... port 4251" line), MaxAuthTries 6 and LoginGraceTime 30 (SOLO 79)' ($cfgBlock -match "'LogLevel VERBOSE'" -and $cfgBlock -match "'LoginGraceTime 30'" -and $cfgBlock -match "'MaxAuthTries 6'" -and $cfgBlock -notmatch "'LoginGraceTime 120'" -and $cfgBlock -notmatch "'LogLevel INFO'") 'Get-Config'
+Check '$ConnLife is LoginGraceTime 30 + 60 (the guard''s window moved with the config, SOLO 79)' ($cl.Success -and [int]$cl.Groups[1].Value -eq 90) ('ConnLife ' + $cl.Groups[1].Value)
 $argLine = [regex]::Match($machText, '(?m)^\s*\$arg = ''-D -f "'' \+ \$cfgPath \+ ''"''\s*$')
 Check 'the "SD Core Solo SSH" task runs sshd -D -f <config> with NO -E (so sshd logs to the channel)' ($argLine.Success -and $machText -notmatch '-E "'' \+ \$logPath') 'Register-SshTask $arg'
 Check 'the installer''s first check anchors on the words the guard writes after its first read' ($machText.Contains('sd-solo-sshguard: watching OpenSSH/Operational: ok, from record \d+') -and $text.Contains('Say (''watching '' + $source + '': ok, from record '' + $st.Offset)') -and $text.Contains("`$Channel = 'OpenSSH/Operational'")) 'watching ... ok'
@@ -595,7 +615,8 @@ $mutants = @(
     # pieces became separate array elements and the mutant tested something else (found 17 Nov 2026).
     @('a reused pid stays Solo''s',('            if ($st.Conns.ContainsKey($p)) { $st.Conns.Remove($p) }' + "`n" + '            return $none'), '            return $none'),
     @('the closing line ignored',  '''end'' { if ($st.Conns.ContainsKey($p)) { $st.Conns.Remove($p) }; return $none }', '''end'' { return $none }'),
-    @('a connection never expires','$ConnLife = 180 ', '$ConnLife = 1000000000 '),
+    @('a connection never expires','$ConnLife = 90 ', '$ConnLife = 1000000000 '),
+    @('loopback never marked',     'return [Net.IPAddress]::IsLoopback($ip)', 'return $false'),
     @('another address counted',   'if ($st.Conns[$p].Addr -ne $ev.Addr)', 'if ($false)'),
     @('provider not checked',      '$rec.Provider -ne $Provider -or ', ''),
     @('listener start not seen',   'if ($ev.Port -ne $SshPort) { return $none }', 'if ($true) { return $none }'),

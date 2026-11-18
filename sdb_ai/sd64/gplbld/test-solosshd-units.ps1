@@ -21,6 +21,7 @@
 # no -Listen is refused, -Show reads the line back (LISTEN=), and a MUTANT copy whose local writes 0.0.0.0 turns the local row red.
 # 18 Nov 26, the same day: both modes also write ListenAddress ::1 (Windows' ssh client does not fall back from ::1 for "localhost");
 # the rows want exactly the two lines, -Show reads local-v4only / open-v4only / other for the rest, and MUTANT 2 (no ::1) goes red.
+# 18 Nov 26 - SOLO 79 condition 3: the config writes MaxAuthTries 6 and LoginGraceTime 30 (Linux Solo's), and MUTANT 3 (LoginGraceTime 120) goes red.
 
 $ErrorActionPreference = 'Continue'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -190,6 +191,22 @@ Check 'the host key and pid file are in the MACHINE folder, the optional key fil
     $cfgText.Contains('HostKey ' + ((Join-Path $mdir 'ssh_host_ed25519_key') -replace '\\', '/')) -and $cfgText.Contains('PidFile ' + ((Join-Path $mdir 'sshd.pid') -replace '\\', '/')) -and
     $cfgText.Contains('AuthorizedKeysFile ' + ((Join-Path $sshDir 'authorized_keys') -replace '\\', '/')))
 Check 'it does NOT force key-only: no "PasswordAuthentication no" and no AuthenticationMethods line' ($cfgText -notmatch '(?m)^PasswordAuthentication no' -and $cfgText -notmatch '(?m)^AuthenticationMethods')
+# 18 Nov 26 - SOLO 79 condition 3: the limits written out at Linux Solo's values (solo-ssh.sh:218-219), once each, and no other value.
+function Test-Limits([string]$t) {
+    return (@([regex]::Matches($t, '(?m)^MaxAuthTries\s')).Count -eq 1 -and $t -match '(?m)^MaxAuthTries 6\s*$' -and
+            @([regex]::Matches($t, '(?m)^LoginGraceTime\s')).Count -eq 1 -and $t -match '(?m)^LoginGraceTime 30\s*$')
+}
+Write-Host ('  limit lines: [' + ((@([regex]::Matches($cfgText, '(?m)^(MaxAuthTries|LoginGraceTime) .*$') | ForEach-Object { $_.Value.Trim() })) -join ', ') + ']')
+Check 'the config writes MaxAuthTries 6 and LoginGraceTime 30, once each (SOLO 79, Linux Solo''s values)' (Test-Limits $cfgText)
+# MUTANT 3: a copy that writes LoginGraceTime 120 (the old value) must turn that row red; the CONTROL is that it still printed a config.
+$mutated3 = $mutText.Replace("'LoginGraceTime 30',", "'LoginGraceTime 120',")
+$mutFile3 = Join-Path $root 'mutant3-solo-sshd.ps1'
+[IO.File]::WriteAllText($mutFile3, $mutated3, (New-Object Text.UTF8Encoding($false)))
+Write-Host ('  mutant 3 (LoginGraceTime 120) made: ' + ($mutated3 -ne $mutText) + '   (' + $mutFile3 + ')')
+$rm3 = Run 'MUTANT 3 PrintConfig local' @('-PrintConfig', '-OsUser', $expectUser, '-Listen', 'local') $mutFile3
+Check 'MUTANT 3 (LoginGraceTime 120): the mutant differs, printed a config, and the limits row goes red on it' (
+    $mutated3 -ne $mutText -and $rm3.Code -eq 0 -and $rm3.Out -match '(?m)^Port 4251' -and -not (Test-Limits $rm3.Out))
+Check 'and the live solo-sshd.ps1 is still byte-identical (SHA-256) after mutant 3' ((Sha $src) -eq $liveSha)
 # 15 Nov 26 - RELEASE_1.1 299 (file transfer): the sftp subsystem is named with the command sd_sftp.h's SD_SFTP_SUBSYSTEM matches, exactly once;
 # without it sshd refuses an sftp request before sd-solo sees it, and with another command sd-solo would not know the request.
 $sftpH = Join-Path (Split-Path -Parent $PSScriptRoot) 'gplsrc\sd_sftp.h'

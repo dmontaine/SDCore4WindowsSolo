@@ -35,6 +35,8 @@
 #      sdsys\examples, compiled.  EVERY install path - a new tree, a reload of kept data and an upgrade - so an existing account gains
 #      the file on its first upgrade and has the shipped programs refreshed on every later one.  A failure is a WARNING line in the
 #      report and does not fail the install (Linux Solo's EXAMPLES block; SD Core for Windows' LoadExamples never stops one either).
+#   4b. (18 Nov 26, P-5661) -Upgrade: sd -internal RUN gpl.bp upgrade_nocase NO.PAGE, the older tree's files to case-insensitive
+#      record ids; its output to <Solo folder>\nocase-upgrade.log; a file it left is a WARNING, no COMPLETE a failure.
 #   5. sd -internal DELETE VOC gpl.bp   (ruling 26 - no system BASIC source
 #      in the installed tree; every install and upgrade), then
 #      sd -internal SYNC.GLOBAL.CATALOG  (ruling 33 - the server's programs in
@@ -616,6 +618,32 @@ try {
     if ($exOk -and $exBad.Count -eq 0) { Note '  PASS  example programs in examples.bp' }
     else { Note '  WARNING  the example programs were not put into the account (solo_examples did not report 0 failed); run the installer again over this installation (an upgrade) to try again' }
     # EXAMPLES-END
+
+    # 18 Nov 26 - four-version audit P-5661 (Linux Solo's upgrade, SD Core for Windows' upgrade-nocase.ps1): AN UPGRADE OVER A KEPT TREE
+    # CONVERTS THE OLDER TREE'S FILES TO CASE-INSENSITIVE RECORD IDS.  gpl.bp/upgrade_nocase scans each file read only for two ids that
+    # differ only by case, converts only a file proven clean, and leaves and NAMES a file that holds such a pair, an indexed file and a
+    # file outside its account.  Its whole output goes to <Solo folder>\nocase-upgrade.log.  After the compile and before DELETE VOC
+    # gpl.bp below (RUN gpl.bp needs that pointer); the marker is written by Invoke-Sd, as for every internal step.  Judged as Core's
+    # script judges it: COMPLETE is the success line; "could not be read or rebuilt" (10183) or no COMPLETE fails the step; a file left
+    # (10178, 12041, 15993, 10186) is a WARNING naming the log, not a failure - the files are safe as they are.  Up to 30 minutes.
+    if ($Upgrade) {
+        $t = Invoke-Sd '-internal RUN gpl.bp upgrade_nocase NO.PAGE' '' 1800000
+        $nocaseLog = Join-Path $AppDir 'nocase-upgrade.log'
+        try { [IO.File]::WriteAllText($nocaseLog, ('=== upgrade_nocase ' + (Get-Date -Format 's') + "`r`n" + $t + "`r`n"), (New-Object Text.UTF8Encoding($false))) }
+        catch { Note ('  could not write ' + $nocaseLog + ': ' + $_.Exception.Message) }
+        $ncComplete = [regex]::IsMatch($t, '(?m)^\s*COMPLETE\s*$')
+        $ncTrouble = $t -match 'could not be read or rebuilt'
+        $ncLeft = ($t -match 'WARNING:\s+\d+\s+file\(s\)\s+hold\s+\d+\s+record id') -or ($t -match '\d+\s+file\(s\)\s+named by an account''s VOC lie') -or
+                  ($t -match '\d+\s+indexed file\(s\)\s+were left')
+        $ncBad = @($disqualify | Where-Object { $t.IndexOf($_, [StringComparison]::OrdinalIgnoreCase) -ge 0 })
+        Note ('  nocase: complete=' + $ncComplete + ' trouble=' + $ncTrouble + ' left=' + $ncLeft + '   (the report: ' + $nocaseLog + ')')
+        if (-not $ncComplete -or $ncTrouble -or $ncBad.Count -gt 0) {
+            Note ('  FAIL  case-insensitive record ids (upgrade_nocase did not finish cleanly; ' + $nocaseLog + ' has its output)')
+            $script:fails += 'case-insensitive record ids'
+        }
+        elseif ($ncLeft) { Note ('  WARNING  some files were left with case-sensitive record ids, each named in ' + $nocaseLog + '; convert each with configure.file no.case') }
+        else { Note '  PASS  case-insensitive record ids (every file converted)' }
+    }
 
     # 28 Sep 26 - RULING 26: NO SYSTEM BASIC SOURCE IN THE INSTALLED TREE.  The
     # gpl.bp directory no longer ships (stage.py SDSYS_BUILD_SEED; an upgrade

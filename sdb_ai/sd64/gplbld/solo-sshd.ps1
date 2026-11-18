@@ -203,8 +203,13 @@ function Get-Config([string]$app, [string]$user, [string]$mdir, [string]$listen)
         # 17 Nov 26 - SOLO 77: VERBOSE so each connection writes "Connection from A port N on L port 4251" to the
         # OpenSSH/Operational channel, which is how solo-sshguard.ps1 tells Solo's records from the port-22 sshd's;
         # LoginGraceTime pinned because the guard trusts a connection's pid for that long (+ 60 s, its $ConnLife).
+        # 18 Nov 26 - SOLO 79 condition 3 (the owner's ruling (a), Linux mail 2026-11-18T0540): the limits written out at
+        # Linux Solo's values (solo-ssh.sh:218-219) - MaxAuthTries 6 (every key a client offers that the server does not
+        # know is a try, so 3 locks out a person with an agent) and LoginGraceTime 30 (was 120; the guard's $ConnLife
+        # moved to 90 with it).
         'LogLevel VERBOSE',
-        'LoginGraceTime 120',
+        'MaxAuthTries 6',
+        'LoginGraceTime 30',
         'Subsystem sftp sftp-server.exe',
         ('ForceCommand "' + (Join-Path $app 'usr\bin\sd-solo.exe') + '"')
     ) -join "`n") + "`n"

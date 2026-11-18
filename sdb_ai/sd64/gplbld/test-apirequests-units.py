@@ -14,7 +14,7 @@ WHAT IS HELD (text only; whether the server answers is the verify suite's):
   - every entry of apisrvr's dispatch list has the number its comment gives (a table that drifts by one is the failure this file exists for);
   - 49 is vb.revision, whose handler is `response = system(1012)`;
   - Solo: 72 is vb.sshkey, 50 to 71 are Core's handlers in Core's order (12 Nov 26, SOLO 56 groups 7 and 8: 70 vb.fileadmin, 71 vb.fcontrol),
-    SrvrSshKey is 72 in sdclient.h, the BASIC sdclient and scram-probe.py, SrvrRevision is 49 in the first two,
+    SrvrSshKey is 72 in sdclient.h and scram-probe.py (the BASIC sdclient defines it no more, 18 Nov 26, P-1912), SrvrRevision is 49 in sdclient.h and the BASIC sdclient,
     and the request is not one a session may make before it has logged in;
   - Core: 71 is the last request, 72 is not allocated (the entry after 71 is vb.illegal.action) and the comment on 71 says it is reserved for Solo's ssh key.
 """
@@ -79,7 +79,10 @@ def checks(files):
         h = files["sdclient.h"]
         ck("S4 sdclient.h: SrvrRevision 49 and SrvrSshKey 72", re.search(r"#define SrvrRevision\s+49\b", h) is not None and re.search(r"#define SrvrSshKey\s+72\b", h) is not None)
         b = files["sdclient"]
-        ck("S5 the BASIC sdclient: SrvrRevision 49 and SrvrSshKey 72", re.search(r"\$define SrvrRevision\s+49\b", b) is not None and re.search(r"\$define SrvrSshKey\s+72\b", b) is not None)
+        # 18 Nov 26 (audit round 3, P-1912): the BASIC sdclient's $define of SrvrSshKey is gone, as Linux's template has none (no method
+        # there sends it); what stays to check is the revision, and that no SrvrSshKey line names another number.
+        ck("S5 the BASIC sdclient: SrvrRevision 49, and no SrvrSshKey other than 72", re.search(r"\$define SrvrRevision\s+49\b", b) is not None
+           and all(m == "72" for m in re.findall(r"^\$define SrvrSshKey\s+(\d+)", b, re.M)))
         ck("S6 scram-probe.py sends the ssh key request as 72", re.search(r"^REQ_SSHKEY = 72\b", files["scram-probe.py"], re.M) is not None)
         gate = re.search(r"if action # 24 and action # 25 and action # 47 and action # 48 then", ap)
         ck("S7 only 24, 25, 47 and 48 are admitted before login (72 is not)", gate is not None)
@@ -110,7 +113,7 @@ MUTANTS_SOLO = [
     ("a Core handler between 50 and 69 is missing", "apisrvr", "   vb.txn,            ;*  54", "   vb.illegal.action, ;*  54"),
     ("the handler is another revision", "apisrvr", "response = system(1012)", "response = system(1013)"),
     ("the header says 49 for the key", "sdclient.h", "#define SrvrSshKey       72", "#define SrvrSshKey       49"),
-    ("the BASIC copy says 49 for the key", "sdclient", "$define SrvrSshKey       72", "$define SrvrSshKey       49"),
+    ("the BASIC copy says 48 for the revision", "sdclient", "$define SrvrRevision     49", "$define SrvrRevision     48"),
     ("the probe sends 49", "scram-probe.py", "REQ_SSHKEY = 72", "REQ_SSHKEY = 49"),
     ("72 is admitted before login", "apisrvr", "if action # 24 and action # 25 and action # 47 and action # 48 then", "if action # 24 and action # 25 and action # 47 and action # 48 and action # 72 then"),
 ]

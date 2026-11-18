@@ -18,6 +18,7 @@
   	  * 
   	  * 
 	  * START-HISTORY:
+	  * 18 Nov 26 SD Core Solo - four-version audit round 3 (P-6156): K$OS.ADMINISTRATOR (63) retired, as gplsrc/keys.h; no Solo program asks it.
 	  * 18 Nov 26 SD Core Solo - four-version audit round 2: K$JOB.MARK (172) in step with SD Core's header, as Linux Solo (P-1315); the
 	  *               keys in Linux Solo's order, K$GLOBAL.SESSION and USR$GLOBAL at the end (P-4417 to P-4421, P-5921, P-5922); the
 	  *               AI keys' stale "nohelper" notes go (the helper is here since RELEASE_1.1 246).  No number changes.
@@ -168,7 +169,8 @@
 *   SESSION flag, set on entering SDSYS and cleared on the way out; this one
 *   is the PERSON, asked of Windows each time, and a LOGTO does not move it.
 *   Nothing in SD can set or forge it.  keys.h carries the same note.
-      $define K$OS.ADMINISTRATOR 63      ;* Is the signed-in person an OS administrator?
+* 18 Nov 26 SD Core Solo - RETIRED, four-version audit round 3 (P-6156), as SD Core for Windows (P-1965): no Solo program asks it,
+*   and Linux has no such key.  63 stays reserved and unused; gplsrc/keys.h says the same.
 * 17 Nov 26 SD Core Solo - 64 (K$INTERACTIVE) and 65 (K$OS.ELEVATED) retired: SD Core's
 *   LOGIN and CPROC ask them; no Solo program does.  Keep the numbers unused.
 * 66 and 67: retired, see the note at 61.

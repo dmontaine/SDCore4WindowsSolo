@@ -32,6 +32,7 @@ LINUX = os.environ.get('SD_LINUX_SD64') or os.path.normpath(os.path.join(HERE, '
 
 # (Linux id, our id): reason.  Each reason cites its evidence.  Read 12 Nov 2026 (RELEASE_1.1 257), text against text.
 ALLOWED = {
+    ('10172', '10172'): 'product name: "SD Core Solo\'s installer ... SD Core Solo is upgraded" where Linux Solo names its own product (commit 8cc49a65, Linux T1420 item 2; 18 Nov 26, four-version audit round 3)',
     ('10002', '10002'): 'product name: SD Core Solo for Windows (SOLO 4); Linux Solo\'s words since 17 Nov 26 (four-version audit P-4339)',
     ('11904', '11904'): 'sl_put\'s 11904 is a character code (CJK radicals), not a message id; Linux has the same literal (RELEASE_1.1 258)',
     ('10003', '10051'): 'two different refusals on the same LOGIN line; ours says the account must be your own (SOLO 4)',

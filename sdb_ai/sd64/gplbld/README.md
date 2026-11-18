@@ -28,11 +28,15 @@ Binary Free Install process.
     gen_includes.py (found in gplbld) - Python script to regenerate the BASIC
       include records that are derived from C headers:
         gplsrc/revstamp.h -> sdsys/gpl.bp/revstamp.h
-        gplsrc/err.h      -> sdsys/SYSCOM/ERR.H and sdsys/gpl.bp/errtext.h
+        gplsrc/err.h      -> sdsys/syscom/err.h and sdsys/gpl.bp/errtext.h
         gplsrc/opcodes.h  -> sdsys/gpl.bp/opcodes.h
-      Run it from sd64 after editing any of those C headers; "--check" reports
-      what is out of date without writing.  This replaces gpl.bp/revstamp,
-      gpl.bp/errgen and GPL.BP/OPGEN, which did the same translations from
+      Run it from sd64 after editing any of those C headers:
+        python gplbld/gen_includes.py
+      "--check" reports what is out of date without writing anything; the
+      Makefile runs it that way (target check-includes) before a plain "make",
+      so a C header changed without regenerating its include stops the build.
+      Never edit the four generated records by hand.  This replaces gpl.bp/revstamp,
+      gpl.bp/errgen and gpl.bp/opgen, which did the same translations from
       inside SD and so needed the C source in the installed database - which
       the Windows install layout does not provide, so this script is the only
       way to regenerate any of them on this port.  The $execute directives
@@ -41,7 +45,7 @@ Binary Free Install process.
       BASIC source is deleted.
 
 
-    BBPROC - BootStrap Command Processor (found in GPL.BP).
+    BBPROC - BootStrap Command Processor (found in gpl.bp).
       This program is a stripped down command processor based on VBSRVR.
       It compiles the following programs (hardcoded list) using BCOMP compiled by bbcmp.py.
 
@@ -77,7 +81,7 @@ Binary Free Install process.
 
 
     Basic setup:
-    No program object in GPL.BP.OUT / BP.OUT / gcat
+    No program object in gpl.bp.out / bp.out / gcat
     No binaries in bin, including pcode file
     No object files in gplobj
     No dynamic files.
@@ -94,13 +98,16 @@ Binary Free Install process.
     install runs pcode_bld.py to build pcode file
   
     install runs sd in install mode to run the bootstrap command processor BBPROC
-      sudo /usr/local/sdsys/bin/sd -start
-      sudo /usr/local/sdsys/bin/sd -i
+    (gplbld/bootstrap.py, run by stage.py --bootstrap as your own Windows user -
+    Solo needs no elevation; <tree> is the staged tree, and the staged bin\sd.exe
+    is installed as usr\bin\sd-solo.exe)
+      <tree>\bin\sd.exe -start
+      <tree>\bin\sd.exe -i
         This step runs the BBPROC command processor, currently requires a <CR> to continue
         
     install runs second compile
-      sudo /usr/local/sdsys/bin/sd -asdsys -internal SECOND.COMPILE   
+      <tree>\bin\sd.exe -internal SECOND.COMPILE
 	  
 	install runs WRITE_INSTALL_DICTS to create system dictionary items.
-      sudo bin/sd RUN gpl.bp write_install_dicts NO.PAGE
+      <tree>\bin\sd.exe -internal RUN gpl.bp write_install_dicts NO.PAGE
  

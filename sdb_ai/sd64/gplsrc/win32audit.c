@@ -13,6 +13,8 @@
  * GNU General Public License for more details.
  *
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - four-version audit (P-0288), from SD Core for Windows aa750298: win32_audit_event(), the second
+ *           copy of each audit record to the Application event log (source sd-audit), as Linux Solo copies each to the journal.
  * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4327..P-4332), from SD Core
  *           f43a0a43 (RELEASE_1.1 247, Linux S.159): win32_audit_rotate() refuses a
  *           rotation whose DACL it cannot read, recreates with OPEN_ALWAYS so a racing
@@ -157,6 +159,50 @@ int win32_audit_rotate(const char* path, const char* rotated) {
     LocalFree(sd);
 
   return status;
+}
+
+/* ======================================================================
+   win32_audit_event()  -  the second copy of an audit record, to the
+   Application event log (18 Nov 26, P-0288, from SD Core for Windows;
+   win32audit.h has the why).
+
+   The source handle is opened once per process and kept: RegisterEventSource
+   on every record would cost a round trip to the event log service each time.
+   A source the installer did not register still logs (Windows files it under
+   the Application log with no message text of its own), so nothing here
+   depends on the registration having worked.  The record is one of the
+   event's insertion strings - data, never a format.                        */
+
+void win32_audit_event(const char* text) {
+  static HANDLE src = NULL;
+  static int tried = 0;
+  HANDLE tok = NULL;
+  union {
+    TOKEN_USER t;
+    BYTE b[SECURITY_MAX_SID_SIZE + sizeof(TOKEN_USER)];
+  } tu;
+  DWORD len = 0;
+  PSID sid = NULL;
+  LPCSTR strs[1];
+
+  if ((text == NULL) || (*text == '\0'))
+    return;
+
+  if (!tried) {
+    tried = 1;
+    src = RegisterEventSourceA(NULL, "sd-audit");
+  }
+  if (src == NULL)
+    return;
+
+  if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &tok)) {
+    if (GetTokenInformation(tok, TokenUser, &tu, sizeof(tu), &len))
+      sid = tu.t.User.Sid;
+    CloseHandle(tok);
+  }
+
+  strs[0] = text;
+  (void)ReportEventA(src, EVENTLOG_INFORMATION_TYPE, 0, 1, sid, 1, 0, strs, NULL);
 }
 
 /* END-CODE */

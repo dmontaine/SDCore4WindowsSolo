@@ -18,6 +18,13 @@
 * 
 * 
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 3, Linux Solo's LOGIN form: six refusals name their reason on the trail (the
+*           register, a network or serial connection, the VOC, not an SD account, $release, the revision cross-check), which
+*           read reason=unspecified; the refused record names initial.account, set empty at the top, and audit.account is gone;
+*           one.shot decides require.password and one.command the success record (batch.command, pw.done and pw.has.cred go);
+*           10172 is said before the walk; the unused is_grp_member deffun and the dead omit loop go; $release and
+*           $command.stack are read in their THEN branch.  gate.ok keeps its assignment at the top (BCOMP reads its call
+*           site first).  Not run: LOGIN is not reachable by bbcmp.
 * 18 Nov 26 SD Core Solo - four-version audit round 2: the refusal's reason is "not in the register" (P-5924) and the
 *           login record names initial.account (P-5925), as the other three.  The case fallbacks go (the Linux audit
 *           session's decision; Solo has no unconverted VOC): $release and $command.stack are read once, and update.voc
@@ -340,10 +347,8 @@ $include err.h
 $include keys.h
 $include keyin.h
 $include keycode.h
-* 20240219 mab user must be member of sdusers  
-* 14 Aug 26 Windows port - is_grp_member is back.  The sdusers gate and the
-*   per-account group test below both call it.  See PROJECT_STATUS.md 5.6.
-deffun is_grp_member(user,group) calling '!is_grp_member'
+* 18 Nov 26 SD Core Solo - four-version audit round 3 (P-3344): the deffun of !is_grp_member is gone, as Linux Solo's (LSOLO 30): its
+*   callers here (the sdusers gate, the account-group test) went with SOLO 4.
 * 29 Aug 26 Windows port - PRE_RELEASE_FIXES 56.  THE SECOND CALLER OF
 *   !elevate, and until today there was deliberately only one.  ELEVATE's own
 *   header says "the only caller of START and STOP is CPROC's LOGTO handling";
@@ -364,26 +369,16 @@ deffun pw_complex(pw) calling '!pw_complex'
 *   REFUSAL ADDED LATER AND NOT GIVEN A REASON STILL PRODUCES A RECORD - a
 *   vague line in the trail is recoverable, a missing one is not.
    audit.reason = 'unspecified'
-   audit.account = ''
-
-* 22 Aug 26 Windows port - PROJECT_STATUS.md 7 step 9.  ASSIGNED HERE, not at
-*   the gate, for the reason the block below gives: it is read by the audit
-*   line at the end of this subroutine, which is reached on paths that never
-*   run the gate at all, and BCOMP's "is not assigned a value" fails the whole
-*   bootstrap.  '' is also the value that means "no command was given", which
-*   is the interactive session and the common case.
-   batch.command = ''
+* 18 Nov 26 SD Core Solo - four-version audit round 3 (P-4437, P-5923, P-7390, P-4428): initial.account gets its empty value here,
+*   above every refusal, as Linux Solo - terminate.connection names it; there is no audit.account beside it.  batch.command is
+*   gone with Linux Solo's one.shot form (one.shot and one.command are each assigned where they are read).
+   initial.account = ''
 
 * 20 Sep 26 Windows port - RELEASE_1.1 82 (D2').  gate.ok for the same reason: internal.gate
 *   assigns it and the call site READS it, and BCOMP sees the call site textually first.
 *   @true is the value that means "nothing to check", which is what every session that is
 *   not internal leaves it at.
    gate.ok = @true
-
-* 26 Sep 26 SD Core Solo - SOLO 15 piece 5.  pw.done stops require.password
-*   asking a second time.  (Its first setter, adopt.moved.account, went with
-*   ruling 29; the flag stays for the call site that reads it.)
-   pw.done = @false
 
    is.phantom = kernel(K$IS.PHANTOM, 0)
 
@@ -496,6 +491,13 @@ deffun pw_complex(pw) calling '!pw_complex'
          close update.voc.f
       end
 
+* 18 Nov 26 SD Core Solo - four-version audit round 3 (P-3360, P-3371, P-5476): the refusal of mode 4 anywhere but SDSYS under an
+*   administrator (10172) is said here, before the walk, as Linux Solo and SD Core say it; it was the walk's else arm.  The same
+*   sessions see it.
+      if mode = 4 and not(@who = 'sdsys' and kernel(K$ADMINISTRATOR,-1)) then
+         display sysmsg(10172) ;* Cannot update every account from here
+      end
+
       if @who = 'sdsys' and kernel(K$ADMINISTRATOR,-1) then
 * 04 Sep 26 Windows port - MODE 4 DOES NOT ASK, AND IT SAYS SO RATHER THAN GOING
 *   QUIET.  PRE_RELEASE_FIXES 70.  The installer runs this from ssPostInstall,
@@ -579,17 +581,12 @@ deffun pw_complex(pw) calling '!pw_complex'
                display sysmsg(2200) ;* Cannot open accounts register
             end
          end
-      end else
+      end
 * 04 Sep 26 Windows port - THE NULL CASE, REFUSED OUT LOUD.  PRE_RELEASE_FIXES
 *   70.  Mode 4 is only ever asked for by something that wants every registered
-*   account refreshed, so arriving here means this session is not in SDSYS or is
-*   not an administrator and the walk did NOT run.  Modes 2 and 3 reach this
-*   arm on every ordinary account and must stay silent - that is the normal
-*   case for them and says nothing is wrong.
-         if mode = 4 then
-            display sysmsg(10172) ;* Cannot update every account from here
-         end
-      end
+*   account refreshed, so a session not in SDSYS or not an administrator is told
+*   the walk did NOT run (10172, said above the walk since 18 Nov 26).  Modes 2
+*   and 3 pass over the walk on every ordinary account and stay silent.
 
       ok = @true
       return
@@ -622,6 +619,7 @@ deffun pw_complex(pw) calling '!pw_complex'
 
    openpath @sdsys:@ds:'accounts' to acc.f else
       display sysmsg(2200) ;* Cannot open accounts register
+      audit.reason = 'the accounts register could not be opened'   ;* 18 Nov 26 (P-3380), as Linux Solo
       goto terminate.connection
    end
 
@@ -633,6 +631,7 @@ deffun pw_complex(pw) calling '!pw_complex'
 
   if system(42) or system(1027) then   ;* Network/serial connection
     logmsg sysmsg(5063, 'security test')  ;* Failed login authentication from %1
+    audit.reason = 'network or serial connection'   ;* 18 Nov 26 (P-3375), as Linux Solo
     goto terminate.connection
   end else
 * 14 Aug 26 Windows port - the sdusers gate is back, and with it the operating
@@ -748,7 +747,6 @@ deffun pw_complex(pw) calling '!pw_complex'
 
          read acc.rec from acc.f, initial.account else
             display sysmsg(5018, initial.account) ;* Account %1 not in register
-            audit.account = initial.account
             audit.reason = 'not in the register'
             goto terminate.connection
          end
@@ -959,7 +957,7 @@ deffun pw_complex(pw) calling '!pw_complex'
 *        elevated or not, and whatever the Windows account is called (ruling 11).
          if upcase(@logname) = 'SDSYS' then
             display sysmsg(10002) ;* SDSYS Account access is restricted to privileged users
-            audit.account = 'sdsys'
+            initial.account = 'sdsys'          ;* 18 Nov 26 (P-4428): the name the refusal's record carries, as audit.account did
             audit.reason = 'SDSYS is not a login target'
             goto terminate.connection
          end
@@ -1000,13 +998,10 @@ deffun pw_complex(pw) calling '!pw_complex'
 *        is gone.
          read acc.rec from acc.f, initial.account else
             display sysmsg(5018, initial.account) ;* Account %1 not in register
-            audit.account = initial.account
             audit.reason = 'not in the register'
             goto terminate.connection
          end
    end case
-
-   audit.account = initial.account
 
 * 27 Aug 26 Windows port - A SUSPENDED ACCOUNT IS NOT ENTERED.  Owner, 27 Aug
 *   2026: "an account can be temporarily denied access".  MODIFY.ACCOUNT
@@ -1111,12 +1106,14 @@ deffun pw_complex(pw) calling '!pw_complex'
 
    openpath "voc" to voc on error
       display 'Error ' : status() : ' opening VOC file. Check access rights.'
+      audit.reason = 'the VOC could not be opened'   ;* 18 Nov 26 (P-3377), as Linux Solo
       goto terminate.connection
    end else
    * 20240219 mab as part of the security changes, do not allow auto creation of account !
    *   gosub create.account
        display sysmsg(5163)    ;* Directory is not a  sd account
-       goto terminate.connection 
+       audit.reason = 'not an SD account'   ;* 18 Nov 26 (P-3370), as Linux Solo
+       goto terminate.connection
    end
 
    if catalogued('CCALL.INIT') then call ccall.init
@@ -1142,9 +1139,7 @@ deffun pw_complex(pw) calling '!pw_complex'
 *   upper one when this account is next refreshed.
 *   18 Nov 26 SD Core Solo - four-version audit round 2 (P-3369; the case fallbacks): ONE READ, as Linux Solo.  The VOC is
 *   NOCASE and Solo has no unconverted VOC, so $RELEASE is the same record.
-      release.found = @true
-      read voc.rec from voc, "$release" else release.found = @false
-      if release.found then
+      read voc.rec from voc, "$release" then     ;* 18 Nov 26 (P-7391): Linux Solo's one read and its THEN branch
 * 16 Sep 26 Windows port - RELEASE_1.1 39.  THE OLD PER-LOGIN RELEASE-MISMATCH
 *   PROMPT (5025/5026/5027, Field 2) IS REMOVED.  It ran an unguarded `input` on
 *   the mode-0 path, so the installer's HIDDEN upgrade sessions
@@ -1164,7 +1159,8 @@ deffun pw_complex(pw) calling '!pw_complex'
          show.stack = (index(s, 'S', 1) # 0)
          clear.on.data = not(index(s, 'X', 1)) and not(cursor.at.end)
       end else
-         display sysmsg(5028) ;* $RELEASE VOC record not found
+         display sysmsg(5028) ;* $release VOC record not found
+         audit.reason = 'the $release VOC record is missing'   ;* 18 Nov 26 (P-3361), as Linux Solo
          goto terminate.connection
       end
 
@@ -1172,6 +1168,7 @@ deffun pw_complex(pw) calling '!pw_complex'
 
       if compare(system(1012), SD.REV.STAMP) then
          display sysmsg(5029) ;* Revision level cross-check error
+         audit.reason = 'revision level cross-check error'   ;* 18 Nov 26 (P-3364), as Linux Solo
          if not(kernel(K$INTERNAL,-1)) then goto terminate.connection
       end
 
@@ -1183,16 +1180,16 @@ deffun pw_complex(pw) calling '!pw_complex'
 *   case one.  See CPROC's copy of this for the full reasoning.
 *   PROJECT_STATUS.md 5.12 (b).
 *   18 Nov 26 SD Core Solo - four-version audit round 2 (P-3376; the case fallbacks): one read, as Linux Solo (the VOC is NOCASE).
-      read voc.rec from voc,'$command.stack' else
-         voc.rec = ''
-      end
-      if upcase(voc.rec[1,1]) = "X" THEN
+*   18 Nov 26 (P-7388): Linux Solo's form, the read's THEN branch.
+      read voc.rec from voc,"$command.stack" then
+         if upcase(voc.rec[1,1]) = "X" THEN
 
-        openpath initial.account.path:@ds:'stacks' to stk.f then
-           read command.stack from stk.f, @logname else null
-           close stk.f
-        end
+           openpath initial.account.path:@ds:'stacks' to stk.f then
+              read command.stack from stk.f, @logname else null
+              close stk.f
+           end
 
+         end
       end
    end
 
@@ -1283,8 +1280,11 @@ deffun pw_complex(pw) calling '!pw_complex'
 *   the API (SCRAM, apisrvr), a phantom inherits its parent's login, and the
 *   internal door is the installer's.  require.password below has the rules,
 *   including the one-shot command that must never stop at a prompt.
-   if mode = 0 and not(is.phantom) and not(kernel(K$INTERNAL,-1)) and not(pw.done) then
-      batch.command = trim(system(1026))
+* 18 Nov 26 SD Core Solo - four-version audit round 3 (P-4430, P-4424): Linux Solo's one.shot form.  one.shot says whether a command
+*   was given on the command line, which is all require.password asks; the success record reads the command itself below.  pw.done
+*   (its setter went with ruling 29) is gone.
+   if mode = 0 and not(is.phantom) and not(kernel(K$INTERNAL,-1)) then
+      one.shot = (trim(system(1026)) # '')
       gosub require.password
       if not(pw.ok) then
          audit.reason = pw.why
@@ -1335,11 +1335,17 @@ deffun pw_complex(pw) calling '!pw_complex'
 *   "LOGIN account=x" alone cannot distinguish a person signing in from a job
 *   that ran something.  It is empty for every interactive session.
 *   18 Nov 26 (four-version audit round 2, P-5925, P-4427, P-4429): the account named is initial.account, as the
-*   other three - the one the session entered, which the register walk above may have found after audit.account was set.
-   if batch.command = '' then
-      void kernel(K$AUDIT, 'login account=' : initial.account)
-   end else
-      void kernel(K$AUDIT, 'login account=' : initial.account : ' command=' : batch.command)
+*   other three - the one the session entered, which the register walk above may have found.
+*   18 Nov 26 (round 3, P-7387, P-7389): Linux Solo's form - mode 0 only, the command read here as one.command (the update
+*   modes returned above, so the record is the same).
+   if mode = 0 then
+      one.command = ''
+      if not(is.phantom) and not(kernel(K$INTERNAL,-1)) then one.command = trim(system(1026))
+      if one.command = '' then
+         void kernel(K$AUDIT, 'login account=' : initial.account)
+      end else
+         void kernel(K$AUDIT, 'login account=' : initial.account : ' command=' : one.command)
+      end
    end
 
    ok = @true
@@ -1349,7 +1355,8 @@ terminate.connection:
 * 16 Aug 26 Windows port - PROJECT_STATUS.md 7 step 4.  EVERY refused login
 *   leaves through here, so one record covers all of them and a refusal added
 *   later is recorded whether or not whoever adds it thinks about the trail.
-   void kernel(K$AUDIT, 'login refused account=' : audit.account : ' reason=' : audit.reason)
+* 18 Nov 26 (round 3, P-3368, P-4428): the account named is initial.account, as the other three; audit.account is gone.
+   void kernel(K$AUDIT, 'login refused account=' : initial.account : ' reason=' : audit.reason)
 
    display sysmsg(5024) ;* Connection terminated
    sleep 2
@@ -1491,7 +1498,6 @@ internal.gate:
       audit.reason = 'no internal marker'
    end
 
-   audit.account = initial.account
    if gate.ok then
       void kernel(K$AUDIT, 'internal session admitted account=' : initial.account : ' writer=' : gate.writer : ' age=' : gate.age)
 *     AND SAID ON THE SCREEN, so it lands in every transcript and installer log that captures this
@@ -1545,20 +1551,18 @@ require.password:
    pw.ok = @false
    pw.why = ''
    pw.via = ''
-   pw.interactive = (batch.command = '')
+   pw.interactive = not(one.shot)     ;* 18 Nov 26 (P-4424): Linux Solo's form
    pw.on.tty = (kernel(K$TTY,0) # '')
 
-   pw.has.cred = @false
-   pw.has.acct = @false
+   pw.has.acct = @false               ;* 18 Nov 26 (P-4432, P-4436): no pw.has.cred, as Linux Solo
    pw.has.global = @false
    openpath @sdsys:@ds:'$cred' to pw.cred.f then
       read pw.rec from pw.cred.f, initial.account then pw.has.acct = @true
       read pw.rec from pw.cred.f, '$global' then pw.has.global = @true
       close pw.cred.f
    end
-   pw.has.cred = pw.has.acct or pw.has.global
    pw.rec = ''
-   if not(pw.has.cred) then
+   if not(pw.has.acct or pw.has.global) then
       display sysmsg(15909) ;* This account has no password - install SD Core Solo again...
       pw.why = 'the account has no password'
       return
@@ -1640,7 +1644,7 @@ require.password:
 *  register an S4U task (measured: "Access is denied"), which is why the jobs' tasks are registered by the doors helper (solo-doors.ps1).
 *  It proves the account, never the global password, so it never unlocks ADMIN.
    if not(pw.interactive) and pw.dpapi.fail then
-      rj.cmd = batch.command
+      rj.cmd = trim(system(1026))     ;* 18 Nov 26: the one-shot's command itself (batch.command is gone, P-4430)
       rj.name = field(rj.cmd, ' ', 2)
       rj.ok = @false
       if dcount(rj.cmd, ' ') = 2 and downcase(field(rj.cmd, ' ', 1)) = 'run.job' then
@@ -1838,50 +1842,11 @@ update.voc:
 *   compiler, the cataloguer, both editors, COPY and DELETE.CATALOG, reachable
 *   through UPDATE.ACCOUNTS or the $RELEASE prompt with no privilege at all.
 *   It has no subject now.  The history is in HISTORY.md, not here.
-   omit.rec = ''
-*  18 Sep 26 - omit.count is STILL ASSIGNED because the loop at the end of this
-*  select reads it, and BCOMP's ERRGEN dies on a use with no assignment.  Zero
-*  is what makes that loop a no-op; do not delete this line.
-   omit.count = 0
-
+* 18 Nov 26 SD Core Solo - four-version audit round 3 (P-3366): the omit loop that stayed (omit.count = 0, a no-op) is gone, with
+*   omit.rec, omit.count and copy.it, as Linux Solo and SD Core: the loop copies all of NEWVOC.
    select sdsys.file to 11
    loop
       readnext id from 11 else exit
-
-      copy.it = @true
-
-* 13 Sep 26 Windows port - RELEASE_1.1 5.  The two copy.it = @false tests that
-*     stood here - skipping TIER.OMIT.STANDARD and TIER.ADD.ADMINISTRATOR so the
-*     list records were not copied into an account's VOC - are gone with the
-*     records.  The tier lists moved to sdsys/tier.policy, so NEWVOC holds only
-*     VOC entries now and there is nothing here to skip.  An upgrade replaces
-*     NEWVOC wholesale (stage.py), so no pre-move copy survives to be filtered.
-
-*     An explicit comparison rather than LOCATE, for the reason CREATEA gives at
-*     the matching loop: CPROC's two LOCATE precedents each search a structure
-*     built the other way up from what they appear to search, and a membership
-*     test that silently matched nothing would omit nothing here and look
-*     exactly like a filter that had worked.
-      if copy.it and omit.count > 1 then
-         for omit.i = 2 to omit.count       ;* field 1 is the description
-*           18 Aug 26 Windows port - AND SO IS THIS ONE, and it is the one that
-*           matters: the list holds verb ids and id is a verb id, so if either
-*           side is lower-cased without the other NOTHING is omitted and a
-*           standard account silently gets the full VOC.  5.12 (b).
-            if upcase(omit.rec<omit.i>) = upcase(id) then
-               copy.it = @false
-               omit.i = omit.count          ;* stop looking
-            end
-         next omit.i
-      end
-
-* 17 Aug 26 Windows port - CONTINUE, and it is demonstrated 30 lines below in
-*   this same loop, where a declined type change skips the write.  CREATEA's
-*   matching loop says CONTINUE's behaviour inside LOOP ... REPEAT "is not
-*   demonstrated anywhere here" and uses a flag round the write instead - that
-*   note was wrong about this file, and is left standing there because the flag
-*   it chose is not worth a second uncompiled change to correct.
-      if not(copy.it) then continue
 
       read rec from sdsys.file,id then
          new.type = upcase(rec[1,1])

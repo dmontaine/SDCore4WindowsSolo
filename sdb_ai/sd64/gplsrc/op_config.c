@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - from SD Core for Windows (Linux 1557e270, S.62; four-version audit round 3, P-6154): CONFIG('NETDIRS') is gone, as the other three.
  * 17 Nov 26 SD Core Solo - from Core 8bd42f1a (RELEASE_1.1 317): CONFIG('APILOCAL') reads the segment, as APIPORT.
  * 11 Nov 26 SD Core Solo - from SD Core / Linux Solo 57a5e8d (S.88 3.7a; SOLO 56): CONFIG() takes a name of up to 16 characters (the
  *               setter is not touched).  SCREENTHEME is 11, so it was never found and the site theme never applied.
@@ -174,13 +175,10 @@ void op_config() {
     result.data.value = pcfg.maxrlock;
   else if (!strcmp(param, "MUSTLOCK"))
     result.data.value = pcfg.must_lock;
-/* 21 Aug 26 Windows port - NETDIRS.  Read only, and from the SEGMENT rather
-   than from pcfg, for the same reason as APIPORT below: it is a system-wide
-   containment root and a per-process copy would be one the session could be
-   given a different view of.  net_path_permitted() reads the same bytes, so
-   what this prints is what is actually enforced.                          */
-  else if (!strcmp(param, "NETDIRS"))
-    k_put_c_string((char*)(sysseg->netdirs), &result);
+/* 18 Nov 26 SD Core Solo - from SD Core for Windows / Linux 1557e270 (S.62; four-version audit round 3, P-6154, P-6155): NETDIRS is no
+   longer offered to CONFIG(), as Linux's and Linux Solo's is not ("Not offered to CONFIG(), not changed by set.config"): the list of the
+   directories outside the Solo folder that sessions may reach is read in sd.conf.  It was read here from the segment since 21 Aug 26;
+   nothing in SD asked it.                                                                                                              */
   else if (!strcmp(param, "NETFILES"))
     result.data.value = sysseg->netfiles;
   else if (!strcmp(param, "NETWAIT"))

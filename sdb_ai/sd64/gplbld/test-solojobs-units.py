@@ -259,7 +259,8 @@ def checks(raw):
     i_tty = lg.find("if not(pw.interactive) and pw.on.tty then")
     ck("J14", "login admits by Windows identity only 'run.job NAME' exactly, only when the kept copy is there and DPAPI would not open it, only when $cred is this Windows user's own; no admin flag; after $stored, before the terminal refusal",
        rjb != "" and "if dcount(rj.cmd, ' ') = 2 and downcase(field(rj.cmd, ' ', 1)) = 'run.job' then" in rjb
-       and "convert('abcdefghijklmnopqrstuvwxyz0123456789-', '', rj.name) = ''" in rjb and "rj.cmd = batch.command" in rjb
+       # 18 Nov 26 (audit round 3, P-4430): the one-shot's command is read with system(1026); login's batch.command is gone
+       and "convert('abcdefghijklmnopqrstuvwxyz0123456789-', '', rj.name) = ''" in rjb and "rj.cmd = trim(system(1026))" in rjb
        and "if SDEXT(@sdsys : @ds : '$cred' : @FM : 'DIR', @TRUE, SD_FILE_PRIVATE) = '1' then" in rjb
        and "K$ADMINISTRATOR" not in rjb and "K$GLOBAL.SESSION" not in rjb and rjb.count("pw.ok = @true") == 1
        and "if pw.text = '' then pw.dpapi.fail = @true" in lg and lg.count("pw.dpapi.fail = @true") == 1

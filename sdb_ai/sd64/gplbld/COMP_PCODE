@@ -4,6 +4,8 @@ PROGRAM COMP_PCODE
 $internal
 
 * 18 Nov 26 SD Core Solo - four-version audit round 2 (P-6425): the lower case names, as the other three (NTFS ignored the case).
+* 18 Nov 26 SD Core Solo - four-version audit round 3 (P-3048..P-3052): round 2 reached only the includes; the file names and the
+*   record names read and written are lower case now too, as SD Core for Windows and Linux.
 $include gpl.bp revstamp.h
 
 $include gpl.bp syscom.h
@@ -25,7 +27,7 @@ if upcase(ok) # "C" then goto abort.bbproc
    
 *  note all files must be opend via openpath, open depends on pcode!
    
-   source.file.name = 'GPL.BP'
+   source.file.name = 'gpl.bp'
    openpath @sdsys:@ds:source.file.name to src.f else
      crt 'Cannot open ':source.file.name:'!, ABORT'
 
@@ -34,7 +36,7 @@ if upcase(ok) # "C" then goto abort.bbproc
    
    output.file.name = source.file.name:'.OUT' 
    
-   output.file.name = 'GPL.BP.OUT'
+   output.file.name = 'gpl.bp.out'
    openpath @sdsys:@ds:output.file.name to out.f else
      crt 'Cannot open ':output.file.name:'!, ABORT'
 
@@ -120,7 +122,7 @@ for pi = 1 to src.cnt
 		crt 'compile: ':prg.name
 
 		
-		read prog.source from src.f, prg.name else
+		read prog.source from src.f, downcase(prg.name) else   ;* 13 Sep 26: record names lower case (plan M)
 		  crt 'Cannot find: ': prg.name :', ABORT!' 
           goto abort.bbproc
         end
@@ -131,7 +133,7 @@ for pi = 1 to src.cnt
         call $bcomp(source.file.name, src.f, prg.name, prog.source,output.file.name, listing.record.name,compiler.flags, 1,catalogue.name, catalogue.mode,object.code, errors) 
         
         if errors = 0 then
-           write object.code to out.f, prg.name
+           write object.code to out.f, downcase(prg.name)
         end else
            crt 'Errors in compile of ':prg.name:', ABORT!'
 

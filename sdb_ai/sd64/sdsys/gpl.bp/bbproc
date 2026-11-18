@@ -4,7 +4,7 @@
 * This program serves as a mini command processor.
 * The only thing it does is compile from source the basic programs needed by sd to running
 * The assumption is it is called from the install script, followed by a command to execute 
-* SECOND.COMPILE (BASIC GPL.BP *)
+* SECOND.COMPILE (BASIC gpl.bp *)
 *
 * based on VBSRVR
 * Copyright (c) 2007 Ladybridge Systems, All Rights Reserved
@@ -25,6 +25,9 @@
 *
 *
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 3 (P-3249..51, P-4408, P-4409, P-5917): the bootstrap's own text says VOC as
+*           Linux Solo's does (voc_template as on disk), the compile list is lower case as the gpl.bp records are named (valid_os_name
+*           and is_grp_member stay, as SD Core for Windows keeps them), and the third column of FILES_LIST names the dictionary.
 * 15 Nov 26 SD Core Solo - from Core 11661eb1 (Linux 64561d81, S.230, RELEASE_1.1 286): an unused assignment (inp_ln) is gone.
 * 18 Oct 26 Windows port - from Linux Solo 2a9b736 (Solo carry A): voc_refusal and voc_guard join the bootstrap list: BASIC calls !voc_guard.
 * 18 Oct 26 Windows port - from Linux 3b43525 (15 Oct 26): login_inhibit joins the bootstrap list: LOGIN calls it (QM4 gaps Q-8, INHIBIT.LOGIN).
@@ -179,19 +182,19 @@ unload.object               ;* Unload inactive object code
    
 filename = @sdsys:@ds:'voc' 
 crt 'creating: ':filename
-create.file filename  DYNAMIC on error crt 'cannot create voc'; goto abort.bbproc
-   
+create.file filename  DYNAMIC on error crt 'cannot create VOC'; goto abort.bbproc
+
 * and it must be open
 openpath filename to voc else
-  crt 'Cannot open voc'
+  crt 'Cannot open VOC'
   goto abort.bbproc
 end
-   
-crt 'populate voc'
-* 
+
+crt 'populate VOC'
+*
 * move items in voc_template to voc
 *
-crt 'populating voc from voc_template'
+crt 'populating VOC from voc_template'
 openpath @sdsys:@ds:'voc_template' to voc_t.f else
   crt 'Cannot open voc_template directory! ABORT'
   if logging then writeseq 'Cannot open voc_template directory! ABORT' to log.f else null
@@ -259,13 +262,13 @@ catalogue.mode = 'GLOBAL'
 * CPROC is not running, pcode is empty.  But we will stick with convention.
 
 src.list = ''
-src.list<-1> = 'CPROC'
-src.list<-1> = 'LOGIN'
-src.list<-1> = 'BASIC'
-src.list<-1> = 'BCOMP'
-src.list<-1> = 'PTERM'
-src.list<-1> = 'CATALOG'
-src.list<-1> = 'PARSER'
+src.list<-1> = 'cproc'
+src.list<-1> = 'login'
+src.list<-1> = 'basic'
+src.list<-1> = 'bcomp'
+src.list<-1> = 'pterm'
+src.list<-1> = 'catalog'
+src.list<-1> = 'parser'
 * 14 Aug 26 Windows port - VALID_OS_NAME must be here, and before IS_GRP_MEMBER
 *   reads better than after it.  IS_GRP_MEMBER calls !valid_os_name to check the
 *   two names it interpolates into a PowerShell command, and LOGIN calls
@@ -275,26 +278,26 @@ src.list<-1> = 'PARSER'
 *   before it compiles anything, and the staged tree is not installable.
 *   VALID_OS_NAME calls nothing itself, so the chain ends here.
 *   See PROJECT_STATUS.md section 6.
-src.list<-1> = 'VALID_OS_NAME'
-src.list<-1> = 'IS_GRP_MEMBER'
+src.list<-1> = 'valid_os_name'
+src.list<-1> = 'is_grp_member'
 * 02 Oct 26 SD Core Solo - ACC_HOLD, for the same reason as VALID_OS_NAME:
 *   LOGIN calls !acc_hold (the backup/restore login hold, SOLO 25) at EVERY
 *   entry, the bootstrap's own SECOND.COMPILE session included.  SD Core for
 *   Linux's bootstrap died at every later pass with "Unable to load
 *   '!ACC_HOLD' object code in $LOGIN" without it - and sd exited 0.  ACC_HOLD
 *   calls no catalogued routine, so the chain ends here.
-src.list<-1> = 'ACC_HOLD'
+src.list<-1> = 'acc_hold'
 * 18 Oct 26 Windows port - from Linux 3b43525 (15 Oct 26): INHIBIT.LOGIN: LOGIN calls !login_inhibit on every entry, for the
 *   same reason as !acc_hold (the bootstrap's own SECOND.COMPILE session included).  LOGIN_INHIBIT calls no catalogued
 *   routine, so the chain ends here.
-src.list<-1> = 'LOGIN_INHIBIT'
+src.list<-1> = 'login_inhibit'
 * 18 Oct 26 Windows port - from Linux Solo 2a9b736 (Solo carry A, SOLO 46): BASIC (the bootstrap's SECOND.COMPILE runs it) asks
 *   !voc_guard before it writes the object file of the source file it was given, and !voc_guard asks !voc_refusal; both must
 *   exist before the first BASIC runs.  The first Solo cycle after the carry stopped at SECOND.COMPILE with "Unable to load
 *   '!voc_guard' object code in $basic" because this hunk had not been carried.
-src.list<-1> = 'VOC_REFUSAL'
-src.list<-1> = 'VOC_GUARD'
-src.list<-1> = 'TERM'
+src.list<-1> = 'voc_refusal'
+src.list<-1> = 'voc_guard'
+src.list<-1> = 'term'
 
 src.cnt = dcount(src.list,@FM) 
     
@@ -352,14 +355,17 @@ FILES_LIST = ''
 *         (3) - Dynamic file, including data collections
 *         (4) - Directory file
 *
-*                  file      create file  create dict
-FILES_LIST<-1> = "accounts"  :@VM:'N'      :@VM:'Y'
-FILES_LIST<-1> = "$hold"     :@VM:'N'      :@VM:'Y' 
-FILES_LIST<-1> = "$map"      :@VM:'Y'      :@VM:'Y' 
-FILES_LIST<-1> = "$ipc"      :@VM:'Y'      :@VM:'N' 
-FILES_LIST<-1> = "dict.dic"  :@VM:'Y'      :@VM:'N'  
-FILES_LIST<-1> = "dir_dict"  :@VM:'Y'      :@VM:'N'
-FILES_LIST<-1> = "voc.dic"   :@VM:'Y'      :@VM:'N'
+* 18 Nov 26 SD Core Solo - the third column names the dictionary rather than saying Y, as Linux Solo and Core (P-4408); the
+*   names created are the same seven.
+*
+*                  file      create file  dictionary to create
+FILES_LIST<-1> = "accounts"  :@VM:'N'      :@VM:'accounts.dic'
+FILES_LIST<-1> = "$hold"     :@VM:'N'      :@VM:'$hold.dic'
+FILES_LIST<-1> = "$map"      :@VM:'Y'      :@VM:'$map.dic'
+FILES_LIST<-1> = "$ipc"      :@VM:'Y'      :@VM:''
+FILES_LIST<-1> = "dict.dic"  :@VM:'Y'      :@VM:''
+FILES_LIST<-1> = "dir_dict"  :@VM:'Y'      :@VM:''
+FILES_LIST<-1> = "voc.dic"   :@VM:'Y'      :@VM:''
 *
 files.cnt = dcount(FILES_LIST,@FM)
 
@@ -371,8 +377,8 @@ for i = 1 to files.cnt
      create.file filename  DYNAMIC
   end
   * create dictionary? 
-  if FILES_LIST<i,3> = "Y" then
-     filename = @sdsys:@ds:FILES_LIST<i,1>:'.dic' 
+  if FILES_LIST<i,3> # "" then
+     filename = @sdsys:@ds:FILES_LIST<i,3>
      crt 'creating: ':filename
      create.file filename  DYNAMIC
   end

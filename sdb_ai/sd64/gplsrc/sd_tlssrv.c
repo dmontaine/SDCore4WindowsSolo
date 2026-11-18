@@ -12,6 +12,7 @@
  * GNU General Public License for more details.
  *
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - four-version audit round 3 (P-3097): "cannot build the certificate name", Linux's words, as SD Core.
  * 26 Sep 26 SD Core Solo - SOLO 3 step 5: the control socketpair and
  *           sd_tls_relay_pipe() are gone with the handover.
  * 25 Sep 26 SD Core Solo - SOLO 3, ruling 20: win32_relay_spawn() takes no
@@ -226,7 +227,7 @@ static bool create_identity(const char* path, char* errmsg, size_t errlen) {
      freed unconditionally at done:. */
   name = X509_NAME_new();
   if (name == NULL) {
-    sd_tls_error_text("cannot allocate the certificate name", errmsg, errlen);
+    sd_tls_error_text("cannot build the certificate name", errmsg, errlen);
     goto done;
   }
   if (X509_set_version(cert, 2) != 1 ||

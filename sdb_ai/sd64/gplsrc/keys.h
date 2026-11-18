@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - four-version audit round 3 (P-6161, P-5876): K_OS_ADMINISTRATOR (63) retired, as SD Core for Windows (P-1969)
+ *           and Linux, which never had it; no Solo program asks it.  Keep the number unused.
  * 18 Nov 26 SD Core Solo - four-version audit round 2: SKT_INFO_TRACE (10) from Core bc1eb7b1 (P-6163); K_JOB_MARK (172) in step with
  *           SD Core's header, as Linux Solo (P-1323, P-5875); the kernel keys in Linux Solo's order, K_GLOBAL_SESSION last (P-4288,
  *           P-4289); the stale "118 left free" note goes (K_SD_ACCOUNTS has been 118 since 11 Nov).  No number changes.
@@ -270,8 +272,9 @@
    above: it reports a fact about the signed-in user that Windows already
    exposes, and reading it grants nothing.  BCOMP refuses KERNEL to anything
    not $internal in any case.  See op_kernel.c for the CN_SOCKET guard, which
-   is not optional.                                                          */
-#define K_OS_ADMINISTRATOR   63
+   is not optional.
+   18 Nov 26 SD Core Solo - RETIRED, four-version audit round 3 (P-6161, P-5876), as SD Core for Windows (P-1969): no Solo program asks
+   it, and Linux has no such key.  63 stays reserved, unused, so that it is never given to another key; the note above is its history. */
 
 /* 64 (K_INTERACTIVE, the route) and 65 (K_OS_ELEVATED, the process's elevation): retired 17 Nov 26 (four-version audit P-3512, P-3513).
    SD Core's LOGIN and CPROC ask them; no Solo program does.  Keep the numbers unused.

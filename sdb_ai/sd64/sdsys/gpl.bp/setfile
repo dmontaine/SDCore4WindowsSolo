@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - from Linux Solo's cycle 3 (S.62, P-6633): a NEW pointer's VOC id is lower case again - the default QFILE and
+*           a typed name; an existing pointer is found and kept as before.
 * 18 Nov 26 SD Core Solo - four-version audit round 2, the case fallbacks (the Linux audit session's decision; Solo has no
 *           unconverted VOC): the pointer name is read once and the default QFILE as Linux Solo reads it; the account name is
 *           folded lower, as Linux Solo, so the Q-pointer names it in lower case.
@@ -149,7 +151,10 @@ $include int$keys.h
          read voc.rec from @voc, pointer else
             read voc.rec from @voc, downcase(pointer) then
                pointer = downcase(pointer)
-            end else exit
+            end else
+               pointer = downcase(pointer)   ;* 18 Nov 26, from Linux Solo (P-6633): a new id is lower case
+               exit
+            end
          end
          if voc.rec[1,1] = 'Q' then exit
          display sysmsg(6875) ;* QFILE is already in the VOC but not as a Q-pointer
@@ -166,7 +171,12 @@ $include int$keys.h
 *     (owner, 14 Sep 2026: "treat it as the same id"); no hit writes downcase().
 * 18 Nov 26 SD Core Solo - four-version audit round 2 (the case fallbacks, the Linux audit session's decision): ONE READ,
 *     as Linux Solo.  The VOC is NOCASE and Solo has no unconverted VOC, so the read finds an existing pointer in any case.
-      read voc.rec from @voc, pointer else exit
+* 18 Nov 26 SD Core Solo - from Linux Solo (P-6633): a pointer name that is not in the VOC is a NEW record, and its id is lower case (an
+*     existing one is found as before and keeps its id).  The round-2 one-read change had dropped RELEASE_1.1 5's downcase().
+      read voc.rec from @voc, pointer else
+         pointer = downcase(pointer)
+         exit
+      end
 
       display sysmsg(6876) ;* Pointer name is already in VOC
 

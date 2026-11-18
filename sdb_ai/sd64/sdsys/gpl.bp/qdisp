@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 3 (P-3443): S at the page prompt calls disable.pagination, as Linux Solo; the same two flags.
 * 8 Nov 26 Windows port - from Linux 2930d92f (S.87): CLOSESEQ and EQU are gone as statements: this program says CLOSE and EQUATE.
 * 8 Nov 26 Windows port - from Linux fcee0b9a (S.87 batch 7): OPTION QUERY.MERGE.PRINT and QUERY.FOOTER.PAUSE are gone; a report to printer 0 closes the printer,
 *           and no pause follows a page footer, as with the options off.
@@ -868,8 +869,8 @@ page.prompt:
 *   screen every page, so a terminal showed nothing but the last page.
 *   Measured on the 13 Sep 10:23:02 install, LIST ONLY VOC at TERM 80,12:
 *   NO.PAGE gave 1 clear-screen and 1 heading; answering S gave 48 and 47.
-            qd.paginate = @false
-            qd.no.page = @true
+*   18 Nov 26 (P-3443): by the routine itself, as Linux Solo and SD Core.
+            gosub disable.pagination
             exit
 
          case action matches '1N' and qd.scrolling

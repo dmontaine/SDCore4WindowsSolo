@@ -31,7 +31,9 @@ SDSYS = os.path.abspath(sys.argv[1])
 
 DEBUG_DIFF = False
 
-pcode_fs = ["_AK",
+# 18 Nov 26 SD Core Solo - four-version audit round 3 (P-6129): "_ak", lower case, as the other three (the file on disk is _ak;
+# bbcmp.py lower-cases the program name, so the object is unchanged).
+pcode_fs = ["_ak",
 "_bindkey"    ,
 "_break"      ,
 "_cconv"      ,

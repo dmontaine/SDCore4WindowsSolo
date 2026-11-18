@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - four-version audit round 3 (P-3195): "uptr->uid && (uptr->pid > 0)", Linux's layout; no change.
  * 17 Nov 26 SD Core Solo - Linux Solo 3b1316cc (S.62 NETDIRS): start_sd() calls netdirs_report() after audit_rotate(), so each NETDIRS
  *               entry SD ignores is named once in the error log at sd-solo -start.
  * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4324): apply_pending_restore() is declared at the top, as Linux Solo's.
@@ -1103,7 +1104,7 @@ bool stop_sd_ex(bool kill_survivors) {
          is just as bad - kill(-n) signals a process group too.
          The liveness poll below always had this test; this loop did not.   */
 
-      if (uptr->uid && uptr->pid > 0) {
+      if (uptr->uid && (uptr->pid > 0)) {
         kill(uptr->pid, SIGTERM);
       }
     }

@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - four-version audit round 3 (P-5882, P-7375, P-7376): config.h in SD Core's place; a NETDIRS entry that is a
+ *               drive root or a share root is named in SD Core's words ("holds the whole machine" / "a network share ... the whole volume").
  * 18 Nov 26 SD Core Solo - four-version audit round 2, Core's forms where the result is the same (P-5880, P-5881, P-6439, P-6440,
  *               P-6442, P-6443): os_path_inside() hands the names to fullpath() (which bounds its output) without copying them; the
  *               register record is read "r" and cut at LF then CR; a directory entry holding "/" is skipped; cand[0].
@@ -72,12 +74,12 @@
  */
 
 #include "sd.h"
+#include "config.h" /* 17 Nov 26 SD Core Solo: pcfg.usrdir and pcfg.grpdir, which NETDIRS keeps clear of (18 Nov 26: SD Core's place) */
 #include "keys.h"
 #include "dh_int.h"
 #include "header.h"
 #include "syscom.h"
 #include "locks.h"
-#include "config.h" /* 17 Nov 26 SD Core Solo: pcfg.usrdir and pcfg.grpdir, which NETDIRS keeps clear of */
 
 #include <time.h>
 #include <stdint.h>
@@ -2511,8 +2513,10 @@ Private void netdirs_load(bool report) {
         strcpy(why, "it is not an absolute path");
       else if (!netdir_winform(item, root) || (stat(root, &st) != 0) || !S_ISDIR(st.st_mode))
         strcpy(why, "it is not an existing directory");
+      /* 18 Nov 26 SD Core Solo (audit round 3, P-7375, P-7376): a drive root and a share root are named apart, in SD Core's words. */
       else if (netdir_whole_volume(root))
-        strcpy(why, "it is the root of a drive, which holds the whole volume");
+        strcpy(why, (root[1] == ':') ? "it is the root of a drive, which holds the whole machine"
+                                     : "it is the root of a network share, which holds the whole volume");
       else if (!have_home || netdir_overlap(root, homedir))
         strcpy(why, "it holds, or lies inside, the SD Core Solo folder");
       else if (!have_sys || netdir_overlap(root, sysdir))

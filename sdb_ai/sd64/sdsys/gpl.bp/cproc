@@ -18,6 +18,9 @@
 * 
 * 
 * START-HISTORY:
+* 18 Nov 26 SD Core Solo - four-version audit round 3, Linux Solo's forms: end of piped input ('' with STATUS() = ER$EOF) goes to
+*           int.quit (P-4414); SH and "!" ask K$SH in the test (P-3269); LOGOUT n's answer is two ifs (P-3272, P-3273); the command
+*           stack's $command.stack read takes its THEN branch (P-7385); .S lowers a new name in the one read's ELSE (P-7386).
 * 18 Nov 26 SD Core Solo - four-version audit round 2, the case fallbacks (the Linux audit session's decision: Solo has no
 *           unconverted VOC): .S reads the sentence name once and saves a new one lower case (P-4642), the command stack is
 *           read as $command.stack only (P-3267, P-3268), and the denied-verb list is read once, folded (P-4647), as Linux Solo.
@@ -972,13 +975,10 @@ get.command.line:
 *        key: keycode() gives it at end of piped input, and the autologout
 *        timeout has already set K_TERMINATE when it gives it there
 *        (linuxio.c).  Taken as the line OFF, returned the way K$RETURN does.
-         if c = '' then
-            at.command = 'OFF'
-            i = kernel(K$SUPPRESS.COMO,@false)
-            if echo.input then crt @(0) : @(-4) : ':' : at.command
-            i = kernel(K$PAGINATE, @true)
-            return
-         end
+*        18 Nov 26 SD Core Solo - four-version audit round 3 (P-4414): Linux Solo's form.  End of piped input is '' with STATUS() = ER$EOF
+*        (linuxio.c keyin: read() <= 0 sets ER_EOF), and the session ends by OFF's own path, int.quit; the ruling's outcome is the same.
+*        A '' without ER$EOF (the autologout timeout, K_TERMINATE already set) is no longer taken as a typed OFF here.
+         if c = '' and status() = ER$EOF then goto int.quit
 
          n = seq(c)
 
@@ -1504,11 +1504,8 @@ stack.manipulation:
 * 18 Nov 26 SD Core Solo - four-version audit round 2 (the case fallbacks, decided by the Linux audit session): ONE READ, as
 *   Linux Solo.  The VOC folds case itself (NOCASE) and Solo has no unconverted VOC, so the as-typed / lower / upper retries
 *   above it are gone; an existing sentence is found in any case by the read below, and a new one is saved lower case.
-         readvu voc.rec from voc, arg1, 0 else
-            release voc, arg1
-            arg1 = downcase(arg1)
-         end
-
+* 18 Nov 26 SD Core Solo - four-version audit round 3 (P-7386): the one read is Linux Solo's - a new sentence's id is lowered
+*   in its ELSE branch, after the lock on the name as typed is given back; there is no second read.
          readvu voc.rec from voc, arg1, 0 then
             loop
                display sysmsg(5045, arg1) :  ;* Overwrite VOC record 'xx'?
@@ -1527,6 +1524,9 @@ stack.manipulation:
                end
             until upcase(s[1,1]) = "Y"
             repeat
+         end else
+            release voc, arg1
+            arg1 = downcase(arg1)
          end
 
          voc.rec = if arg2 = arg3 then "S" else "PA"
@@ -3144,13 +3144,13 @@ int.logout:
 *           this, that case set USR$LOGOUT on a slot nobody would ever clear
 *           and LISTU read "(logout pending)" for ever.
             lo.rc = logout(i, @false)
-            begin case
-               case lo.rc = 0
-                  display sysmsg(2100) ;* Invalid user number
-                  return
-               case lo.rc = 2
-                  display sysmsg(10167, i) ;* was not running - slot reclaimed
-            end case
+            if lo.rc = 2 then                    ;* 18 Nov 26 (P-3272, P-3273): Linux Solo's two tests; the same answers
+               display sysmsg(10167, i) ;* was not running - slot reclaimed
+            end
+            if not(lo.rc) then
+               display sysmsg(2100) ;* Invalid user number
+               return
+            end
       
             call @parser(PARSER$GET.TOKEN, token.type, s, keyword)
 
@@ -3606,9 +3606,8 @@ os.command:
 *   "listed" read as "has the SH switch": the administrator passes the gate on its own (K$ADMINISTRATOR) but, not being listed, keeps the
 *   metacharacter ban, exactly as an elevated unlisted session did on SD Core; an account with the switch has a real shell, pipes
 *   and all.  The reply when refused is 10053, as on SD Core.
-   sh.listed = kernel(K$SH, -1)
-
-   if not(kernel(K$ADMINISTRATOR, -1)) and not(sh.listed) then
+*  18 Nov 26 (P-3269): the switch is asked of the kernel in the test itself, as Linux Solo (sh.listed was read nowhere else).
+   if not(kernel(K$ADMINISTRATOR, -1)) and not(kernel(K$SH, -1)) then
       display sysmsg(10053, @logname) ;* %1 is not permitted to use the shell
       return
    end
@@ -3726,11 +3725,9 @@ exit.actions:
 *   held for the life of the session.
 *   18 Nov 26 SD Core Solo - four-version audit round 2 (P-3267, P-3268; the case fallbacks): ONE READ, as Linux Solo.
 *   The VOC is NOCASE and Solo has no unconverted VOC, so $COMMAND.STACK is the same record; the second try is gone.
-            cs.id = '$command.stack'
-            readu voc.rec from voc,cs.id else
-               voc.rec = ''
-            end
-            if voc.rec[1,1] = "X" then
+*   18 Nov 26 (P-7385): Linux Solo's form, the read's THEN branch; the same record and the same release.
+            readu voc.rec from voc,"$command.stack" then
+               if voc.rec[1,1] = "X" then
 						s = initial.account.path:@ds:'stacks'
 						openpath s to stk.f else
 							create.file s directory on error null
@@ -3739,8 +3736,9 @@ exit.actions:
 							write command.stack to stk.f, @logname
 							close stk.f
 						end
+               end
             end
-            release voc, cs.id   ;* Catch all exit paths
+            release voc, '$command.stack'   ;* Catch all exit paths - the id the readu locked
          end
 
          if not(ospath(initial.account.path, OS$CD)) then
