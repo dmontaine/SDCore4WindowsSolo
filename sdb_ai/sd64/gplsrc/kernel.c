@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 18 Nov 26 SD Core Solo - from Linux ab511b4e / Linux Solo 8aa5253 (S.270, RELEASE_1.1 343): an ABORT unwinds the e-stack only for the
+ *           levels it casts off, not the whole stack at the setjmp (a trapped abort had wiped the e-stack of the programs it returned to).
  * 15 Nov 26 SD Core Solo - from Core 0765414c / Linux Solo 10fcf2f (S.245): a grouped phantom whose parent ended before it started is given
  *           EVT_LOGOUT, not EVT_TERMINATE, so it ends at once instead of running its command first.
  * 15 Nov 26 SD Core Solo - from Core f6c20e51 (Linux Solo 9b69caa, S.242 stage 3, RELEASE_1.1 299): init_kernel() clears the file transfer
@@ -578,7 +580,12 @@ void kernel() {
   if (setjmp(k_exit)) /* Abort, Quit, Logout */
   {
     resume_env = NULL;        /* The dispatch loops that held resume points are gone (17 Oct 26) */
-    unwind_stack();           /* Tidy up e-stack */
+    /* 18 Nov 26 (S.270): an ABORT unwinds the e-stack level by level below (as STOP does), only as far as the command processor
+       it returns to.  Unwound whole here, a TRAPPED abort (EXECUTE ... TRAPPING ABORTS) returned to programs whose own e-stack
+       items were gone: an outer EXECUTE ... CAPTURING's target address among them, and its CAPTURE then read below the stack's
+       base (signal 11). */
+    if (k_exit_cause != K_ABORT)
+      unwind_stack(); /* Tidy up e-stack */
     process.for_init = FALSE; /* Not initialising FOR loop */
     process.op_flags = 0;     /* Clear opcode prefix flags */
     retained_flags = 0;
@@ -645,10 +652,17 @@ void kernel() {
       and IGNORE_ABORTS flags from the aborted command processor.           */
 
     while (!(process.program.flags & HDR_IS_CPROC)) {
+      if (aborting) /* S.270: this level's partly evaluated items, and no more */
+      {
+        while (e_stack > e_stack_base + process.program.e_stack_depth)
+          k_dismiss();
+      }
       k_return();
     }
 
     if (aborting) {
+      while (e_stack > e_stack_base + process.program.e_stack_depth) /* S.270: the command processor's own, then stop */
+        k_dismiss();
       aborting = FALSE;
       if (capturing) {
         if (capture_head != NULL) {
