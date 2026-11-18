@@ -6,7 +6,8 @@
 *
 * START-HISTORY:
 * 18 Nov 26 SD Core Solo - SOLO 78 (audit P-4455): ssh's local listens on 127.0.0.1 only too (solo-sshd.ps1 ListenAddress), so the doors
-*           view's help and do.door's local line say so for both doors; the firewall rule is the second wall.
+*           view's help and do.door's local line say so for both doors; the firewall rule is the second wall.  The same day: ssh's
+*           local and open also listen on ::1 (Windows' ssh client does not fall back from ::1 for localhost), and the texts say so.
 * 18 Nov 26 SD Core Solo - from Linux Solo aea031c and Core: read.all says 15150 (Reading the settings (a few seconds)...), not 12982
 *           (REMOTE.API / REMOTE.SSH keep 12982).  From Linux 10767826 (P-4630, Q9): confirm.and.run says 15172 (Making the change (a few seconds)...) before the
 *           command runs.
@@ -461,7 +462,7 @@ draw.detail:
    lines = ''
    begin case
       case view = 1
-         lines<-1> = 'Each door is off, local or open. OFF: no listener (the API: SD opens no socket; ssh: its server is stopped). LOCAL: only this computer can connect (the API and ssh listen on 127.0.0.1 only, and the firewall lets only this computer in). OPEN: other computers on the network may connect. The API is port 4249; ssh is the ssh server of SD itself, port 4251.'
+         lines<-1> = 'Each door is off, local or open. OFF: no listener (the API: SD opens no socket; ssh: its server is stopped). LOCAL: only this computer can connect (the API listens on 127.0.0.1 only, ssh on 127.0.0.1 and ::1 only, and the firewall lets only this computer in). OPEN: other computers on the network may connect. The API is port 4249; ssh is the ssh server of SD itself, port 4251.'
          lines<-1> = 'A and S offer off, local or open in a list that starts on off. A change is made by the doors helper the installer set up, after the verb asks for the administrator password again; A and S give the terminal to REMOTE.API or REMOTE.SSH for that. ssh that was never set up is set up by LOCAL or OPEN.'
          lines<-1> = 'SD opens or closes the API socket only when it starts, so an API change to or from OFF takes effect at the next sd-solo -stop and -start (or the next boot). The firewall part and every ssh change take effect at once.'
          lines<-1> = 'What is shown above is what is installed, read back from sd.conf, the configuration of the ssh server, the firewall rules and the ssh task, not what this page meant. OPEN lets other computers reach this one, so its box wants the word open typed (in either case).'
@@ -708,8 +709,10 @@ do.door:
          el<-1> = 'SD listens on port ' : door.port : ' on EVERY address and the firewall rule lets other computers on the network connect to ' : door.what : ' of this computer.'
       case aw = 'local'
 *        17 Nov 26 (audit P-4455): the API listener binds 127.0.0.1 for local (APILOCAL, c838ece3), as Linux Solo's LOCAL.
-*        18 Nov 26 (SOLO 78): and so does ssh's server (ListenAddress 127.0.0.1), so the two doors share this line.
-         el<-1> = 'SD listens on 127.0.0.1:' : door.port : ' only: only this computer may connect.'
+*        18 Nov 26 (SOLO 78): and so does ssh's server (ListenAddress 127.0.0.1), with ::1 as well (Windows' ssh client tries ::1 for localhost).
+         lw = '127.0.0.1:' : door.port
+         if door.verb = 'remote.ssh' then lw = '127.0.0.1 and ::1 port ' : door.port
+         el<-1> = 'SD listens on ' : lw : ' only: only this computer may connect.'
       case 1
          el<-1> = 'SD has no listener for ' : door.what : ' at all.'
    end case

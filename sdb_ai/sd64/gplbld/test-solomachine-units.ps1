@@ -79,7 +79,7 @@ if ($ln.Count -eq 1) {
 # ---- 1c. SOLO 78: the listen address (local 127.0.0.1, open 0.0.0.0) reaches sshd, and is checked --------------
 # 18 Nov 26.  Register-SshTask passes -Listen to solo-sshd.ps1 -Install; Install maps -SshScope, Upgrade keeps what is installed
 # (Resolve-SshUpgradeListen), Doors passes -Mode; the listeners are judged by Get-SshListenVerdict.  The two pure functions are
-# lifted out of the file and run; a MUTANT of the verdict that lets 0.0.0.0 pass as local must turn its row red.
+# lifted out of the file and run; MUTANTS of the verdict (wider addresses ignored; ::1 not wanted) must pass what it fails.
 Check 'Register-SshTask takes the listen address, refuses one that is not local or open, and passes it as -Listen to solo-sshd.ps1 -Install' (
     $regCode -match 'function Register-SshTask\(\[string\]\$listen\)' -and $regCode -match "@\('local', 'open'\) -notcontains \`$listen" -and $regCode -match "'-Listen', \`$listen\)")
 Check 'Register-SshTask judges the addresses that hold 4251 against it (Get-SshListenVerdict) and FAILS on a disagreement' ($regCode -match 'Get-SshListenVerdict \$listen \$addrs' -and $regCode -match "if \(\`$why -ne ''\) \{ Fail \`$why")
@@ -93,17 +93,23 @@ if ($pure.Count -ne 2) { Check 'Get-SshListenVerdict and Resolve-SshUpgradeListe
 else {
     $SshPort = 4251
     foreach ($f in $pure) { . ([scriptblock]::Create($f.Extent.Text)) }
-    $vcases = @(@('local', @('127.0.0.1'), $true), @('local', @('0.0.0.0'), $false), @('local', @('127.0.0.1', '0.0.0.0'), $false), @('local', @('::'), $false),
-                @('local', @(), $false), @('open', @('0.0.0.0'), $true), @('open', @('0.0.0.0', '::'), $true), @('open', @('127.0.0.1'), $false), @('', @('0.0.0.0'), $false))
+    # 18 Nov 26: EXACTLY two per mode - local {127.0.0.1, ::1}, open {0.0.0.0, ::1} - and anything wider fails (Linux, mail
+    # 2026-11-18T0730): :: under open, a LAN address or :: under local, and either mode without ::1.
+    $vcases = @(@('local', @('127.0.0.1', '::1'), $true), @('local', @('::1', '127.0.0.1'), $true), @('local', @('127.0.0.1'), $false),
+                @('local', @('0.0.0.0', '::1'), $false), @('local', @('127.0.0.1', '::1', '0.0.0.0'), $false), @('local', @('127.0.0.1', '::1', '::'), $false),
+                @('local', @('127.0.0.1', '::1', '192.168.1.20'), $false), @('local', @(), $false),
+                @('open', @('0.0.0.0', '::1'), $true), @('open', @('0.0.0.0'), $false), @('open', @('0.0.0.0', '::1', '::'), $false), @('open', @('0.0.0.0', '::'), $false),
+                @('open', @('127.0.0.1', '::1'), $false), @('', @('0.0.0.0', '::1'), $false))
     $vbad = @()
     foreach ($c in $vcases) {
         $w = Get-SshListenVerdict $c[0] ([string[]]$c[1])
         Write-Host ('  verdict ' + $c[0] + ' on [' + ($c[1] -join ',') + '] -> [' + $w + ']')
         if (($w -eq '') -ne $c[2]) { $vbad += ($c[0] + ' on ' + ($c[1] -join ',')) }
     }
-    Check ('Get-SshListenVerdict: local passes 127.0.0.1 only, open needs 0.0.0.0, nothing listening and no address fail (' + $vcases.Count + ' cases; wrong: [' + ($vbad -join '; ') + '])') ($vbad.Count -eq 0)
+    Check ('Get-SshListenVerdict: local passes exactly 127.0.0.1 + ::1, open exactly 0.0.0.0 + ::1; a LAN address or :: under local, :: under open, no ::1, nothing listening and no address fail (' + $vcases.Count + ' cases; wrong: [' + ($vbad -join '; ') + '])') ($vbad.Count -eq 0)
     $ucases = @(@('local', 'open', 'local'), @('open', 'restricted', 'open'), @('every', 'open', 'open'), @('every', 'restricted', 'local'),
-                @('every', 'none', 'local'), @('every', '', 'open'), @('', 'restricted', 'local'), @('none', 'open', 'open'))
+                @('every', 'none', 'local'), @('every', '', 'open'), @('', 'restricted', 'local'), @('none', 'open', 'open'),
+                @('local-v4only', 'open', 'local'), @('open-v4only', 'restricted', 'open'))
     $ubad = @()
     foreach ($c in $ucases) {
         $u = Resolve-SshUpgradeListen $c[0] $c[1]
@@ -111,16 +117,24 @@ else {
         if ($u -ne $c[2]) { $ubad += ($c[0] + '/' + $c[1] + '=' + $u) }
     }
     Check ('Resolve-SshUpgradeListen: a config that names its address keeps it; an older one is open only behind an open rule (or an unreadable one), else local (' + $ucases.Count + ' cases; wrong: [' + ($ubad -join '; ') + '])') ($ubad.Count -eq 0)
-    # MUTANT: local accepts any address.  Run on the case that must fail; the live file is asserted unchanged.
+    # MUTANTS (18 Nov 26): (a) wider addresses ignored - the :: under open and LAN under local cases it passes are ones the row above
+    # requires to fail; (b) ::1 not wanted - local on 127.0.0.1 alone passes.  The live file is asserted unchanged.
     $liveSha = (Get-FileHash -LiteralPath $src -Algorithm SHA256).Hash
     $vText = @($pure | Where-Object { $_.Name -eq 'Get-SshListenVerdict' })[0].Extent.Text
-    $mText = $vText.Replace("`$_ -ne '127.0.0.1'", "`$_ -eq 'no-such-address'")
+    $mText = $vText.Replace("`$extra.Count -eq 0) { return '' }", "`$true) { return '' }")
     . ([scriptblock]::Create($mText))
-    $mw = Get-SshListenVerdict 'local' ([string[]]@('0.0.0.0'))
-    Write-Host ('  MUTANT verdict local on [0.0.0.0] -> [' + $mw + ']   mutant differs: ' + ($mText -ne $vText))
-    Check 'MUTANT (local accepts any address): the mutant differs, and the local-on-0.0.0.0 case it passes is the one the row above requires to fail' ($mText -ne $vText -and $mw -eq '')
+    $mwA = Get-SshListenVerdict 'open' ([string[]]@('0.0.0.0', '::1', '::'))
+    $mwB = Get-SshListenVerdict 'local' ([string[]]@('127.0.0.1', '::1', '192.168.1.20'))
+    Write-Host ('  MUTANT a: open on [0.0.0.0,::1,::] -> [' + $mwA + ']  local on [127.0.0.1,::1,192.168.1.20] -> [' + $mwB + ']   differs: ' + ($mText -ne $vText))
+    Check 'MUTANT a (wider addresses ignored): the mutant differs, and it passes :: under open and a LAN address under local, which the real verdict fails' ($mText -ne $vText -and $mwA -eq '' -and $mwB -eq '')
+    $m2Text = $vText.Replace("`$want = @('127.0.0.1', '::1')", "`$want = @('127.0.0.1')")
+    . ([scriptblock]::Create($m2Text))
+    $mwC = Get-SshListenVerdict 'local' ([string[]]@('127.0.0.1'))
+    Write-Host ('  MUTANT b: local on [127.0.0.1] -> [' + $mwC + ']   differs: ' + ($m2Text -ne $vText))
+    Check 'MUTANT b (::1 not wanted): the mutant differs, and it passes local on 127.0.0.1 alone, which the real verdict fails' ($m2Text -ne $vText -and $mwC -eq '')
     . ([scriptblock]::Create($vText))
-    Check 'and the live solo-machine.ps1 is byte-identical (SHA-256) after the mutant, and the real verdict is back' ((Get-FileHash -LiteralPath $src -Algorithm SHA256).Hash -eq $liveSha -and (Get-SshListenVerdict 'local' ([string[]]@('0.0.0.0'))) -ne '')
+    Check 'and the live solo-machine.ps1 is byte-identical (SHA-256) after the mutants, and the real verdict is back' (
+        (Get-FileHash -LiteralPath $src -Algorithm SHA256).Hash -eq $liveSha -and (Get-SshListenVerdict 'open' ([string[]]@('0.0.0.0', '::1', '::'))) -ne '' -and (Get-SshListenVerdict 'local' ([string[]]@('127.0.0.1'))) -ne '')
 }
 
 # ---- 2. load the three functions it needs, with stubs for everything that could touch the machine ---

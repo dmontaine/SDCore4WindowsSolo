@@ -1505,11 +1505,21 @@ public static class SdSuiteCli {
         # 18 Nov 26 - SOLO 78: the addresses that listen are the ones the machine config names (127.0.0.1 for local, 0.0.0.0
         # for open); a config with no ListenAddress line is an install from before SOLO 78 and fails.
         $mcfg = Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) 'SDCoreSolo\ssh\sshd_config'
-        $la = @(if (Test-Path -LiteralPath $mcfg) { Get-Content -LiteralPath $mcfg | ForEach-Object { if ($_ -match '^\s*ListenAddress\s+(\S+)') { $Matches[1] -replace ':\d+$', '' } } })
+        # 18 Nov 26: and ::1 in both (Windows' ssh client tries ::1 for "localhost" and does not fall back; this leg's own
+        # "ssh ... @localhost" was refused without it).  A port is cut only from an IPv4 "addr:port" or "[addr]:port".
+        $la = @(if (Test-Path -LiteralPath $mcfg) { Get-Content -LiteralPath $mcfg | ForEach-Object { if ($_ -match '^\s*ListenAddress\s+(\S+)') {
+                    $v = $Matches[1]
+                    if ($v -match '^\[([^\]]+)\](:\d+)?$') { $Matches[1] } elseif (($v.ToCharArray() | Where-Object { $_ -eq ':' }).Count -eq 1) { $v -replace ':\d+$', '' } else { $v } } } })
         $lsa = @($listen | ForEach-Object { [string]$_.LocalAddress } | Sort-Object -Unique)
         Say ('    ' + $mcfg + ' ListenAddress: [' + ($la -join ', ') + ']   listening on: [' + ($lsa -join ', ') + ']')
-        Check 'the addresses sshd listens on are the ListenAddress lines of its config (SOLO 78: 127.0.0.1 for local, 0.0.0.0 for open)' (
-            $la.Count -gt 0 -and $lsa.Count -gt 0 -and ((@($la | Sort-Object -Unique) -join ',') -eq ($lsa -join ','))) 'no ListenAddress line (an install from before SOLO 78), or sshd listens on other addresses than its config names'
+        # EXACTLY two per mode (Linux, mail 2026-11-18T0730): local 127.0.0.1 + ::1, open 0.0.0.0 + ::1, and anything wider (:: or a
+        # LAN address) fails - in the config AND on the port.
+        $setKey = { param($x) (@($x | Where-Object { $_ } | Sort-Object -Unique) -join ',') }   # one ordering for every side
+        $wantSet = ''
+        foreach ($w in @(@('127.0.0.1', '::1'), @('0.0.0.0', '::1'))) { if ((& $setKey $la) -eq (& $setKey $w)) { $wantSet = (& $setKey $w) } }
+        Say ('    expected on the port: [' + $(if ($wantSet) { $wantSet } else { 'NONE - the config is neither local nor open' }) + ']')
+        Check 'the config names exactly 127.0.0.1 + ::1 (local) or 0.0.0.0 + ::1 (open), and sshd listens on exactly those (SOLO 78)' (
+            $wantSet -ne '' -and (& $setKey $lsa) -eq $wantSet) 'no ListenAddress line (an install from before SOLO 78), no ::1, a wider address (:: or a LAN address), or sshd listens on other addresses than its config names'
         $kdir =Join-Path $env:TEMP ('sdsshkey-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
         New-Item -ItemType Directory -Path $kdir | Out-Null
         $kf = Join-Path $kdir 'k'

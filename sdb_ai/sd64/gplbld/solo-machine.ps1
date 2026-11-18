@@ -105,6 +105,9 @@
 # a config from before this (no line, every address) open only when the rule is open, else local (Resolve-SshUpgradeListen; nothing
 # the user opened is shut).  Doors: a move between local and open, or a config with no line, sets the server up again with the new
 # address (sshd reads its config only at start); the same mode only re-enables the task.
+# 18 Nov 26 - SOLO 78, the same day: both modes also listen on ::1 (Windows' ssh client tries ::1 for "localhost" and does not fall
+# back; measured, solo-sshd.ps1's header).  The verdict wants exactly {127.0.0.1, ::1} or {0.0.0.0, ::1}; a config without ::1
+# (local-v4only / open-v4only) is its mode on an upgrade and differs from it at the doors, so both write it again.
 
 param(
     [ValidateSet('Install', 'Upgrade', 'Remove', 'Doors', 'Job')] [string]$Action = 'Install',
@@ -515,20 +518,20 @@ function Test-SshPortListening {
 }
 
 # 18 Nov 26 - SOLO 78.  The addresses that hold 4251, against the listen address asked for: '' when they agree, else why not.
-# local: at least one, and every one 127.0.0.1; open: 0.0.0.0 among them.  Pure, so the guard can run it.
+# local: exactly 127.0.0.1 and ::1; open: exactly 0.0.0.0 and ::1 (18 Nov 26: ::1 in both, because Windows' ssh client tries
+# ::1 for "localhost" and does not fall back - solo-sshd.ps1's header has the measurement).  Pure, so the guard can run it.
 function Get-SshListenVerdict([string]$listen, [string[]]$addrs) {
-    $a = @($addrs | Where-Object { $_ })
+    $a = @($addrs | Where-Object { $_ } | Sort-Object -Unique)
     if ($a.Count -eq 0) { return ('nothing listens on ' + $SshPort) }
-    if ($listen -eq 'local') {
-        $bad = @($a | Where-Object { $_ -ne '127.0.0.1' })
-        if ($bad.Count -gt 0) { return ('LOCAL was asked for, but sshd also listens on ' + ($bad -join ', ')) }
-        return ''
-    }
-    if ($listen -eq 'open') {
-        if ($a -contains '0.0.0.0') { return '' }
-        return ('OPEN was asked for, but sshd listens only on ' + ($a -join ', '))
-    }
-    return ('no listen address was given (' + $listen + ')')
+    $want = @()
+    if ($listen -eq 'local') { $want = @('127.0.0.1', '::1') }
+    elseif ($listen -eq 'open') { $want = @('0.0.0.0', '::1') }
+    else { return ('no listen address was given (' + $listen + ')') }
+    $missing = @($want | Where-Object { $a -notcontains $_ })
+    $extra = @($a | Where-Object { $want -notcontains $_ })
+    if ($missing.Count -eq 0 -and $extra.Count -eq 0) { return '' }
+    return ($listen.ToUpper() + ' was asked for (' + ($want -join ' and ') + '), but sshd listens on ' + ($a -join ', ') +
+            $(if ($missing.Count) { '; missing ' + ($missing -join ', ') } else { '' }) + $(if ($extra.Count) { '; also ' + ($extra -join ', ') } else { '' }))
 }
 
 function Get-SshListenAddrs {
@@ -546,9 +549,11 @@ function Get-InstalledSshListen {
 
 # 18 Nov 26 - SOLO 78.  An UPGRADE keeps what is installed: a config that names its address keeps it; one from before SOLO 78
 # (every address, LOCAL walled by the firewall) is open only when the rule is open, else local.  Nothing the user opened is shut.
-# Pure, so the guard can run it.
+# Pure, so the guard can run it.  local-v4only / open-v4only (the first SOLO 78 build, no ::1 line) count as their mode, and
+# Register-SshTask then writes the config again with ::1.
 function Resolve-SshUpgradeListen([string]$configListen, [string]$ruleScope) {
-    if ($configListen -eq 'local' -or $configListen -eq 'open') { return $configListen }
+    $m = $configListen -replace '-v4only$', ''
+    if ($m -eq 'local' -or $m -eq 'open') { return $m }
     if ($ruleScope -eq 'open') { return 'open' }
     if ($ruleScope -eq 'restricted' -or $ruleScope -eq 'none') { return 'local' }
     return 'open'     # the rule could not be read: an every-address server is not shut by an upgrade
@@ -556,7 +561,7 @@ function Resolve-SshUpgradeListen([string]$configListen, [string]$ruleScope) {
 
 function Register-SshTask([string]$listen) {
     if (@('local', 'open') -notcontains $listen) { Fail ('Register-SshTask was given no listen address (' + $listen + ')'); return }
-    Note ('  listen address asked for: ' + $listen + $(if ($listen -eq 'local') { ' (127.0.0.1 only)' } else { ' (0.0.0.0)' }))
+    Note ('  listen address asked for: ' + $listen + $(if ($listen -eq 'local') { ' (127.0.0.1 and ::1)' } else { ' (0.0.0.0 and ::1)' }))
     $script = Join-Path $AppDir 'solo-sshd.ps1'
     if (-not (Test-Path -LiteralPath $script)) { Fail ('solo-sshd.ps1 is not at ' + $script); return }
     $sshd = Find-Sshd
@@ -642,7 +647,7 @@ function Register-SshTask([string]$listen) {
     Note ('  listening on: ' + ($addrs -join ', '))
     $why = Get-SshListenVerdict $listen $addrs
     if ($why -ne '') { Fail $why; return }
-    Note ('  PASS  sshd listens on ' + $(if ($listen -eq 'local') { '127.0.0.1 only (LOCAL)' } else { '0.0.0.0 (OPEN)' }))
+    Note ('  PASS  sshd listens on ' + $(if ($listen -eq 'local') { '127.0.0.1 and ::1 only (LOCAL)' } else { '0.0.0.0 and ::1 (OPEN)' }))
 
     # 17 Nov 26 - SOLO 77: THE GUARD MUST HAVE READ THIS sshd's OWN START.  A running guard task proved nothing (the
     # first build ran for a day reading nothing); its "Solo's sshd is listening: pid <p>" line, written when it reads

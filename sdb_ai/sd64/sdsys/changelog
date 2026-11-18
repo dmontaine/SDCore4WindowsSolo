@@ -35,10 +35,11 @@ of both Windows products is 2.0-0, as all four SD Core versions will be.)
                            sd-solo -internal with another account says "sd: -internal may only be used with the
                            SDSYS account" (lower case).
                          - with ssh set to local (the installer's ssh box without "let other computers connect", or
-                           REMOTE.SSH LOCAL), Solo's own ssh server now listens on 127.0.0.1 only; it listened on
-                           every address and the firewall alone kept other computers out.  REMOTE.SSH OPEN listens on
-                           every IPv4 address (0.0.0.0), as SD Core Solo for Linux; it no longer answers on IPv6.  An
-                           upgrade keeps what was set: open stays open, anything else becomes 127.0.0.1.
+                           REMOTE.SSH LOCAL), Solo's own ssh server now listens on 127.0.0.1 and ::1 only; it
+                           listened on every address and the firewall alone kept other computers out.  REMOTE.SSH OPEN
+                           listens on every IPv4 address (0.0.0.0) and ::1, and on no other IPv6 address.  Both listen
+                           on ::1 because Windows' ssh client tries ::1 for "localhost" and does not fall back.  An
+                           upgrade keeps what was set: open stays open, anything else becomes 127.0.0.1 and ::1.
 
 17 Nov 26  THE SSH LOCK-OUT NOW SEES WRONG PASSWORDS: SOLO'S SSH SERVER LOGS TO THE WINDOWS EVENT LOG.
 

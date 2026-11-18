@@ -132,10 +132,16 @@ try {
                 $cfgLines = [System.IO.File]::ReadAllLines($sshCfg)
                 foreach ($l in (Select-SshdLines $cfgLines)) { Line $l }
                 # 18 Nov 26 - SOLO 78: the listen address is what makes ssh local or open (the firewall rule is the second wall).
-                $la = @($cfgLines | ForEach-Object { if ($_ -match '^\s*ListenAddress\s+(\S+)') { $Matches[1] -replace ':\d+$', '' } })
+                # 18 Nov 26: ::1 is in both modes (Windows' ssh client tries ::1 for "localhost"); the IPv4 line decides.  A port is cut
+                # only from an IPv4 "addr:port" or "[addr]:port", so "::1" is kept whole.
+                $la = @($cfgLines | ForEach-Object { if ($_ -match '^\s*ListenAddress\s+(\S+)') {
+                    $v = $Matches[1]
+                    if ($v -match '^\[([^\]]+)\](:\d+)?$') { $Matches[1] } elseif (($v.ToCharArray() | Where-Object { $_ -eq ':' }).Count -eq 1) { $v -replace ':\d+$', '' } else { $v } } })
+                $v4 = @($la | Where-Object { $_ -ne '::1' })
+                $six = $(if ($la -contains '::1') { ' and ::1' } else { ' (no ::1)' })
                 if ($la.Count -eq 0) { Line 'listen address: every address (no ListenAddress line - an older build; the firewall rule decides)' }
-                elseif (@($la | Where-Object { $_ -ne '127.0.0.1' }).Count -eq 0) { Line 'listen address: 127.0.0.1 only - local, only this computer can connect' }
-                elseif ($la -contains '0.0.0.0') { Line 'listen address: 0.0.0.0 - open, other computers can connect where the firewall rule lets them' }
+                elseif ($v4.Count -gt 0 -and @($v4 | Where-Object { $_ -ne '127.0.0.1' }).Count -eq 0) { Line ('listen address: 127.0.0.1' + $six + ' - local, only this computer can connect') }
+                elseif ($v4 -contains '0.0.0.0') { Line ('listen address: 0.0.0.0' + $six + ' - open, other computers can connect where the firewall rule lets them') }
                 else { Line ('listen address: ' + ($la -join ', ')) }
                 if (@($cfgLines | Where-Object { $_.Trim() -match '^(?i)PasswordAuthentication\s+yes$' }).Count -gt 0) {
                     Line 'logins: Windows account name and password (a key is an optional extra)'

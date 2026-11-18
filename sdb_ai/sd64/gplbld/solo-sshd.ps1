@@ -67,6 +67,12 @@
 # only by the firewall rule (solo-ssh-firewall.ps1), which stays as the second wall.  IPv4 only, as the template: it has no
 # IPv6 loopback or ::, so neither is here; an OPEN Solo no longer answers on IPv6.  -Show reads the line back (LISTEN=) and
 # names the addresses that listen now (LISTENERS=).
+# 18 Nov 26 - SOLO 78, ::1 IN BOTH MODES (an OS deviation from the template).  MEASURED 18 Nov 2026 after the Solo cycle of 20:26
+# (verify-solo-20261117-202952.log, leg 18b refused twice): Windows' ssh client resolves "localhost" to ::1 first and, refused
+# there ("kex_exchange_identification: write: Connection refused", exit 255), does NOT try 127.0.0.1; Linux's client falls back.
+# So LOCAL is "ListenAddress 127.0.0.1" + "ListenAddress ::1", OPEN "ListenAddress 0.0.0.0" + "ListenAddress ::1" - IPv6 loopback
+# only; OPEN does not answer on other IPv6 addresses.  local or open is decided by 127.0.0.1 or 0.0.0.0; a config that has the
+# IPv4 line without ::1 (the first SOLO 78 build) reads as local-v4only or open-v4only and is written again.
 #
 # LEGACY: the first build of SOLO 28 ran a per-user sshd from an S4U task out of <app>\ssh.  -Prepare deletes the
 # files that build left there (config, host key, pid, log) and -Stop also ends an sshd started from that config.
@@ -74,8 +80,8 @@
 # OUTPUT, one machine-readable line each (anchor on these, nothing else):
 #   OSUSER=<name as sshd matches it>   PORT=4251   HOSTKEY=<SHA256:...>   KEYFILE=<path>   CONFIG=<path>
 #   MACHINEDIR=<path>   MIGRATED=<n>   ACL=OK   LISTEN=local|open (-Install: what it wrote)
-#   -Show: LISTEN=local|open|every|none|other <addresses> (the config read back; every = no ListenAddress line, an older
-#   build; none = no config)   LISTENERS=<address:port,...> (what holds 4251 now)
+#   -Show: LISTEN=local|open|local-v4only|open-v4only|every|none|other <addresses> (the config read back; -v4only = no ::1
+#   line; every = no ListenAddress line, an older build; none = no config)   LISTENERS=<address:port,...> (what holds 4251 now)
 #   RESULT=PREPARED|INSTALLED|STOPPED|NONE|REMOVED        ERROR=<text>  (exit 1)
 # Exit 0 only with a RESULT= line.  -AppDir exists for the guard (test-solosshd-units.ps1), which runs this against a
 # scratch tree with %ProgramData% and %USERPROFILE% overridden in the child; -Install ignores the %ProgramData%
@@ -183,6 +189,7 @@ function Get-Config([string]$app, [string]$user, [string]$mdir, [string]$listen)
         '# Written by solo-sshd.ps1 -Install (elevated).  Do not edit; the installer rewrites it.',
         ('Port ' + $Port),
         ('ListenAddress ' + $(if ($listen -eq 'open') { '0.0.0.0' } else { '127.0.0.1' })),
+        'ListenAddress ::1',
         ('HostKey ' + (& $fwd (Join-Path $mdir 'ssh_host_ed25519_key'))),
         ('PidFile ' + (& $fwd (Join-Path $mdir 'sshd.pid'))),
         ('AuthorizedKeysFile ' + (& $fwd (Join-Path (Join-Path $app 'ssh') 'authorized_keys'))),
@@ -204,16 +211,28 @@ function Get-Config([string]$app, [string]$user, [string]$mdir, [string]$listen)
 }
 
 # 18 Nov 26 - SOLO 78: the config's listen address, read back - what is installed, not what was asked (Linux Solo's
-# unit_mode reads its ListenStream line the same way).  local: every ListenAddress is 127.0.0.1; open: one is 0.0.0.0;
-# every: no ListenAddress line (an older build, which listened on every address); none: no config; else other <list>.
+# unit_mode reads its ListenStream line the same way).  The IPv4 line decides: local is 127.0.0.1 and nothing else, open is
+# 0.0.0.0; ::1 is the loopback both modes carry, and without it the answer is local-v4only or open-v4only.  every: no
+# ListenAddress line (an older build, which listened on every address); none: no config; else other <list>.
+# A port is cut only where the address can carry one unambiguously: "[addr]:port", or one colon (IPv4); "::1" stays "::1".
+function Get-ListenHost([string]$a) {
+    if ($a -match '^\[([^\]]+)\](:\d+)?$') { return $Matches[1] }
+    if (($a.ToCharArray() | Where-Object { $_ -eq ':' }).Count -eq 1) { return ($a -replace ':\d+$', '') }
+    return $a
+}
 function Get-ConfigListen([string]$path) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return 'none' }
     $a = @([IO.File]::ReadAllLines($path) | ForEach-Object { if ($_ -match '^\s*ListenAddress\s+(\S+)') { $Matches[1] } })
     if ($a.Count -eq 0) { return 'every' }
-    $hosts = @($a | ForEach-Object { $_ -replace ':\d+$', '' })
-    if (@($hosts | Where-Object { $_ -ne '127.0.0.1' }).Count -eq 0) { return 'local' }
-    if ($hosts -contains '0.0.0.0') { return 'open' }
-    return ('other ' + ($a -join ','))
+    $hosts = @($a | ForEach-Object { Get-ListenHost $_ })
+    $v6 = ($hosts -contains '::1')
+    $rest = @($hosts | Where-Object { $_ -ne '::1' })
+    $mode = ''
+    if ($rest.Count -gt 0 -and @($rest | Where-Object { $_ -ne '127.0.0.1' }).Count -eq 0) { $mode = 'local' }
+    elseif ($rest.Count -gt 0 -and @($rest | Where-Object { $_ -ne '0.0.0.0' -and $_ -ne '127.0.0.1' }).Count -eq 0 -and $rest -contains '0.0.0.0') { $mode = 'open' }
+    if ($mode -eq '') { return ('other ' + ($a -join ',')) }
+    if ($v6) { return $mode }
+    return ($mode + '-v4only')
 }
 
 # Moves the master's old key lines out of ~\.ssh\authorized_keys (where the system sshd's Match block

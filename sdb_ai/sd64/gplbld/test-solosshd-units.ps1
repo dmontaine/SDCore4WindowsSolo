@@ -19,6 +19,8 @@
 # non-admin owner - proved on bad, partly good and mutant folders.  The elevated -Install itself cannot run here.
 # 18 Nov 26 - SOLO 78: -Listen local writes ListenAddress 127.0.0.1 and open 0.0.0.0 (one line, after Port; sshd -t takes both),
 # no -Listen is refused, -Show reads the line back (LISTEN=), and a MUTANT copy whose local writes 0.0.0.0 turns the local row red.
+# 18 Nov 26, the same day: both modes also write ListenAddress ::1 (Windows' ssh client does not fall back from ::1 for "localhost");
+# the rows want exactly the two lines, -Show reads local-v4only / open-v4only / other for the rest, and MUTANT 2 (no ::1) goes red.
 
 $ErrorActionPreference = 'Continue'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -141,14 +143,16 @@ function Test-ListenCfg([string]$t, [string]$addr) {
     $ls =@($t -split "`r?`n")
     $iPort = [array]::IndexOf($ls, 'Port 4251')
     $iLa = -1; for ($i = 0; $i -lt $ls.Count; $i++) { if ($ls[$i] -like 'ListenAddress *') { $iLa = $i; break } }
-    return ($l.Count -eq 1 -and $l[0] -eq $addr -and $iPort -ge 0 -and $iLa -gt $iPort)
+    # 18 Nov 26: EXACTLY two lines, the IPv4 one and ::1 (Windows' ssh client tries ::1 for "localhost" and does not fall back;
+    # measured on the 20:26 Solo cycle, solo-sshd.ps1's header), in that order, both after Port.
+    return ($l.Count -eq 2 -and $l[0] -eq $addr -and $l[1] -eq '::1' -and $iPort -ge 0 -and $iLa -gt $iPort)
 }
 Write-Host ('  local config ListenAddress lines: [' + ((Get-ListenLines $cfgText) -join ', ') + ']')
-Check 'LOCAL: the config has exactly one ListenAddress, 127.0.0.1, after Port 4251' (Test-ListenCfg $cfgText '127.0.0.1')
+Check 'LOCAL: the config has exactly two ListenAddress lines, 127.0.0.1 and ::1, after Port 4251' (Test-ListenCfg $cfgText '127.0.0.1')
 $ro = Run 'PrintConfig open' @('-PrintConfig', '-OsUser', $expectUser, '-Listen', 'open')
 $cfgOpen = $ro.Out
 Write-Host ('  open config ListenAddress lines: [' + ((Get-ListenLines $cfgOpen) -join ', ') + ']')
-Check 'OPEN: the config has exactly one ListenAddress, 0.0.0.0, after Port 4251, and no 127.0.0.1' ($ro.Code -eq 0 -and (Test-ListenCfg $cfgOpen '0.0.0.0') -and $cfgOpen -notmatch '127\.0\.0\.1')
+Check 'OPEN: the config has exactly two ListenAddress lines, 0.0.0.0 and ::1, after Port 4251, and no 127.0.0.1 and no ::' ($ro.Code -eq 0 -and (Test-ListenCfg $cfgOpen '0.0.0.0') -and $cfgOpen -notmatch '127\.0\.0\.1' -and $cfgOpen -notmatch '(?m)^ListenAddress ::\s*$')
 $restLocal = ((($cfgText -split "`r?`n") | Where-Object { $_ -notmatch '^ListenAddress ' }) -join "`n")
 $restOpen = ((($cfgOpen -split "`r?`n") | Where-Object { $_ -notmatch '^ListenAddress ' }) -join "`n")
 Check 'the two configs differ ONLY in the ListenAddress line' ($restLocal.Length -gt 0 -and $restLocal -ceq $restOpen)
@@ -167,7 +171,17 @@ $rm = Run 'MUTANT PrintConfig local' @('-PrintConfig', '-OsUser', $expectUser, '
 # The CONTROL: the mutant's config is well formed for 0.0.0.0, so the LOCAL row goes red on the address and nothing else.
 Check 'MUTANT (LOCAL writes 0.0.0.0): the mutant differs from the live file, printed a config, and the LOCAL row goes red on it (on the address: the same config passes as 0.0.0.0)' (
     $mutated -ne $mutText -and $rm.Code -eq 0 -and $rm.Out -match '(?m)^Port 4251' -and -not (Test-ListenCfg $rm.Out '127.0.0.1') -and (Test-ListenCfg $rm.Out '0.0.0.0'))
-Check 'and the live solo-sshd.ps1 is byte-identical (SHA-256) after the mutant ran' ((Sha $src) -eq $liveSha)
+# MUTANT 2 (18 Nov 26): a copy that drops the ::1 line must turn BOTH rows red; the CONTROL is that it still printed a config.
+$mutated2 = $mutText.Replace("'ListenAddress ::1',", "")
+$mutFile2 = Join-Path $root 'mutant2-solo-sshd.ps1'
+[IO.File]::WriteAllText($mutFile2, $mutated2, (New-Object Text.UTF8Encoding($false)))
+Write-Host ('  mutant 2 (no ::1) made: ' + ($mutated2 -ne $mutText) + '   (' + $mutFile2 + ')')
+$rm2 = Run 'MUTANT 2 PrintConfig local' @('-PrintConfig', '-OsUser', $expectUser, '-Listen', 'local') $mutFile2
+$rm2o = Run 'MUTANT 2 PrintConfig open' @('-PrintConfig', '-OsUser', $expectUser, '-Listen', 'open') $mutFile2
+Check 'MUTANT 2 (no ::1): the mutant differs, printed both configs with their IPv4 line, and the LOCAL and OPEN rows both go red on it' (
+    $mutated2 -ne $mutText -and $rm2.Code -eq 0 -and $rm2o.Code -eq 0 -and $rm2.Out -match '(?m)^ListenAddress 127\.0\.0\.1' -and $rm2o.Out -match '(?m)^ListenAddress 0\.0\.0\.0' -and
+    -not (Test-ListenCfg $rm2.Out '127.0.0.1') -and -not (Test-ListenCfg $rm2o.Out '0.0.0.0'))
+Check 'and the live solo-sshd.ps1 is byte-identical (SHA-256) after the mutants ran' ((Sha $src) -eq $liveSha)
 Check 'the config sets Port 4251, StrictModes yes, PasswordAuthentication yes and PubkeyAuthentication yes' (
     $cfgText -match '(?m)^Port 4251\s*$' -and $cfgText -match '(?m)^StrictModes yes\s*$' -and $cfgText -match '(?m)^PasswordAuthentication yes\s*$' -and $cfgText -match '(?m)^PubkeyAuthentication yes\s*$')
 Check 'it allows ONLY the owner, forces sd-solo.exe from the app folder, and forbids forwarding' (
@@ -227,8 +241,13 @@ Check '-Show with no machine config says LISTEN=none, and names the addresses on
 $mcfg = Join-Path $mdir 'sshd_config'
 $showRows = @(@('the LOCAL config', ($cfgText -replace "`r`n", "`n"), 'local'), @('the OPEN config', ($cfgOpen -replace "`r`n", "`n"), 'open'),
               @('a config with no ListenAddress (a build before SOLO 78)', "Port 4251`nPasswordAuthentication yes`n", 'every'),
-              @('a config with 127.0.0.1:4251', "Port 4251`nListenAddress 127.0.0.1:4251`n", 'local'),
-              @('a config with 127.0.0.1 AND 0.0.0.0', "Port 4251`nListenAddress 127.0.0.1`nListenAddress 0.0.0.0`n", 'open'))
+              @('a config with 127.0.0.1:4251 and [::1]:4251', "Port 4251`nListenAddress 127.0.0.1:4251`nListenAddress [::1]:4251`n", 'local'),
+              @('a config with 127.0.0.1 AND 0.0.0.0 and ::1', "Port 4251`nListenAddress 127.0.0.1`nListenAddress 0.0.0.0`nListenAddress ::1`n", 'open'),
+              # 18 Nov 26: the first SOLO 78 build wrote no ::1 line; it reads as its mode, -v4only, so the next change writes it again.
+              @('a LOCAL config with no ::1 (the first SOLO 78 build)', "Port 4251`nListenAddress 127.0.0.1`n", 'local-v4only'),
+              @('an OPEN config with no ::1 (the first SOLO 78 build)', "Port 4251`nListenAddress 0.0.0.0`n", 'open-v4only'),
+              @('a config that names :: (every IPv6 address)', "Port 4251`nListenAddress 0.0.0.0`nListenAddress ::`n", 'other 0.0.0.0,::'),
+              @('a config that names a LAN address', "Port 4251`nListenAddress 192.168.1.20`nListenAddress ::1`n", 'other 192.168.1.20,::1'))
 foreach ($s in $showRows) {
     [IO.File]::WriteAllText($mcfg, $s[1], (New-Object Text.UTF8Encoding($false)))
     $r = Run ('Show over ' + $s[0]) @('-Show')

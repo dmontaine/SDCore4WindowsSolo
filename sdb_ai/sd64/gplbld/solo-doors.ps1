@@ -69,6 +69,8 @@
 #
 # 18 Nov 26 SD Core Solo - SOLO 78 (audit P-4455): ssh's local is sshd's listen address, 127.0.0.1 (solo-sshd.ps1 -Listen), as the API's
 # is APILOCAL; -Show reads it from the machine sshd_config ("ssh listen: ..."), and "ssh mode: open" needs it AND an open rule.
+# 18 Nov 26 SD Core Solo - SOLO 78: both modes also carry ListenAddress ::1 (Windows' ssh client does not fall back from ::1 for
+# "localhost"); the IPv4 line decides local or open, and a config without ::1 reads as local-v4only or open-v4only.
 param(
     [switch]$Show,
     [switch]$Serve,
@@ -134,10 +136,19 @@ function Get-SshConfigListen {
         $a = @([IO.File]::ReadAllLines($p) | ForEach-Object { if ($_ -match '^\s*ListenAddress\s+(\S+)') { $Matches[1] } })
     } catch { return 'unreadable' }
     if ($a.Count -eq 0) { return 'every' }
-    $hosts = @($a | ForEach-Object { $_ -replace ':\d+$', '' })
-    if (@($hosts | Where-Object { $_ -ne '127.0.0.1' }).Count -eq 0) { return 'local' }
-    if ($hosts -contains '0.0.0.0') { return 'open' }
-    return ('other ' + ($a -join ','))
+    # 18 Nov 26: ::1 is in both modes; the IPv4 line decides; a port is cut only from "[addr]:port" or an IPv4 "addr:port".
+    $hosts = @($a | ForEach-Object {
+        if ($_ -match '^\[([^\]]+)\](:\d+)?$') { $Matches[1] }
+        elseif (($_.ToCharArray() | Where-Object { $_ -eq ':' }).Count -eq 1) { $_ -replace ':\d+$', '' }
+        else { $_ } })
+    $v6 = ($hosts -contains '::1')
+    $rest = @($hosts | Where-Object { $_ -ne '::1' })
+    $mode = ''
+    if ($rest.Count -gt 0 -and @($rest | Where-Object { $_ -ne '127.0.0.1' }).Count -eq 0) { $mode = 'local' }
+    elseif ($rest.Count -gt 0 -and @($rest | Where-Object { $_ -ne '0.0.0.0' -and $_ -ne '127.0.0.1' }).Count -eq 0 -and $rest -contains '0.0.0.0') { $mode = 'open' }
+    if ($mode -eq '') { return ('other ' + ($a -join ',')) }
+    if ($v6) { return $mode }
+    return ($mode + '-v4only')
 }
 
 function Show-Doors {
@@ -168,10 +179,12 @@ function Show-Doors {
         # open; a config that listens on 127.0.0.1, or a rule for this computer only, is local.
         $scope = Get-Scope 'SD Core Solo ssh (port 4251)' $SshPort
         $listen = Get-SshConfigListen
-        Write-Output ('ssh mode: ' + $(if ($scope -eq 'open' -and $listen -ne 'local') { 'open' } else { 'local' }))
+        Write-Output ('ssh mode: ' + $(if ($scope -eq 'open' -and $listen -notlike 'local*') { 'open' } else { 'local' }))
     }
     Write-Output ('ssh listening: ' + $(if (Test-Listening $SshPort) { 'yes' } else { 'no' }))
-    Write-Output ('ssh listen: ' + $(switch -regex (Get-SshConfigListen) { '^local$' { '127.0.0.1 only' } '^open$' { '0.0.0.0' } '^every$' { 'every address (an older build)' } '^none$' { 'no config' } default { $_ } }))
+    Write-Output ('ssh listen: ' + $(switch -regex (Get-SshConfigListen) { '^local$' { '127.0.0.1 and ::1 only' } '^open$' { '0.0.0.0 and ::1' }
+        '^local-v4only$' { '127.0.0.1 only (no ::1: written again at the next change)' } '^open-v4only$' { '0.0.0.0 only (no ::1: written again at the next change)' }
+        '^every$' { 'every address (an older build)' } '^none$' { 'no config' } default { $_ } }))
     # Where the helper answers, and whether the helper is there: the verb reads both.
     Write-Output ('doors dir: ' + $DoorsDir)
     Write-Output ('doors helper: ' + $(if ((Test-Path -LiteralPath $DoorsDir) -and (Get-Task 'SD Core Solo Doors')) { 'yes' } else { 'no' }))
