@@ -12,7 +12,7 @@
   },
   "basic.function": {
    "chunks": 230,
-   "sha256": "3fe55ed21abb168b54a580bea4b389aca4417a7ffca72ddf8059fe6409160e5c"
+   "sha256": "e19d74526f754e96fb3e1f86f52ffdc8e15a8bb32ea8f77c1ea1672c2fc392bf"
   },
   "basic.internal": {
    "chunks": 37,
@@ -28,15 +28,15 @@
   },
   "basic.restricted": {
    "chunks": 34,
-   "sha256": "a093da58bacb974b14f451341cc3bee68f6f8f753cf2545519e5ca3095025299"
+   "sha256": "942dbf0752c3f55304bdfbda4ea695f498b415f25d3283e9c1ec387cf8d3efd4"
   },
   "basic.statement": {
    "chunks": 203,
-   "sha256": "19083778fef53cf36576a4a3a344dd921db605d3124340c561445a33aa74dc74"
+   "sha256": "f1b8f9c81b8c2deb80aac06c656f3ae0a6850b35460c37454aaff86afcd48c1c"
   },
   "core.digest": {
    "chunks": 5,
-   "sha256": "252dbd585364146c95ac52b6367da136dc5a762037571e2ea9447a4875547cc1"
+   "sha256": "db59ac9588827712adc2b00605c74ec4ca79b19d14efd941c48ce007778079e9"
   },
   "core.start": {
    "chunks": 1,
@@ -88,7 +88,7 @@
   },
   "sys.param": {
    "chunks": 60,
-   "sha256": "7334d62437be31a0c631581ca43623ffe2ed01accef74739041604ce13b5b6fc"
+   "sha256": "b19105b6ba574b1f4cdcde72f1b980dca5e09e9ce292272d6b90131c457caf09"
   },
   "sys.releases": {
    "chunks": 1,
@@ -128,8 +128,8 @@
  "parts": {
   "core.md": {
    "chunks": 6,
-   "sha256": "c4892d4f457467157426c3c0366f1861bb1d51ab1483db2c00a2c199d319d57a",
-   "words": 2808
+   "sha256": "e90d83f908028679d4657f5eb2ae4c517f7bb80b6c8eb6ee28c5dff6cb6751cc",
+   "words": 2824
   },
   "examples/dictionary-items.md": {
    "chunks": 69,
@@ -142,11 +142,11 @@
    "words": 627
   },
   "index.json": {
-   "sha256": "f4a30bf555c4866b354cc8e919d6ffdb017e7368011fa6a8c30013b2dd410c16"
+   "sha256": "bf3b2dfccb0e282d58fc81700e7f48ebf790dada34fc0dbcc31ddfc94a2e3e76"
   },
   "reference/basic-functions.md": {
    "chunks": 267,
-   "sha256": "c7420cdc81329d7dbbdad1333fc204cf3f172c81e118cba42eb01e92b037e393",
+   "sha256": "98859a856edde82558f9dd298d6d1ada081ef8a42f2b96c438e2e8897e6b6e49",
    "words": 4463
   },
   "reference/basic-modes.md": {
@@ -156,7 +156,7 @@
   },
   "reference/basic-statements.md": {
    "chunks": 270,
-   "sha256": "222ad14ea52d62918b69e95d6c8db2f7c8fc4a690f1cdb5e717cd29c21f93c30",
+   "sha256": "ad37a9e27c33451cdbb00a0084bc466c642e7e3f8f5a7b98e57f3fa452bb0dad",
    "words": 6025
   },
   "reference/dictionaries.md": {
@@ -176,7 +176,7 @@
   },
   "reference/system.md": {
    "chunks": 61,
-   "sha256": "3d82f099f48e1916ce9086dda79b2cfdd32253819e8eb1c444c6fac3bd8a6c90",
+   "sha256": "dca9913e194aba36dc3406a475e9de4b58ac90d4cade97ba2bf34e423d074497",
    "words": 1161
   },
   "reference/tcl-keywords.md": {

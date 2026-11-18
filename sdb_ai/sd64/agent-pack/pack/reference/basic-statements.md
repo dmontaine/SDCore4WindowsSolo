@@ -493,7 +493,7 @@ clause of `execute` — run at the current command level ***(clause word)***
 `loop` … `do` … `repeat`
 
 - a statement of SD BASIC
-- docs: `User/markdown/37a-sd-basic-python-integration.md` line 227
+- docs: `User/markdown/37a-sd-basic-python-integration.md` line 238
 
 ### basic:stmt:dparse
 > kind=basic.statement tier=reference since=- src=sdsys/gpl.bp/bcomp:445#c137eb53 src2=docs:tools/syntax-shapes.txt:69#4e9120fd
@@ -2097,7 +2097,7 @@ clause of `loop`: `loop` … `while` *condition* … `repeat`
 `writepkt` *data*
 
 - a RESTRICTED statement: it compiles only in a program with `$internal`, which an ordinary account cannot make; an ordinary program is told "Unrecognised statement"
-- docs: `User/markdown/15-sd-basic-sockets.md` line 314
+- docs: `User/markdown/15-sd-basic-sockets.md` line 315
 
 ### basic:stmt:writeseq
 > kind=basic.statement tier=reference since=- src=sdsys/gpl.bp/bcomp:490#bfa4d305 src2=docs:tools/syntax-shapes.txt:254#98338a11

@@ -154,10 +154,10 @@ you arrived and what you unlocked*, not about which account you are in.
 | Switch | What it lets the account do |
 |---|---|
 | **`sh`** | the `sh` verb |
-| **`os`** | `OS.EXECUTE`; `OPENSEQ`, `OPENPATH`, `DIR()`, `DELETESEQ`, `OPENTEMP`, `DIGEST` of a file and the file-system keys of `OSPATH()` on a path **outside the account's own directory**; a print unit's pathname (`SETPTR ... AS PATHNAME`, `SETPU`, a CSV report's `TO` pathname) outside it; the Python helper; the screen editors `edit` and `micro`; and a VOC pointer to a file outside the account |
+| **`os`** | `OS.EXECUTE`; `OPENSEQ`, `OPENPATH`, `DIR()`, `DELETESEQ`, `OPENTEMP`, `DIGEST` of a file and the file-system keys of `OSPATH()` on a path **outside the account's own directory**; a print unit's pathname (`SETPTR ... AS PATHNAME`, `SETPU`, a CSV report's `TO` pathname) outside it; the pathname of a socket trace log (`SET.SOCKET.MODE` with `SKT$INFO.TRACE`) outside it; the Python helper; the screen editors `edit` and `micro`; and a VOC pointer to a file outside the account |
 
-**Both are off as delivered, on a new install and on an upgrade unless you said
-yes when the installer asked.** The account's own directory is never asked
+**Both are off as delivered on a new install unless you said yes when the
+installer asked; an upgrade keeps the switches the installation has.** The account's own directory is never asked
 about: inside it everything works whatever the switches say. **The
 administrator needs no switch**: after `admin` the session passes both for as
 long as it lasts.
