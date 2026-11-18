@@ -18,9 +18,12 @@
 #                 signed-in user): a record is believed only from the listener or its child, both Windows' sshd image,
 #                 the child started after the listener; dropped: a non-sshd image, another parent, a child older
 #                 than the listener, a listener that is not sshd, no listener, an exited never-verified pid, a
-#                 record written after its verified process was seen gone, a reused pid (another creation time);
-#                 kept: an exited pid verified while alive, a connection verified before the listener restarted;
-#                 a gone pid's verification is forgotten after $VerifiedLife.  PARSING: the address is the LAST "from ...
+#                 record written after its verified process was seen gone or after its EXACT exit time (a caught
+#                 writer's), a reused pid (another creation time); kept: an exited pid verified while alive, a
+#                 caught writer that has exited (the real shape: a refused connection lives ~65 ms, measured
+#                 17 Nov 2026), a connection verified before the listener restarted (and dropped after its exit);
+#                 a gone pid is marked gone at its exit time, and its verification is forgotten after
+#                 $VerifiedLife.  PARSING: the address is the LAST "from ...
 #                 port ... ssh2"; a message must START the payload (no prefix, no tag); ::ffff: is folded.  The state
 #                 file round-trips (connections too).  THE READING PATH, on the recorded source: the bookmark moves,
 #                 nothing is read twice, a first pass of the task starts at the END, a cleared source is read from its
@@ -32,15 +35,23 @@
 #                 from <folder>\events.txt, the clock from SDSOLO_TEST_NOW, and the firewall and processes replaced by
 #                 RULES= / CUT= lines): the third failure prints CUT and the rule, -List names the source and the
 #                 address and ends "SOLO SSH GUARD LOCKED 1", -Unlock ends "UNLOCKED 1" and the rule goes, the lock lifts
-#                 by itself, a bad address and no switch are refused, the first pass writes "watching ...: ok".
+#                 by itself, a bad address and no switch are refused, the first pass writes "watching ...: ok", a
+#                 writer listed "exited" in procs.txt is believed.
+#   NATIVE rows - SoloSshWatch (the script's sshguard_native region, compiled here) on a child PING.EXE of this
+#                 shell: caught with its parent, image and creation time; after its exit still held, with the exact
+#                 exit time; let go past the hold; a pid not running is not caught; a missing channel throws.  Four
+#                 native mutants (renamed copies) must each turn a NATIVE row red.  -Serve starts the watcher
+#                 before its loop, and a pass catches a record's uncaught writer (text pins).
 #   PIN rows    - what the guard relies on elsewhere: Solo's sshd_config (solo-sshd.ps1 Get-Config) says LogLevel
 #                 VERBOSE and LoginGraceTime 120 (and $ConnLife is longer); the sshd task (solo-machine.ps1) has no -E;
 #                 the installer's two checks anchor on the words the guard writes.
-#   MUTANTS     - each copy of the logic region below must turn at least one RULE row red.  A mutant whose target is
-#                 not found exactly once stops the run (exit 2): it would test nothing.
+#   MUTANTS     - each copy of the logic region below must PARSE and turn at least one RULE row red (a copy that
+#                 does not parse, or a native copy that does not compile, counts as green: it tests nothing).  A
+#                 mutant whose target is not found exactly once stops the run (exit 2): it would test nothing.
 # NOT MEASURED HERE: Solo's own sshd writing "Connection from ... port 4251" to the channel (VERBOSE; the port-22 sshd
-# at INFO never does), the firewall rule refusing a connection, the child being ended.  verify-solo.ps1 leg 18e and
-# the installer's "read Solo's sshd start" check measure the first on an installed Solo.
+# at INFO never does), the watcher catching Solo's SYSTEM sshd as SYSTEM and in time, the firewall rule refusing a
+# connection, the child being ended.  verify-solo.ps1 leg 18e (a wrong password must be COUNTED) and the
+# installer's "read Solo's sshd start" check measure the first two on an installed Solo.
 
 $ErrorActionPreference = 'Continue'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -85,7 +96,7 @@ $ruleRows = {
         $l = @{ Pid = 4000; Parent = 1; Image = $img; Created = [long]100 }
         return @{ Procs = @{ '4000' = $l }; Listener = $l; Vc = @{} }
     }
-    function Add-Proc($w, [int]$procId, [int]$parent, [long]$created, [string]$image) { $w.Procs[[string]$procId] = @{ Pid = $procId; Parent = $parent; Image = $image; Created = $created } }
+    function Add-Proc($w, [int]$procId, [int]$parent, [long]$created, [string]$image, [long]$exited = 0) { $w.Procs[[string]$procId] = @{ Pid = $procId; Parent = $parent; Image = $image; Created = $created; Exited = $exited } }
     $script:W = New-World
     function AR($st, $x, [long]$now) {
         if ($null -ne $x.Pid -and -not $script:W.Procs.ContainsKey([string]$x.Pid)) { Add-Proc $script:W $x.Pid 4000 200 $img }
@@ -219,6 +230,32 @@ $ruleRows = {
     $w.Listener = @{ Pid = 4001; Parent = 1; Image = $img; Created = [long]250 }; $w.Procs['4001'] = $w.Listener
     $rd = (Add-Record $s (Fp 913 $A) 8000 $w).R
     Row 'a connection verified before the listener restarted is still believed (same process, verified while alive)' ($rd -eq 'COUNT') ('R ' + $rd)
+    $w.Procs['913'].Exited = [long]1500
+    Update-Verified $w 3000
+    $f3 = Fp 913 $A; $f3.Time = 1400
+    $f4 = Fp 913 $A; $f4.Time = 1600
+    $re = (Add-Record $s $f3 8000 $w).R
+    $rf = Add-Record $s $f4 8000 $w
+    Row 'that connection, EXITED at 1500: a record of 1400 is still believed, one of 1600 is dropped (gone)' ($re -eq 'COUNT' -and $rf.R -eq 'DROP' -and $rf.V -eq 'gone' -and $w.Vc['913'].Gone -eq 1500) ('1400: ' + $re + ', 1600: ' + $rf.R + ' ' + $rf.V + ', Vc gone ' + $w.Vc['913'].Gone)
+
+    # THE REAL SHAPE (measured 17 Nov 2026): the writer is caught while it runs and its handle kept, so the guard
+    # knows its EXACT exit time; a refused connection has exited (~65 ms) long before its records are read.
+    $w = New-World; Add-Proc $w 930 4000 200 $img 1500
+    $s = New-State
+    $c1 = Cn 930 $A; $c1.Time = 1300
+    $f1 = Fp 930 $A; $f1.Time = 1450
+    $f2 = Fp 930 $A; $f2.Time = 1501
+    $ra = @((Add-Record $s $c1 8000 $w).R, (Add-Record $s $f1 8000 $w).R)
+    $rb = Add-Record $s $f2 8000 $w
+    Row 'a CAUGHT writer that has exited (exit time 1500): its connection and failure written before the exit count' (($ra -join ',') -eq 'CONN,COUNT' -and $s.Addrs[$A].Fails.Count -eq 1) ('events ' + ($ra -join ','))
+    Row 'a record under that pid written AFTER its exit time is dropped (gone), not counted' ($rb.R -eq 'DROP' -and $rb.V -eq 'gone' -and $s.Addrs[$A].Fails.Count -eq 1) ('R ' + $rb.R + ', V ' + $rb.V)
+    $w = New-World; Add-Proc $w 931 4000 200 $img
+    Update-Verified $w 1000
+    $w.Procs['931'].Exited = [long]1500
+    Update-Verified $w 3000
+    Add-Proc $w 932 4000 200 $img 1700
+    Update-Verified $w 3000
+    Row 'the listing marks a verified pid gone AT ITS EXIT TIME (1500, not the 3000 it was noticed), and one caught already exited at its exit (1700)' ($w.Vc['931'].Gone -eq 1500 -and $w.Vc['932'].Gone -eq 1700) ('gone ' + $w.Vc['931'].Gone + ' / ' + $w.Vc['932'].Gone)
 
     # ---- parsing
     $inj = 'Failed password for invalid user x from 10.9.9.9 port 1 ssh2: from ' + $B + ' port 50107 ssh2'
@@ -335,6 +372,7 @@ $sysSshd = Join-Path ([Environment]::SystemDirectory) 'OpenSSH\sshd.exe'
 $pl = @('listener 4000', ('proc 4000 1 100 ' + $sysSshd))
 foreach ($p in 1001..1006) { $pl += ('proc ' + $p + ' 4000 200 ' + $sysSshd) }
 $pl += 'proc 3001 4000 200 C:\Users\Public\sshd.exe'
+$pl += ('proc 1007 4000 200 exited 300 ' + $sysSshd)
 [IO.File]::WriteAllLines((Join-Path $td 'procs.txt'), [string[]]$pl)
 Write-Host ('  procs.txt: ' + ($pl -join ' | '))
 Add-Try 1001; Add-Try 1002
@@ -359,6 +397,9 @@ $o = Run-Guard 10050 @('-Unlock', $X)
 Check '-Unlock <address> ends "SOLO SSH GUARD UNLOCKED 1" and no rule is wanted' ($script:lastCode -eq 0 -and $o -match '(?m)^SOLO SSH GUARD UNLOCKED 1\s*$' -and $o -match '(?m)^RULES=\s*$') 'UNLOCKED 1'
 $o = Run-Guard 10060 @('-List')
 Check 'after it, -List ends "SOLO SSH GUARD LOCKED 0"' ($o -match '(?m)^SOLO SSH GUARD LOCKED 0\s*$') 'LOCKED 0'
+Add-Try 1007
+$o = Run-Guard 10070 @('-Serve')
+Check 'a writer listed as EXITED ("proc ... exited <ticks> <image>", the real shape of a refused connection) is believed: its wrong password counts' ($o -match 'a wrong password from 203\.0\.113\.5 \(pid 1007\)' -and $o -notmatch 'pid 1007 dropped') 'wrong password (pid 1007)'
 Add-Try 1004; Add-Try 1005; Add-Try 1006
 $null = Run-Guard 20000 @('-Serve')
 $o = Run-Guard 20599 @('-Serve')
@@ -387,6 +428,70 @@ Check 'the "SD Core Solo SSH" task runs sshd -D -f <config> with NO -E (so sshd 
 Check 'the installer''s first check anchors on the words the guard writes after its first read' ($machText.Contains('sd-solo-sshguard: watching OpenSSH/Operational: ok, from record \d+') -and $text.Contains('Say (''watching '' + $source + '': ok, from record '' + $st.Offset)') -and $text.Contains("`$Channel = 'OpenSSH/Operational'")) 'watching ... ok'
 Check 'the installer''s second check anchors on the guard''s "Solo''s sshd is listening: pid" line' ($machText.Contains('sd-solo-sshguard: Solo''''s sshd is listening: pid (\d+) ') -and $text.Contains('Say (''Solo''''s sshd is listening: pid '' + $rec.Pid + '' ('' + $rec.Text + '')'')')) 'listening: pid'
 
+# ---- NATIVE rows: SoloSshWatch, the process catcher, compiled from the script and driven on OUR OWN child ---------
+# (unelevated we may open our own child, not Solo's SYSTEM sshd; the C# is the same either way).  Each mutant is a
+# renamed copy (a type cannot be compiled twice in one process) and must turn a NATIVE row red.
+Write-Host '--- NATIVE rows (the sshguard_native region, compiled; a child PING.EXE -n 2 127.0.0.1 of this shell)'
+$nm = [regex]::Match($text, "(?s)# BEGIN sshguard_native[^\n]*\n.*?\`$NativeSource = @'\r?\n(.*?)\r?\n'@")
+if (-not $nm.Success) { Write-Host 'CANNOT RUN: no "$NativeSource = @''...''@" in the sshguard_native region'; Remove-Item $scratch -Recurse -Force; exit 2 }
+$native = $nm.Groups[1].Value
+$ping = Join-Path ([Environment]::SystemDirectory) 'PING.EXE'
+function Test-Native([string]$code, [string]$suffix, [bool]$verbose) {
+    $bad = New-Object System.Collections.ArrayList
+    function NRow([string]$label, [bool]$ok, [string]$seen) {
+        if ($verbose) { Write-Host ($(if ($ok) { 'PASS  ' } else { 'FAIL  ' }) + $label + '   [' + $seen + ']') }
+        if (-not $ok) { [void]$bad.Add($label) }
+    }
+    $tn = 'SoloSshWatch' + $suffix
+    try { Add-Type -TypeDefinition ($code.Replace('SoloSshWatch', $tn).Replace('SoloProcInfo', 'SoloProcInfo' + $suffix)) -ErrorAction Stop }
+    catch { NRow 'the native region compiles' $false $_.Exception.Message; return @($bad) }
+    NRow 'the native region compiles' $true $tn
+    $ty = [type]$tn
+    $p = Start-Process -FilePath $ping -ArgumentList '-n', '2', '127.0.0.1' -WindowStyle Hidden -PassThru
+    $caught = $ty::Catch($p.Id)
+    $i = @($ty::Snapshot([long]600000000) | Where-Object { $_.Pid -eq $p.Id })
+    $wantC = $p.StartTime.ToUniversalTime().Ticks
+    $ok = ($caught -and $i.Count -eq 1 -and $i[0].Parent -eq $PID -and $i[0].Image -eq $ping -and $i[0].Created -eq $wantC -and $i[0].Exited -eq 0)
+    NRow 'a running process is caught: its parent (this shell), image and creation time (Process.StartTime''s ticks), not exited' $ok ('caught ' + $caught + $(if ($i.Count) { ', parent ' + $i[0].Parent + ' (want ' + $PID + '), image ' + $i[0].Image + ', created ' + $i[0].Created + ' (want ' + $wantC + '), exited ' + $i[0].Exited } else { ', not in the snapshot' }))
+    $p.WaitForExit()
+    $i = @($ty::Snapshot([long]600000000) | Where-Object { $_.Pid -eq $p.Id })
+    $wantX = $p.ExitTime.ToUniversalTime().Ticks
+    NRow 'after it EXITS it is still held: the exact exit time (Process.ExitTime''s ticks), and the image read while it ran' ($i.Count -eq 1 -and $i[0].Exited -eq $wantX -and $i[0].Image -eq $ping) $(if ($i.Count) { 'exited ' + $i[0].Exited + ' (want ' + $wantX + '), image ' + $i[0].Image } else { 'not in the snapshot' })
+    Start-Sleep -Milliseconds 20
+    $i = @($ty::Snapshot([long]0) | Where-Object { $_.Pid -eq $p.Id })
+    NRow 'once past the hold its handle is let go and it is forgotten' ($i.Count -eq 0) ('entries for the pid ' + $i.Count)
+    $c2 = $ty::Catch(2147483644)
+    NRow 'a pid that is not running is not caught' (-not $c2) ('Catch ' + $c2)
+    $threw = $false
+    try { $ty::Start('SD-No/SuchChannel') } catch { $threw = $true }
+    $started = $false
+    try { $ty::Start('Application'); $started = $true; $ty::Stop() } catch { }
+    NRow 'subscribing to a channel that does not exist THROWS; to Application it does not' ($threw -and $started) ('threw ' + $threw + ', Application ' + $started)
+    return @($bad)
+}
+$nb = @(Test-Native $native '' $true)
+$fail += $nb.Count
+Write-Host ('NATIVE rows: ' + $nb.Count + ' failed')
+Check '-Serve subscribes the watcher before its first pass, compiled with TEMP in the machine folder' ($text.Contains('[SoloSshWatch]::Start($Channel)') -and $text.Contains('$env:TMP = $dir; $env:TEMP = $dir') -and $text.IndexOf('[SoloSshWatch]::Start($Channel)') -lt $text.IndexOf('while ($true) {')) 'Start before the loop'
+Check 'a pass catches a record''s writer not caught yet, before judging the record' ($text.Contains('if ([SoloSshWatch]::Catch([int]$rec.Pid)) { Update-World $false }')) 'Catch at read'
+$nmut = @(
+    @('the exit time never read', 'if (en.I.Exited == 0 && WaitForSingleObject(en.H, 0) == 0)', 'if (en.I.Exited == 0 && en.H == IntPtr.Zero)'),
+    @('the parent not read',      'i.Parent = (int)b.InheritedFromUniqueProcessId.ToInt64();', 'i.Parent = 0;'),
+    @('the image not read',       'i.Image = sb.ToString(0, (int)n);', 'i.Image = "";'),
+    @('handles never let go',     'foreach (int p in gone) { CloseHandle(Map[p].H); Map.Remove(p); }', 'gone.Clear();')
+)
+$ng = 0; $k = 0
+foreach ($mu in $nmut) {
+    $k++
+    if (([regex]::Matches($native, [regex]::Escape($mu[1]))).Count -ne 1) { Write-Host ("CANNOT RUN: native mutant '" + $mu[0] + "' expects its target once"); Remove-Item $scratch -Recurse -Force; exit 2 }
+    $mb = @(Test-Native ($native.Replace($mu[1], $mu[2])) ('M' + $k) $false)
+    # A mutant that does not compile proves nothing about the rows: it counts as green.
+    $red = $mb.Count -gt 0 -and $mb -notcontains 'the native region compiles'
+    if (-not $red) { $ng++ }
+    Write-Host ("  native mutant '" + $mu[0] + "': " + $(if ($red) { 'RED as it must be (' + $mb[0] + ')' } elseif ($mb.Count) { 'DOES NOT COMPILE - it tests nothing' } else { 'STILL GREEN - the rows miss it' }))
+}
+Check ('every native mutant went red (' + ($nmut.Count - $ng) + ' of ' + $nmut.Count + ')') ($ng -eq 0) ('green ' + $ng)
+
 # ---- MUTANTS -------------------------------------------------------------------------------------------------------
 Write-Host '--- MUTANTS (each must turn a RULE row red)'
 $mutants = @(
@@ -401,7 +506,9 @@ $mutants = @(
     @('message not anchored',      '''^(Failed password|Accepted \S+) for', '''^.*?(Failed password|Accepted \S+) for'),
     @('any pid is Solo''s',        'if (-not $st.Conns.ContainsKey($p)) { return $none }', 'if (-not $st.Conns.ContainsKey($p)) { $st.Conns[$p] = @{ Addr = $ev.Addr; Time = $now } }'),
     @('the port is not checked',   'if ($ev.Port -eq $SshPort) {', 'if ($true) {'),
-    @('a reused pid stays Solo''s','            if ($st.Conns.ContainsKey($p)) { $st.Conns.Remove($p) }' + "`n" + '            return $none', '            return $none'),
+    # A target or replacement built with + is in parentheses: the comma binds tighter than +, so without them the
+    # pieces became separate array elements and the mutant tested something else (found 17 Nov 2026).
+    @('a reused pid stays Solo''s',('            if ($st.Conns.ContainsKey($p)) { $st.Conns.Remove($p) }' + "`n" + '            return $none'), '            return $none'),
     @('the closing line ignored',  '''end'' { if ($st.Conns.ContainsKey($p)) { $st.Conns.Remove($p) }; return $none }', '''end'' { return $none }'),
     @('a connection never expires','$ConnLife = 180 ', '$ConnLife = 1000000000 '),
     @('another address counted',   'if ($st.Conns[$p].Addr -ne $ev.Addr)', 'if ($false)'),
@@ -413,13 +520,16 @@ $mutants = @(
     @('parent not checked',        'return ($p.Parent -eq $listener.Pid -and $p.Created -ge $listener.Created)', 'return $true'),
     @('start time not checked',    ' -and $p.Created -ge $listener.Created)', ')'),
     @('exited never-verified kept','if ($null -eq $c) { return ''unverified'' }', 'if ($null -eq $c) { return ''cached'' }'),
-    @('exited verified dropped',   '    return ''cached''' + "`n" + '}', '    return ''unverified''' + "`n" + '}'),
-    @('a reused pid believed',     'if ($null -ne $c -and $c.Created -eq $p.Created -and $c.Gone -eq 0) { return ''cached'' }', 'if ($null -ne $c) { return ''cached'' }'),
-    @('written after gone kept',   'if ($c.Gone -gt 0 -and $null -ne $rec.Time -and $rec.Time -gt $c.Gone) { return ''gone'' }', '$null = 0'),
-    @('the listing verifies nothing', 'if ((Test-SoloProcess $p $world.Listener) -and', 'if ($false -and'),
+    @('exited verified dropped',   ('    return ''cached''' + "`n" + '}'), ('    return ''unverified''' + "`n" + '}')),
+    @('a reused pid believed',     'if ($null -ne $c -and $c.Created -eq $p.Created) {', 'if ($null -ne $c) {'),
+    @('written after gone kept',   ('if ($null -eq $c) { return ''unverified'' }' + "`n" + '    if ($c.Gone -gt 0 -and $null -ne $rec.Time -and $rec.Time -gt $c.Gone) { return ''gone'' }'), 'if ($null -eq $c) { return ''unverified'' }'),
+    @('written after gone kept (listener restarted)', '            if ($c.Gone -gt 0 -and $null -ne $rec.Time -and $rec.Time -gt $c.Gone) { return ''gone'' }', '            $null = 0'),
+    @('the exit time ignored',     'if ($x -gt 0 -and $null -ne $rec.Time -and $rec.Time -gt $x) { return ''gone'' }', '$null = 0'),
+    @('the listing verifies nothing', 'if (-not (Test-SoloProcess $p $world.Listener)) { continue }', 'continue'),
     @('gone never marked',         '{ $c.Gone = $nowTicks }', '{ }'),
+    @('the exit never marks gone', 'elseif ($c.Gone -eq 0 -and [long]$p.Exited -gt 0) { $c.Gone = [long]$p.Exited }', 'elseif ($false) { }'),
     @('gone never forgotten',      '($nowTicks - $c.Gone) -gt $VerifiedLife', '$false'),
-    @('a failure''s writer not checked', '    if (-not $st.Conns.ContainsKey($p)) { return $none }' + "`n" + '    $v = Test-RecordProcess $world $rec', '    if (-not $st.Conns.ContainsKey($p)) { return $none }' + "`n" + '    $v = ''ok'''),
+    @('a failure''s writer not checked', ('    if (-not $st.Conns.ContainsKey($p)) { return $none }' + "`n" + '    $v = Test-RecordProcess $world $rec'), ('    if (-not $st.Conns.ContainsKey($p)) { return $none }' + "`n" + '    $v = ''ok''')),
     @('state loses connections',   'foreach ($p in @($st.Conns.Keys | Sort-Object)) { $out +=', 'foreach ($p in @()) { $out +='),
     @('file reader reads the bookmark again', '[long]$m.Groups[1].Value -gt $after', '[long]$m.Groups[1].Value -ge $after'),
     @('channel reader reads the bookmark again', '[EventRecordID > ', '[EventRecordID >= '),
@@ -438,7 +548,11 @@ foreach ($mu in $mutants) {
     $tgt = $mu[1].Replace("`n", $nl); $rep = $mu[2].Replace("`n", $nl)
     $n = ([regex]::Matches($region, [regex]::Escape($tgt))).Count
     if ($n -ne 1) { Write-Host ("CANNOT RUN: mutant '" + $mu[0] + "' expects its target once in the logic region, found " + $n); Remove-Item $scratch -Recurse -Force; exit 2 }
-    $mr = & $ruleRows ($region.Replace($tgt, $rep)) $false $scratch $haveOpenSsh
+    $mcode = $region.Replace($tgt, $rep)
+    $pt = $null; $pe = $null
+    $null = [System.Management.Automation.Language.Parser]::ParseInput($mcode, [ref]$pt, [ref]$pe)
+    if ($pe.Count -gt 0) { Write-Host ("  mutant '" + $mu[0] + "': DOES NOT PARSE (" + $pe[0].Message + ') - it tests nothing'); $green++; continue }
+    $mr = & $ruleRows $mcode $false $scratch $haveOpenSsh
     $red = $mr.Bad.Count -gt 0
     if (-not $red) { $green++ }
     Write-Host ("  mutant '" + $mu[0] + "': " + $(if ($red) { 'RED as it must be (' + $mr.Bad.Count + ' rows: ' + ($mr.Bad[0]) + ')' } else { 'STILL GREEN - the rows miss it' }))

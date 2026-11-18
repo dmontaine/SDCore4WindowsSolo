@@ -1301,7 +1301,8 @@ public static class SdSuiteCli {
     # whose displays had both worked.
     $esc = '^(?:\x1b\[[0-9;]*[A-Za-z])*'
     $t = Invoke-Pe 'v-config-docs' @('CONFIG GPL', 'CONFIG CONTRIB')
-    $okDocs = ((CountOf (Get-Lines $t) ($esc + 'SD, including the API, is licensed under the GPL v3\.0\.$')) -eq 1) -and
+    # 18 Nov 26: the licence's first line names the Blue Oak scripts since round 1 ("Most of SD is licensed under the GPL v3.0.").
+    $okDocs = ((CountOf (Get-Lines $t) ($esc + 'Most of SD is licensed under the GPL v3\.0\.$')) -eq 1) -and
               ((CountOf (Get-Lines $t) ($esc + 'Contributors to SD and predecessor applications$')) -eq 1) -and
               ((CountOf (Get-Lines $t) $gate2001) -eq 0)
     Check 'a: without ADMIN, CONFIG GPL and CONFIG CONTRIB run' $okDocs 'want the license and contributors lines and no 2001'
