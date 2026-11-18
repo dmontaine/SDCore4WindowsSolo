@@ -756,12 +756,16 @@ function Register-SshGuardTask {
     # and this line said PASS.  It passes now only on the guard's own "watching ...: ok" line, written after its
     # FIRST successful read of the source, by this start of the task; and Solo's sshd is started only after it, so
     # the guard's bookmark is before that sshd's first record (Register-SshTask then checks it read that start).
+    # 17 Nov 26 - SOLO 77: [string] of an EMPTY pipeline is $null, not '' (measured), so "-eq ''" was false on the
+    # first pass and this 30 s wait ended at once (20:19 install: the guard started 20:19:21.27, this step failed by
+    # 20:19:21.85, the guard read its source at 20:19:22).  Test with IsNullOrEmpty.
     $okLine = ''
     $deadline = (Get-Date).AddSeconds(30)
-    while ($okLine -eq '' -and (Get-Date) -lt $deadline) {
+    while ([string]::IsNullOrEmpty($okLine) -and (Get-Date) -lt $deadline) {
         $okLine = [string](@(Get-SshGuardLogSince $startedAt | Where-Object { $_ -match 'sd-solo-sshguard: watching OpenSSH/Operational: ok, from record \d+' }) | Select-Object -First 1)
-        if ($okLine -eq '') { Start-Sleep -Milliseconds 500 }
+        if ([string]::IsNullOrEmpty($okLine)) { Start-Sleep -Milliseconds 500 }
     }
+    if ($null -eq $okLine) { $okLine = '' }
     $state = Join-Path $MachineSshDir 'guard.state'
     $offset = [string](@(Get-Content -LiteralPath $state -ErrorAction SilentlyContinue | Where-Object { $_ -match '^offset ' }) | Select-Object -First 1)
     Note ('  guard.state: "' + $offset + '"')
