@@ -280,7 +280,7 @@ clause of `execute` and `os.execute` — take the output
 `configure.file` *file.var*, *key*, *value* `then` … `else` …
 
 - a RESTRICTED statement: it compiles only in a program with `$internal`, which an ordinary account cannot make; an ordinary program is told "Unrecognised statement"
-- docs: `User/markdown/07-sd-basic-file-handling.md` line 154
+- docs: `User/markdown/07-sd-basic-file-handling.md` line 166
 
 ### basic:stmt:continue
 > kind=basic.statement tier=reference since=- src=sdsys/gpl.bp/bcomp:440#bfc02d1a src2=docs:tools/syntax-shapes.txt:44#356df289
@@ -573,7 +573,7 @@ clause of `if`, and of every statement that has a `then`
 `file` *name* — names a file at compile time
 
 - a statement of SD BASIC
-- docs: `User/markdown/07-sd-basic-file-handling.md` line 153
+- docs: `User/markdown/07-sd-basic-file-handling.md` line 165
 
 ### basic:stmt:filelock
 > kind=basic.statement tier=reference since=- src=sdsys/gpl.bp/bcomp:448#055cf47a src2=docs:tools/syntax-shapes.txt:84#6542dc5d
@@ -914,7 +914,7 @@ clause of `readu`, `readl`, `readvu`, `readvl`, `matreadu`, `matreadl`, `fileloc
 `mark.mapping` *file.var*, *state*
 
 - a statement of SD BASIC
-- docs: `User/markdown/07-sd-basic-file-handling.md` line 227
+- docs: `User/markdown/07-sd-basic-file-handling.md` line 239
 
 ### basic:stmt:mat
 > kind=basic.statement tier=reference since=- src=sdsys/gpl.bp/bcomp:459#7948b7c4 src2=docs:tools/syntax-shapes.txt:128#39a91d2c
@@ -1031,7 +1031,7 @@ clause of `readu`, `readl`, `readvu`, `readvl`, `matreadu`, `matreadl`, `fileloc
 `next` *var* — closes a `for`
 
 - a statement of SD BASIC
-- docs: `User/markdown/07-sd-basic-file-handling.md` line 154
+- docs: `User/markdown/07-sd-basic-file-handling.md` line 166
 
 ### basic:stmt:no.echo
 > kind=basic.clause tier=reference since=- src=sdsys/gpl.bp/bcomp:10287#7502bc52 src2=docs:tools/syntax-shapes.txt:304#72982e23
@@ -1125,7 +1125,7 @@ clause of `input` and `input @` — show nothing of what is typed
 `osread` *var* `from` *path* `then` … `else` … — a path outside the account's own directory needs the account's `os` switch
 
 - a statement of SD BASIC
-- docs: `User/markdown/07-sd-basic-file-handling.md` line 227
+- docs: `User/markdown/07-sd-basic-file-handling.md` line 239
 
 ### basic:stmt:oswrite
 > kind=basic.statement tier=reference since=- src=sdsys/gpl.bp/bcomp:494#561a5e43 src2=docs:tools/syntax-shapes.txt:356#64ee2bae
@@ -1133,7 +1133,7 @@ clause of `input` and `input @` — show nothing of what is typed
 `oswrite` *expr* `to` *path* — a path outside the account's own directory needs the account's `os` switch
 
 - a statement of SD BASIC
-- docs: `User/markdown/07-sd-basic-file-handling.md` line 228
+- docs: `User/markdown/07-sd-basic-file-handling.md` line 240
 
 ### basic:stmt:overlay
 > kind=basic.clause tier=reference since=- src=sdsys/gpl.bp/bcomp:10287#7502bc52 src2=docs:tools/syntax-shapes.txt:149#553af16e
@@ -1300,7 +1300,7 @@ clause of `input` — read exactly *length* characters as they arrive
 `readblk` *var* `from` *file.var*, *length* `then` … `else` …
 
 - a statement of SD BASIC
-- docs: `User/markdown/07-sd-basic-file-handling.md` line 227
+- docs: `User/markdown/07-sd-basic-file-handling.md` line 239
 
 ### basic:stmt:readcsv
 > kind=basic.statement tier=reference since=- src=sdsys/gpl.bp/bcomp:470#d5b3ec8b src2=docs:tools/syntax-shapes.txt:167#8a344a7c
@@ -1347,7 +1347,7 @@ clause of `input` — read exactly *length* characters as they arrive
 clause of `open`, `openpath` and `openseq`
 
 - a word that belongs inside another statement's syntax, not a statement of its own
-- docs: `User/markdown/07-sd-basic-file-handling.md` line 191
+- docs: `User/markdown/07-sd-basic-file-handling.md` line 203
 
 ### basic:stmt:readseq
 > kind=basic.statement tier=reference since=- src=sdsys/gpl.bp/bcomp:471#08b98f6a src2=docs:tools/syntax-shapes.txt:172#3f97fb9a
@@ -1355,7 +1355,7 @@ clause of `open`, `openpath` and `openseq`
 `readseq` *var* `from` *file.var* {`on error` …} `then` … `else` … — `else` is end of file
 
 - a statement of SD BASIC
-- docs: `User/markdown/07-sd-basic-file-handling.md` line 221
+- docs: `User/markdown/07-sd-basic-file-handling.md` line 233
 
 ### basic:stmt:readu
 > kind=basic.statement tier=reference since=- src=sdsys/gpl.bp/bcomp:472#425ff0b9 src2=docs:tools/syntax-shapes.txt:173#825150c8
@@ -1898,7 +1898,7 @@ clause of `for`: `for` *v* `=` *a* `to` *b* `step` *n*
 clause of `open` and `openpath` — `open` *name* `to` *file.var* `sync` `else` … — every write is flushed before the statement returns (a hashed file only)
 
 - a word that belongs inside another statement's syntax, not a statement of its own
-- docs: `User/markdown/07-sd-basic-file-handling.md` line 236
+- docs: `User/markdown/07-sd-basic-file-handling.md` line 248
 
 ### basic:stmt:then
 > kind=basic.clause tier=reference since=- src=sdsys/gpl.bp/bcomp:612#99c156f1 src2=docs:tools/syntax-shapes.txt:232#5e9b7492
@@ -2065,7 +2065,7 @@ clause of `loop`: `loop` … `while` *condition* … `repeat`
 `writeblk` *var* `to` *file.var* {`on error` …}
 
 - a statement of SD BASIC
-- docs: `User/markdown/07-sd-basic-file-handling.md` line 227
+- docs: `User/markdown/07-sd-basic-file-handling.md` line 239
 
 ### basic:stmt:writecsv
 > kind=basic.statement tier=reference since=- src=sdsys/gpl.bp/bcomp:489#59ca1e0b src2=docs:tools/syntax-shapes.txt:252#0a6059bb
@@ -2105,7 +2105,7 @@ clause of `loop`: `loop` … `while` *condition* … `repeat`
 `writeseq` *var* `to` *file.var* {`on error` …} `then` … `else` …
 
 - a statement of SD BASIC
-- docs: `User/markdown/07-sd-basic-file-handling.md` line 221
+- docs: `User/markdown/07-sd-basic-file-handling.md` line 233
 
 ### basic:stmt:writeseqf
 > kind=basic.statement tier=reference since=- src=sdsys/gpl.bp/bcomp:490#bfa4d305 src2=docs:tools/syntax-shapes.txt:255#d4c5f8fe
