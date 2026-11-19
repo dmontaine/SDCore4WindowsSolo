@@ -1,0 +1,1 @@
+The kept password signs in only SD's scheduled jobs and MCP calls (run.job, mcp.call): give the account password on the input, or turn this on with set.stored.access on

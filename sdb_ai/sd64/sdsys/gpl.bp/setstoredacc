@@ -1,0 +1,130 @@
+* SETSTOREDACC
+* SET.STORED.ACCESS verb
+* Copyright (c) String Database
+*
+* START-HISTORY:
+* 18 Nov 26 SD Core Solo for Linux - written (S.247; owner, 18 Nov 2026: "restrict the stored password").  The kept copy of the account password
+*           ($cred/$stored, written by !SOLO_STORE_PW) signs in only SD's scheduled jobs as delivered: a one-shot whose single command is
+*           run.job <name>.  This verb is the administrator's way back to the earlier behaviour, where it signed in ANY one-shot sd-solo
+*           <command> (from cron or a script).  The shape of SET.JOBS.ACCESS.  SD Core for Linux has no stored password and no such switch, so
+*           this verb is Solo's own and is listed for the parity audit.
+* 18 Nov 26 Windows port - SOLO 81, from Linux Solo b664ea9 (S.247): carried as it is; messages 15187 and 15188 (Linux's 14187 and 14188
+*           + 1000).  The kept password here is DPAPI-protected for the Windows user, so "a file the account's own Linux user can read" is
+*           that Windows user's here.
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*    SET.STORED.ACCESS          shows whether the kept password signs in any one-shot, and changes nothing
+*    SET.STORED.ACCESS ON       the kept password signs in any one-shot command (sd-solo <command> from a scheduled task or a script), as before
+*    SET.STORED.ACCESS OFF      it signs in only SD's scheduled jobs (run.job <name>) and the MCP door's calls (mcp.call <id>), each of
+*                               which checks its own switch; any other one-shot needs the password on its input
+*
+*    An administrator verb (ADMIN first), and ONE word per command.  OFF as delivered.  It is field 24 of the register record accounts/sduser
+*    (ACC$STORED.ANY), 'yes' or 'no'; ONLY 'yes' is on, so a blank field, or a record with fewer fields, is off.  LOGIN reads the record at every
+*    one-shot sign-in.
+*
+*    WHAT THIS IS AND IS NOT: the kept password is a record the account's own Windows user can open (DPAPI), so anything running as that user
+*    can read it whatever this says.  The switch decides which sign-ins SD itself accepts it for; it is not a wall against the user's own programs.
+*
+*    The answer is the state afterwards (15188).  The change is written to the audit trail in lower case.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+program $set.stored.access
+$catalog $SETSTOREDACC
+
+$include keys.h
+$include int$keys.h
+$include parser.h
+$include err.h
+
+   prompt ''
+   @system.return.code = -ER$ARGS
+
+   if not(kernel(K$ADMINISTRATOR, -1)) then
+      stop sysmsg(2001)  ;* Command requires administrator privileges
+   end
+
+*  Solo's one account is always sduser (ruling 29).
+   acc.name = 'sduser'
+
+   parser = "!PARSER"
+   call @parser(PARSER$RESET, 0, @sentence, 0)
+   call @parser(PARSER$GET.TOKEN, token.type, token, keyword)   ;* the verb
+   word.1 = '' ; word.2 = ''
+   call @parser(PARSER$GET.TOKEN, token.type, token, keyword)
+   if token.type # PARSER$END then
+      word.1 = token
+      call @parser(PARSER$GET.TOKEN, token.type, token, keyword)
+      if token.type # PARSER$END then word.2 = token      ;* a second word is always the syntax message
+   end
+
+   openpath @sdsys:@ds:'accounts' to acc.f else
+      @system.return.code = -ER$FAILED
+      stop sysmsg(10114, acc.name)  ;* Unable to change the state of %1; its state in the register is unchanged
+   end
+
+   if word.1 = '' then
+      read acc.rec from acc.f, acc.name else acc.rec = ''
+      close acc.f
+      st.now = 'no'
+      if upcase(trim(acc.rec<ACC$STORED.ANY>)) = 'YES' then st.now = 'yes'
+      @system.return.code = 0
+      crt sysmsg(15188, st.now)  ;* The kept password signs in any one-shot command, not only scheduled jobs and MCP calls: %1
+      stop
+   end
+
+   st.ok = @true ; st.want = @false
+   begin case
+      case upcase(word.1) = 'ON'  ; st.want = @true
+      case upcase(word.1) = 'OFF' ; st.want = @false
+      case 1 ; st.ok = @false
+   end case
+   if not(st.ok) or word.2 # '' then
+      close acc.f
+      crt sysmsg(15187)  ;* Syntax: set.stored.access   or   set.stored.access on|off
+      stop
+   end
+
+   readu acc.rec from acc.f, acc.name else
+      release acc.f, acc.name
+      close acc.f
+      @system.return.code = -ER$FAILED
+      stop sysmsg(10114, acc.name)
+   end
+   st.was = (upcase(trim(acc.rec<ACC$STORED.ANY>)) = 'YES')
+   if st.was = st.want then
+      release acc.f, acc.name
+      close acc.f
+      @system.return.code = 0
+      crt sysmsg(10080, acc.name)  ;* %1 already had that access; nothing changed
+      stop
+   end
+
+   acc.new = acc.rec
+   if st.want then acc.new<ACC$STORED.ANY> = 'yes' else acc.new<ACC$STORED.ANY> = 'no'
+   acc.written = @true
+   write acc.new to acc.f, acc.name on error acc.written = @false
+   if not(acc.written) then
+      release acc.f, acc.name
+      close acc.f
+      @system.return.code = -ER$FAILED
+      stop sysmsg(10114, acc.name)
+   end
+   release acc.f, acc.name
+   close acc.f
+
+   @system.return.code = 0
+   st.now = 'no'
+   if upcase(trim(acc.new<ACC$STORED.ANY>)) = 'YES' then st.now = 'yes'
+   void kernel(K$AUDIT, 'set.stored.access ' : downcase(word.1) : ' account=' : acc.name)
+   crt sysmsg(15188, st.now)  ;* The kept password signs in any one-shot command, not only scheduled jobs and MCP calls: %1
+   stop
+
+end
+
+* END-CODE

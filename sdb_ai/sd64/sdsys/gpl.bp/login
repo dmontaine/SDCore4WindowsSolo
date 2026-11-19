@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 18 Nov 26 Windows port - SOLO 81 (Linux Solo b664ea9, S.247): $stored signs in only run.job / mcp.call one-shots unless set.stored.access on.
 * 18 Nov 26 SD Core Solo - four-version audit round 5 (P-8161): gate.ok is no longer set at the top; internal.gate sets it and it is
 *           read only after that gosub, as Linux Solo.  BCOMP's 2825 is for a variable assigned nowhere (bcomp:1797), so the
 *           reason recorded for the line (RELEASE_1.1 82, "BCOMP sees the call site first") did not hold.
@@ -1601,8 +1602,41 @@ require.password:
 *  because a scheduled job with its password on the input must still work.
 *  It proves the account password, never the global one, so it never unlocks
 *  ADMIN.
+*  18 Nov 26 Windows port - SOLO 81, from Linux Solo b664ea9 (S.247; owner, 18 Nov 2026: "restrict the stored password"): THE KEPT
+*  PASSWORD SIGNS IN ONLY SD'S SCHEDULED JOBS AND MCP CALLS AS DELIVERED - a one-shot whose single command (system(1026)) is exactly
+*  run.job <name> or mcp.call <id> [agent]; RUN.JOB and MCP.CALL check the name and their own switch themselves.  Any other one-shot
+*  needs the password on its input, unless the administrator has said set.stored.access on (register field 24, ACC$STORED.ANY, only
+*  'yes' is on, read here at every sign-in).  The kept password is a file the account's own Windows user can open (DPAPI), so this
+*  decides what SD accepts it for; it is not a wall against the user's own programs.  A refused use is said (15186, Linux 14186) and
+*  audited, and the input is then read exactly as before.  run.job's Windows-identity route below is unchanged: it needs pw.dpapi.fail,
+*  which only the attempt here sets, and run.job is let through here.
    pw.dpapi.fail = @false
-   if not(pw.interactive) then
+   pw.job = @false
+   pw.one = trim(system(1026))
+   pw.verb = downcase(field(pw.one, ' ', 1))
+   if pw.verb = 'run.job' and dcount(pw.one, ' ') = 2 then pw.job = @true
+   if pw.verb = 'mcp.call' and (dcount(pw.one, ' ') = 2 or dcount(pw.one, ' ') = 3) then pw.job = @true
+   pw.any = @false
+   openpath @sdsys:@ds:'accounts' to pw.acc.f then
+      read pw.acc from pw.acc.f, initial.account then
+         if upcase(trim(pw.acc<ACC$STORED.ANY>)) = 'YES' then pw.any = @true
+      end
+      close pw.acc.f
+   end
+   pw.acc = ''
+   if not(pw.interactive) and not(pw.job or pw.any) then
+      pw.kept = ''
+      openpath @sdsys:@ds:'$cred' to pw.cred.f then
+         read pw.kept from pw.cred.f, '$stored' else pw.kept = ''
+         close pw.cred.f
+      end
+      if pw.kept<1> = upcase(initial.account) and pw.kept<2> # '' then
+         display sysmsg(15186) ;* The kept password signs in only SD's scheduled jobs and MCP calls...
+         void kernel(K$AUDIT, 'login password account=' : initial.account : ' via=stored refused reason=not a scheduled job')
+      end
+      pw.kept = ''
+   end
+   if not(pw.interactive) and (pw.job or pw.any) then
       openpath @sdsys:@ds:'$cred' to pw.cred.f then
          read pw.rec from pw.cred.f, '$stored' else pw.rec = ''
          close pw.cred.f

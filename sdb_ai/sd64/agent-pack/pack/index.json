@@ -5108,7 +5108,7 @@
 "part": "reference/messages.md",
 "since": "-",
 "tier": "reference",
-"words": 15
+"words": 16
 },
 "msg:10081": {
 "kind": "message",
@@ -5234,7 +5234,7 @@
 "part": "reference/messages.md",
 "since": "-",
 "tier": "reference",
-"words": 22
+"words": 23
 },
 "msg:10117": {
 "kind": "message",
@@ -13551,6 +13551,27 @@
 "since": "-",
 "tier": "reference",
 "words": 12
+},
+"msg:15186": {
+"kind": "message",
+"part": "reference/messages.md",
+"since": "-",
+"tier": "reference",
+"words": 33
+},
+"msg:15187": {
+"kind": "message",
+"part": "reference/messages.md",
+"since": "-",
+"tier": "reference",
+"words": 10
+},
+"msg:15188": {
+"kind": "message",
+"part": "reference/messages.md",
+"since": "-",
+"tier": "reference",
+"words": 21
 },
 "msg:15891": {
 "kind": "message",
@@ -25604,7 +25625,7 @@
 "part": "reference/system-keys.md",
 "since": "-",
 "tier": "reference",
-"words": 383
+"words": 402
 },
 "sys:keys:csv$": {
 "kind": "sys.keys",
@@ -28636,6 +28657,13 @@
 "since": "-",
 "tier": "reference",
 "words": 50
+},
+"tcl:set.stored.access": {
+"kind": "tcl.verb",
+"part": "reference/tcl-verbs.md",
+"since": "-",
+"tier": "reference",
+"words": 65
 },
 "tcl:set.tile": {
 "kind": "tcl.verb",
