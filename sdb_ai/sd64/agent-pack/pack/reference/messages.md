@@ -5751,7 +5751,7 @@ cited by: `ai`
 The answer was cut off at the length limit.
 ```
 
-cited by: `ai`
+cited by: `ai`, `tk_ai`
 
 ### msg:12638
 > kind=message tier=reference since=- src=sdsys/messages/12638:1#ae818345

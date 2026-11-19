@@ -6,6 +6,7 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 19 Nov 26 SD Core Solo - RELEASE_1.1 354 (Linux Solo S.275): the helper's truncated flag is read; a cut-off reply says 12637, an empty one 12637 alone (not 12656).
 * 18 Nov 26 SD Core Solo - four-version audit round 3 (P-1290, P-5497, P-5498): the answer's paragraph loop in Linux Solo's words (n.para, pa,
 *               para); the same lines result.
 * 18 Nov 26 SD Core Solo - four-version audit round 2 (P-5927): entry.cursor stands before on.key, as the other three.  Order only.
@@ -758,6 +759,17 @@ run.ask:
    tok.in = hj{'in'}
    tok.out = hj{'out'}
    gosub read.proposal
+   * 19 Nov 26 (RELEASE_1.1 354, Linux Solo S.275 e649bf0): a reply the provider cut at the length limit is said (12637), as the ai verb says
+   *   it.  With no words at all, 12637 alone: the model spent its tokens before a visible word, and "its words follow" (12656) over an empty
+   *   box said the opposite.
+   if hj{'truncated'} then
+      if trim(atext) = '' then
+         note.p = sysmsg(12637)                       ;* The answer was cut off at the length limit
+      end else
+         if note.p # '' then note.p := @fm
+         note.p := sysmsg(12637)
+      end
+   end
 
    * the popup: what the AI said, the proposal if there is one, and Accept / Reject
    body = ''
