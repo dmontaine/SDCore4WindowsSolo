@@ -8705,6 +8705,15 @@ cited by: `login`
 
 cited by: `login`
 
+### msg:12991
+> kind=message tier=reference since=- src=sdsys/messages/12991:1#f962771a
+
+```
+Copying %1 document(s) into the pdf directory; this takes a few seconds
+```
+
+cited by: `docsinst`
+
 ### msg:12993
 > kind=message tier=reference since=- src=sdsys/messages/12993:1#49c7d49a
 

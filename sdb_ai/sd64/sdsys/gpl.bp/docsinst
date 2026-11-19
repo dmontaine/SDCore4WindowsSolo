@@ -4,6 +4,8 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 19 Nov 26 SD Core Solo - SOLO 83 (sit6: 99 PDFs took two to three minutes, silent): the names are checked first, then one line (12991) says how many
+*               will be copied, and one PowerShell copies up to 40 of them (was one PowerShell start per file).  Windows only: Linux copies with cp.
 * 9 Nov 26 Windows port - from Linux Solo 15767b9 (SOLO 47, the owner: "the windows solo should get pdf").  Copy-Item through PowerShell replaces cp and chmod; the directory is a drive-letter path (any of the
 *               spellings !VIEWLIST 'native' knows).  The message ids are Linux's plus 1005.
 * 28 Oct 26 dm  S.87: CLOSESEQ and EQU are gone as statements: this program says CLOSE and EQUATE.
@@ -55,19 +57,53 @@ $include err.h
 
    n.copied = 0
    n.skipped = 0
+   todo = ''
    for i = 1 to dcount(entries, @fm)
       nm = entries<i, 1>
       if entries<i, 2> # 'F' then continue
       if nm[len(nm) - 3, 4] # '.pdf' then continue
-      gosub copy.one
+      gosub check.one
    next i
+
+   n.todo = dcount(todo, @fm)
+   if n.todo then
+      display sysmsg(12991, n.todo)                              ;* Copying %1 document(s) into the pdf directory; this takes a few seconds
+      for b = 1 to n.todo step 40
+         gosub copy.batch
+      next b
+   end
 
    void kernel(K$AUDIT, 'docs.install copied=' : n.copied : ' skipped=' : n.skipped)
    @system.return.code = (if n.skipped then -ER$FAILED else 0)
    display sysmsg(12727, n.copied, n.skipped)                    ;* Copied %1 document(s) into the pdf directory; skipped %2
    stop
 
-copy.one:
+* Up to 40 of the checked names, copied by ONE PowerShell (SOLO 83: one PowerShell start per file took two to three minutes for 99).  Each name answers
+* "OK name" or "NO name" on its own line; a name with no OK line is counted as not copied.  The names are plain (check.one), so they go in single quotes.
+copy.batch:
+   last = b + 39
+   if last > n.todo then last = n.todo
+   arr = ''
+   for j = b to last
+      arr := (if j > b then ',' else '') : "'" : todo<j> : "'"
+   next j
+   ps = "$ErrorActionPreference='Stop'; $src=('" : srcn : "'.Replace('/','\')); $dst=('" : sysn : "/pdf'.Replace('/','\')); "
+   ps := "foreach ($n in @(" : arr : ")) { try { Copy-Item -LiteralPath (Join-Path $src $n) -Destination (Join-Path $dst $n) -Force; "
+   ps := "if (Test-Path -LiteralPath (Join-Path $dst $n)) { 'OK ' + $n } else { 'NO ' + $n } } catch { 'NO ' + $n } }"
+   os.execute ps capturing co
+*  The captured output keeps PowerShell's carriage returns (9 Nov 26, SOLO 47: compared without them); each line is looked for whole, between field marks.
+   co = @fm : change(convert(char(13), '', co), char(10), @fm) : @fm
+   for j = b to last
+      if index(co, @fm : 'OK ' : todo<j> : @fm, 1) then
+         n.copied += 1
+      end else
+         display sysmsg(12728, todo<j>, 'it could not be copied')
+         n.skipped += 1
+      end
+   next j
+   return
+
+check.one:
    ok = (len(nm) >= 5 and len(nm) <= 84 and nm[1, 1] # '.' and nm = downcase(nm))
    if ok then
       if trim(convert('abcdefghijklmnopqrstuvwxyz0123456789._-', space(39), nm)) # '' then ok = 0
@@ -87,17 +123,7 @@ copy.one:
       n.skipped += 1
       return
    end
-*  Copy-Item, one line, single quotes only; both names are plain (a checked file name after a checked directory)
-   ps = "$ErrorActionPreference='Stop'; try { $to=('" : sysn : "/pdf/" : nm : "'.Replace('/','\')); Copy-Item -LiteralPath ('" : srcn : "/" : nm : "'.Replace('/','\')) -Destination $to -Force; if (Test-Path -LiteralPath $to) { 'OK' } else { 'it could not be copied' } } catch { 'it could not be copied' }"
-   os.execute ps capturing co
-*  The captured output keeps the carriage return and line feed PowerShell ends a line with (EDIT:702 strips them the same way), so it is compared after they and the
-*  field marks are turned into spaces.  9 Nov 26: without this the copy WORKED and the verb said it could not be copied (the first hand test, SOLO 47).
-   if trim(convert(char(13) : char(10) : @fm, '   ', co)) # 'OK' then
-      display sysmsg(12728, nm, 'it could not be copied')
-      n.skipped += 1
-   end else
-      n.copied += 1
-   end
+   todo<-1> = nm
    return
 end
 

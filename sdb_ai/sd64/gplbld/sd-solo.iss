@@ -121,6 +121,11 @@ ChangesEnvironment=yes
 SetupLogging=yes
 UninstallDisplayName={#AppName} {#AppVer}
 
+[Messages]
+; 19 Nov 26 - RELEASE_1.1 356 (sit6, owner): a reinstall skips every page before Ready, so Ready is the first page and has no Back
+; button, while Inno's stock ReadyLabel2a still says "or click Back if you want to review or change any settings".  True either way:
+ReadyLabel2a=Click Install to continue with the installation.
+
 [Tasks]
 ; 27 Sep 26 - RULING 24: NO "Add to PATH" BOX AND NO "Install Python" BOX.  The
 ; owner: "always install python in both modes ... add to path is always true in
