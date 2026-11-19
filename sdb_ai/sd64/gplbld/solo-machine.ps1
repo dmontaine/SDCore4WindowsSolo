@@ -1082,7 +1082,11 @@ function Restore-JobTasks {
     $dir = Join-Path (Join-Path $AppDir 'sdsys') '$jobs'
     $d = Get-Item -LiteralPath $dir -Force -ErrorAction SilentlyContinue
     if ($null -eq $d) { Note '  no job definitions ($jobs): nothing to schedule'; return }
-    if (-not $d.PSIsContainer -or ($d.Attributes -band [IO.FileAttributes]::ReparsePoint)) { Note ('  ' + $dir + ' is a link or not a folder: no job was scheduled'); return }
+    if (-not $d.PSIsContainer -or ($d.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+        Note ('  ' + $dir + ' is a link or not a folder: no job was scheduled')
+        Note ('SCHEDULED JOBS : NOT given their tasks - ' + $dir + ' is a link or not a folder')
+        return
+    }
     $n = 0; $bad = 0
     foreach ($it in @(Get-ChildItem -LiteralPath $dir -Force -File | Sort-Object Name)) {
         if (-not (Test-JobName $it.Name)) { continue }
@@ -1094,6 +1098,12 @@ function Restore-JobTasks {
         $n++
     }
     Note ('  ' + $n + ' job(s) given their tasks from the definitions in $jobs' + $(if ($bad) { '; ' + $bad + ' not (set.job lists them not scheduled)' } else { '' }))
+    # 19 Nov 26 - Linux Solo S.274 (e93b946): the result for the person.  The lines above reach only install-summary.log, and a job
+    # that is not scheduled is not a failed step, so a reload whose kept jobs lost their tasks said nothing on screen.  This line,
+    # "SCHEDULED JOBS : ...", is what sd-solo.iss puts on the finish page; none is written when there were no definitions.
+    if ($n + $bad -gt 0) {
+        Note ('SCHEDULED JOBS : ' + $n + ' given their tasks again' + $(if ($bad) { '; ' + $bad + ' NOT (set.job lists them not scheduled)' } else { '' }))
+    }
 }
 # END solo_jobs_functions
 

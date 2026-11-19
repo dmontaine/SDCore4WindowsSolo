@@ -1183,6 +1183,10 @@ begin
     Result := UseControl and CfAdminOk and CfGlobalOk;
 end;
 
+{ 19 Nov 26 - Linux Solo S.274: the kept scheduled jobs' result for the finish page; set after the machine step (MachineJobsLine). }
+var
+  JobsNote: String;
+
 { 27 Sep 26 - the greyed "forced" boxes (ShowForcedTasks) went with ruling 24.
   2 Oct 26 - SOLO 28: CurPageChanged went too.  It ticked the ssh box when
   Microsoft's port-22 rule was already open; Solo's port is its own now and
@@ -1208,6 +1212,9 @@ begin
   { 17 Nov 26 - P-3890: a global password with the API or ssh not open (ManagedClosedNote). }
   if (CurPageID = wpFinished) and (ManagedClosedNote <> '') then
     WizardForm.FinishedLabel.Caption := WizardForm.FinishedLabel.Caption + #13#10#13#10 + ManagedClosedNote;
+  { 19 Nov 26 - Linux Solo S.274: the kept scheduled jobs' result, success or not; nothing when there were none. }
+  if (CurPageID = wpFinished) and (JobsNote <> '') then
+    WizardForm.FinishedLabel.Caption := WizardForm.FinishedLabel.Caption + #13#10#13#10 + 'Scheduled jobs: ' + JobsNote;
   { SOLO 37: where the old folder went.  It stays until the user deletes it. }
   if (CurPageID = wpFinished) and (KeptFolder <> '') then
   begin
@@ -1393,6 +1400,31 @@ begin
   if P = 0 then
     Exit;
   S := Copy(S, P + Length('FAILED STEPS : '), Length(S));
+  E := Pos(#13, S);
+  if E = 0 then
+    E := Pos(#10, S);
+  if E > 0 then
+    S := Copy(S, 1, E - 1);
+  Result := Trim(S);
+end;
+
+{ 19 Nov 26 - Linux Solo S.274 (e93b946).  The report's "SCHEDULED JOBS : ..." line (solo-machine.ps1 Restore-JobTasks, written
+  only when kept job definitions were there), or ''.  Read right after the Install or Upgrade step, before another machine step
+  replaces the report, and put on the finish page (JobsNote): a job that lost its task is not a failed step, so it was only in the log. }
+function MachineJobsLine: String;
+var
+  Text: AnsiString;
+  S: String;
+  P, E: Integer;
+begin
+  Result := '';
+  if (LastMachineReport = '') or not LoadStringFromFile(LastMachineReport, Text) then
+    Exit;
+  S := String(Text);
+  P := Pos('SCHEDULED JOBS : ', S);
+  if P = 0 then
+    Exit;
+  S := Copy(S, P + Length('SCHEDULED JOBS : '), Length(S));
   E := Pos(#13, S);
   if E = 0 then
     E := Pos(#10, S);
@@ -1748,6 +1780,10 @@ begin
       Extra := Extra + ' -SshScope leave';
     Code := RunMachineStep('Install', Extra);
   end;
+  { 19 Nov 26 - S.274: the kept jobs' result, for the finish page (MachineJobsLine). }
+  JobsNote := MachineJobsLine;
+  if JobsNote <> '' then
+    Log('SD Core Solo: scheduled jobs: ' + JobsNote);
   { 06 Oct 26 (SOLO 31): name only the sections that failed.  Exit 2 is the script REFUSING (nothing
     changed) and -1 is it not starting: those are "not run".  Any other failure with no names in the
     report keeps the old three-step wording rather than saying nothing. }
