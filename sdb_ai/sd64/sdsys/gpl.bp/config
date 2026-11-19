@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 19 Nov 26 SD Core Solo - RELEASE_1.1 353: show.doc opens the file READONLY (SD Core's fix; this program never writes it).
 * 18 Nov 26 SD Core Solo - four-version audit round 2 (P-5918, P-5919): show.doc is SD Core's (the file read first, an empty one said).
 * 17 Nov 26 SD Core Solo - four-version audit round 1: CONFIG GPL and CONFIG CONTRIB show the files licence and contrib of the
 *           system directory, as Linux Solo does; the $licence and $contrib VOC records they read left the VOC set on 16 Nov.
@@ -250,7 +251,9 @@ show.doc:
 *  18 Nov 26 (four-version audit round 2, P-5918, P-5919): SD Core's form - the file is read into doc.rec first ('X' in field 1),
 *  so an empty one is said, and then printed from field 2.
    doc.path = @sdsys : @ds : doc.name
-   openseq doc.path to doc.f else
+*  19 Nov 26 - RELEASE_1.1 353 (SD Core's fix): READONLY, as audit_read opens the same folder; this program never writes the file, and a
+*  read-write open of a file the session may only read failed on SD Core for an ordinary account.
+   openseq doc.path readonly to doc.f else
       display 'Cannot open ' : doc.path : ', so it cannot be shown.'
       return
    end
