@@ -29,6 +29,8 @@
 #            verify-solo.ps1 (cmd.exe, output to a file, ASCII stdin with no preamble, spare OFFs, 90 s limit).
 # 18 Nov 26  First run (witness-solo-host-20261118-225437.log): 24 PASS; xfer's 7 FAILs were this script's - it changed XFER without
 #            restarting Solo, and XFER is read when SD starts.  xfer now stops and starts Solo after the write and after the put-back.
+# 18 Nov 26  Solo then died when the owner closed his window: -start ran inside his console, so sdwind did too.  Every -start is now
+#            Start-SoloHidden (solo-start.ps1's way).
 # END-HISTORY
 
 param(
@@ -144,6 +146,22 @@ function Invoke-Session([string]$Label, [string[]]$Cmds, [switch]$Admin) {
     if ($Admin) { $lines += @('ADMIN', $script:adminPw); $shown += @('ADMIN', 'administrator password') }
     $lines += @('TERM 200,9999') + $Cmds + @('OFF'); $shown += @('TERM 200,9999') + $Cmds + @('OFF')
     return (Invoke-Sd $Label '' (($lines -join "`n") + "`n") ($shown -join ', '))
+}
+
+# "sd-solo -start", as solo-start.ps1 runs it (its Invoke-SoloSd): Start-Process -WindowStyle Hidden, so sdwind gets a console with
+# no window to close, and WaitForExit on sd-solo.exe alone (sdwind stays up).  18 Nov 26: the first runs started it through
+# Invoke-Sd, so sdwind joined the OWNER'S PowerShell console, and Solo died when he closed that window ("SD has not been started").
+function Start-SoloHidden([string]$Label) {
+    $err = Join-Path $Work ('start-' + $Label + '.err')
+    Say ''
+    Say ('  $ ' + $SdExe + ' -start   [hidden, as solo-start.ps1: sdwind gets a console of its own]')
+    try {
+        $p = Start-Process -FilePath $SdExe -ArgumentList '-start' -WindowStyle Hidden -PassThru -RedirectStandardError $err -ErrorAction Stop
+        $null = $p.Handle
+        if (-not $p.WaitForExit(60000)) { Say '    sd-solo -start did not end within 60 s (left alone)'; return }
+        Say ('    exit ' + $p.ExitCode)
+    } catch { Say ('    could not run it: ' + $_.Exception.Message); return }
+    if (Test-Path -LiteralPath $err) { foreach ($l in @(Get-Content -LiteralPath $err -ErrorAction SilentlyContinue)) { if ($l.Trim()) { Say ('    | ' + $l) } } }
 }
 
 # --- what this run uses ---------------------------------------------------------------------------------------------------------
@@ -328,7 +346,7 @@ if ($want -contains 'xfer') {
         Say ('  restarting Solo (' + $Why + ')')
         $null = Invoke-Sd ('stop-' + $Why) '-stop' '' 'nothing'
         Start-Sleep -Seconds 2
-        $null = Invoke-Sd ('start-' + $Why) '-start' '' 'nothing'
+        Start-SoloHidden $Why
         Start-Sleep -Seconds 3
         $w = @(Get-CimInstance Win32_Process -Filter "Name='sdwind.exe'" | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($Root, [StringComparison]::OrdinalIgnoreCase) })
         Say ('  sdwind.exe of this tree after the start: ' + $(if ($w.Count) { ($w | ForEach-Object { $_.ProcessId }) -join ' ' } else { 'NONE' }))
@@ -427,7 +445,7 @@ if ($want -contains 'stop') {
     try { $hp.StandardInput.Close() } catch { }
     if (-not $hp.WaitForExit(10000)) { Say ('  the held cmd.exe (pid ' + $hp.Id + ') has not ended; left alone') }
     if (Test-Path -LiteralPath $held) { Say '    --- the held session said ---'; foreach ($l in ((Mask ([IO.File]::ReadAllText($held) -replace "`r", '')) -split "`n")) { if ($l.Trim()) { Say ('    | ' + (($l -replace [char]27, '^[') -replace [char]7, '^G')) } } }
-    $null = Invoke-Sd 'start' '-start' '' 'nothing'
+    Start-SoloHidden 'after-stop'
     Start-Sleep -Seconds 3
     $null = Show-Procs 'after -start'
     $t = Invoke-Session 'after-start' @('WHERE')
