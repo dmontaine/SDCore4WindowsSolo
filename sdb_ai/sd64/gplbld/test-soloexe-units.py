@@ -5,8 +5,10 @@ Solo, on Windows and Linux, and the Solo executable itself is renamed.  It repla
 text launcher (sd-solo.cmd) that made cmd.exe ask "Terminate batch job (Y/N)?" after OFF.
 The build still makes bin\\sd.exe; stage.py ships it as usr\\bin\\sd-solo.exe.  Anything that
 still names the old installed file finds nothing: the installer's -stop, the startup task,
-the ssh ForceCommand, the daemon's API sessions and cleanup, the client library's local
-connect.  Each is a place a tidy-up or a merge from the other tree can bring "sd.exe" back.
+the ssh ForceCommand, the daemon's API sessions and cleanup.  Each is a place a tidy-up or a
+merge from the other tree can bring "sd.exe" back.  (19 Nov 26, RELEASE_1.1 351: the client
+library's row went with the GPL client; the clean-room library looks for sd.exe beside itself,
+so on Solo its local connect fails at once, which verify-solo leg 12 measures.)
 
 A source check: no install, no SD, no elevation.  The mutants run on synthetic text.
 
@@ -80,12 +82,6 @@ def daemon_problems(defs, wind):
     return bad
 
 
-def client_problems(t):
-    c = code(t)
-    if 'strcpy(p, "\\\\sd-solo.exe")' not in c or 'sizeof("\\\\sd-solo.exe")' not in c:
-        return ["sdclilib.c does not look for \\sd-solo.exe beside itself"]
-    return []
-
 
 def installed_path_problems(t):
     """Installed-Solo paths (usr\\bin\\sd.exe) in code lines must say sd-solo.exe.
@@ -108,8 +104,7 @@ print("test-soloexe-units: the Solo server is installed as %s" % NAME)
 stage = read(os.path.join(HERE, "stage.py"))
 defs = read(os.path.join(SRC, "sddefs.h"))
 wind = read(os.path.join(SRC, "sdwind.c"))
-cli = read(os.path.join(SRC, "sdclilib", "sdclilib.c"))
-if None in (stage, defs, wind, cli):
+if None in (stage, defs, wind):
     print("test-soloexe-units: a source file was not found - nothing measured.")
     sys.exit(2)
 
@@ -118,8 +113,6 @@ check("stage.py ships bin\\sd.exe as sd-solo.exe and bootstraps that", s == [], 
 check("the sd-solo.cmd launcher is gone", not os.path.exists(os.path.join(HERE, "sd-solo.cmd")))
 d = daemon_problems(defs, wind)
 check("sdwind.c starts the server by the Solo name", d == [], "; ".join(d))
-c = client_problems(cli)
-check("sdclilib.c's local connect looks for sd-solo.exe", c == [], "; ".join(c))
 for name in SCRIPTS:
     t = read(os.path.join(HERE, name))
     if t is None:
@@ -151,8 +144,6 @@ check("MUTANT: an installed path ending in sd.exe is caught",
       installed_path_problems("$x = Join-Path $Root 'usr\\bin\\sd.exe'\n") != [])
 check("CONTROL: the full product's Program Files path is allowed",
       installed_path_problems("$x = 'C:\\Program Files\\SD\\usr\\bin\\sd.exe'\n") == [])
-check("MUTANT: the client library reverting to sd.exe is caught",
-      client_problems('strcpy(p, "\\\\sd.exe");\n') != [])
 
 print("")
 if passes == 0:

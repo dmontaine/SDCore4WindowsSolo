@@ -216,6 +216,7 @@ $neverShipped = @(
     'build-sdpy.ps1', 'build-sdpyclient.ps1', 'gen_includes.py', 'mkbasicsyntax.py',
     'mkvocdoc.py', 'checksyntax.py', 'scan-msgdiff.py', 'reword-yn-prompts.ps1',
     'mkrelease.ps1',   # 13 Nov 26: packages a built installer (RELEASE_1.1 268); runs after a cycle, never installed
+    'stage-clients.ps1',   # 19 Nov 26: puts the clean-room client DLLs beside the installer (RELEASE_1.1 351); never installed
     # fixtures and measurement stubs without the probe- prefix
     'basicfuncs.sb', 'sample-sdstate.ps1', 'scram-probe.py',
     'internal-state-test.exe', 'smoke-test.exe', 'sdpy.exe',

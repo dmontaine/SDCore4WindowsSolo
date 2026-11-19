@@ -3,6 +3,20 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+19 Nov 26  THE CLIENT LIBRARY IS A NEW, CLEAN-ROOM ONE THAT ANY PROGRAM MAY LINK.
+
+             What        - The C client library (sdclilib.dll, sdclient.dll, and the 32-bit qmclilib.dll and
+                           qmclient.dll) is written new for SD Core under the Blue Oak Model License 1.0.0, so a
+                           program of any licence, commercial ones included, may link it.  It is the same library
+                           for all four SD Core products, comes as binaries in the release package's clients
+                           folder, and the installer puts it in usr\bin and usr\clients from there.
+             Why         - The old library was GPL code, and a commercial program linking a GPL library is the
+                           licensing problem a client library exists to avoid.
+             Note        - Name port 4249 when connecting: the library takes -1 as SD Core's 4247.
+                           SDConnectLocal returns false at once on SD Core Solo, as before it was refused.
+             Also        - The C header syscom\sdclilib.h declared six functions with int where the library takes
+                           16-bit values; it now says short int.
+
 19 Nov 26  A REINSTALL THAT KEEPS YOUR DATA SAYS WHETHER YOUR SCHEDULED JOBS ARE RUNNING AGAIN.
 
              What        - When you install again and keep your data, or upgrade, the installer's last page now says

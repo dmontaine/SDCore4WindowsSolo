@@ -67,9 +67,9 @@
 #      found, DISCONNECT leaves it unconnected; CONTROL: the wrong password
 #      does not connect.  Both passwords reach the probe on its input, never
 #      its source.  Skipped when sd.conf has no APIPORT.
-#  12. the installed sdclilib.dll, loaded by full path, finds its home: its
-#      SDConnectLocal reaches the server and gets the ruled refusal (15910; 12930 until 16 Nov 26, 12021 until 13 Nov 26),
-#      audited once                                          (SOLO 2 owed leg 1)
+#  12. the installed sdclilib.dll (the clean-room library since 19 Nov 26, RELEASE_1.1 351), loaded by full path: its
+#      SDConnectLocal fails at once - no sd.exe beside it, Solo's server being sd-solo.exe - and starts no session
+#      (no audit line)                                       (RELEASE_1.1 350 W6; was SOLO 2 owed leg 1, the GPL client)
 #  13. an sd.exe started from Git Bash (or MSYS2) bash, whose POSIX root and
 #      /dev/shm are not the Solo tree's, reaches the daemon: a one-shot WHERE
 #      lands, audited via=stored.  Skipped with no bash.   (SOLO 2 owed leg 2)
@@ -1084,14 +1084,15 @@ try {
 
     # -----------------------------------------------------------------------
     Say ''
-    Say '== 12. the installed client DLL finds its own home'
-    # SOLO 2's owed leg (1), witnessed by hand 27 Sep 2026.  sdclilib.dll takes
-    # the home from its own location, <home>\usr\bin (home_path()); its only
-    # caller is sysdir(), reached only through SDConnectLocal, which Solo refuses
-    # on the server (message 15910, apisrvr vb.local.login).  So the REFUSAL is
-    # the success anchor: its text is not in the DLL and comes back only if the
-    # DLL found <home>\sd.conf and sd.exe and the session started.  Loaded by
-    # FULL PATH, and the loaded module is checked, so no other copy can answer.
+    Say '== 12. the installed client DLL: SDConnectLocal fails at once on Solo (W6)'
+    # 19 Nov 26 - RELEASE_1.1 351 / 350 W6 (Linux S.262; the owner, 19 Nov: one clean-room library for all four, and the current
+    # state holds no GPL client).  The installed DLL is the clean-room one.  Its SDConnectLocal starts the sd.exe beside the DLL,
+    # and Solo's server is sd-solo.exe, so on Solo it fails AT ONCE, before any server is reached - as Linux measured on Linux
+    # Solo (mail T2200).  Measured: the installed DLL is the one loaded (by full path, so no other copy can answer),
+    # SDConnectLocal returns 0 within 2 s with a reason, and the audit gains NO refusal line (no session started, so the server's
+    # 15910 is never reached).  SDError's text is the DLL's own; it is printed, not anchored on (none read yet for this case).
+    # UNTIL 19 Nov (the GPL client, SOLO 2's leg 1, witnessed 27 Sep): the DLL found <home>\sd.conf and sd-solo.exe beside it,
+    # and the server refused with 15910, audited once.
     $cliDll = Join-Path $Root 'usr\bin\sdclilib.dll'
     Say ('    DLL: ' + $cliDll + '   exists: ' + (Test-Path -LiteralPath $cliDll) + '   SD_CONFIG: ''' + $env:SD_CONFIG + '''')
     if (-not (Test-Path -LiteralPath $cliDll)) { Check 'sdclilib.dll is installed beside sd.exe' $false ('no ' + $cliDll) }
@@ -1113,17 +1114,19 @@ public static class SdSuiteCli {
         $rx = '^.*API REFUSED request=25 SDConnectLocal'
         $a0 = Audit-Count $rx
         Say ('  $ [SdSuiteCli]::SDConnectLocal(''' + $Acct + ''')   (DllImport of the path above)')
+        $sw  = [Diagnostics.Stopwatch]::StartNew()
         $rc  = [SdSuiteCli]::SDConnectLocal($Acct)
+        $sw.Stop()
         $err = [Runtime.InteropServices.Marshal]::PtrToStringAnsi([SdSuiteCli]::SDError())
         if ($rc -ne 0) { [SdSuiteCli]::SDDisconnectAll() }
         $a1 = Audit-Count $rx
         $mod = @((Get-Process -Id $PID).Modules | Where-Object { $_.ModuleName -eq 'sdclilib.dll' } | ForEach-Object { $_.FileName })
         Say ('    loaded: ' + $(if ($mod.Count) { $mod -join '; ' } else { 'NONE' }))
-        Say ('    returned ' + $rc + '; SDError: ' + (Mask $err))
+        Say ('    returned ' + $rc + ' in ' + $sw.ElapsedMilliseconds + ' ms; SDError: ' + (Mask $err))
         Say ('    audit "API REFUSED request=25" lines: ' + $a0 + ' -> ' + $a1)
         Check 'the loaded sdclilib.dll is the installed one' ($mod.Count -eq 1 -and $mod[0] -eq $cliDll) ('loaded: ' + ($mod -join '; '))
-        Check 'SDConnectLocal reaches the server and is refused as ruled (15910)' ($rc -eq 0 -and $err -match '^SDConnectLocal is not available in SD Core Solo for Windows - connect with SDConnect' -and $err -notmatch '(?i)cannot determine|not found') ('returned ' + $rc + ', SDError: ' + $err)
-        Check 'and the audit records the refusal, once' ($a0 -ge 0 -and $a1 -eq $a0 + 1) ('audit count ' + $a0 + ' -> ' + $a1)
+        Check 'SDConnectLocal fails at once (W6): returns 0 within 2 s, with a reason' ($rc -eq 0 -and $sw.ElapsedMilliseconds -lt 2000 -and $err) ('returned ' + $rc + ' in ' + $sw.ElapsedMilliseconds + ' ms, SDError: ' + $err)
+        Check 'and no session was started (the audit gains no refusal line)' ($a0 -ge 0 -and $a1 -eq $a0) ('audit count ' + $a0 + ' -> ' + $a1)
     }
 
     # -----------------------------------------------------------------------

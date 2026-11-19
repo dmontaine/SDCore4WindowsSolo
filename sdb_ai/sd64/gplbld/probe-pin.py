@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """probe-pin.py - witness first-use certificate pinning in the INSTALLED client DLL.
 
-SOLO 24 (30 Sep 2026).  Loads the real sdclilib.dll from the Solo tree and connects to
+SOLO 24 (30 Sep 2026).  Loads the real sdclilib.dll from the Solo tree (the clean-room library since 19 Nov 26) and connects to
 the live API with it, against a SCRATCH known-servers store (SD_KNOWN_SERVERS), so the
 user's own store is never touched.  NO REAL PASSWORD IS NEEDED OR USED: the pin is checked
 after the TLS handshake and before any login byte, so a deliberately wrong password is
@@ -14,8 +14,9 @@ that appears only on their own path:
     PIN FIRST USE: recorded <host:port> <hex>      the store gained exactly that line
     PIN INDEPENDENT: matches                       equals sha256(DER) read by Python's ssl
     PIN SAME CERT: connected past the pin          no CHANGED / cannot-pin text
-    PIN CHANGED: refused ...                       text starts "THE SERVER'S CERTIFICATE HAS
-                                                   CHANGED", names pinned and now, and came
+    PIN CHANGED: refused ...                       text starts "The certificate of <host:port> has
+                                                   changed" (19 Nov 26: the clean-room library's
+                                                   wording), names pinned and now, and came
                                                    back fast (no login: a wrong-password login
                                                    sleeps 3 s on the server)
     PIN UNUSABLE STORE: refused ...                "cannot pin the server: cannot open"
@@ -31,9 +32,26 @@ import sys
 import tempfile
 import time
 
+ENV_ONLY = False
+
 
 def say(t):
     print(t, flush=True)
+
+
+def setenv(name, value):
+    """19 Nov 26 (RELEASE_1.1 351/350): the clean-room sdclilib.dll is built on msvcrt.dll, which keeps its OWN copy of the
+    environment, taken when it loaded; os.environ reaches only Python's UCRT copy and the process block.  Run against it with
+    os.environ alone, the DLL read the user's real known_servers instead of the scratch store.  So set msvcrt's copy too."""
+    os.environ[name] = value
+    if ENV_ONLY:
+        say("  setenv: %s set in os.environ ONLY (--environ-only: the DLL must read the live environment)" % name)
+        return
+    try:
+        rc = ctypes.cdll.msvcrt._putenv_s(name.encode(), value.encode())
+        say("  setenv: %s set in os.environ and msvcrt (_putenv_s %d)" % (name, rc))
+    except (OSError, AttributeError) as e:
+        say("  setenv: %s set in os.environ only (msvcrt: %s)" % (name, e))
 
 
 def main():
@@ -41,7 +59,15 @@ def main():
     ap.add_argument("--dll", default=os.path.join(os.environ.get("USERPROFILE", ""), "SDCoreSolo", "usr", "bin", "sdclilib.dll"))
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=4249)
+    # 19 Nov 26: Linux's set d66cb1f reads SD_KNOWN_SERVERS with GetEnvironmentVariableA; this leaves msvcrt's copy alone so the run
+    # shows whether the DLL sees a value set after the program started.  The user's own store is checked unchanged either way.
+    ap.add_argument("--environ-only", action="store_true")
     a = ap.parse_args()
+    global ENV_ONLY
+    ENV_ONLY = a.environ_only
+    own = os.path.join(os.environ.get("USERPROFILE", ""), ".sdcore", "known_servers")
+    own_before = os.path.getmtime(own) if os.path.isfile(own) else None
+    say("  own store: %s   mtime before: %s" % (own, own_before))
 
     say("probe-pin")
     say("  dll   : %s   exists: %s" % (a.dll, os.path.exists(a.dll)))
@@ -52,7 +78,7 @@ def main():
 
     work = tempfile.mkdtemp(prefix="sdpin-probe-")
     store = os.path.join(work, "known_servers")
-    os.environ["SD_KNOWN_SERVERS"] = store
+    setenv("SD_KNOWN_SERVERS", store)
     say("  store : %s   (scratch; the user's own is untouched)" % store)
 
     try:
@@ -118,9 +144,11 @@ def main():
     with open(store, "w") as f:
         f.write("%s %s\n" % (key, bad))
     r, dt, err = attempt("after the pinned value was changed")
-    want_start = "THE SERVER'S CERTIFICATE HAS CHANGED since this client first connected to %s (pinned %s, now %s)." % (key, bad, hexv)
+    # 19 Nov 26 (RELEASE_1.1 351): the clean-room library's wording, measured that day against the host's Core; the GPL client's
+    # "THE SERVER'S CERTIFICATE HAS CHANGED since this client first connected to ..." went with it.
+    want_start = "The certificate of %s has changed since the first connection (pinned %s, now %s)." % (key, bad, hexv)
     untouched = open(store).read().strip() == "%s %s" % (key, bad)
-    if err.startswith(want_start) and "before any password was sent" in err and dt < 2.5 and untouched:
+    if err.startswith(want_start) and "No password was sent." in err and dt < 2.5 and untouched:
         say("PIN CHANGED: refused in %.2fs with the shared wording, store untouched" % dt)
     else:
         say("PIN CHANGED: FAILED - starts-with-expected: %s, fast: %s, store untouched: %s" % (err.startswith(want_start), dt < 2.5, untouched))
@@ -137,7 +165,7 @@ def main():
 
     # 5. A store that cannot be opened refuses.
     os.makedirs(os.path.join(work, "adir"))
-    os.environ["SD_KNOWN_SERVERS"] = os.path.join(work, "adir")
+    setenv("SD_KNOWN_SERVERS", os.path.join(work, "adir"))
     r, dt, err = attempt("store is a directory")
     if err.startswith("cannot pin the server: cannot open "):
         say("PIN UNUSABLE STORE: refused (%s)" % err)
@@ -146,6 +174,12 @@ def main():
         ok = False
 
     shutil.rmtree(work, ignore_errors=True)
+    own_after = os.path.getmtime(own) if os.path.isfile(own) else None
+    if own_after == own_before:
+        say("PIN OWN STORE: untouched (%s)" % own)
+    else:
+        say("PIN OWN STORE: CHANGED - the DLL wrote the user's own store (%s -> %s)" % (own_before, own_after))
+        ok = False
     say("probe-pin: " + ("ALL STEPS HELD" if ok else "A STEP FAILED"))
     return 0 if ok else 1
 

@@ -396,6 +396,13 @@ if ((Get-FileHash -LiteralPath $outZip).Hash -ne (Get-FileHash -LiteralPath $src
     Fail "the source zip copied to $outZip does not match the staged one"
 }
 Write-Host ("   source beside it: {0}, {1:N0} bytes, and {2}" -f (Split-Path -Leaf $outZip), (Get-Item -LiteralPath $outZip).Length, (Split-Path -Leaf $outTxt))
+# 19 Nov 26 - RELEASE_1.1 351 (Linux S.262; Core 35d5b38f).  THE CLIENT LIBRARIES GO BESIDE THE INSTALLER TOO: the GPL client is no
+# longer built; sd-solo.iss installs the clean-room DLLs from clients\Windows64 and \Windows32 beside the setup exe.  A cycle that
+# cannot stage them fails here.  Through Write-Host, so the transcript keeps the child's lines (Core's 19 Nov finding).
+Write-Host "   staging the clean-room client libraries beside it (stage-clients.ps1, a few seconds)"
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'stage-clients.ps1') -To (Join-Path $Out 'clients') 2>&1 |
+    ForEach-Object { Write-Host ('     ' + $_) }
+if ($LASTEXITCODE -ne 0) { Fail "stage-clients.ps1 exited ${LASTEXITCODE} - no client libraries beside the installer" }
 # SOLO 18: the control file's template goes beside every installer built.  As
 # .sample it is inert - only a file named sd-solo-setup.conf is read.  If one
 # of those is here, THIS cycle's install is driven by it: said out loud.

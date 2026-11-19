@@ -14,7 +14,8 @@ WHAT IS HELD (text only; whether the server answers is the verify suite's):
   - every entry of apisrvr's dispatch list has the number its comment gives (a table that drifts by one is the failure this file exists for);
   - 49 is vb.revision, whose handler is `response = system(1012)`;
   - Solo: 72 is vb.sshkey, 50 to 71 are Core's handlers in Core's order (12 Nov 26, SOLO 56 groups 7 and 8: 70 vb.fileadmin, 71 vb.fcontrol),
-    SrvrSshKey is 72 in sdclient.h and scram-probe.py (the BASIC sdclient defines it no more, 18 Nov 26, P-1912), SrvrRevision is 49 in sdclient.h and the BASIC sdclient,
+    SrvrSshKey is 72 in scram-probe.py (the BASIC sdclient defines it no more, 18 Nov 26, P-1912; the GPL client's sdclient.h went with
+    that library, 19 Nov 26, RELEASE_1.1 351), SrvrRevision is 49 in the BASIC sdclient,
     and the request is not one a session may make before it has logged in;
   - Core: 71 is the last request, 72 is not allocated (the entry after 71 is vb.illegal.action) and the comment on 71 says it is reserved for Solo's ssh key.
 """
@@ -32,7 +33,6 @@ CORE_50_69 = ["vb.getvar", "vb.system", "vb.trans", "vb.rtrans", "vb.txn", "vb.e
               "vb.writeuseqkey"]
 FILES = {
     "apisrvr": os.path.join(SD64, "sdsys", "gpl.bp", "apisrvr"),
-    "sdclient.h": os.path.join(SD64, "gplsrc", "sdclilib", "sdclient.h"),
     "sdclient": os.path.join(SD64, "sdsys", "gpl.bp", "sdclient"),
     "scram-probe.py": os.path.join(HERE, "scram-probe.py"),
 }
@@ -76,8 +76,7 @@ def checks(files):
         ck("S2 requests 50 to 71 are Core's handlers in Core's order (70 vb.fileadmin and 71 vb.fcontrol since group 8)", all(at.get(i) == want[i] for i in range(50, 72)),
            "%s" % [(i, at.get(i), want[i]) for i in range(50, 72) if at.get(i) != want[i]][:5])
         ck("S3 the ssh key request is in one place only (nothing else is vb.sshkey)", sum(1 for n, h, c in t if h == "vb.sshkey") == 1)
-        h = files["sdclient.h"]
-        ck("S4 sdclient.h: SrvrRevision 49 and SrvrSshKey 72", re.search(r"#define SrvrRevision\s+49\b", h) is not None and re.search(r"#define SrvrSshKey\s+72\b", h) is not None)
+        # 19 Nov 26 (RELEASE_1.1 351, Linux S.262): S4 read the GPL client's sdclient.h, which went with that library.
         b = files["sdclient"]
         # 18 Nov 26 (audit round 3, P-1912): the BASIC sdclient's $define of SrvrSshKey is gone, as Linux's template has none (no method
         # there sends it); what stays to check is the revision, and that no SrvrSshKey line names another number.
@@ -112,7 +111,6 @@ MUTANTS_SOLO = [
     ("70 is not the file administration", "apisrvr", "   vb.fileadmin,      ;*  70", "   vb.illegal.action, ;*  70"),
     ("a Core handler between 50 and 69 is missing", "apisrvr", "   vb.txn,            ;*  54", "   vb.illegal.action, ;*  54"),
     ("the handler is another revision", "apisrvr", "response = system(1012)", "response = system(1013)"),
-    ("the header says 49 for the key", "sdclient.h", "#define SrvrSshKey       72", "#define SrvrSshKey       49"),
     ("the BASIC copy says 48 for the revision", "sdclient", "$define SrvrRevision     49", "$define SrvrRevision     48"),
     ("the probe sends 49", "scram-probe.py", "REQ_SSHKEY = 72", "REQ_SSHKEY = 49"),
     ("72 is admitted before login", "apisrvr", "if action # 24 and action # 25 and action # 47 and action # 48 then", "if action # 24 and action # 25 and action # 47 and action # 48 and action # 72 then"),
