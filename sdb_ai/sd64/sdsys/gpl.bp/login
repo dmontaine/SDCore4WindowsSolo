@@ -247,7 +247,7 @@
 * 13 Sep 26 Windows port - from Linux 1f5f703 - Account names are lower case, SDSYS included (plan M, owner's
 *               rulings of 12 and 13 Sep): the register key is the lower-cased
 *               name, so every name taken from input, @LOGNAME or a path is
-*               downcased before the lookup, and @WHO reads 'sdsys', 'don'.
+*               downcased before the lookup, and @WHO reads 'sdsys', 'fred'.
 * 13 Sep 26 Windows port - from Linux 1f5f703 - Reads the $release and $command.stack VOC records by their
 *               lower-case ids (plan M3, the $ records).  Exact reads, and
 *               there are no accounts from before the rename (owner).
@@ -259,7 +259,7 @@
 * 11 Sep 26 Windows port - from Linux 1f5f703 - update.voc now also adds the ADMINISTRATOR tier layer from
 *               VOC_TEMPLATE, which it never read before, so an upgrade brings
 *               an existing administrator the verbs added since its account was
-*               made (PORT_ADOPTION 16; measured gap: DON was missing 8 of 18).
+*               made (PORT_ADOPTION 16; measured gap: the administrator's account was missing 8 of 18).
 *               Adds only what is absent, never overwrites, never removes, and
 *               only for an explicit ADMINISTRATOR tier.  Message 10912.
 * 11 Sep 26 Windows port - from Linux 1f5f703 - Every sign-on and every refused sign-on, with its reason, is
