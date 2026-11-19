@@ -834,9 +834,15 @@ function Find-UnshippedAppFiles {
     # assert-current -> STALE, 9 files, nothing measured).  The base name is
     # still matched as shipped by sd-solo.iss; the suffixed ones are not shipped
     # and not ours to delete.
+    #
+    # 18 Nov 26 - solo-start.log.  solo-start.ps1 (shipped) writes it beside itself at every sign-in, by the sign-in task or by
+    # hand, so it is SD's own run-time log, not a file a new version dropped.  The check had never met one: a cycle installs and
+    # measures before anyone signs in again.  The owner's solo-start.ps1 at 23:17 made one, and the next assert-current refused
+    # (STALE, 1 file) with nothing changed.
     Get-ChildItem $AppRoot -File -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -notmatch '^unins\d+\.(exe|dat)$' -and
-                       $_.Name -notmatch '^python-install_\d{3}_[A-Za-z0-9]+_JustForMe\.log$' } |
+                       $_.Name -notmatch '^python-install_\d{3}_[A-Za-z0-9]+_JustForMe\.log$' -and
+                       $_.Name -ne 'solo-start.log' } |
         ForEach-Object {
             $seen++
             if (-not (& $ShipsAs $_.Name)) { $orphans += $_.Name }
