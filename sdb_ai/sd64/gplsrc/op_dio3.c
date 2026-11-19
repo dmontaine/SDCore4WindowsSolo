@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 18 Nov 26 Windows port - RELEASE_1.1 338, from Linux S.265 (mail T0730), as SD Core for Windows: call_trigger() loads a trigger not
+ *           loaded at open at its first use (not for $voc_cat's own read); dh_file starts NULL.
  * 17 Nov 26 SD Core Solo - four-version audit round 4 (P-1775): op_delete()'s last else is braced, as SD Core does.
  * 18 Nov 26 SD Core Solo - four-version audit round 2 (P-4296): op_write() does not set id_len a second time (its declaration sets it), as Linux Solo.
  * 17 Nov 26 SD Core Solo - four-version audit round 1, from Linux Solo 04d8c8d (S.62 P-1773, P-1774): op_writev() counts PROF_WRITE before
@@ -2934,7 +2936,7 @@ bool call_trigger(DESCRIPTOR *fvar_descr, int16_t mode, DESCRIPTOR *id_descr, DE
   FILE_VAR *fvar;
   DESCRIPTOR *trg_descr; /* @TRIGGER.RETURN.CODE */
   STRING_CHUNK *str;
-  DH_FILE *dh_file;
+  DH_FILE *dh_file = NULL;   /* 18 Nov 26 (S.265): set on the hashed-file path; gcc warned "may be used uninitialized" */
   bool error;
   int16_t args;
   char *trigger_name;
@@ -2955,8 +2957,28 @@ bool call_trigger(DESCRIPTOR *fvar_descr, int16_t mode, DESCRIPTOR *id_descr, DE
 
   /* Check trigger function was loaded on open */
 
+  /* 18 Nov 26 Windows port - RELEASE_1.1 338, from Linux S.265 (mail T0730).  A trigger that was not loaded when its file was opened -
+     one catalogued only in the account, whose V CS record is in the VOC being opened and unreadable then - is loaded at its FIRST USE.
+     A read made by the catalogue lookup itself ($voc_cat reading the VOC to find the trigger) does not run the not-yet-loaded trigger:
+     it would otherwise run that trigger from inside its own load.  Narrow on purpose (the code base, not a process-wide flag an abort
+     could leave set).  A trigger that still cannot be loaded refuses (1409) as before: a trigger is never skipped.  dh_close gives the
+     reference back, as for one loaded at open. */
   if (trigger_obj == NULL) {
-    k_error(sysmsg(1409), trigger_name, FPtr(fvar->file_id)->pathname);
+    OBJECT_HEADER *tobj;
+
+    if (c_base == pcode_voc_cat) /* a read made by the catalogue lookup itself */
+      return TRUE;               /* does not run the not-yet-loaded trigger    */
+    tobj = (OBJECT_HEADER *)load_object(trigger_name, FALSE);
+    if (tobj == NULL) {
+      k_error(sysmsg(1409), trigger_name, FPtr(fvar->file_id)->pathname);
+      return FALSE;
+    }
+    tobj->ext_hdr.prog.refs += 1;
+    trigger_obj = (u_char *)tobj;
+    if (fvar->type == DIRECTORY_FILE)
+      fvar->access.dir.trg->trigger = trigger_obj;
+    else
+      dh_file->trigger = trigger_obj;
   }
 
   /* Check argument count */
