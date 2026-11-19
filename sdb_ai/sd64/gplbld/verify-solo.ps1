@@ -13,8 +13,11 @@
 # The log: %LOCALAPPDATA%\SD-verify\verify-solo-<stamp>.log.
 #
 # THE LEGS, one per ruling (PROJECT_STATUS.md, "WHAT SD CORE SOLO IS"):
-#   1. a one-shot "sd WHERE" logs in from the DPAPI-kept password ($STORED) and
-#      is audited via=stored                                  (ruling 21, piece 4)
+#   1. as delivered a plain one-shot "sd WHERE" does NOT sign in on the DPAPI-kept
+#      password: refused with 15186 and audited (SOLO 81, Linux Solo S.247); after
+#      SET.STORED.ACCESS ON it logs in from $STORED, audited via=stored (ruling 21,
+#      piece 4).  The switch stays on for the legs below and leg 20 turns it off
+#      again, measures the restriction, and leaves the tree as delivered.
 #   2. an interactive "sd" asks for the account password: a wrong one is refused
 #      and audited, the right one lands in the account                (ruling 21)
 #   3. the account and grant commands, and LOGTO (SOLO 29), are not in the
@@ -146,6 +149,7 @@ $script:fails    = @()
 $script:skips    = @()
 $script:timeouts = 0
 $script:leaked   = $false
+$script:storedOpened = $false   # 18 Nov 26 - SOLO 81: leg 1 opened SET.STORED.ACCESS and leg 20 has not shut it yet
 # The session counter.  Named so no loop variable can take it: at script scope
 # "foreach ($n ...)" IS $script:n, and leg 10's cleanup once left it a string.
 $script:sessionNo = 0
@@ -546,7 +550,21 @@ try {
 
     # -----------------------------------------------------------------------
     Say ''
-    Say '== 1. a one-shot command logs in from the kept password ($STORED)'
+    # 18 Nov 26 - SOLO 81 (Linux Solo b664ea9, S.247; owner: "restrict the stored password").  AS DELIVERED the kept password signs in
+    # only run.job and mcp.call: a plain one-shot with nothing on its input is refused (15186) and audited.  Then the administrator opens it
+    # (SET.STORED.ACCESS ON) so the rest of the suite's one-shots run as before; leg 20 shuts it again and measures that.
+    Say '== 1. the kept password ($STORED): restricted as delivered, then opened with SET.STORED.ACCESS ON'
+    $keptOnly = "The kept password signs in only SD's scheduled jobs and MCP calls"
+    $rxRef = '^.*login password account=' + [regex]::Escape($Acct) + ' via=stored refused reason=not a scheduled job\s*$'
+    $r0 = Audit-Count $rxRef
+    $t = Invoke-Sd 'oneshot-where-restricted' 'WHERE' '' 'none'
+    $r1 = Audit-Count $rxRef
+    Say ('    audit "via=stored refused" lines: ' + $r0 + ' -> ' + $r1)
+    Check '1a: as delivered, sd WHERE with nothing on its input is refused with 15186 and does not land' ($t.Contains($keptOnly) -and -not (Lands $t)) ('want "' + $keptOnly + '" and no WHERE line; $STORED ' + $(if ($stored) { 'present' } else { 'ABSENT' }))
+    Check '1b: and the refused use is audited, once' ($r0 -ge 0 -and $r1 -eq $r0 + 1) ('audit count ' + $r0 + ' -> ' + $r1)
+    $t = Invoke-Sd 'stored-access-on' '' ($acctPw + "`nADMIN`n" + $adminPw + "`nSET.STORED.ACCESS ON`nOFF`n") 'account password, ADMIN, administrator password, SET.STORED.ACCESS ON, OFF'
+    $script:storedOpened = $t.Contains('not only scheduled jobs and MCP calls: yes')
+    Check '1c: SET.STORED.ACCESS ON says the kept password now signs in any one-shot' $script:storedOpened 'want "...not only scheduled jobs and MCP calls: yes" (15188)'
     $rx = '^.*LOGIN PASSWORD account=' + [regex]::Escape($Acct) + ' via=stored\s*$'
     $a0 = Audit-Count $rx
     $t = Invoke-Sd 'oneshot-where' 'WHERE' '' 'none'
@@ -1900,12 +1918,28 @@ public static class SdSuiteCli {
         Say ('    pid ' + $w.Id + ' session ' + $w.SessionId + ': ' + $r)
         Check ('sdwind pid ' + $w.Id + ' is Medium integrity, Administrators not enabled') (($r -match 'integrity=S-1-16-8192(\s|$)') -and ($r -match 'administrators=(deny-only|absent)')) ('read: ' + $r)
     }
+
+    # -----------------------------------------------------------------------
+    # 18 Nov 26 - SOLO 81: the switch leg 1 opened is shut again, and the restriction is measured once more (Linux Solo's 2d).
+    Say ''
+    Say '== 20. SET.STORED.ACCESS OFF restricts the kept password again'
+    $t = Invoke-Sd 'stored-access-off' '' ($acctPw + "`nADMIN`n" + $adminPw + "`nSET.STORED.ACCESS OFF`nOFF`n") 'account password, ADMIN, administrator password, SET.STORED.ACCESS OFF, OFF'
+    $offSaid = $t.Contains('not only scheduled jobs and MCP calls: no')
+    if ($offSaid) { $script:storedOpened = $false }
+    $t = Invoke-Sd 'oneshot-who-restricted' 'WHO' '' 'none'
+    Check '20: the switch says no, and a plain one-shot is refused with 15186 again' ($offSaid -and $t.Contains($keptOnly) -and ((CountOf (Get-Lines $t) ('^\d+\s+' + [regex]::Escape($Acct) + '\b')) -eq 0)) ('switch said no: ' + $offSaid + '; want "' + $keptOnly + '" and no WHO line')
 }
 catch {
     Say ('ERROR: ' + $_.Exception.Message + '   at line ' + $_.InvocationInfo.ScriptLineNumber)
     $script:fails += 'exception'
 }
 finally {
+    # 18 Nov 26 - SOLO 81: a run that stopped between leg 1 and leg 20 would leave the kept password opened; shut it before the passwords go.
+    if ($script:storedOpened) {
+        Say '    the run stopped with SET.STORED.ACCESS ON - shutting it'
+        $t = Invoke-Sd 'stored-access-off-cleanup' '' ($acctPw + "`nADMIN`n" + $adminPw + "`nSET.STORED.ACCESS OFF`nOFF`n") 'account password, ADMIN, administrator password, SET.STORED.ACCESS OFF, OFF'
+        if (-not $t.Contains('not only scheduled jobs and MCP calls: no')) { Say '    COULD NOT SHUT IT: type admin, then set.stored.access off, in SD Core Solo'; $script:fails += 'set.stored.access left on' }
+    }
     try { [Console]::InputEncoding = $script:oldInEnc } catch { }
     $acctPw = $null; $adminPw = $null; $globalPw = $null; $script:secrets = @()
     Remove-Item -LiteralPath $Work -Recurse -Force -ErrorAction SilentlyContinue
