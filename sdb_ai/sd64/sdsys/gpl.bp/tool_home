@@ -4,6 +4,7 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 19 Nov 26 Windows port - RELEASE_1.1 347 (Linux fe151086, S.271): the Keys tile's glyph is [K] (the owner: "it should say [K]"); ^K read as its shortcut.
 * 18 Nov 26 SD Core Solo - four-version audit round 3 (P-1295, P-1296): the AI line's follow branch is one line before msg = res<5>, as Linux Solo.
 * 18 Nov 26 SD Core Solo - from Linux Solo aea031c (P-1943): the administrator's People and access group has SD Core's Scheduled jobs tile
 *               (tool.jobs, Solo's $tool_solojobs); the 02 Nov 26 line below had said so, but the tile was not in the code.
@@ -415,7 +416,7 @@ build.page:
    g += 1
    gr<g> = 'Everyone' : @vm : bnd : @vm : 6
    id = 'terminal' ; grp = g ; label = 'Terminal' ; glyph = '>_ ' ; sub = 'type exit to come back' ; act = 'terminal' ; pal = 'gray' ; size = 'w' ; pause = 0 ; why = '' ; gosub add.tile
-   id = 'keys' ; grp = g ; label = 'Keys' ; glyph = '^K ' ; sub = 'test your keyboard' ; act = 'cmd:tool.keys' ; pal = 'gray' ; size = 'n' ; pause = 0 ; why = '' ; gosub add.tile
+   id = 'keys' ; grp = g ; label = 'Keys' ; glyph = '[K]' ; sub = 'test your keyboard' ; act = 'cmd:tool.keys' ; pal = 'gray' ; size = 'n' ; pause = 0 ; why = '' ; gosub add.tile
    * the development tools, for every account in the account the person is in (plan 13.2: each app adds its tile in the commit that builds it); the last group, so that the others stay where they were
    bnd += 1
    g += 1
