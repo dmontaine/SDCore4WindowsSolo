@@ -17,7 +17,7 @@
 #                      ... via=stored", not 15186) and RUN.JOB answers; control: one-shot WHERE with nothing on its input is refused 15186.
 #   api      SOLO 60   API (scram-probe.py, port 4249): the GLOBAL password as sduser is VERIFIED (the control), as sdsys is REFUSED with
 #                      "Invalid username or password" and the audit has "api refused user=sdsys reason=no credential".
-#   xfer     299 (B)   sd.conf XFER=1 (a copy kept), SET.XFER.ACCESS ON; an ssh session to Solo's sshd (127.0.0.1:4251) types RECEIVE;
+#   xfer     299 (B)   sd.conf XFER=1 (a copy kept), Solo stopped and started (XFER is read at start), SET.XFER.ACCESS ON; an ssh session to Solo's sshd (127.0.0.1:4251) types RECEIVE;
 #                      sftp puts a text file and a binary one; Enter closes.  PASS: text file in xfer.in with the same SHA-256, binary
 #                      not kept, audit open/connect/file/refused/close.  Put back: SET.XFER.ACCESS OFF, the original sd.conf.
 #   stop     203       a session held open (SLEEP 300), then "sd-solo -stop": the session's process is gone within 20 s and no sd-solo.exe
@@ -26,7 +26,9 @@
 #
 # START-HISTORY:
 # 18 Nov 26  New, for the sitting of 18 Nov (rows SOLO 67, SOLO 50, 247, SOLO 81, SOLO 60, 299, 203).  Session driving copied from
-#            verify-solo.ps1 (cmd.exe, output to a file, ASCII stdin with no preamble, spare OFFs, 90 s limit).  NOT RUN.
+#            verify-solo.ps1 (cmd.exe, output to a file, ASCII stdin with no preamble, spare OFFs, 90 s limit).
+# 18 Nov 26  First run (witness-solo-host-20261118-225437.log): 24 PASS; xfer's 7 FAILs were this script's - it changed XFER without
+#            restarting Solo, and XFER is read when SD starts.  xfer now stops and starts Solo after the write and after the put-back.
 # END-HISTORY
 
 param(
@@ -318,10 +320,24 @@ if ($want -contains 'xfer') {
         $p = [Diagnostics.Process]::Start($psi)
         return @{ P = $p; Out = $p.StandardOutput.ReadToEndAsync(); Err = $p.StandardError.ReadToEndAsync() }
     }
+    # 18 Nov 26 (first run): XFER is read ONCE, when SD starts - sysseg.c reads sd.conf into the shared segment as it creates it and
+    # every process copies pcfg from there (sysseg.c:176, :191).  The first run wrote XFER=1 and restarted nothing, and RECEIVE said
+    # "XFER is 0 in sd.conf".  So SD is stopped and started after the write and again after the put-back, as witness-vm-xfer restarts
+    # SD Core's service.  The stop ends every Solo session.
+    function Restart-Solo([string]$Why) {
+        Say ('  restarting Solo (' + $Why + ')')
+        $null = Invoke-Sd ('stop-' + $Why) '-stop' '' 'nothing'
+        Start-Sleep -Seconds 2
+        $null = Invoke-Sd ('start-' + $Why) '-start' '' 'nothing'
+        Start-Sleep -Seconds 3
+        $w = @(Get-CimInstance Win32_Process -Filter "Name='sdwind.exe'" | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($Root, [StringComparison]::OrdinalIgnoreCase) })
+        Say ('  sdwind.exe of this tree after the start: ' + $(if ($w.Count) { ($w | ForEach-Object { $_.ProcessId }) -join ' ' } else { 'NONE' }))
+    }
     try {
         $new = @($lines | Where-Object { $_ -notmatch '^\s*XFER\s*=' }) + 'XFER=1'
         [IO.File]::WriteAllLines($Conf, [string[]]$new, (New-Object Text.ASCIIEncoding))
-        Say ('  sd.conf XFER lines after : ' + (@(Get-Content -LiteralPath $Conf | Where-Object { $_ -match '^\s*XFER\s*=' }) -join ' | ') + '   (each sd-solo reads sd.conf at its start; no restart)')
+        Say ('  sd.conf XFER lines after : ' + (@(Get-Content -LiteralPath $Conf | Where-Object { $_ -match '^\s*XFER\s*=' }) -join ' | '))
+        Restart-Solo 'xfer-on'
         $t = Invoke-Session 'xfer-on' @('SET.XFER.ACCESS ON') -Admin
         Check '299' 'SET.XFER.ACCESS ON says the account may move files: yes (15074)' ((CountOf (Get-Lines $t) ('Account ' + $Acct + ' may move files over its ssh login \(receive / send\): yes')) -eq 1) 'no 15074 "yes" line'
 
@@ -373,6 +389,7 @@ if ($want -contains 'xfer') {
         Say ''; Say '  --- put back: SET.XFER.ACCESS OFF, the original sd.conf ---'
         $null = Invoke-Session 'xfer-off' @('SET.XFER.ACCESS OFF') -Admin
         Copy-Item -LiteralPath $confBak -Destination $Conf -Force
+        Restart-Solo 'xfer-off'
         Say ('  sd.conf XFER lines now: ' + $(if (@(Get-Content -LiteralPath $Conf | Where-Object { $_ -match '^\s*XFER\s*=' }).Count) { (@(Get-Content -LiteralPath $Conf | Where-Object { $_ -match '^\s*XFER\s*=' }) -join ' | ') } else { '(none)' }) + '   (the copy taken before, put back byte for byte)')
         foreach ($n in @('orders.csv', 'logo.bin')) { $f = Join-Path $inDir $n; if (Test-Path -LiteralPath $f) { Remove-Item -LiteralPath $f -Force } }
     }
