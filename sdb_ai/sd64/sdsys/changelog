@@ -3,6 +3,14 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+19 Nov 26  OPENSEQ OPENS A FILE YOU MAY ONLY READ, READ-ONLY, INSTEAD OF FAILING.
+
+             What        - OPENSEQ without READONLY of a file the session may read but not change now opens it
+                           read-only, as it always meant to, instead of taking the ELSE clause.
+             Why         - Windows could tell SD such a file was writable when it was not, so SD tried to open it
+                           for writing and was refused.
+             Does NOT    - Let anyone write to it: a WRITESEQ to a file opened this way is refused as before.
+
 19 Nov 26  DOCS.INSTALL IS FASTER AND SAYS FIRST WHAT IT WILL COPY.
 
              What        - docs.install now says how many documents it will copy before it starts, and copies up to

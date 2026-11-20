@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 19 Nov 26 SD Core Solo - RELEASE_1.1 355: OPENSEQ falls back to read-only when the read-write open is refused for access (MSYS2's
+ *           access() said writable).
  * 18 Nov 26 SD Core Solo - four-version audit round 3 (P-1782, P-1783): blocking_user and record_locked declared in Linux's place; no change.
  * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4305, P-4306): op_openseq()'s locals in the template's order; no change.
  * 15 Nov 26 SD Core Solo - from Core e861651e (RELEASE_1.1 279, 236): WRITESEQ writes LF for an explicit FC$CRLF mode 0, 2 or 3; CR LF stays
@@ -725,6 +727,16 @@ Private void openseq(bool map_name) {
       /* Open existing sequential file record */
 
       fu = dio_open(fullpathname, (read_only) ? DIO_READ : DIO_OVERWRITE);
+
+      /* 19 Nov 26 SD Core Solo - RELEASE_1.1 355 (Core the same day): the MSYS2 runtime's access(path, 2) can answer "writable" when
+         the open is refused (a write grant only to BUILTIN\Administrators, deny-only in an unelevated token; measured on Core's
+         sdsys\licence), so a refused read-write open falls back to read-only, as a file access() had flagged would have been
+         opened.  Windows only: Linux's access() is exact. */
+      if (!ValidFileHandle(fu) && !read_only && (errno == EACCES)) {
+        fu = dio_open(fullpathname, DIO_READ);
+        if (ValidFileHandle(fu))
+          read_only = TRUE;
+      }
 
       if (!ValidFileHandle(fu)) {
         process.status = ER_FNF;
