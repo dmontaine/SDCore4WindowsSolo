@@ -191,7 +191,10 @@ def checks(raw):
        and "$JobFolderSddl = 'O:BAG:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)'" in mc
        and 0 < rc.find("$f.DeleteTask($JobClockName, 0)") < rc.find("Register-ScheduledTask") < rc.find("[string]$t.Principal.LogonType -ne 'S4U'")
        and "$a.Arguments -cne 'run.jobs.due'" in rc
-       and "$sid = Get-ForUserSid" in rc and "(A;;FA;;;SY)(A;;FA;;;BA)(A;;GRGX;;;' + $sid + ')" in rc)
+       and "$sid = Get-ForUserSid" in rc and "(A;;FA;;;SY)(A;;FA;;;BA)(A;;GRGX;;;' + $sid + ')" in rc
+       # 20 Nov 26 (sit8 follow-up 1): the folder adds read for the user alone, not inherited, after the task is set, and is read back
+       and "$folderSddl = $JobFolderSddl + '(A;;GR;;;' + $sid + ')'" in rc
+       and rc.find("(A;;GRGX;;;' + $sid + ')") < rc.find("$f.SetSecurityDescriptor($folderSddl, 0)") < rc.find("$f.GetSecurityDescriptor(4) -notmatch"))
 
     # J7
     rh = block(jb, "read.handover")
@@ -318,6 +321,8 @@ MUTANTS = [
     ("the user may change the clock", "J6", sub("machine", "The user cannot change it.\n    $task.SetSecurityDescriptor(('D:(A;;FA;;;SY)(A;;FA;;;BA)(A;;GRGX;;;' + $sid + ')'), 0)",
                                                  "The user cannot change it.\n    $task.SetSecurityDescriptor(('D:(A;;FA;;;SY)(A;;FA;;;BA)(A;;FA;;;' + $sid + ')'), 0)")),
     ("the task folder lets users in", "J6", sub("machine", "$JobFolderSddl = 'O:BAG:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)'", "$JobFolderSddl = 'O:BAG:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;FA;;;AU)'")),
+    ("the user may write the task folder", "J6", sub("machine", "$folderSddl = $JobFolderSddl + '(A;;GR;;;' + $sid + ')'", "$folderSddl = $JobFolderSddl + '(A;OICI;FA;;;' + $sid + ')'")),
+    ("the user cannot open the task folder", "J6", sub("machine", "    $f.SetSecurityDescriptor($folderSddl, 0)\n", "")),
     ("the hand-over file is judged before it is removed", "J7", sub("job", "   ho.action = downcase(trim(ho.lines<1>))\n   if ho.action # 'add' and ho.action # 'change' then return", "   ho.action = downcase(trim(ho.lines<1>))\n   if ho.action # 'add' and ho.action # 'change' then return\n   deleteseq ho.file else null")),
     ("run.job runs from any session", "J8", sub("run", "   if not(ok.call) then", "   if @false then")),
     ("run.job leaves its own -1 as a command's status", "J8", sub("run", "   @system.return.code = 0\n   execute jcmd", "   execute jcmd")),

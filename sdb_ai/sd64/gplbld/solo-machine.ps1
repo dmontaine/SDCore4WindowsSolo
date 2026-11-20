@@ -1000,6 +1000,14 @@ function Register-JobClock {
     $task = $svc.GetFolder($JobTaskPath.TrimEnd('\')).GetTask($JobClockName)
     # Who may read and start it: the user (SET.JOB RUN starts it at once); SYSTEM and Administrators full.  The user cannot change it.
     $task.SetSecurityDescriptor(('D:(A;;FA;;;SY)(A;;FA;;;BA)(A;;GRGX;;;' + $sid + ')'), 0)
+    # 20 Nov 26 - SOLO 74 (sit8 follow-up 1): AND READ ON THE FOLDER, for the user alone and not inherited.  Without it the user's own
+    # (unelevated) process cannot open "\SD Core Solo Jobs" at all - Task Scheduler hides a folder its caller cannot read and GetFolder
+    # answers "cannot find" (measured on the host 20 Nov 2026 with SD Core's \SD, the same SDDL) - so SET.JOB RUN never started the
+    # clock and every run waited for the next tick (sit8 audit "clock=next tick").  Linux Solo's set.job run starts at once: parity.
+    # Read is all it gives: no task can be made, changed or deleted in the folder by the user, and other users still see nothing.
+    $folderSddl = $JobFolderSddl + '(A;;GR;;;' + $sid + ')'
+    $f.SetSecurityDescriptor($folderSddl, 0)
+    if ($f.GetSecurityDescriptor(4) -notmatch [regex]::Escape(';' + $sid + ')')) { return ('the task folder ' + $JobTaskPath + ' did not take the user''s read entry (' + $f.GetSecurityDescriptor(4) + ')') }
     $t = Get-ScheduledTask -TaskPath $JobTaskPath -TaskName $JobClockName -ErrorAction Stop
     $a = $t.Actions[0]
     if ([string]$t.Principal.LogonType -ne 'S4U' -or $a.Execute -ne $sdexe -or $a.Arguments -cne 'run.jobs.due' -or $t.Principal.UserId -notmatch ('(^|\\)' + [regex]::Escape(($ForUser.Split('\'))[-1]) + '$|^' + [regex]::Escape($sid) + '$')) {
