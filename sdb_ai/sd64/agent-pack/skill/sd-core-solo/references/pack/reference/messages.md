@@ -8705,6 +8705,15 @@ cited by: `login`
 
 cited by: `login`
 
+### msg:12990
+> kind=message tier=reference since=- src=sdsys/messages/12990:1#bf163b7c
+
+```
+WARNING - %1
+```
+
+cited by: `remotedoor`
+
 ### msg:12991
 > kind=message tier=reference since=- src=sdsys/messages/12991:1#f962771a
 

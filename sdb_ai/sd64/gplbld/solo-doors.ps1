@@ -115,6 +115,24 @@ function Get-Scope([string]$DisplayName, [int]$Port) {
     } catch { return '' }
 }
 
+# 19 Nov 26 - RELEASE_1.1 317 (SD Core's sit7; owner: "warn only").  An enabled inbound BLOCK rule beats Solo's own rule: Windows
+# makes one when somebody presses Cancel at its "allow sdwind through?" alert.  Reported, never removed (it may be the user's
+# own): one "api blocked:" line per rule that covers this install's sdwind.exe (the API listener) or names TCP port $Port.  The
+# COM object, as Get-Scope (no CIM in -Show).  COM: Direction 1 = in, Action 0 = block, Protocol 6 = TCP, 256 = any.
+function Get-ApiBlocks([int]$Port) {
+    try {
+        $fw = New-Object -ComObject HNetCfg.FwPolicy2
+        $sdwind = [System.IO.Path]::GetFullPath((Join-Path $AppDir 'usr\bin\sdwind.exe'))
+        foreach ($x in $fw.Rules) {
+            if ($x.Direction -ne 1 -or $x.Action -ne 0 -or -not $x.Enabled) { continue }
+            $app = [string]$x.ApplicationName
+            $byApp = ($app -ne '' -and [Environment]::ExpandEnvironmentVariables($app) -ieq $sdwind)
+            $byPort = (($x.Protocol -eq 6 -or $x.Protocol -eq 256) -and (@(([string]$x.LocalPorts) -split ',') -contains [string]$Port))
+            if ($byApp -or $byPort) { Write-Output ('api blocked: the Windows firewall rule "' + $x.Name + '" blocks the API, so other computers cannot connect until it is disabled or removed') }
+        }
+    } catch { Write-Output ('api blocked: unknown - the other firewall rules could not be read (' + $_.Exception.Message + ')') }
+}
+
 function Test-Listening([int]$Port) {
     return @([Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners() |
              Where-Object { $_.Port -eq $Port }).Count -gt 0
@@ -164,6 +182,7 @@ function Show-Doors {
         $scope = Get-Scope 'SD Core Solo API (SDClient)' $ApiPort
         $mode = if (-not $on) { 'off' } elseif ($scope -eq 'open') { 'open' } else { 'local' }
         Write-Output ('api mode: ' + $mode)
+        if ($mode -eq 'open') { Get-ApiBlocks $ApiPort }   # 19 Nov 26 - RELEASE_1.1 317: open, unless a Block rule says otherwise
     }
     Write-Output ('api listening: ' + $(if (Test-Listening $ApiPort) { 'yes' } else { 'no' }))
 

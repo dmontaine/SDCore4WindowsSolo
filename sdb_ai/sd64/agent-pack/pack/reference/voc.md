@@ -233,12 +233,12 @@ target, and the remaining fields carry options.
 
 | Field 2 | Field 3 | What it does |
 |---|---|---|
-| `CA` | *catalog name* | a cataloged program — 174 of the shipped verbs |
+| `CA` | *catalog name* | a cataloged program — 175 of the shipped verbs |
 | `IN` | *number* | internal verb *n*, handled by the command processor itself — 36 verbs |
 | `OS` | *text* | an operating-system command — `sh`, and nothing else |
 | `CS` | *path* | a locally cataloged function |
 
-The first three rows account for all 211 of Solo's `V` records. The
+The first three rows account for all 212 of Solo's `V` records. The
 remaining four verbs are the keyword records described above — `break`,
 `count`, `display` and `off` — where field 2 holds a keyword number rather than a
 dispatch type, and it is field 3 that marks the record as a verb.

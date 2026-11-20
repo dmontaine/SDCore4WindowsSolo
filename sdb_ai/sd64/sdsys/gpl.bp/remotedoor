@@ -4,6 +4,8 @@
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 19 Nov 26 SD Core Solo - RELEASE_1.1 317 (owner: "warn only"): with the API open, each Windows firewall Block rule that stops it
+*           (solo-doors.ps1 -Show's "api blocked:" lines) is named with 12990, and the status is a failure; nothing removes a rule.
 * 18 Nov 26 SD Core Solo - SOLO 78 (audit P-4455): the description says LOCAL is the 127.0.0.1 listen address for both doors (ssh's
 *           ListenAddress, as the API's APILOCAL), with the firewall rule as the second wall.  Comments only; no code changed.
 * 17 Nov 26 SD Core Solo - four-version audit round 1 (P-4386): "Wrong password - nothing was changed" is message 12598 (was 12987, which
@@ -136,12 +138,13 @@ show:
    both = ps_script_out(ps, @true)
    rc = field(both, @fm, 1)
    out = field(both, @fm, 2, 99999)
-   mode = '' ; listening = '' ; helper.ok = @false ; doors.dir = '' ; lastl = ''
+   mode = '' ; listening = '' ; helper.ok = @false ; doors.dir = '' ; lastl = '' ; blocked = ''
    for i = 1 to dcount(out, @fm)
       ln = trim(out<i>)
       if ln # '' then lastl = ln
       key = trim(field(ln, ':', 1))
       val = trim(ln[index(ln, ':', 1) + 1, 99999])
+      if key = door : ' blocked' then blocked<-1> = val            ;* 19 Nov 26 - RELEASE_1.1 317: a firewall Block rule, named
       if key = door : ' mode' then mode = val
       if key = door : ' listening' then listening = val
       if key = 'doors helper' then helper.ok = (val = 'yes')
@@ -174,6 +177,14 @@ report:
    end case
    if (mode = 'local' or mode = 'open') and listening # 'yes' then
       display sysmsg(15965, port)                                 ;* ...but nothing listens on port %1 now
+      rep.ok = @false
+   end
+*  19 Nov 26 - RELEASE_1.1 317 (owner: "warn only"): a Windows firewall Block rule beats Solo's own rule; solo-doors.ps1 names each
+*  one ("api blocked: ..."), and the rule is never removed - it may be the user's own choice.
+   if mode = 'open' and blocked # '' then
+      for i = 1 to dcount(blocked, @fm)
+         display sysmsg(12990, blocked<i>)                        ;* WARNING - %1 (the rule's name and what it does)
+      next i
       rep.ok = @false
    end
    return
