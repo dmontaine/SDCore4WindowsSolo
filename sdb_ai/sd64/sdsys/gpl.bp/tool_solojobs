@@ -1,9 +1,13 @@
 * TOOL_SOLOJOBS
-* The scheduled jobs page of SD Core Solo (TOOL.JOBS): SD's own jobs, each a Task Scheduler task that runs one SD command of the person's (S.247).
+* The scheduled jobs page of SD Core Solo (TOOL.JOBS): SD's own jobs, each one SD command of the person's that the job clock runs (S.247; SOLO 74).
 * Copyright (c) 2026, SD Core for Linux Solo.  This program is free software; you can redistribute
 * it and/or modify it under the terms of the GNU General Public License, version 3 or later.
 *
 * START-HISTORY:
+* 20 Nov 26 SD Core Solo - RELEASE_1.1 365 (Linux Solo 6aea37f, S.277): the N / C form's labels are "Schedule" and "Command" (both were cut at 28 cells)
+*           and the schedule entry 20 cells, so "default: daily 02:30" fits beside it; the schedule's forms are said under the entries when the form opens
+*           (SCHED.FORMS; Linux 14114 is 15114).
+* 20 Nov 26 SD Core Solo - SOLO 74: the page's text says what a job is now - its definition, run by the job clock (one task); no per-job task.
 * 17 Nov 26 dm  New (S.247; owner, 15 Nov 2026: "since scheduled jobs is in core and useful in solo it should be in this release", and of the plan, "your plan is fine",
 *               whose step 4 is "a tool.jobs page for Solo shaped like Core's Jobs view (one account)").  Made from SD Core's tool_jobs, its Jobs view only: Solo has
 *               no batch gate (LSOLO 6) and one account, so there is no Account commands view.  What differs from the template is forced by Solo: the jobs are the
@@ -53,6 +57,7 @@ $include tk.h
    allow = 'set.job'                                             ;* the one command this page may run
    MAXCMD = 500
    DAYS = 'mon' : @fm : 'tue' : @fm : 'wed' : @fm : 'thu' : @fm : 'fri' : @fm : 'sat' : @fm : 'sun'
+   SCHED.FORMS = 'Schedule: every 5|10|15|20|30 minutes, hourly, daily hh:mm, weekly mon..sun hh:mm or monthly 1..28 hh:mm (hh:mm as 09:30).'
 
    call $tk_open('tool.jobs', '', ctx, err)
    if err # '' then
@@ -291,8 +296,8 @@ draw.effect:
       sel = 'Selected: ' : jnm<ji> : ' runs ' : jcmd<ji> : ' ' : sw : '.  Next run: ' : jnext<ji> : '.  Last run: ' : jlast<ji> : '.'
    end
    if outopen and sel # '' then lines<-1> = sel
-   lines<-1> = 'A scheduled job runs one SD command of yours, unattended, as your Windows user, whether or not you are signed in: its Task Scheduler task starts'
-   lines<-1> = 'sd-solo.exe run.job NAME, which signs in as a one-shot command (signed out, by its Windows identity) and runs the command the job was given.'
+   lines<-1> = 'A scheduled job runs one SD command of yours, unattended, as your Windows user, whether or not you are signed in: the job clock, one Task Scheduler task,'
+   lines<-1> = 'starts sd-solo.exe run.jobs.due every minute, which signs in as a one-shot command (signed out, by its Windows identity) and runs each job whose time has come.'
    lines<-1> = 'Making or changing a job asks for your account password.  Jobs are off as delivered: the administrator turns them on (set.jobs.access on), and off stops every job.'
    lines<-1> = "A run missed while the computer is off is not made up.  Jobs run while SD runs, which its startup task starts at boot.  Times are the computer's."
    lines<-1> = ''
@@ -486,8 +491,10 @@ job.change:
 
 * The schedule, the command and the password fields (S.244: the entries open empty, the value in force beside them, an empty entry keeping it; the password masked)
 job.fields:
-   spec<-1> = 'sched' : @vm : 'Schedule: every 15 minutes, hourly, daily 02:30, weekly sun 03:00, monthly 1 04:00' : @vm : 24 : @vm : 24 : @vm : '' : @vm : 1 : @vm : '' : @vm : (if fmode = 'add' then 'default' else 'now')
-   spec<-1> = 'cmd' : @vm : 'Command (the SD command the job runs, as you would type it)' : @vm : 100 : @vm : MAXCMD : @vm : '' : @vm : (if fmode = 'add' then '' else 1)
+* 20 Nov 26 (RELEASE_1.1 365, Linux Solo 6aea37f): one-word labels and a 20-cell schedule entry - the form cuts a label at 28 cells and the shown value
+*   at the cells the entry leaves.  The forms of a schedule are said under the entries when the form opens (job.form).
+   spec<-1> = 'sched' : @vm : 'Schedule' : @vm : 20 : @vm : 24 : @vm : '' : @vm : 1 : @vm : '' : @vm : (if fmode = 'add' then 'default' else 'now')
+   spec<-1> = 'cmd' : @vm : 'Command' : @vm : 100 : @vm : MAXCMD : @vm : '' : @vm : (if fmode = 'add' then '' else 1)
    spec<-1> = 'pw' : @vm : 'Account password' : @vm : 34 : @vm : 64 : @vm : 1
    return
 
@@ -500,6 +507,8 @@ job.form:
       msg = 'the form does not fit this window'
       return
    end
+   ftext = SCHED.FORMS : ' ' : sysmsg(15114)
+   call $tk_form('say', ctx, ftext, '', '')    ;* the schedule's forms, under the entries until a refusal replaces them
    loop
       call $tk_form('run', ctx, fans, fv, fid)
       if fans # 'ok' then
@@ -555,7 +564,7 @@ job.confirm:
    el = ''
    el<-1> = 'The job ' : fname : ' will run ' : fcmd : ' as your Windows user, unattended, signed in or not, ' : sw : " (the computer's time)."
    if fmode = 'change' then el<-1> = 'It replaces what ' : fname : ' does now: ' : jcmd<ji> : ' ' : jsch<ji> : '.'
-   el<-1> = 'Its task is \SD Core Solo Jobs\sd-solo-job-' : fname : ', made by the doors helper; the command is kept in SD, not in the task.  A run missed while the computer is off is not made up.'
+   el<-1> = 'The job clock (one task, \SD Core Solo Jobs\sd-solo-jobs-clock) runs it; the command is kept in SD.  A run missed while the computer is off is not made up.'
    call $tk_confirm(sent, el, '', res, cmsg)
    if res # 'run' then
       fpw = ''
@@ -627,8 +636,8 @@ job.delete:
    sch = jsch<ji>
    gosub sched.words
    el = ''
-   el<-1> = 'The job ' : fname : ' stops: its task is stopped and removed, then its definition.  It ran ' : jcmd<ji> : ' ' : sw : '.'
-   el<-1> = 'A run already going is stopped.  Type the name of the job to delete it.'
+   el<-1> = 'The job ' : fname : ' stops: its definition is removed, so the job clock runs it no more.  It ran ' : jcmd<ji> : ' ' : sw : '.'
+   el<-1> = 'A run already going finishes.  Type the name of the job to delete it.'
    call $tk_confirm(sent, el, fname, res, cmsg)
    if res = 'run' then
       gosub run.sent
@@ -658,7 +667,7 @@ job.run:
    end
    sent = 'set.job run ' : fname
    el = ''
-   el<-1> = 'Starts the job ' : fname : ' now: ' : jcmd<ji> : ', as your Windows user, exactly as its task would.  Its schedule is not changed.'
+   el<-1> = 'Starts the job ' : fname : ' now: ' : jcmd<ji> : ', as your Windows user, through the job clock, as a scheduled run would.  Its schedule is not changed.'
    el<-1> = 'The page does not wait for it: F5 shows when it has finished, under Last run.'
    call $tk_confirm(sent, el, '', res, cmsg)
    if res = 'run' then

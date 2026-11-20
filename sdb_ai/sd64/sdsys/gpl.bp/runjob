@@ -13,6 +13,8 @@
 *           DPAPI cannot open $stored (measured on a VM, 16 Nov 2026: "Key not valid for use in specified state"), and login then admits
 *           exactly "run.job <name>" by the process's Windows identity (the owner's ruling, 16 Nov 2026, option 1; gpl.bp/login, the
 *           RUN-JOB-IDENTITY block, says why it adds no way in).  So the checks below are the whole of what decides a run.
+* 20 Nov 26 SD Core Solo - SOLO 74: a job has no task of its own any more (SYSTEM may not register the user's S4U task, sit8); the job
+*           clock's one-shot run.jobs.due EXECUTEs "run.job <name>" for each job that is due, so that one-shot is let through too.
 * END-HISTORY
 *
 * START-DESCRIPTION:
@@ -49,6 +51,8 @@ $include err.h
    if dcount(trim(@sentence), ' ') = 2 and downcase(field(one, ' ', 1)) = 'run.job' and dcount(one, ' ') = 2 then
       if downcase(field(one, ' ', 2)) = jname then ok.call = @true
    end
+*  20 Nov 26 (SOLO 74): or EXECUTEd by the job clock, whose one-shot is exactly "run.jobs.due" (runjobsdue says why there is one clock).
+   if dcount(trim(@sentence), ' ') = 2 and downcase(one) = 'run.jobs.due' then ok.call = @true
    if not(ok.call) then
       void kernel(K$AUDIT, 'run.job refused name=' : jname[1, 40] : ' reason=not the job one-shot')
       stop sysmsg(15932)                       ;* run.job runs only as a job's own command, started by its task or by set.job run

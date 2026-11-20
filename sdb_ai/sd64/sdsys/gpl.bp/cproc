@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 20 Nov 26 SD Core Solo - RELEASE_1.1 364 (Linux Solo 6aea37f, S.277): int.update.accounts no longer says 5200 before $LOGIN; LOGIN says
+*           it after the mode 4 refusal test.
 * 18 Nov 26 SD Core Solo - four-version audit round 3, Linux Solo's forms: end of piped input ('' with STATUS() = ER$EOF) goes to
 *           int.quit (P-4414); SH and "!" ask K$SH in the test (P-3269); LOGOUT n's answer is two ifs (P-3272, P-3273); the command
 *           stack's $command.stack read takes its THEN branch (P-7385); .S lowers a new name in the one read's ELSE (P-7386).
@@ -3216,8 +3218,7 @@ int.update.accounts:
          return
    end case
 
-   display sysmsg(5200) ;* Copying records from NEWVOC to VOC...
-   i = '$LOGIN'
+   i = '$LOGIN'                ;* 20 Nov 26 - $LOGIN says 5200 once its refusal test has passed (RELEASE_1.1 364)
    call @i(j,upd.mode)
    i = ''
    display

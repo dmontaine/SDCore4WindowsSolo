@@ -1,0 +1,126 @@
+* RUNJOBSDUE
+* RUN.JOBS.DUE verb: SD Core Solo's job clock - runs every scheduled job whose time has come, as the one-shot the clock task starts.
+* Copyright (c) 2026, SD Core for Windows Solo.  This program is free software; you can redistribute
+* it and/or modify it under the terms of the GNU General Public License, version 3 or later.
+*
+* START-HISTORY:
+* 20 Nov 26 SD Core Solo - written for SOLO 74 (sit8, 20 Nov 2026; the owner's "option 1").  Each job had a Task Scheduler task of its own,
+*           registered by the doors helper as SYSTEM; the VM measured that SYSTEM may not register another account's S4U task ("Access is
+*           denied", as row 280 found on 13 Nov), so no job could be made.  Now ONE task, "\SD Core Solo Jobs\sd-solo-jobs-clock", is
+*           registered by the installer's elevated step AS THE USER (which Windows allows) and runs sd-solo.exe run.jobs.due every minute,
+*           signed in or out; this program decides what is due from the definitions in $jobs.  Windows Solo only: Linux Solo's jobs are the
+*           user's own systemd timers, which need no elevation.  A deviation forced by the operating system, listed for the parity audit.
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*   RUN.JOBS.DUE        the whole of the job clock's command line: <Solo folder>\usr\bin\sd-solo.exe run.jobs.due
+*
+*   ONLY AS THAT ONE-SHOT: the session's single command (system(1026)) must be exactly "run.jobs.due".  Login admits it as it admits run.job
+*   (the kept password while the user is signed in; the Windows identity route while signed out, gpl.bp/login RUN-JOB-IDENTITY).
+*
+*   WITH JOBS OFF (SET.JOBS.ACCESS) it does nothing and says nothing: it runs every minute, and RUN.JOB refuses and audits a job anyway.
+*
+*   A JOB IS DUE when the latest time its schedule names (!SOLO_JOB_TIMES) is later than its last run (field 6 of its definition) and than
+*   the moment it was set (fields 4 and 5), and is not more than five minutes ago - a run missed while the computer was off, or while SD
+*   could not start, is not made up.  SET.JOB RUN marks a job to run at the next tick (field 7, "now").  Every due job is stamped first,
+*   under its record lock, so a second tick that overlaps this one does not run it again; then each is run, one after another, by
+*   EXECUTEing "run.job <name>", which checks the switch and the definition again and audits the start and the end.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+program run.jobs.due
+$catalog $runjobsdue
+
+$include int$keys.h
+$include keys.h
+$include err.h
+
+$define LATE.LIMIT 300
+
+   @system.return.code = -ER$ARGS
+   acc.name = 'sduser'
+
+   one = downcase(trim(system(1026)))
+   if one # 'run.jobs.due' or dcount(trim(@sentence), ' ') # 1 then
+      void kernel(K$AUDIT, 'run.jobs.due refused reason=not the job clock one-shot')
+      stop sysmsg(12930)                       ;* run.jobs.due runs only as the job clock's own command
+   end
+
+   sw.on = @false
+   openpath @sdsys : @ds : 'accounts' to sw.f then
+      read sw.rec from sw.f, acc.name then
+         if upcase(trim(sw.rec<ACC$JOBS>)) = 'YES' then sw.on = @true
+      end
+      close sw.f
+   end
+   @system.return.code = 0
+   if not(sw.on) then stop
+
+   openpath @sdsys : @ds : '$jobs' to jobs.f else stop
+   now = date() * 86400 + int(time())
+
+*  First pass: decide and stamp.  A record another tick holds is left to that tick.
+   due = ''
+   select jobs.f to 11
+   loop
+      readnext jname from 11 else exit
+      gosub name.ok
+      if not(ok) then continue
+      readu rec from jobs.f, jname locked
+         continue
+      end then
+         is.due = @false
+         if downcase(trim(rec<7>)) = 'now' then
+            is.due = @true
+         end else
+            call !SOLO_JOB_TIMES(rec<1>, now, prev, next)
+            if prev # '' then
+               since = (if rec<4> matches '1N0N' and rec<5> matches '1N0N' then rec<4> * 86400 + rec<5> else 0)
+               if rec<6> matches '1N0N' then
+                  if rec<6> > since then since = rec<6>
+               end
+               if prev > since and prev > now - LATE.LIMIT then is.due = @true
+            end
+         end
+         if is.due then
+            rec<6> = now
+            rec<7> = ''
+            write rec to jobs.f, jname on error
+               release jobs.f, jname
+               continue
+            end
+            due<-1> = jname
+         end else
+            release jobs.f, jname
+         end
+      end else
+         release jobs.f, jname
+      end
+   repeat
+   close jobs.f
+
+*  Second pass: run them.  RUN.JOB checks everything again.
+   n = dcount(due, @fm)
+   for i = 1 to n
+      execute 'run.job ' : due<i>
+   next i
+   @system.return.code = 0
+   stop
+
+* jname in; ok out.  SET.JOB's rule.
+name.ok:
+   ok = @false
+   if len(jname) < 1 or len(jname) > 32 then return
+   if index('abcdefghijklmnopqrstuvwxyz', jname[1, 1], 1) = 0 then return
+   if jname[len(jname), 1] = '-' then return
+   if convert('abcdefghijklmnopqrstuvwxyz0123456789-', '', jname) # '' then return
+   ok = @true
+   return
+
+end
+
+* END-CODE

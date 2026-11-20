@@ -3911,7 +3911,7 @@
 "part": "core.md",
 "since": "-",
 "tier": "core",
-"words": 1534
+"words": 1532
 },
 "dict:chaining": {
 "kind": "dict.conv",
@@ -10458,6 +10458,13 @@
 "tier": "reference",
 "words": 23
 },
+"msg:12766": {
+"kind": "message",
+"part": "reference/messages.md",
+"since": "-",
+"tier": "reference",
+"words": 18
+},
 "msg:12767": {
 "kind": "message",
 "part": "reference/messages.md",
@@ -11571,6 +11578,13 @@
 "tier": "reference",
 "words": 36
 },
+"msg:12930": {
+"kind": "message",
+"part": "reference/messages.md",
+"since": "-",
+"tier": "reference",
+"words": 20
+},
 "msg:12931": {
 "kind": "message",
 "part": "reference/messages.md",
@@ -11597,7 +11611,7 @@
 "part": "reference/messages.md",
 "since": "-",
 "tier": "reference",
-"words": 16
+"words": 13
 },
 "msg:12936": {
 "kind": "message",
@@ -11933,14 +11947,14 @@
 "part": "reference/messages.md",
 "since": "-",
 "tier": "reference",
-"words": 25
+"words": 24
 },
 "msg:12986": {
 "kind": "message",
 "part": "reference/messages.md",
 "since": "-",
 "tier": "reference",
-"words": 21
+"words": 20
 },
 "msg:12987": {
 "kind": "message",
@@ -13543,7 +13557,7 @@
 "part": "reference/messages.md",
 "since": "-",
 "tier": "reference",
-"words": 15
+"words": 16
 },
 "msg:15115": {
 "kind": "message",
@@ -13879,7 +13893,7 @@
 "part": "reference/messages.md",
 "since": "-",
 "tier": "reference",
-"words": 12
+"words": 9
 },
 "msg:15934": {
 "kind": "message",
@@ -28439,7 +28453,14 @@
 "part": "reference/tcl-verbs.md",
 "since": "-",
 "tier": "reference",
-"words": 43
+"words": 51
+},
+"tcl:run.jobs.due": {
+"kind": "tcl.verb",
+"part": "reference/tcl-verbs.md",
+"since": "-",
+"tier": "reference",
+"words": 51
 },
 "tcl:said": {
 "kind": "tcl.keyword",
@@ -28600,7 +28621,7 @@
 "part": "reference/tcl-verbs.md",
 "since": "-",
 "tier": "reference",
-"words": 91
+"words": 89
 },
 "tcl:set.jobs.access": {
 "kind": "tcl.verb",
@@ -28677,7 +28698,7 @@
 "part": "reference/tcl-verbs.md",
 "since": "-",
 "tier": "reference",
-"words": 65
+"words": 69
 },
 "tcl:set.tile": {
 "kind": "tcl.verb",

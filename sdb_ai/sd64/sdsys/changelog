@@ -3,6 +3,43 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+20 Nov 26  SCHEDULED JOBS RUN FROM ONE JOB CLOCK, AND CAN BE MADE.
+
+             What        - set.job add failed on every computer ("Task Scheduler did not do it"): Windows lets
+                           nobody but you register a task that runs as you while you are signed out, and the
+                           helper that tried is SYSTEM.  Now the installer registers one task, the job clock
+                           (\SD Core Solo Jobs\sd-solo-jobs-clock), as you; it runs sd-solo.exe run.jobs.due every
+                           minute, signed in or out, and that starts each job whose time has come.  set.job only
+                           writes the job's definition; set.job run starts the clock at once; the list works out
+                           the next and last run itself.  A run more than five minutes late is not made up.  While
+                           jobs are off the clock stops before it signs in, so nothing reaches the audit trail.
+             Note        - Approve the installer's prompt as yourself: approved by another administrator, the
+                           clock cannot be registered, and the last page says SCHEDULED JOBS : NOT running.
+
+20 Nov 26  AN UPGRADE NO LONGER OVERWRITES THE SDSYS ACCOUNT'S OWN VOC.
+
+             What        - The upgrade's update of every account's VOC now passes over the SDSYS account, as it was
+                           meant to; it updated SDSYS's VOC a second time, from the vocabulary meant for ordinary
+                           accounts.
+             Why         - Solo names its own folders from its install folder (/sdsys), and the check that skips
+                           SDSYS compared that with the register's C:\... form, which never matched.
+
+20 Nov 26  UPDATE.ACCOUNTS ALL, REFUSED, SAYS ONLY THAT IT WAS REFUSED.
+
+             What        - Typed in a session, update.accounts all now prints only "Cannot update every registered
+                           account from here, so NOTHING has been updated" and changes nothing.  "Copying records
+                           from NEWVOC to VOC..." is printed only when the update really runs.
+             Why         - It printed "Copying records..." first and updated the session's own VOC before the
+                           refusal, so the refusal's "NOTHING has been updated" was not true.
+
+20 Nov 26  THE SCHEDULED JOBS FORM SHOWS ITS LABELS AND DEFAULT WHOLE.
+
+             What        - On tool.jobs, N and C: the fields are labelled "Schedule" and "Command", "default:
+                           daily 02:30" shows whole, and the five schedule forms are listed under the fields when
+                           the form opens.
+             Why         - The labels and the default were cut off, so the forms were seen only after a wrong one
+                           was refused.
+
 19 Nov 26  REMOTE.API NAMES A WINDOWS FIREWALL RULE THAT BLOCKS THE API.
 
              What        - With the API open, remote.api, remote.api open and the tool.remote page say so when an

@@ -18,6 +18,10 @@
 * 
 * 
 * START-HISTORY:
+* 20 Nov 26 SD Core Solo - RELEASE_1.1 364 (Linux Solo 6aea37f, S.277): update.accounts all refused (10172) before any VOC is touched;
+*           5200 is said here, after that test, not by cproc.
+* 20 Nov 26 SD Core Solo - SOLO 74 (sit8): the job clock's one-shot "run.jobs.due" is admitted as run.job is (the kept password, or the
+*           Windows identity route), and leaves quietly before any password while jobs are off; the identity route's audit names the command.
 * 20 Nov 26 SD Core Solo - RELEASE_1.1 266 (sit8): UPDATE.ACCOUNTS ALL updated SDSYS's VOC twice on the WS1.2-0 to WS2.0-0 upgrade:
 *           @PATH is /sdsys here, so path.key now makes a POSIX path the Windows one first (kernel(K$WINPATH)).  The same in Core.
 * 18 Nov 26 Windows port - SOLO 81 (Linux Solo b664ea9, S.247): $stored signs in only run.job / mcp.call one-shots unless set.stored.access on.
@@ -469,7 +473,18 @@ deffun pw_complex(pw) calling '!pw_complex'
    end
 
    if mode = 2 or mode = 3 or mode = 4 then  ;* Just doing a VOC upgrade or install
+* 18 Nov 26 SD Core Solo - four-version audit round 3 (P-3360, P-3371, P-5476): the refusal of mode 4 anywhere but SDSYS under an
+*   administrator (10172), as Linux Solo and SD Core say it.
+* 20 Nov 26 SD Core Solo - RELEASE_1.1 364 (Linux Solo 6aea37f, S.277): the refusal comes BEFORE anything is updated, and is the only
+*   line.  It used to follow 5200 (printed by cproc) and this account's own VOC update, so "NOTHING has been updated" was false.
+      if mode = 4 and not(@who = 'sdsys' and kernel(K$ADMINISTRATOR,-1)) then
+         display sysmsg(10172) ;* Cannot update every account from here
+         ok = @true
+         return
+      end
+
       if mode = 2 or mode = 4 then           ;* VOC update
+         display sysmsg(5200) ;* Copying records from NEWVOC to VOC...
 * 17 Aug 26 Windows port - this is UPDATE.ACCOUNTS (CPROC internal verb 15),
 *   which is ungated.  PROJECT_STATUS.md section 8.
 * 18 Sep 26 Windows port - RELEASE_1.1 64.  EVERY ACCOUNT'S VOC IS THE WHOLE OF
@@ -490,13 +505,6 @@ deffun pw_complex(pw) calling '!pw_complex'
          gosub update.voc
          if upd.denied then display sysmsg(12988, @path : @ds : 'voc')
          close update.voc.f
-      end
-
-* 18 Nov 26 SD Core Solo - four-version audit round 3 (P-3360, P-3371, P-5476): the refusal of mode 4 anywhere but SDSYS under an
-*   administrator (10172) is said here, before the walk, as Linux Solo and SD Core say it; it was the walk's else arm.  The same
-*   sessions see it.
-      if mode = 4 and not(@who = 'sdsys' and kernel(K$ADMINISTRATOR,-1)) then
-         display sysmsg(10172) ;* Cannot update every account from here
       end
 
       if @who = 'sdsys' and kernel(K$ADMINISTRATOR,-1) then
@@ -1285,6 +1293,21 @@ deffun pw_complex(pw) calling '!pw_complex'
 *   was given on the command line, which is all require.password asks; the success record reads the command itself below.  pw.done
 *   (its setter went with ruling 29) is gone.
    if mode = 0 and not(is.phantom) and not(kernel(K$INTERNAL,-1)) then
+* 20 Nov 26 SD Core Solo - SOLO 74: THE JOB CLOCK SIGNS IN TO NOTHING WHILE JOBS ARE OFF.  Its task starts "sd-solo.exe run.jobs.due" every
+*   minute on every install, and jobs are off as delivered (ACC$JOBS), so it would write a sign-in to the audit trail every minute for
+*   nothing.  With the switch off it leaves here, before any password, without an audit line and without the 2 second pause; RUN.JOBS.DUE
+*   itself would do nothing.  Nothing is admitted by this: it only refuses earlier and more quietly.
+      if downcase(trim(system(1026))) = 'run.jobs.due' then
+         jc.on = @false
+         openpath @sdsys:@ds:'accounts' to jc.f then
+            read jc.rec from jc.f, initial.account then
+               if upcase(trim(jc.rec<ACC$JOBS>)) = 'YES' then jc.on = @true
+            end
+            close jc.f
+         end
+         jc.rec = ''
+         if not(jc.on) then goto abort.login
+      end
       one.shot = (trim(system(1026)) # '')
       gosub require.password
       if not(pw.ok) then
@@ -1617,6 +1640,7 @@ require.password:
    pw.one = trim(system(1026))
    pw.verb = downcase(field(pw.one, ' ', 1))
    if pw.verb = 'run.job' and dcount(pw.one, ' ') = 2 then pw.job = @true
+   if pw.verb = 'run.jobs.due' and dcount(pw.one, ' ') = 1 then pw.job = @true   ;* 20 Nov 26 (SOLO 74): the job clock
    if pw.verb = 'mcp.call' and (dcount(pw.one, ' ') = 2 or dcount(pw.one, ' ') = 3) then pw.job = @true
    pw.any = @false
    openpath @sdsys:@ds:'accounts' to pw.acc.f then
@@ -1686,14 +1710,20 @@ require.password:
             if index('abcdefghijklmnopqrstuvwxyz', rj.name[1, 1], 1) > 0 and convert('abcdefghijklmnopqrstuvwxyz0123456789-', '', rj.name) = '' then rj.ok = @true
          end
       end
+*     20 Nov 26 (SOLO 74): the job clock's one-shot, exactly "run.jobs.due".  It runs nothing itself: it EXECUTEs run.job for each job that is
+*     due, and RUN.JOB checks the switch and the definition again.  The clock's task is registered by the installer as this Windows user.
+      if downcase(rj.cmd) = 'run.jobs.due' then
+         rj.ok = @true
+         rj.name = ''
+      end
       if rj.ok then
          if SDEXT(@sdsys : @ds : '$cred' : @FM : 'DIR', @TRUE, SD_FILE_PRIVATE) = '1' then
             pw.via = 'windows-user'
-            void kernel(K$AUDIT, 'login password account=' : initial.account : ' via=windows-user command=run.job ' : rj.name)
+            void kernel(K$AUDIT, 'login password account=' : initial.account : ' via=windows-user command=' : downcase(rj.cmd))
             pw.ok = @true
             return
          end
-         void kernel(K$AUDIT, 'login refused account=' : initial.account : ' - run.job ' : rj.name : " - $cred is not this windows user's own")
+         void kernel(K$AUDIT, 'login refused account=' : initial.account : ' - ' : downcase(rj.cmd) : " - $cred is not this windows user's own")
       end
    end
 *  RUN-JOB-IDENTITY-END

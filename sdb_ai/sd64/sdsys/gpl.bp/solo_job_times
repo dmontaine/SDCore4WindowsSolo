@@ -1,0 +1,98 @@
+* SOLO_JOB_TIMES
+* The last and the next time a scheduled job's schedule names, for SD Core Solo's job clock (RUN.JOBS.DUE) and SET.JOB's list.
+* Copyright (c) 2026, SD Core for Windows Solo.  This program is free software; you can redistribute
+* it and/or modify it under the terms of the GNU General Public License, version 3 or later.
+*
+* START-HISTORY:
+* 20 Nov 26 SD Core Solo - written for SOLO 74 (sit8, 20 Nov 2026): a job no longer has a Task Scheduler task of its own.  The VM showed that
+*           the doors helper (SYSTEM) may not register the user's S4U task ("Access is denied"; only the account itself may, as row 280
+*           measured on 13 Nov), so ONE task, the job clock, is registered by the installer's elevated step as the user and runs
+*           sd-solo.exe run.jobs.due every minute; SD itself decides which jobs are due, from these times.  The owner's choice, 20 Nov
+*           2026 ("option 1").  The five schedules are SD Core's (set_job, Get-JobSchedule), in the machine's local time.
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*   call !SOLO_JOB_TIMES(sched, now, prev, next)
+*
+*   sched   one of the five schedules, as SET.JOB checked it: every 5|10|15|20|30 minutes, hourly, daily hh:mm, weekly mon..sun hh:mm,
+*           monthly 1..28 hh:mm
+*   now     a moment as day * 86400 + seconds (day is SD's internal date, local time)
+*   prev    out: the latest moment at or before now that the schedule names, the same form
+*   next    out: the first moment after now that the schedule names
+*
+*   Both are '' for a schedule that is none of the five.  "every N minutes" counts from midnight, as the task's trigger did (a start of
+*   00:00 and a repetition of N minutes); 1440 is a multiple of each N, so it runs on across midnight.  Day 0 (31 Dec 1967) is a Sunday.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+subroutine SOLO_JOB_TIMES(sched, now, prev, next)
+$catalog !SOLO_JOB_TIMES
+
+   prev = ''
+   next = ''
+   if not(num(now)) or now = '' then return
+   day = int(now / 86400)
+   secs = now - day * 86400
+   base = day * 86400
+
+   w1 = field(sched, ' ', 1)
+   w2 = field(sched, ' ', 2)
+   w3 = field(sched, ' ', 3)
+   nw = dcount(trim(sched), ' ')
+
+*  The time of day the three calendar shapes name, in seconds; -1 when it is not hh:mm.
+   at = -1
+   tm = (if w1 = 'daily' then w2 else w3)
+   if len(tm) = 5 and tm[3, 1] = ':' and tm[1, 2] matches '2N' and tm[4, 2] matches '2N' then
+      if tm[1, 2] <= 23 and tm[4, 2] <= 59 then at = tm[1, 2] * 3600 + tm[4, 2] * 60
+   end
+
+   begin case
+      case w1 = 'every' and nw = 3 and w3 = 'minutes' and (w2 = '5' or w2 = '10' or w2 = '15' or w2 = '20' or w2 = '30')
+         step = w2 * 60
+         prev = base + int(secs / step) * step
+         next = prev + step
+
+      case w1 = 'hourly' and nw = 1
+         prev = base + int(secs / 3600) * 3600
+         next = prev + 3600
+
+      case w1 = 'daily' and nw = 2 and at >= 0
+         prev = base + at
+         if prev > now then prev -= 86400
+         next = prev + 86400
+
+      case w1 = 'weekly' and nw = 3 and at >= 0
+         wpos = index(' sun mon tue wed thu fri sat ', ' ' : w2 : ' ', 1)
+         if wpos = 0 or len(w2) # 3 then return
+         want = (wpos - 1) / 4                         ;* 0 for sun ... 6 for sat
+         back = mod(mod(day, 7) - want + 7, 7)
+         prev = (day - back) * 86400 + at
+         if prev > now then prev -= 7 * 86400
+         next = prev + 7 * 86400
+
+      case w1 = 'monthly' and nw = 3 and at >= 0
+         if not(w2 matches '1N' or w2 matches '2N') then return
+         if w2[1, 1] = '0' or w2 < 1 or w2 > 28 then return
+         first = day - oconv(day, 'DD') + 1            ;* the first of this month
+         here = (first + w2 - 1) * 86400 + at
+         if here <= now then
+            prev = here
+            t = first + 31                              ;* a day of next month
+            nfirst = t - oconv(t, 'DD') + 1
+            next = (nfirst + w2 - 1) * 86400 + at
+         end else
+            next = here
+            t = first - 1                               ;* the last day of last month
+            pfirst = t - oconv(t, 'DD') + 1
+            prev = (pfirst + w2 - 1) * 86400 + at
+         end
+   end case
+   return
+end
+
+* END-CODE

@@ -95,6 +95,14 @@
 # NOT MEASURED when written: that SYSTEM (the doors helper) can register an S4U task for the Solo user; that the user can read a task in a
 # folder it cannot write; a job's task firing with the user signed out.  A sitting owes them.
 #
+# 20 Nov 26 SD Core Solo - SOLO 74, SUPERSEDING THE PARAGRAPH ABOVE (sit8, 20 Nov 2026): SYSTEM CANNOT register the user's S4U task.
+# SET.JOB ADD failed on the VM; probe-solojob ran this script's job step as the user (PASS) and as SYSTEM ("Access is denied"), as row
+# 280 had measured on 13 Nov.  The owner's choice ("option 1"): ONE task, the job clock "\SD Core Solo Jobs\sd-solo-jobs-clock", the
+# Solo user, S4U, least privilege, one action <Solo folder>\usr\bin\sd-solo.exe run.jobs.due every minute, registered here on Install and
+# Upgrade (Set-JobClock: an older install's per-job tasks are removed first) and removed on Remove.  SD decides what is due (RUN.JOBS.DUE,
+# !SOLO_JOB_TIMES), so a job never needs a task of its own and -Action Job is gone.  The clock lets -ForUser read and start it.
+# It registers only when the elevated process IS -ForUser (the user approved the prompt); otherwise the finish page says the jobs do not run.
+#
 # 17 Nov 26 SD Core Solo - four-version audit D1, from Linux Solo's solo-sshguard.py (LSOLO 29): THE ssh LOCK-OUT.  Wherever Solo's
 # ssh is set up (Register-SshTask: install, upgrade, the doors helper), a SYSTEM task "SD Core Solo SSH Guard" runs the admin-only
 # copy of solo-sshguard.ps1; three wrong passwords from one address in ten minutes block that address on 4251 for ten minutes
@@ -112,13 +120,9 @@
 # (local-v4only / open-v4only) is its mode on an upgrade and differs from it at the doors, so both write it again.
 
 param(
-    [ValidateSet('Install', 'Upgrade', 'Remove', 'Doors', 'Job')] [string]$Action = 'Install',
+    [ValidateSet('Install', 'Upgrade', 'Remove', 'Doors')] [string]$Action = 'Install',
     [ValidateSet('', 'api', 'ssh')] [string]$Door = '',
     [ValidateSet('', 'off', 'local', 'open')] [string]$Mode = '',
-    # 16 Nov 26 - S.247: -Action Job only (the doors helper's job requests).  Each is checked again below.
-    [ValidateSet('', 'set', 'delete', 'run')] [string]$JobOp = '',
-    [string]$JobName = '',
-    [string]$JobSchedule = '',
     [string]$ForUser = '',
     [string]$AppDir = '',
     [string]$Result = '',
@@ -891,7 +895,8 @@ function Remove-DoorsTask {
 # BEGIN solo_jobs_functions
 $JobFolderName = 'SD Core Solo Jobs'
 $JobTaskPath = '\' + $JobFolderName + '\'
-$JobPrefix = 'sd-solo-job-'
+$JobPrefix = 'sd-solo-job-'          # the per-job tasks before 20 Nov 26 (SOLO 74); an upgrade takes any away
+$JobClockName = 'sd-solo-jobs-clock'  # 20 Nov 26 - SOLO 74: the one task now (Register-JobClock); gpl.bp/solojob CLOCK.TASK
 $JobFolderSddl = 'O:BAG:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)'      # SD Core's \SD folder (sd-taskfolder.ps1): SYSTEM and Administrators
 
 # 18 Nov 26 - four-version audit (P-0288), as SD Core for Windows' sd.iss [Registry] (aa750298) and Linux Solo's journal copy
@@ -919,54 +924,22 @@ function Remove-AuditEventSource {
 }
 
 function Test-JobName([string]$n) { return ($n -cmatch '^[a-z]([a-z0-9-]{0,30}[a-z0-9])?$') }
-function Test-JobTime([string]$t) { return ($t -cmatch '^([01][0-9]|2[0-3]):[0-5][0-9]$') }
 
-# SD Core's sd-jobs.ps1 Get-JobSchedule, word for word but for taking the schedule as one string: the trigger XML of one of the five
-# shapes, or $null for anything else.  The machine's own time; StartBoundary is a fixed day in the past.
-function Get-JobTrigger([string]$sched) {
-    $w = @(([string]$sched).Split(' ') | Where-Object { $_ -ne '' })
-    $start = '2026-01-01T'
-    $on = '<Enabled>true</Enabled>'
-    if ($w.Count -lt 1) { return $null }
-    switch -CaseSensitive ($w[0]) {
-        'every' {
-            if ($w.Count -ne 3 -or $w[2] -cne 'minutes' -or ($w[1] -cnotmatch '^(5|10|15|20|30)$')) { return $null }
-            return "<TimeTrigger><Repetition><Interval>PT$($w[1])M</Interval><StopAtDurationEnd>false</StopAtDurationEnd></Repetition><StartBoundary>${start}00:00:00</StartBoundary>$on</TimeTrigger>"
-        }
-        'hourly' {
-            if ($w.Count -ne 1) { return $null }
-            return "<TimeTrigger><Repetition><Interval>PT1H</Interval><StopAtDurationEnd>false</StopAtDurationEnd></Repetition><StartBoundary>${start}00:00:00</StartBoundary>$on</TimeTrigger>"
-        }
-        'daily' {
-            if ($w.Count -ne 2 -or -not (Test-JobTime $w[1])) { return $null }
-            return "<CalendarTrigger><StartBoundary>$start$($w[1]):00</StartBoundary>$on<ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay></CalendarTrigger>"
-        }
-        'weekly' {
-            $days = @{ mon = 'Monday'; tue = 'Tuesday'; wed = 'Wednesday'; thu = 'Thursday'; fri = 'Friday'; sat = 'Saturday'; sun = 'Sunday' }
-            if ($w.Count -ne 3 -or ($w[1] -cnotmatch '^(mon|tue|wed|thu|fri|sat|sun)$') -or -not (Test-JobTime $w[2])) { return $null }
-            return "<CalendarTrigger><StartBoundary>$start$($w[2]):00</StartBoundary>$on<ScheduleByWeek><DaysOfWeek><$($days[$w[1]]) /></DaysOfWeek><WeeksInterval>1</WeeksInterval></ScheduleByWeek></CalendarTrigger>"
-        }
-        'monthly' {
-            if ($w.Count -ne 3 -or ($w[1] -cnotmatch '^([1-9]|1[0-9]|2[0-8])$') -or -not (Test-JobTime $w[2])) { return $null }
-            $months = '<January /><February /><March /><April /><May /><June /><July /><August /><September /><October /><November /><December />'
-            return "<CalendarTrigger><StartBoundary>$start$($w[2]):00</StartBoundary>$on<ScheduleByMonth><DaysOfMonth><Day>$($w[1])</Day></DaysOfMonth><Months>$months</Months></ScheduleByMonth></CalendarTrigger>"
-        }
-    }
-    return $null
-}
-
-# The task.  Nothing in it comes from a request but the name (checked) and the trigger (made from a checked schedule above); the
-# program, its folder and the user are this script's own.
-function Get-JobTaskXml([string]$n, [string]$sched, [string]$trigger, [string]$userSid) {
+# 20 Nov 26 - SOLO 74 (sit8): THE JOB CLOCK.  The one task of SD Core Solo's scheduled jobs: the Solo user (by SID), LogonType S4U so that
+# it runs while the user is signed out, the least privilege, ONE fixed action <Solo folder>\usr\bin\sd-solo.exe run.jobs.due, a trigger
+# every minute from midnight.  RUN.JOBS.DUE decides from $jobs what is due.  Runs may overlap (Parallel): a long job must not stop the
+# next minute's tick; RUN.JOBS.DUE stamps each job under its lock before it runs, so no job is run twice.  No time limit: the jobs are the
+# user's.  The task lets -ForUser read it and START it (SET.JOB RUN starts it at once), as the doors task does; nothing lets the user change it.
+function Get-JobClockXml([string]$userSid) {
     $e = { param($t) [Security.SecurityElement]::Escape($t) }
     return @"
 <?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
-  <RegistrationInfo><Description>SD Core Solo scheduled job $n ($sched); written by SET.JOB through the doors helper, changed only by SET.JOB; the command is in SD (sdsys\`$jobs)</Description></RegistrationInfo>
-  <Triggers>$trigger</Triggers>
+  <RegistrationInfo><Description>SD Core Solo job clock: runs sd-solo.exe run.jobs.due every minute, which runs the scheduled jobs that are due (set.job, sdsys\`$jobs); registered by the installer</Description></RegistrationInfo>
+  <Triggers><TimeTrigger><Repetition><Interval>PT1M</Interval><StopAtDurationEnd>false</StopAtDurationEnd></Repetition><StartBoundary>2026-01-01T00:00:00</StartBoundary><Enabled>true</Enabled></TimeTrigger></Triggers>
   <Principals><Principal id="Author"><UserId>$(& $e $userSid)</UserId><LogonType>S4U</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>
   <Settings>
-    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <MultipleInstancesPolicy>Parallel</MultipleInstancesPolicy>
     <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
     <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
     <AllowHardTerminate>true</AllowHardTerminate>
@@ -976,9 +949,9 @@ function Get-JobTaskXml([string]$n, [string]$sched, [string]$trigger, [string]$u
     <Enabled>true</Enabled>
     <Hidden>false</Hidden>
     <WakeToRun>false</WakeToRun>
-    <ExecutionTimeLimit>PT72H</ExecutionTimeLimit>
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
   </Settings>
-  <Actions Context="Author"><Exec><Command>$(& $e $sdexe)</Command><Arguments>run.job $n</Arguments><WorkingDirectory>$(& $e (Split-Path $sdexe))</WorkingDirectory></Exec></Actions>
+  <Actions Context="Author"><Exec><Command>$(& $e $sdexe)</Command><Arguments>run.jobs.due</Arguments><WorkingDirectory>$(& $e (Split-Path $sdexe))</WorkingDirectory></Exec></Actions>
 </Task>
 "@
 }
@@ -1009,39 +982,30 @@ function Initialize-JobFolder($svc) {
     return $f
 }
 
-# The schedule a definition in $jobs holds (its first field), or '' when there is no such plain file.  A directory file's record keeps
-# its fields on separate lines.  SYSTEM only READS the user's folder here; it never writes there.
-function Read-JobSchedule([string]$n) {
-    $p = Join-Path (Join-Path (Join-Path $AppDir 'sdsys') '$jobs') $n
-    $it = Get-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue
-    if ($null -eq $it -or $it.PSIsContainer -or ($it.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $it.Length -gt 4096) { return '' }
-    $raw = ([IO.File]::ReadAllText($p, [Text.Encoding]::GetEncoding(28591))) -replace "`r`n", "`n"
-    return ([string]@($raw -split ("[`n" + [char]254 + "]"))[0]).Trim()
-}
-
 function Get-ForUserSid { return (New-Object Security.Principal.NTAccount($ForUser)).Translate([Security.Principal.SecurityIdentifier]).Value }
 
-# One job's task, registered whole (any task of that name is deleted first, never updated in place) and read back.  Returns '' when
-# it is in place, else why not; the caller says it (Fail for a request, a line for a restore).  May throw.
-function Register-JobTask([string]$n, [string]$sched) {
-    if (-not (Test-JobName $n)) { return ('job "' + $n + '": not a job name') }
-    $trigger = Get-JobTrigger $sched
-    if ($null -eq $trigger) { return ('job ' + $n + ': "' + $sched + '" is none of the five schedules') }
+# 20 Nov 26 - SOLO 74: the job clock, registered whole (deleted first, never updated in place) and read back.  Returns '' when it is in
+# place, else why not.  May throw.  ONLY THE USER'S OWN ELEVATED PROCESS MAY REGISTER IT: Windows lets an account register an S4U task
+# for itself and refuses everyone else, SYSTEM included (measured on the host 13 Nov 2026, row 280, and on the sit8 VM 20 Nov 2026:
+# probe-solojob, as the user PASS, as SYSTEM "Access is denied").  So this runs in the installer's elevated step, whose process is the
+# Solo user when the user approves the prompt (Solo assumes an administrator account, owner 6 Oct 2026); when another administrator
+# approves it, the clock is not registered and the step says so - the jobs then do not run until the user installs again.
+function Register-JobClock {
     $sid = Get-ForUserSid
     $svc = New-Object -ComObject Schedule.Service
     $svc.Connect()
     $f = Initialize-JobFolder $svc
-    try { $f.DeleteTask($JobPrefix + $n, 0) } catch { }
-    Register-ScheduledTask -TaskName ($JobPrefix + $n) -TaskPath $JobTaskPath -Xml (Get-JobTaskXml $n $sched $trigger $sid) -Force -ErrorAction Stop | Out-Null
-    $task = $svc.GetFolder($JobTaskPath.TrimEnd('\')).GetTask($JobPrefix + $n)
-    # Who may read it: the user (so SET.JOB can list its next and last run), and nothing more; SYSTEM and Administrators full.
-    $task.SetSecurityDescriptor(('D:(A;;FA;;;SY)(A;;FA;;;BA)(A;;GR;;;' + $sid + ')'), 0)
-    $t = Get-ScheduledTask -TaskPath $JobTaskPath -TaskName ($JobPrefix + $n) -ErrorAction Stop
+    try { $f.DeleteTask($JobClockName, 0) } catch { }
+    Register-ScheduledTask -TaskName $JobClockName -TaskPath $JobTaskPath -Xml (Get-JobClockXml $sid) -Force -ErrorAction Stop | Out-Null
+    $task = $svc.GetFolder($JobTaskPath.TrimEnd('\')).GetTask($JobClockName)
+    # Who may read and start it: the user (SET.JOB RUN starts it at once); SYSTEM and Administrators full.  The user cannot change it.
+    $task.SetSecurityDescriptor(('D:(A;;FA;;;SY)(A;;FA;;;BA)(A;;GRGX;;;' + $sid + ')'), 0)
+    $t = Get-ScheduledTask -TaskPath $JobTaskPath -TaskName $JobClockName -ErrorAction Stop
     $a = $t.Actions[0]
-    if ([string]$t.Principal.LogonType -ne 'S4U' -or $a.Execute -ne $sdexe -or $a.Arguments -cne ('run.job ' + $n) -or $t.Principal.UserId -notmatch ('(^|\\)' + [regex]::Escape(($ForUser.Split('\'))[-1]) + '$|^' + [regex]::Escape($sid) + '$')) {
-        return ('job ' + $n + ': the task read back is not the one written (' + $t.Principal.UserId + ', ' + $t.Principal.LogonType + ', ' + $a.Execute + ' ' + $a.Arguments + ')')
+    if ([string]$t.Principal.LogonType -ne 'S4U' -or $a.Execute -ne $sdexe -or $a.Arguments -cne 'run.jobs.due' -or $t.Principal.UserId -notmatch ('(^|\\)' + [regex]::Escape(($ForUser.Split('\'))[-1]) + '$|^' + [regex]::Escape($sid) + '$')) {
+        return ('the job clock read back is not the one written (' + $t.Principal.UserId + ', ' + $t.Principal.LogonType + ', ' + $a.Execute + ' ' + $a.Arguments + ')')
     }
-    Note ('  PASS  task ' + $JobTaskPath + $JobPrefix + $n + ': ' + $t.Principal.UserId + ', ' + $t.Principal.LogonType + ', ' + $sched + ', runs ' + $a.Execute + ' ' + $a.Arguments)
+    Note ('  PASS  task ' + $JobTaskPath + $JobClockName + ': ' + $t.Principal.UserId + ', ' + $t.Principal.LogonType + ', every minute, runs ' + $a.Execute + ' ' + $a.Arguments)
     return ''
 }
 
@@ -1060,11 +1024,27 @@ function Remove-JobTask([string]$n) {
     return 'deleted'
 }
 
-# The uninstaller's: every job task, then the folder when nothing is left in it.  $jobs itself is the user's data and is not touched.
+# The job clock stopped (a running tick first, as Remove-JobTask) and removed (20 Nov 26, SOLO 74).  'deleted', 'absent', or '' when it is still there.
+function Remove-JobClock {
+    $t = Get-ScheduledTask -TaskPath $JobTaskPath -TaskName $JobClockName -ErrorAction SilentlyContinue
+    if ($null -eq $t) { Note ('  no task ' + $JobTaskPath + $JobClockName); return 'absent' }
+    if ([string]$t.State -eq 'Running') {
+        Stop-ScheduledTask -TaskPath $JobTaskPath -TaskName $JobClockName -ErrorAction SilentlyContinue
+        Start-Sleep -Milliseconds 1500
+    }
+    Unregister-ScheduledTask -TaskPath $JobTaskPath -TaskName $JobClockName -Confirm:$false -ErrorAction Stop
+    if (Get-ScheduledTask -TaskPath $JobTaskPath -TaskName $JobClockName -ErrorAction SilentlyContinue) { Fail 'the job clock is still registered'; return '' }
+    Note ('  PASS  task ' + $JobTaskPath + $JobClockName + ' removed')
+    return 'deleted'
+}
+
+# The uninstaller's: the job clock and every per-job task an older install left, then the folder when nothing is left in it.  $jobs itself
+# is the user's data and is not touched.
 function Remove-AllJobTasks {
     $all = @(Get-ScheduledTask -TaskPath $JobTaskPath -ErrorAction SilentlyContinue)
     foreach ($t in $all) {
-        if ($t.TaskName -like ($JobPrefix + '*')) { $null = Remove-JobTask $t.TaskName.Substring($JobPrefix.Length) }
+        if ($t.TaskName -eq $JobClockName) { $null = Remove-JobClock }
+        elseif ($t.TaskName -like ($JobPrefix + '*')) { $null = Remove-JobTask $t.TaskName.Substring($JobPrefix.Length) }
         else { Note ('  ' + $JobTaskPath + $t.TaskName + ' is not a job task; left as it is') }
     }
     try {
@@ -1073,82 +1053,28 @@ function Remove-AllJobTasks {
         $tf = $svc.GetFolder($JobTaskPath.TrimEnd('\'))
         if ($tf.GetTasks(1).Count -eq 0 -and $tf.GetFolders(0).Count -eq 0) { $svc.GetFolder('\').DeleteFolder($JobFolderName, 0) }
     } catch { }
-    if (@(Get-ScheduledTask -TaskPath $JobTaskPath -TaskName ($JobPrefix + '*') -ErrorAction SilentlyContinue).Count -gt 0) { Fail 'a job task is still registered' }
+    if (@(Get-ScheduledTask -TaskPath $JobTaskPath -ErrorAction SilentlyContinue | Where-Object { $_.TaskName -eq $JobClockName -or $_.TaskName -like ($JobPrefix + '*') }).Count -gt 0) { Fail 'a job task is still registered' }
     else { Note ('  PASS  no job task (' + $all.Count + ' found)') }
 }
 
-# Install and Upgrade: every definition in $jobs gets its task.  One that cannot is said, and the rest go on (Linux's JOBS-RESTORE).
-function Restore-JobTasks {
+# 20 Nov 26 - SOLO 74: Install and Upgrade.  The per-job tasks an older install made are taken away (they would run a job a second time
+# beside the clock, and the doors helper could never have made one), then the job clock is registered.  Not a failed step when it cannot
+# be: the install goes on and the line "SCHEDULED JOBS : ..." says it on the finish page (Linux Solo S.274's line; sd-solo.iss shows it).
+function Set-JobClock {
+    $old = @(Get-ScheduledTask -TaskPath $JobTaskPath -ErrorAction SilentlyContinue | Where-Object { $_.TaskName -like ($JobPrefix + '*') })
+    foreach ($t in $old) { $null = Remove-JobTask $t.TaskName.Substring($JobPrefix.Length) }
+    if ($old.Count -gt 0) { Note ('  ' + $old.Count + ' per-job task(s) of an older install removed: the job clock runs every job now') }
     $dir = Join-Path (Join-Path $AppDir 'sdsys') '$jobs'
-    $d = Get-Item -LiteralPath $dir -Force -ErrorAction SilentlyContinue
-    if ($null -eq $d) { Note '  no job definitions ($jobs): nothing to schedule'; return }
-    if (-not $d.PSIsContainer -or ($d.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
-        Note ('  ' + $dir + ' is a link or not a folder: no job was scheduled')
-        Note ('SCHEDULED JOBS : NOT given their tasks - ' + $dir + ' is a link or not a folder')
+    $defs = @(Get-ChildItem -LiteralPath $dir -Force -File -ErrorAction SilentlyContinue | Where-Object { Test-JobName $_.Name }).Count
+    try { $why = Register-JobClock } catch { $why = $_.Exception.Message.Trim() }
+    if ($why -ne '') {
+        Note ('  NOT REGISTERED  the job clock: ' + $why)
+        Note ('SCHEDULED JOBS : NOT running - the job clock could not be registered (' + $why + '); install again approving the prompt as ' + $ForUser)
         return
     }
-    $n = 0; $bad = 0
-    foreach ($it in @(Get-ChildItem -LiteralPath $dir -Force -File | Sort-Object Name)) {
-        if (-not (Test-JobName $it.Name)) { continue }
-        $sched = Read-JobSchedule $it.Name
-        if ($null -eq (Get-JobTrigger $sched)) { Note ('  NOT SCHEDULED  job ' + $it.Name + ': its schedule "' + $sched + '" is none of the five'); $bad++; continue }
-        # Said, and not a failure of the install: the definition is kept, and set.job lists the job not scheduled.
-        try { $why = Register-JobTask $it.Name $sched } catch { $why = $_.Exception.Message.Trim() }
-        if ($why -ne '') { Note ('  NOT SCHEDULED  ' + $why); $bad++; continue }
-        $n++
-    }
-    Note ('  ' + $n + ' job(s) given their tasks from the definitions in $jobs' + $(if ($bad) { '; ' + $bad + ' not (set.job lists them not scheduled)' } else { '' }))
-    # 19 Nov 26 - Linux Solo S.274 (e93b946): the result for the person.  The lines above reach only install-summary.log, and a job
-    # that is not scheduled is not a failed step, so a reload whose kept jobs lost their tasks said nothing on screen.  This line,
-    # "SCHEDULED JOBS : ...", is what sd-solo.iss puts on the finish page; none is written when there were no definitions.
-    if ($n + $bad -gt 0) {
-        Note ('SCHEDULED JOBS : ' + $n + ' given their tasks again' + $(if ($bad) { '; ' + $bad + ' NOT (set.job lists them not scheduled)' } else { '' }))
-    }
+    if ($defs -gt 0) { Note ('SCHEDULED JOBS : ' + $defs + ' job(s) in $jobs; the job clock runs them') }
 }
 # END solo_jobs_functions
-
-# 16 Nov 26 - S.247.  -Action Job: one job's task, asked for by solo-doors.ps1 after it checked the request.  The same functions as an
-# install's.  Every value is checked again here; the verdict and "JOB RESULT   : <what>" are what the helper reads.
-if ($Action -eq 'Job') {
-    $jres = ''
-    try {
-        Note ''
-        Note ('--- scheduled jobs: ' + $JobOp + ' ' + $JobName + $(if ($JobSchedule) { ' (' + $JobSchedule + ')' } else { '' }))
-        if (@('set', 'delete', 'run') -cnotcontains $JobOp -or -not (Test-JobName $JobName)) { Fail 'give -JobOp set|delete|run and -JobName with a job name' }
-        elseif ($JobOp -eq 'set') {
-            $have = Read-JobSchedule $JobName
-            if ($have -cne $JobSchedule) { Fail ('the definition of ' + $JobName + ' in $jobs does not hold the schedule "' + $JobSchedule + '" (it holds "' + $have + '")') }
-            else {
-                $why = Register-JobTask $JobName $JobSchedule
-                if ($why -ne '') { Fail $why } else { $jres = 'set' }
-            }
-        }
-        elseif ($JobOp -eq 'delete') {
-            $jres = Remove-JobTask $JobName
-        }
-        else {
-            if ((Read-JobSchedule $JobName) -eq '') { Fail ('there is no definition of ' + $JobName + ' in $jobs; nothing was started') }
-            elseif ($null -eq (Get-ScheduledTask -TaskPath $JobTaskPath -TaskName ($JobPrefix + $JobName) -ErrorAction SilentlyContinue)) { Fail ('job ' + $JobName + ' has no task; set.job change gives it one') }
-            else {
-                # Through the Task Scheduler's COM object, as the doors verb starts the helper (Start-ScheduledTask is CIM).
-                $svc = New-Object -ComObject Schedule.Service
-                $svc.Connect()
-                $null = $svc.GetFolder($JobTaskPath.TrimEnd('\')).GetTask($JobPrefix + $JobName).Run($null)
-                Note ('  PASS  task ' + $JobTaskPath + $JobPrefix + $JobName + ' started')
-                $jres = 'started'
-            }
-        }
-    }
-    catch {
-        Fail ('ERROR ' + $_.Exception.Message)
-        Note $_.ScriptStackTrace
-    }
-    Note ''
-    if ($fails.Count -eq 0 -and $jres -ne '') { Note ('JOB RESULT   : ' + $jres); Note 'VERDICT      : PASS'; $dc = 0 }
-    else { Note ('VERDICT      : FAIL - ' + ($fails -join '; ')); $dc = 1 }
-    Save-Report
-    exit $dc
-}
 
 # -Action Doors: one change, asked for by solo-doors.ps1 after it checked the request.  The same scripts and functions as an install.
 if ($Action -eq 'Doors') {
@@ -1410,11 +1336,12 @@ try {
     Note '--- audit event log source sd-audit'
     if ($Action -eq 'Remove') { Remove-AuditEventSource } else { Register-AuditEventSource }
 
-    # 16 Nov 26 - S.247: every definition in $jobs gets its task (a reload's kept ones; on an upgrade, the tasks are made again whole).
+    # 20 Nov 26 - SOLO 74: the job clock (one task that runs every job in $jobs; an older install's per-job tasks go).  It was a task for
+    # each definition (16 Nov 26, S.247), which the doors helper could not make for a new job.
     if ($Action -ne 'Remove') {
         Note ''
-        Note '--- scheduled jobs (a task for each definition in $jobs)'
-        Restore-JobTasks
+        Note '--- scheduled jobs (the job clock)'
+        Set-JobClock
     }
 }
 catch {

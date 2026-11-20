@@ -20,6 +20,12 @@
 *               password just typed.  The command never leaves $jobs.  SET.JOB RESTORE is not carried: a reload's tasks are given back by the
 *               installer's elevated step itself (solo-machine.ps1 Restore-JobTasks), which needs no SD session; 14929 has no Windows message.
 *               A deviation from the Linux Solo template forced by the operating system (Task Scheduler and DPAPI), listed for the parity audit.
+* 20 Nov 26 SD Core Solo - SOLO 74 (sit8): A JOB HAS NO TASK OF ITS OWN.  The VM showed that the doors helper, being SYSTEM, may not register
+*               the user's S4U task ("Access is denied"; only the account itself may, row 280, 13 Nov), so SET.JOB ADD failed everywhere.  The
+*               owner's choice, 20 Nov 2026 ("option 1"): ONE task, the job clock "\SD Core Solo Jobs\sd-solo-jobs-clock", registered by the
+*               installer's elevated step as the user, runs sd-solo.exe run.jobs.due every minute, signed in or out, and RUN.JOBS.DUE runs what
+*               is due.  So ADD, CHANGE and DELETE write only the definition, RUN marks it and starts the clock, the list works the times out
+*               from the definitions (!SOLO_JOB_TIMES), and the doors helper, the proof and HANDOVER's password stay only as the check here.
 * END-HISTORY
 *
 * START-DESCRIPTION:
@@ -41,13 +47,13 @@
 *
 *   THE PASSWORD, TYPED: ADD and CHANGE ask for the account password at a terminal, every time, even in a session that has signed in; a one-shot
 *   "sd-solo set.job add ..." and a session with no terminal are refused (15941).  So a job's command is fixed by the person who knows the password,
-*   at the moment it is set, and nothing that only runs as the user unattended can make one.  The same password makes the proof the doors helper
-*   checks before it registers the task (solo-doors.ps1's header has the form).
+*   at the moment it is set, and nothing that only runs as the user unattended can make one.
 *
-*   WHAT A JOB IS: its definition, $jobs/<name> (schedule, task, command, date, time), and its task, which runs the one-shot
-*   <Solo folder>\usr\bin\sd-solo.exe run.job <name> as the Solo user whether or not that user is signed in.  RUN.JOB reads the command from the
-*   definition and runs it.  The command is never in the task.  A run missed while the computer was off is not made up.  Jobs need SD running
-*   (its startup task starts it at boot).
+*   WHAT A JOB IS (20 Nov 26, SOLO 74): its definition, $jobs/<name> (schedule, the clock's task, command, date, time of the change, last
+*   run, "now" when SET.JOB RUN marked it).  The job clock, ONE task the installer registers as the Solo user, runs the one-shot
+*   <Solo folder>\usr\bin\sd-solo.exe run.jobs.due every minute whether or not that user is signed in; RUN.JOBS.DUE runs each job whose time
+*   has come through RUN.JOB, which reads the command from the definition.  The command is never in a task.  A run missed while the computer
+*   was off (more than five minutes late) is not made up.  Jobs need SD running (its startup task starts it at boot).
 *
 *   NOT A WALL AGAINST THE USER: the definitions ($jobs, a folder of the user's alone, as the tree is) belong to the user, who can edit them, as
 *   they can edit the BASIC.  A job adds no way in that a one-shot does not already have (gpl.bp/login, RUN-JOB-IDENTITY, says why on Windows).
@@ -69,14 +75,11 @@ $include err.h
 deffun ps_script_out(script, want.out) calling '!ps_script_out'
 
 $define MAX.CMD    500
-$define TASK.PFX   'sd-solo-job-'
 $define TASK.DIR   '\SD Core Solo Jobs'
-$define HELPER.WAIT 120
+$define CLOCK.TASK 'sd-solo-jobs-clock'      ;* 20 Nov 26 (SOLO 74): the one task, registered by the installer (solo-machine.ps1 Register-JobClock)
 
    @system.return.code = -ER$ARGS
    acc.name = 'sduser'          ;* Solo's one account (ruling 29)
-   client.key = ''
-   h.stored = ''
 
    sent = @sentence
    gosub split.words
@@ -148,7 +151,6 @@ $define HELPER.WAIT 120
       case action = 'run'
          gosub do.run
    end case
-   client.key = ''
    close jobs.f
    @system.return.code = (if done then 0 else -ER$FAILED)
    stop
@@ -210,37 +212,18 @@ do.set:
       return
    end
 
-*  The definition first: the doors helper registers a task only for a definition that holds the schedule it is asked for.
-   new.rec = sched : @fm : TASK.DIR : '\' : TASK.PFX : jname : @fm : jcmd : @fm : date() : @fm : time()
+*  20 Nov 26 (SOLO 74): the definition IS the job.  The job clock (one task, registered by the installer as the user) runs run.jobs.due every
+*  minute and that runs whatever is due, so nothing is asked of Task Scheduler here.  Field 2 names the clock's task; field 6, the last run, is
+*  kept across a change; the date and time of this change (fields 4 and 5) stop a time already past from running at once.
+   new.rec = sched : @fm : TASK.DIR : '\' : CLOCK.TASK : @fm : jcmd : @fm : date() : @fm : int(time())
+   if there then new.rec<6> = old.rec<6>
    wrote = @true
    write new.rec to jobs.f, jname on error wrote = @false
-   if not(wrote) then
-      crt sysmsg(15930, 'the definition')
-      gosub audit.set
-      return
-   end
-
-   h.op = 'set' ; h.sched = sched
-   gosub helper.req
-   if h.ok then
+   if wrote then
       done = @true
       crt sysmsg(15937, jname, sched)                            ;* Job %1 is scheduled: %2
    end else
-*     Put back what was there: a new job leaves nothing; a changed one is given its old definition and task again.
-      if there then
-         write old.rec to jobs.f, jname on error null
-         h.why.first = h.why
-         h.op = 'set' ; h.sched = old.rec<1>
-         gosub helper.req
-         h.why = h.why.first
-      end else
-         delete jobs.f, jname on error null
-         h.op = 'delete' ; h.sched = ''
-         h.why.first = h.why
-         gosub helper.req
-         h.why = h.why.first
-      end
-      crt sysmsg(15933, h.why)                                   ;* Task Scheduler did not do it: %1
+      crt sysmsg(15930, 'the definition')
    end
    gosub audit.set
    return
@@ -249,42 +232,62 @@ audit.set:
    void kernel(K$AUDIT, 'set.job ' : action : ' name=' : jname : ' schedule=' : sched : ' result=' : (if done then 'done' else 'failed') : ' command=' : jcmd)
    return
 
-* DELETE: the task first (a task left by a definition that is gone can still be deleted), then the definition.
+* DELETE: the definition is the job (20 Nov 26, SOLO 74), so removing it is the whole of it.
 do.delete:
    done = @false
-   h.op = 'delete' ; h.sched = ''
-   gosub helper.req
-   if h.ok and not(there) and h.said = 'ABSENT' then
+   if not(there) then
       crt sysmsg(15938, jname)
       void kernel(K$AUDIT, 'set.job delete name=' : jname : ' result=failed')
       return
    end
    del.ok = @true
-   if h.ok and there then delete jobs.f, jname on error del.ok = @false
-   if h.ok and del.ok then
+   delete jobs.f, jname on error del.ok = @false
+   if del.ok then
       done = @true
       crt sysmsg(15936, jname)                                   ;* Job %1 is deleted
    end else
-      if not(del.ok) then crt sysmsg(15930, 'the definition') else crt sysmsg(15933, h.why)
+      crt sysmsg(15930, 'the definition')
    end
    void kernel(K$AUDIT, 'set.job delete name=' : jname : ' result=' : (if done then 'done' else 'failed'))
    return
 
+* RUN (20 Nov 26, SOLO 74): the definition is marked (field 7, "now") and the job clock is started at once through the Task Scheduler's COM
+* object (its task lets the user start it, as the doors helper's does).  If the clock cannot be started now, its next tick, within a minute,
+* still runs the job; the person is told which.
 do.run:
    done = @false
    if not(there) then
       crt sysmsg(15938, jname)
       return
    end
-   h.op = 'run' ; h.sched = ''
-   gosub helper.req
-   if h.ok then
-      done = @true
-      crt sysmsg(15935, jname)                                   ;* Job %1 is started
+   readu rec from jobs.f, jname then
+      rec<7> = 'now'
+      write rec to jobs.f, jname on error
+         crt sysmsg(15930, 'the definition')
+         void kernel(K$AUDIT, 'set.job run name=' : jname : ' result=failed reason=the definition could not be written')
+         return
+      end
    end else
-      crt sysmsg(15933, h.why)
+      release jobs.f, jname
+      crt sysmsg(15938, jname)
+      return
    end
-   void kernel(K$AUDIT, 'set.job run name=' : jname : ' result=' : (if done then 'done' else 'failed reason=' : h.why))
+   done = @true
+   q = char(39)
+   ps = 'try { $ts = New-Object -ComObject Schedule.Service; $ts.Connect(); $null = $ts.GetFolder(' : q : TASK.DIR : q : ').GetTask(' : q : CLOCK.TASK : q : ').Run($null); Write-Output "CLOCK STARTED" } catch { Write-Output ("CLOCK NOT STARTED " + $_.Exception.Message) }'
+   both = ps_script_out(ps, @true)
+   clk.out = field(both, @fm, 2, 99999)
+   clk.ok = @false
+   for ci = 1 to dcount(clk.out, @fm)
+      if trim(clk.out<ci>) = 'CLOCK STARTED' then clk.ok = @true   ;* the whole line: the failure line also holds both words
+   next ci
+   if clk.ok then
+      crt sysmsg(15935, jname)                                   ;* Job %1 is started
+      void kernel(K$AUDIT, 'set.job run name=' : jname : ' result=done')
+   end else
+      crt sysmsg(12766, jname)                                   ;* Job %1 will start at the job clock's next tick, within a minute
+      void kernel(K$AUDIT, 'set.job run name=' : jname : ' result=done clock=next tick')
+   end
    return
 
 * ------------------------------------------------------------------------------------------------- the list
@@ -298,7 +301,7 @@ list.jobs:
       return
    end
    names = ''
-   r.sched = '' ; r.cmd = ''
+   r.sched = '' ; r.cmd = '' ; r.last = '' ; r.now = ''
    sselect jobs.f to 11
    loop
       readnext jname from 11 else exit
@@ -306,8 +309,11 @@ list.jobs:
       if ok then
          read rec from jobs.f, jname then
             names<-1> = jname
-            r.sched<-1> = rec<1>
-            r.cmd<-1> = rec<3>                                   ;* one line of printable characters (cmd.ok), so it holds no mark
+            n.li = dcount(names, @fm)
+            r.sched<n.li> = rec<1>
+            r.cmd<n.li> = rec<3>                                 ;* one line of printable characters (cmd.ok), so it holds no mark
+            r.last<n.li> = rec<6>
+            r.now<n.li> = downcase(trim(rec<7>))
          end
       end
    repeat
@@ -324,112 +330,36 @@ list.jobs:
    next li
    return
 
-* names in (checked); st.next and st.last out, one field a job: what Task Scheduler says of each task, read through its COM object in ONE
-* PowerShell run.  Read only.  Each task lets the Solo user read it (solo-machine.ps1); a folder or a task that this session may not read is
-* "not known", a task that is not there is "not scheduled" and "never".  NOT MEASURED: that an unelevated session can read them.
+* names, r.sched, r.last and r.now in; st.next and st.last out, one field a job (20 Nov 26, SOLO 74).  Worked out from the definitions: the
+* next time the schedule names (!SOLO_JOB_TIMES), and the last run the job clock stamped (field 6), as yyyy-mm-dd hh:mm in the computer's
+* time.  A job marked by SET.JOB RUN is "at the next tick".  RUN.JOB's start and end, with the command's status, are in the audit trail.
 job.states:
    st.next = '' ; st.last = ''
-   q = char(39)
-   ps = 'try { $ts = New-Object -ComObject Schedule.Service; $ts.Connect(); $f = $ts.GetFolder(' : q : TASK.DIR : q : ') } catch { $f = $null }'
-   ps<-1> = 'foreach ($n in @(' : q : change(names, @fm, q : ', ' : q) : q : ')) {'
-   ps<-1> = '   if ($null -eq $f) { Write-Output ("state " + $n + " unread"); continue }'
-   ps<-1> = '   try { $t = $f.GetTask(' : q : TASK.PFX : q : ' + $n) } catch { Write-Output ("state " + $n + " none"); continue }'
-   ps<-1> = '   $nx = "not scheduled"; if ($t.NextRunTime.Year -gt 2000) { $nx = $t.NextRunTime.ToString("yyyy-MM-dd HH:mm") }'
-   ps<-1> = '   $lr = "never"; if ($t.State -eq 4) { $lr = "running now" } elseif ($t.LastRunTime.Year -gt 2000 -and $t.LastTaskResult -ne 267011) { $lr = $t.LastRunTime.ToString("yyyy-MM-dd HH:mm") + " (result " + $t.LastTaskResult + ")" }'
-   ps<-1> = '   Write-Output ("state " + $n + " ok|" + $nx + "|" + $lr)'
-   ps<-1> = '}'
-   both = ps_script_out(ps, @true)
-   out = field(both, @fm, 2, 99999)
+   now = date() * 86400 + int(time())
    for li = 1 to dcount(names, @fm)
-      st.next<li> = 'not known' ; st.last<li> = 'not known'
-      for oi = 1 to dcount(out, @fm)
-         ln = trim(out<oi>)
-         if field(ln, ' ', 1) = 'state' and field(ln, ' ', 2) = names<li> then
-            sv = field(ln, ' ', 3, 999)
-            begin case
-               case sv = 'none'
-                  st.next<li> = 'not scheduled' ; st.last<li> = 'never'
-               case sv[1, 3] = 'ok|'
-                  st.next<li> = field(sv, '|', 2) ; st.last<li> = field(sv, '|', 3)
-            end case
+      if r.now<li> = 'now' then
+         st.next<li> = 'at the next tick'
+      end else
+         call !SOLO_JOB_TIMES(r.sched<li>, now, t.prev, t.next)
+         if t.next = '' then
+            st.next<li> = 'not scheduled'
+         end else
+            stamp = t.next ; gosub stamp.text ; st.next<li> = stamp.out
          end
-      next oi
+      end
+      if r.last<li> matches '1N0N' then
+         stamp = r.last<li> ; gosub stamp.text ; st.last<li> = stamp.out
+      end else
+         st.last<li> = 'never'
+      end
    next li
    return
 
-* ------------------------------------------------------------------------------------------------- the doors helper
-
-* h.op (set|delete|run), h.sched (set only), jname in; client.key in for set (ask.password made it); h.ok, h.said (SET, DELETED, ABSENT,
-* STARTED) and h.why out.  ONE request to the doors helper, the SYSTEM task "SD Core Solo Doors", in ONE PowerShell script run as this user
-* (!ps_script_out), as REMOTE.API sends its own: the request file, the task started through the Task Scheduler's COM object (CIM is refused in
-* an ssh logon), and the wait for result.txt in the helper's admin-only folder, whose first line names THIS request's nonce.  Every value put
-* in the script is base64, a number, a word this program checked (the operation, the name, the schedule) or the Solo folder (checked for a
-* single quote by paths.ok), each inside single quotes, where PowerShell expands nothing.  The command is never in it.  Success is only the
-* helper's own line "SOLO JOB <what> <name>", never an exit status.
-helper.req:
-   h.ok = @false
-   h.said = ''
-   h.why = ''
-   nonce = ''
-   call !SD_GET_SALT(nonce)
-   now = (date() - 732) * 86400 + int(time())                     ;* LOCAL seconds since 1 Jan 1970: day 732 is that date
-   proof = ''
-   if h.op = 'set' then
-      authmsg = 'sd-solo-jobs|v1|set|' : jname : '|' : h.sched : '|' : nonce : '|' : now
-      sig = SDEXT(h.stored : @FM : authmsg, @TRUE, SD_HMACSHA256)
-      proof = SDEXT(client.key : @FM : sig, @TRUE, SD_XORBYTES)
-      if sig = '' or proof = '' then
-         h.why = 'the request could not be signed'
-         return
-      end
-   end
-   if nonce = '' then
-      h.why = 'the request could not be made'
-      return
-   end
-   q = char(39)
-   ps = '$req = (' : q : 'version=1' : q : ', ' : q : 'kind=job' : q : ', ' : q : 'op=' : h.op : q : ', ' : q : 'name=' : jname : q
-   if h.op = 'set' then ps := ', ' : q : 'sched=' : h.sched : q : ', ' : q : 'proof=' : proof : q
-   ps := ', ' : q : 'nonce=' : nonce : q : ', ' : q : 'time=' : now : q : ') -join "`n"'
-   ps<-1> = '[IO.File]::WriteAllText(' : q : app.dir : '\sdsys\doors.request' : q : ', $req + "`n", [Text.Encoding]::ASCII)'
-   ps<-1> = 'try { $ts = New-Object -ComObject Schedule.Service; $ts.Connect(); $null = $ts.GetFolder(' : q : '\' : q : ').GetTask(' : q : 'SD Core Solo Doors' : q : ').Run($null) } catch { Write-Output ("cannot start the helper: " + $_.Exception.Message); exit 4 }'
-   ps<-1> = '$res = Join-Path $env:ProgramData ' : q : 'SDCoreSolo\doors\result.txt' : q
-   ps<-1> = 'for ($i = 0; $i -lt ' : HELPER.WAIT : '; $i++) {'
-   ps<-1> = '   Start-Sleep -Seconds 1'
-   ps<-1> = '   if (Test-Path -LiteralPath $res) {'
-   ps<-1> = '      $l = @([IO.File]::ReadAllLines($res))'
-   ps<-1> = '      if ($l.Count -gt 0 -and $l[0] -eq ' : q : 'nonce=' : nonce : q : ') { $l | ForEach-Object { Write-Output $_ }; exit 0 }'
-   ps<-1> = '   }'
-   ps<-1> = '}'
-   ps<-1> = 'exit 3'
-   crt sysmsg(12934)                                             ;* The doors helper is changing the job's task (a few seconds)...
-   both = ps_script_out(ps, @true)
-   proof = '' ; sig = ''
-   rc = field(both, @fm, 1)
-   answer = field(both, @fm, 2, 99999)
-   if rc = 4 then
-      h.why = trim(answer<1>) : ' - ' : sysmsg(12985)            ;* The doors helper is not installed on this computer ...
-      return
-   end
-   if rc # 0 then
-      h.why = sysmsg(12986, HELPER.WAIT)                         ;* The doors helper gave no answer within %1 seconds ...
-      return
-   end
-   lastl = ''
-   for i = 2 to dcount(answer, @fm)
-      ln = trim(answer<i>)
-      if field(ln, ' ', 1) = 'SOLO' and field(ln, ' ', 2) = 'JOB' and field(ln, ' ', 4) = jname and dcount(ln, ' ') = 4 then
-         w3 = field(ln, ' ', 3)
-         if (h.op = 'set' and w3 = 'SET') or (h.op = 'delete' and (w3 = 'DELETED' or w3 = 'ABSENT')) or (h.op = 'run' and w3 = 'STARTED') then h.said = w3
-      end
-      if ln[1, 8] = 'REFUSED:' or index(ln, 'FAIL', 1) then lastl = ln
-   next i
-   if h.said # '' and lastl = '' then
-      h.ok = @true
-   end else
-      h.said = ''
-      h.why = (if lastl = '' then 'the helper did not confirm it' else lastl)
-   end
+* stamp in (day * 86400 + seconds); stamp.out: yyyy-mm-dd hh:mm
+stamp.text:
+   s.day = int(stamp / 86400)
+   s.sec = stamp - s.day * 86400
+   stamp.out = oconv(s.day, 'D4-YMD[4,2,2]') : ' ' : oconv(s.sec, 'MT')
    return
 
 * ------------------------------------------------------------------------------------------------- the checks
@@ -444,8 +374,8 @@ name.ok:
    ok = @true
    return
 
-* sched in (lower case); sched out with hh.mm made hh:mm; ok out.  SD Core's five shapes, the words checked here and again by the doors helper,
-* which makes the Task Scheduler trigger from them (solo-machine.ps1 Get-JobTrigger, SD Core's sd-jobs.ps1 Get-JobSchedule).
+* sched in (lower case); sched out with hh.mm made hh:mm; ok out.  SD Core's five shapes (!SOLO_JOB_TIMES reads the same words),
+* as SD Core's sd-jobs.ps1 Get-JobSchedule does.
 sched.ok:
    ok = @false
    sched = change(sched, '.', ':')
@@ -498,7 +428,7 @@ cmd.ok:
       if cc < 32 or cc > 126 then return
    next ci
    cw = downcase(field(trim(jcmd), ' ', 1))
-   if cw = 'run.job' or cw = 'set.job' then return
+   if cw = 'run.job' or cw = 'set.job' or cw = 'run.jobs.due' then return
    ok = @true
    return
 
@@ -513,7 +443,7 @@ switch.on:
    end
    return
 
-* pw.ok and pw.why out; client.key and h.stored out when it passed (the proof the doors helper checks is made from them).  The account password,
+* pw.ok and pw.why out.  The account password,
 * typed now, at a terminal; one try.  Never shown, stored or logged.
 ask.password:
    pw.ok = @false
@@ -540,22 +470,8 @@ ask.password:
       pw.why = 'wrong password'
       return
    end
-*  ClientKey from the password and the record's salt, as REMOTE.API makes its own; the password goes no further.
-   h.stored = ''
-   openpath @sdsys : @ds : '$cred' to cred.f then
-      read cred.rec from cred.f, acc.name else cred.rec = ''
-      close cred.f
-      salted = SDEXT(pw.text : @FM : cred.rec<CRED$SALT> : @FM : cred.rec<CRED$ITER> : @FM : SCRAM$KEY.LEN, @TRUE, SD_PBKDF2)
-      client.key = SDEXT(salted : @FM : 'Client Key', @TRUE, SD_HMACSHA256)
-      h.stored = cred.rec<CRED$STOREDKEY>
-      salted = '' ; cred.rec = ''
-   end
+*  20 Nov 26 (SOLO 74): no proof is made from it any more - nothing leaves this session (the doors helper has no part in jobs).
    pw.text = ''
-   if client.key = '' or h.stored = '' then
-      crt sysmsg(15930, 'the account password record')
-      pw.why = 'no password record'
-      return
-   end
    pw.ok = @true
    return
 

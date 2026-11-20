@@ -66,6 +66,9 @@
 # "SOLO JOB SET <name>", "SOLO JOB DELETED <name>", "SOLO JOB ABSENT <name>" (there was no task) or "SOLO JOB STARTED <name>".
 # NOT MEASURED when written: that SYSTEM can register an S4U task for the Solo user (an elevated administrator can: the startup task),
 # and any of it end to end.
+# 20 Nov 26 - SOLO 74, WITHDRAWING THE PARAGRAPH ABOVE: SYSTEM CANNOT (sit8 VM: SET.JOB ADD refused; probe-solojob as SYSTEM "Access is
+# denied", as the user PASS; row 280 measured the same on 13 Nov).  The job requests are removed; a request with kind=job is refused.
+# The jobs run from the job clock, one task the installer's elevated step registers as the user (solo-machine.ps1 Register-JobClock).
 #
 # 18 Nov 26 SD Core Solo - SOLO 78 (audit P-4455): ssh's local is sshd's listen address, 127.0.0.1 (solo-sshd.ps1 -Listen), as the API's
 # is APILOCAL; -Show reads it from the machine sshd_config ("ssh listen: ..."), and "ssh mode: open" needs it AND an open rule.
@@ -249,26 +252,17 @@ foreach ($l in ($text -split "[`r`n]+")) {
 $nonce = [string]$req['nonce']
 if ($nonce -notmatch '^[A-Za-z0-9+/=]{16,88}$') { Finish '' $false 'the nonce is missing or malformed' }
 if ($req['version'] -ne '1') { Finish $nonce $false 'unknown request version' }
-# 16 Nov 26 - S.247: a job request (kind=job) or a door request (no kind, or kind=door).
+# 20 Nov 26 - SOLO 74: door requests only.  The job requests (kind=job, 16 Nov 26, S.247) are gone: this helper is SYSTEM, and Windows
+# refuses SYSTEM an S4U task for another account (sit8, "Access is denied"), so it could never make a job's task.  The jobs run from one
+# task the installer registers as the user (solo-machine.ps1 Register-JobClock).  A request that still names kind=job is refused here.
 $kind = [string]$req['kind']
 if ($kind -eq '') { $kind = 'door' }
-if (@('door', 'job') -cnotcontains $kind) { Finish $nonce $false 'unknown kind of request' }
+if ($kind -cne 'door') { Finish $nonce $false 'unknown kind of request (scheduled jobs no longer go through this helper)' }
 $time = [string]$req['time']
-if ($kind -eq 'job') {
-    $op = [string]$req['op']; $jname = [string]$req['name']; $sched = [string]$req['sched']
-    if (@('set', 'delete', 'run') -cnotcontains $op) { Finish $nonce $false 'unknown job operation' }
-    if ($jname -cnotmatch '^[a-z]([a-z0-9-]{0,30}[a-z0-9])?$') { Finish $nonce $false 'not a job name' }
-    $hm = '([01][0-9]|2[0-3]):[0-5][0-9]'
-    $shapes = '^(every (5|10|15|20|30) minutes|hourly|daily ' + $hm + '|weekly (mon|tue|wed|thu|fri|sat|sun) ' + $hm + '|monthly ([1-9]|1[0-9]|2[0-8]) ' + $hm + ')$'
-    if ($op -eq 'set' -and $sched -cnotmatch $shapes) { Finish $nonce $false 'the schedule is none of the five shapes' }
-    if ($op -ne 'set') { $sched = '' }
-    $cred = 'sduser'
-} else {
-    $door = [string]$req['door']; $mode = [string]$req['mode']; $cred = [string]$req['cred']
-    if (@('api', 'ssh') -notcontains $door) { Finish $nonce $false 'unknown door' }
-    if (@('off', 'local', 'open') -notcontains $mode) { Finish $nonce $false 'unknown mode' }
-    if (@('$admin', '$global') -notcontains $cred) { Finish $nonce $false 'unknown credential' }
-}
+$door = [string]$req['door']; $mode = [string]$req['mode']; $cred = [string]$req['cred']
+if (@('api', 'ssh') -notcontains $door) { Finish $nonce $false 'unknown door' }
+if (@('off', 'local', 'open') -notcontains $mode) { Finish $nonce $false 'unknown mode' }
+if (@('$admin', '$global') -notcontains $cred) { Finish $nonce $false 'unknown credential' }
 if ($time -notmatch '^\d{1,12}$') { Finish $nonce $false 'the time is malformed' }
 $now = [int64](((Get-Date) - [datetime]'1970-01-01').TotalSeconds)     # LOCAL seconds, as SD counts them
 $age = $now - [int64]$time
@@ -279,10 +273,8 @@ if ($seen -contains $nonce) { Finish $nonce $false 'the nonce was used before' }
 [IO.File]::WriteAllLines($Used, [string[]](@($seen | Select-Object -Last 199) + $nonce))
 
 # The proof: the verifier is field 5 of $cred's record (StoredKey, base64).  A directory file's record keeps its fields on separate lines.
-# A door's is over $admin (or $global); a job set's is over the account's own record, sduser (16 Nov 26 - S.247).  A job delete or run
-# carries none (the header says why).
-$needProof = -not ($kind -eq 'job' -and $op -ne 'set')
-if ($needProof) {
+# A door's is over $admin (or $global).
+if ($true) {
     $credFile = Join-Path (Join-Path (Join-Path $AppDir 'sdsys') '$cred') $cred
     if (-not (Test-Path -LiteralPath $credFile -PathType Leaf)) { Finish $nonce $false ('no ' + $cred + ' credential') }
     $raw = ([IO.File]::ReadAllText($credFile, [Text.Encoding]::GetEncoding(28591))) -replace "`r`n", "`n"
@@ -294,7 +286,6 @@ if ($needProof) {
     } catch { Finish $nonce $false 'the proof or the verifier is not base64' }
     if ($stored.Length -ne 32 -or $proof.Length -ne 32) { Finish $nonce $false 'the proof or the verifier is not 32 bytes' }
     $authmsg = 'sd-solo-doors|v1|' + $door + '|' + $mode + '|' + $nonce + '|' + $time
-    if ($kind -eq 'job') { $authmsg = 'sd-solo-jobs|v1|set|' + $jname + '|' + $sched + '|' + $nonce + '|' + $time }
     $hmac = New-Object Security.Cryptography.HMACSHA256 (, $stored)
     $sig = $hmac.ComputeHash([Text.Encoding]::ASCII.GetBytes($authmsg))
     $ck = New-Object byte[] 32
@@ -302,26 +293,7 @@ if ($needProof) {
     $h = ([Security.Cryptography.SHA256]::Create()).ComputeHash($ck)
     $diff = 0
     for ($k = 0; $k -lt 32; $k++) { $diff = $diff -bor ($h[$k] -bxor $stored[$k]) }
-    if ($diff -ne 0) { Finish $nonce $false $(if ($kind -eq 'job') { 'the proof does not match the account password' } else { 'the proof does not match the administrator password' }) }
-}
-
-if ($kind -eq 'job') {
-    Log ('accepted job op=' + $op + ' name=' + $jname + $(if ($sched) { ' sched=' + $sched } else { '' }))
-    # The work, through solo-machine.ps1 -Action Job (one copy: the installer's Install, Upgrade and Remove use the same functions).
-    # Only the checked words reach its command line: the operation, the name and the schedule.
-    $res = [IO.Path]::GetTempFileName()
-    $jargs = @('-Action', 'Job', '-JobOp', $op, '-JobName', $jname)
-    if ($op -eq 'set') { $jargs += @('-JobSchedule', $sched) }
-    $r = & $Ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $AppDir 'solo-machine.ps1') @jargs -ForUser $ForUser -AppDir $AppDir -Result $res 2>&1
-    $code = $LASTEXITCODE
-    $report = @()
-    if (Test-Path -LiteralPath $res) { $report = @([IO.File]::ReadAllLines($res)); Remove-Item -LiteralPath $res -ErrorAction SilentlyContinue }
-    foreach ($l in $report) { [void]$lines.Add($l) }
-    $pass = ($code -eq 0) -and (@($report | Where-Object { $_ -eq 'VERDICT      : PASS' }).Count -gt 0)
-    $said = @($report | Where-Object { $_ -cmatch '^JOB RESULT   : (set|deleted|absent|started)$' })
-    if (-not $pass -or $said.Count -ne 1) { Finish $nonce $false ('solo-machine.ps1 -Action Job exited ' + $code) }
-    [void]$lines.Add(('SOLO JOB ' + $said[0].Substring(15).ToUpper() + ' ' + $jname))
-    Finish $nonce $true ('job op=' + $op + ' name=' + $jname)
+    if ($diff -ne 0) { Finish $nonce $false 'the proof does not match the administrator password' }
 }
 
 Log ('accepted door=' + $door + ' mode=' + $mode + ' cred=' + $cred)

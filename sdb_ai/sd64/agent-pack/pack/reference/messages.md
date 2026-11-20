@@ -6838,6 +6838,15 @@ cited by: `tk_ownfile`
 
 cited by: `tool_query`
 
+### msg:12766
+> kind=message tier=reference since=- src=sdsys/messages/12766:1#01df9ca1
+
+```
+Job %1 will start at the job clock's next tick, within a minute
+```
+
+cited by: `solojob`
+
 ### msg:12767
 > kind=message tier=reference since=- src=sdsys/messages/12767:1#79fafe6e
 
@@ -8211,6 +8220,15 @@ cited by: `tk_ai`
 remote.sdsys %1 did not succeed (status %2); the lines above say why.\n\nStatus 2: the helper refused or could not run.  Status 3: sshd could not be\nchanged, and its state is as it was before.
 ```
 
+### msg:12930
+> kind=message tier=reference since=- src=sdsys/messages/12930:1#e905b22f
+
+```
+run.jobs.due runs only as the job clock's own command (sd-solo.exe run.jobs.due), started by its task
+```
+
+cited by: `runjobsdue`
+
 ### msg:12931
 > kind=message tier=reference since=- src=sdsys/messages/12931:1#2e09b893
 
@@ -8244,8 +8262,6 @@ cited by: `setnetacc`
 ```
 The doors helper is changing the job's task (a few seconds)...
 ```
-
-cited by: `solojob`
 
 ### msg:12936
 > kind=message tier=reference since=- src=sdsys/messages/12936:1#60187304
@@ -8669,7 +8685,7 @@ cited by: `remotedoor`
 The doors helper is not installed on this computer: run the SD Core Solo installer again to add it
 ```
 
-cited by: `remotedoor`, `solojob`
+cited by: `remotedoor`
 
 ### msg:12986
 > kind=message tier=reference since=- src=sdsys/messages/12986:1#ae70c420
@@ -8678,7 +8694,7 @@ cited by: `remotedoor`, `solojob`
 The doors helper gave no answer within %1 seconds; nothing is known to have changed
 ```
 
-cited by: `remotedoor`, `solojob`
+cited by: `remotedoor`
 
 ### msg:12987
 > kind=message tier=reference since=- src=sdsys/messages/12987:1#2e695081
@@ -10607,7 +10623,7 @@ cited by: `xfer`
 Ctrl-R puts the value shown beside a field into it
 ```
 
-cited by: `tk_form`
+cited by: `tk_form`, `tool_solojobs`
 
 ### msg:15115
 > kind=message tier=reference since=- src=sdsys/messages/15115:1#61b82d7a
@@ -11038,8 +11054,6 @@ cited by: `runjob`
 ```
 Task Scheduler did not do it: %1
 ```
-
-cited by: `solojob`
 
 ### msg:15934
 > kind=message tier=reference since=- src=sdsys/messages/15934:1#4e6c41eb
@@ -17338,7 +17352,7 @@ cited by: `cproc`
 Copying records from NEWVOC to VOC...
 ```
 
-cited by: `cproc`
+cited by: `login`
 
 ### msg:5210
 > kind=message tier=reference since=- src=sdsys/messages/5210:1#7e88f783
