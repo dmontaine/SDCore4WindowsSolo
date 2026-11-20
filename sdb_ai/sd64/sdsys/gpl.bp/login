@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 20 Nov 26 SD Core Solo - RELEASE_1.1 266 (sit8): UPDATE.ACCOUNTS ALL updated SDSYS's VOC twice on the WS1.2-0 to WS2.0-0 upgrade:
+*           @PATH is /sdsys here, so path.key now makes a POSIX path the Windows one first (kernel(K$WINPATH)).  The same in Core.
 * 18 Nov 26 Windows port - SOLO 81 (Linux Solo b664ea9, S.247): $stored signs in only run.job / mcp.call one-shots unless set.stored.access on.
 * 18 Nov 26 SD Core Solo - four-version audit round 5 (P-8161): gate.ok is no longer set at the top; internal.gate sets it and it is
 *           read only after that gosub, as Linux Solo.  BCOMP's 2825 is for a variable assigned nowhere (bcomp:1797), so the
@@ -1825,10 +1827,20 @@ set.first.password:
 * the VM sitting, 13 Nov) and the register holds the drive-letter one, so both
 * are put into accountpath's form: forward slashes, a drive letter as
 * /cygdrive/<letter>, then lower case (NTFS ignores case).
+* 20 Nov 26 (266, sit8): a POSIX path that is not under /cygdrive is first made
+* the Windows one (kernel(K$WINPATH)).  Solo's @PATH is relative to its own
+* root (/sdsys, /user_accounts/sduser - measured, WHERE), which no folding of
+* the register's C:\Users\...\SDCoreSolo\sdsys equals, so the upgrade's walk
+* updated SDSYS's VOC a second time, from NEWVOC (install-summary.log, sit8).
 *  pk.in  ->  pk.out
 
 path.key:
-   pk.out = convert(char(92), '/', pk.in)
+   pk.out = pk.in
+   if pk.out[2, 1] # ':' then
+      pk.out = kernel(K$WINPATH, pk.in)
+      if pk.out = '' then pk.out = pk.in
+   end
+   pk.out = convert(char(92), '/', pk.out)
    if pk.out[2, 1] = ':' then pk.out = '/cygdrive/' : pk.out[1, 1] : pk.out[3, 99999]
    pk.out = downcase(pk.out)
    return
