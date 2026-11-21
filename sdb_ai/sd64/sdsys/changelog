@@ -3,6 +3,26 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+20 Nov 26  TOOL.JOBS' HELP LINES FIT THE BOX.
+
+             What        - The three help lines at the foot of tool.jobs are shorter, so none is cut at the edge of the
+                           box on a 140-column screen (the owner saw "a delete asks for the job's nam").
+             Why         - The lines were written with screen text, which cuts a line that is too long instead of
+                           wrapping it.
+             Does NOT    - Change a key or what a key does.
+
+20 Nov 26  AN UNINSTALL WITH KEEP AND A REINSTALL BRING BACK THE SWITCHES YOU HAD TURNED ON.
+
+             What        - After an uninstall that chose Keep and a reinstall that reloads your data, the switches the
+                           administrator had turned on for the account are on again: SH, OS.EXECUTE, net access, file
+                           transfer, scheduled jobs and the other gates tool.gates lists.  The installer's last page says
+                           "Account switches: n switch(es) carried from the kept record".  An upgrade already kept them.
+             Why         - Scheduled jobs came back after a Keep with their schedules but switched off, because the account
+                           register was not among what Keep leaves.  An upgrade or a kept reinstall does not shut what the
+                           administrator opened; delivered-closed governs a FRESH install.
+             Does NOT    - Turn anything off or turn on a switch that was off.  Bring back the register's path, group or
+                           other settings of the old record: only the switches are read from it.
+
 20 Nov 26  SCHEDULED JOBS RUN FROM ONE JOB CLOCK, AND CAN BE MADE.
 
              What        - set.job add failed on every computer ("Task Scheduler did not do it"): Windows lets

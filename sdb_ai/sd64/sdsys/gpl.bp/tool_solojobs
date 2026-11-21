@@ -7,6 +7,8 @@
 * 20 Nov 26 SD Core Solo - RELEASE_1.1 365 (Linux Solo 6aea37f, S.277): the N / C form's labels are "Schedule" and "Command" (both were cut at 28 cells)
 *           and the schedule entry 20 cells, so "default: daily 02:30" fits beside it; the schedule's forms are said under the entries when the form opens
 *           (SCHED.FORMS; Linux 14114 is 15114).
+* 20 Nov 26 SD Core Solo - RELEASE_1.1 366 (Linux Solo b5219e1, S.279): the help lines are short enough for the box (screen text cuts; sit9 showed
+*           "explains the bo" and "the job's nam" at 140 columns).
 * 20 Nov 26 SD Core Solo - SOLO 74 (sit8): the clock sentence is one entry, so it no longer breaks mid-sentence at 140 columns.
 * 20 Nov 26 SD Core Solo - SOLO 74: the page's text says what a job is now - its definition, run by the job clock (one task); no per-job task.
 * 17 Nov 26 dm  New (S.247; owner, 15 Nov 2026: "since scheduled jobs is in core and useful in solo it should be in this release", and of the plan, "your plan is fine",
@@ -315,9 +317,9 @@ draw.effect:
    return
 
 draw.help:
-   screen text 'Up and Down move, PgUp and PgDn a page.  N makes a job, C (or Enter) changes it, D deletes it, R runs it now.  F1 or ? explains the box.' at h.x + 2,h.y + 1 width h.tw
-   screen text 'Each change is shown as its command; you answer Run or Cancel.  N and C ask for your account password; a delete asks for the job' : "'s name." at h.x + 2,h.y + 2 width h.tw
-   screen text 'F5 reads the jobs again.  Ctrl-Q leaves.' at h.x + 2,h.y + 3 width h.tw
+   screen text 'Up, Down, PgUp, PgDn move.  N makes a job, C or Enter changes it, D deletes it, R runs it now.' at h.x + 2,h.y + 1 width h.tw
+   screen text 'Each change is shown as its command; you answer Run or Cancel.  N and C ask for your password.' at h.x + 2,h.y + 2 width h.tw
+   screen text 'A delete asks for the job' : "'s name.  F1 or ? explains the box.  F5 reads the jobs again.  Ctrl-Q leaves." at h.x + 2,h.y + 3 width h.tw
    return
 
 * ------------------------------------------------------------------------------------------------- keys and mouse

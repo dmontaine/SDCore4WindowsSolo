@@ -123,6 +123,9 @@ def violations(text):
     # 16 Nov 26 (S.247, Linux Solo 2d3db81): the scheduled jobs' definitions are kept with the data.
     if not re.search(r"RemoveFolderContents\(Root \+ '\\sdsys', '\|[^']*\|\$jobs\|", keep):
         bad.append('KeepDataOnly: the sdsys keep list does not name $jobs, the scheduled jobs (S.247)')
+    # 20 Nov 26 (RELEASE_1.1 367, Linux Solo b5219e1 S.278): the account register too, so a reload can carry the administrator's switches.
+    if not re.search(r"RemoveFolderContents\(Root \+ '\\sdsys', '\|[^']*\|accounts\|", keep):
+        bad.append('KeepDataOnly: the sdsys keep list does not name accounts, the register (RELEASE_1.1 367)')
     # 5. reload moves, never deletes
     if 'MoveFileW(' not in prep:
         bad.append('PrepareToInstall: the kept data is not moved with MoveFileW')
@@ -185,9 +188,13 @@ m8 = text.replace("if not DataChoseDelete then\n      Extra := ' -KeepHostKey';"
 check('CONTROL: mutation 8 changed the text', m8 != text)
 check('MUTANT: -KeepHostKey on Delete too is flagged', any('KeepHostKey' in x for x in violations(m8)))
 
-m9 = text.replace("voc_removed.saved|$jobs|'", "voc_removed.saved|'", 1)
+m9 = text.replace("voc_removed.saved|$jobs|accounts|'", "voc_removed.saved|accounts|'", 1)
 check('CONTROL: mutation 9 changed the text', m9 != text)
 check('MUTANT: a Keep that drops the scheduled jobs is flagged', any('$jobs' in x for x in violations(m9)))
+
+m10 = text.replace("voc_removed.saved|$jobs|accounts|'", "voc_removed.saved|$jobs|'", 1)
+check('CONTROL: mutation 10 changed the text', m10 != text)
+check('MUTANT: a Keep that drops the register is flagged (RELEASE_1.1 367)', any('register' in x for x in violations(m10)))
 
 print('')
 if passed == 0:

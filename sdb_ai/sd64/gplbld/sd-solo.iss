@@ -1206,6 +1206,8 @@ end;
 { 19 Nov 26 - Linux Solo S.274: the kept scheduled jobs' result for the finish page; set after the machine step (MachineJobsLine). }
 var
   JobsNote: String;
+  { 20 Nov 26 - RELEASE_1.1 367: the reload's "ACCOUNT SWITCHES : ..." line from solo-setup's report, or ''. }
+  SwitchesNote: String;
 
 { 27 Sep 26 - the greyed "forced" boxes (ShowForcedTasks) went with ruling 24.
   2 Oct 26 - SOLO 28: CurPageChanged went too.  It ticked the ssh box when
@@ -1235,6 +1237,9 @@ begin
   { 19 Nov 26 - Linux Solo S.274: the kept scheduled jobs' result, success or not; nothing when there were none. }
   if (CurPageID = wpFinished) and (JobsNote <> '') then
     WizardForm.FinishedLabel.Caption := WizardForm.FinishedLabel.Caption + #13#10#13#10 + 'Scheduled jobs: ' + JobsNote;
+  { 20 Nov 26 - RELEASE_1.1 367 (Linux Solo S.278 "Account switches: ..."): a reload's carried switches, success or not. }
+  if (CurPageID = wpFinished) and (SwitchesNote <> '') then
+    WizardForm.FinishedLabel.Caption := WizardForm.FinishedLabel.Caption + #13#10#13#10 + 'Account switches: ' + SwitchesNote;
   { SOLO 37: where the old folder went.  It stays until the user deletes it. }
   if (CurPageID = wpFinished) and (KeptFolder <> '') then
   begin
@@ -1445,6 +1450,30 @@ begin
   if P = 0 then
     Exit;
   S := Copy(S, P + Length('SCHEDULED JOBS : '), Length(S));
+  E := Pos(#13, S);
+  if E = 0 then
+    E := Pos(#10, S);
+  if E > 0 then
+    S := Copy(S, 1, E - 1);
+  Result := Trim(S);
+end;
+
+{ 20 Nov 26 - RELEASE_1.1 367.  The text after Tag on its line in the report at Path (solo-setup.ps1 writes "ACCOUNT SWITCHES : ..."
+  only on a reload), or ''. }
+function ReportLineAfter(const Path, Tag: String): String;
+var
+  Text: AnsiString;
+  S: String;
+  P, E: Integer;
+begin
+  Result := '';
+  if not LoadStringFromFile(Path, Text) then
+    Exit;
+  S := String(Text);
+  P := Pos(Tag, S);
+  if P = 0 then
+    Exit;
+  S := Copy(S, P + Length(Tag), Length(S));
   E := Pos(#13, S);
   if E = 0 then
     E := Pos(#10, S);
@@ -1758,6 +1787,10 @@ begin
   SetEnvironmentVariable('SD_SOLO_START', '');
   SetEnvironmentVariable('SD_SOLO_VIEWER', '');
   AppendSummary('solo-setup (exit ' + IntToStr(Code) + ')', ReportPath);
+  { 20 Nov 26 - RELEASE_1.1 367: a reload's carried switches, for the finish page. }
+  SwitchesNote := ReportLineAfter(ReportPath, 'ACCOUNT SWITCHES : ');
+  if SwitchesNote <> '' then
+    Log('SD Core Solo: account switches: ' + SwitchesNote);
   if Code <> 0 then
     Failed := Failed + '  account and passwords' + #13#10;
 
@@ -1912,7 +1945,10 @@ end;
   sessions start (start.default).  The rest of sdsys - the system files, the deny list, GLOBAL.BP.OUT - goes with the
   installation.  The ssh host key is kept by the machine step (solo-sshd.ps1 -KeepHostKey), in its admin-only folder.
   16 Nov 26 - from Linux Solo 2d3db81 (S.247): the scheduled jobs' definitions ($jobs) are kept too.  Their tasks were removed by the
-  machine step (solo-machine.ps1 Remove-AllJobTasks); a reinstall that reloads the kept data gives them back (Restore-JobTasks). }
+  machine step (solo-machine.ps1 Remove-AllJobTasks); a reinstall that reloads the kept data gives them back (Restore-JobTasks).
+  20 Nov 26 - RELEASE_1.1 367 (Linux Solo b5219e1, S.278; the owner, chat 20 Nov, asked whether Keep should restore what the
+  administrator had turned on: "yes"): the account register (accounts) too.  A reload reads only the administrator's switches
+  back from it (solo-setup.ps1 REGISTER-CARRY), never the whole record. }
 function KeepDataPass(const Root: String): Boolean;
 begin
   Result := RemoveFolderContents(Root, '|user_accounts|sdsys|sd-tls|ssh|', '|sd.conf|.sdcore-kept|');
@@ -1920,7 +1956,7 @@ begin
     if not RemoveFolderContents(Root + '\user_accounts', '|sduser|', '|') then
       Result := False;
   if DirExists(Root + '\sdsys') then
-    if not RemoveFolderContents(Root + '\sdsys', '|$cred|ai|netlogins|newvoc.mods|voc_removed.saved|$jobs|',
+    if not RemoveFolderContents(Root + '\sdsys', '|$cred|ai|netlogins|newvoc.mods|voc_removed.saved|$jobs|accounts|',
                                 '|audit|audit.*|start.default|') then
       Result := False;
 end;

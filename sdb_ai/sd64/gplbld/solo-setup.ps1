@@ -474,6 +474,59 @@ try {
         }
         # RELOAD-KEPT-END
 
+        # 20 Nov 26 - RELEASE_1.1 367 (Linux Solo b5219e1 solo-stage.sh REGISTER-CARRY, S.278; the owner, chat 20 Nov, asked whether Keep
+        # should restore what the administrator had turned on: "yes"; his rule of 13 Nov: an upgrade does not shut what the administrator
+        # opened, delivered-closed governs a FRESH install).  The kept register record sdsys\accounts\sduser carries the administrator's
+        # switches; this install made its own record (its path, group and what it asked this time), so only the SWITCHES are read back,
+        # and only ever TO yes: fields 7-12 (SH, OS.EXECUTE, and four that are blank in Solo), 15 NET, 18 PINS, 19 RECOVERY, 20-21 MCP,
+        # 22 XFER, 23 JOBS, 24 STORED.ANY become yes where the kept record had yes; field 17 (the tiles that are off) is taken when this
+        # install's is blank.  Nothing is turned off.  Not carried: the path, description, group, suspension, the start word
+        # (start.default is reloaded above) and the shared account's 13 and 14.  SD is stopped, so the record is a file: CR LF between
+        # fields as SD writes it on Windows (read: CR LF or LF), written back the same, its last line end as it was.  A record that cannot
+        # be read or written leaves the install as delivered (closed) and says so.  The line "ACCOUNT SWITCHES : ..." goes to the finish
+        # page (sd-solo.iss SwitchesNote).
+        # REGISTER-CARRY-BEGIN
+        function Invoke-RegisterCarry([string]$keptRec, [string]$newRec) {
+            $rp = [IO.FileAttributes]::ReparsePoint
+            if (-not (Test-Path -LiteralPath $keptRec -PathType Leaf) -or ((Get-Item -LiteralPath $keptRec -Force).Attributes -band $rp)) { return 'none was saved' }
+            if (-not (Test-Path -LiteralPath $newRec -PathType Leaf) -or ((Get-Item -LiteralPath $newRec -Force).Attributes -band $rp)) {
+                return 'NOT carried (the new install has no register record), the switches are as delivered'
+            }
+            try {
+                $latin = [Text.Encoding]::GetEncoding(28591)                  # bytes as they are: no BOM, no re-encoding
+                $k = @([IO.File]::ReadAllText($keptRec, $latin) -split "`r?`n")
+                $text = [IO.File]::ReadAllText($newRec, $latin)
+                $endNl = $text.EndsWith("`n")
+                $f = New-Object Collections.Generic.List[string]
+                foreach ($x in ($text -split "`r?`n")) { $f.Add($x) }
+                if ($endNl -and $f.Count -gt 0) { $f.RemoveAt($f.Count - 1) }  # the empty piece after the last line end
+                $changed = 0
+                foreach ($j in @(7, 8, 9, 10, 11, 12, 15, 18, 19, 20, 21, 22, 23, 24)) {
+                    $kv = if ($j -le $k.Count) { $k[$j - 1] } else { '' }
+                    if ($kv -ieq 'yes') {
+                        while ($f.Count -lt $j) { $f.Add('') }
+                        if ($f[$j - 1] -ine 'yes') { $f[$j - 1] = 'yes'; $changed++ }
+                    }
+                }
+                $k17 = if ($k.Count -ge 17) { $k[16] } else { '' }
+                if ($k17 -ne '') {
+                    while ($f.Count -lt 17) { $f.Add('') }
+                    if ($f[16] -eq '') { $f[16] = $k17; $changed++ }
+                }
+                if ($changed -gt 0) {
+                    $out = [string]::Join("`r`n", $f.ToArray())
+                    if ($endNl) { $out += "`r`n" }
+                    [IO.File]::WriteAllText($newRec, $out, $latin)
+                }
+                return ([string]$changed + ' switch(es) carried from the kept record')
+            }
+            catch { return ('NOT carried (the record could not be read or written: ' + $_.Exception.Message + '), the switches are as delivered') }
+        }
+        $carried = Invoke-RegisterCarry (Join-Path $ReloadFrom 'sdsys\accounts\sduser') (Join-Path $sdsys 'accounts\sduser')
+        Note ('  register: ' + $carried)
+        Note ('ACCOUNT SWITCHES : ' + $carried)
+        # REGISTER-CARRY-END
+
         $keptConf = Join-Path $ReloadFrom 'sd.conf'
         $conf = Join-Path $AppDir 'sd.conf'
         $defaultConf = Join-Path $work 'sd.conf.default'

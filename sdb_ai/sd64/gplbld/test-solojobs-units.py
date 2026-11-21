@@ -117,6 +117,60 @@ def between(text, begin, end):
     return text[i:j] if 0 <= i < j else ""
 
 
+_carry_cache = {}
+
+
+def carry_behaviour(block):
+    """20 Nov 26 (RELEASE_1.1 367): run solo-setup.ps1's Invoke-RegisterCarry, lifted from its REGISTER-CARRY block, on scratch records.
+    'ok', or what was wrong.  Cached by the block's text, so a mutant elsewhere costs no PowerShell."""
+    if block in _carry_cache:
+        return _carry_cache[block]
+    import shutil, subprocess, tempfile
+    fn = between(block, "function Invoke-RegisterCarry", "        $carried = ")
+    if not fn:
+        _carry_cache[block] = "the function was not found in the block"
+        return _carry_cache[block]
+    ps = shutil.which("powershell") or shutil.which("powershell.exe")
+    if ps is None:
+        _carry_cache[block] = "no PowerShell to run it"
+        return _carry_cache[block]
+    d = tempfile.mkdtemp(prefix="solocarry-")
+    try:
+        def rec(fields, end=True):
+            return ("\r\n".join(fields) + ("\r\n" if end else "")).encode("latin-1")
+        new = ["@USRDIR/sduser", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "no"]
+        kept = list(new); kept[6] = "yes"; kept[22] = "YES"; kept[16] = "ai pdf"; kept[14] = "no"; kept[0] = "C:/old/path"
+        want = list(new); want[6] = "yes"; want[22] = "yes"; want[16] = "ai pdf"
+        new2 = list(new); new2[22] = "yes"; new2[16] = "x"           # this install's own tile list stays
+        kept2 = list(new); kept2[22] = "no"; kept2[16] = "ai pdf"
+        files = {"k1": rec(kept), "n1": rec(new), "k2": rec(kept2), "n2": rec(new2, end=False), "n3": rec(new)}
+        for n, b in files.items():
+            with open(os.path.join(d, n), "wb") as f:
+                f.write(b)
+        drv = os.path.join(d, "drive.ps1")
+        with open(drv, "w", encoding="ascii", newline="\r\n") as f:
+            f.write(fn.replace("\r\n", "\n") + "\n")
+            f.write("$d = $args[0]\n")
+            f.write("'R1=' + (Invoke-RegisterCarry (Join-Path $d 'k1') (Join-Path $d 'n1'))\n")
+            f.write("'R2=' + (Invoke-RegisterCarry (Join-Path $d 'k2') (Join-Path $d 'n2'))\n")
+            f.write("'R3=' + (Invoke-RegisterCarry (Join-Path $d 'absent') (Join-Path $d 'n3'))\n")
+        p = subprocess.run([ps, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", drv, d], capture_output=True, text=True, timeout=60)
+        out = dict(l.split("=", 1) for l in p.stdout.splitlines() if l[:3] in ("R1=", "R2=", "R3="))
+        got = {n: open(os.path.join(d, n), "rb").read() for n in ("n1", "n2", "n3")}
+        bad = []
+        if out.get("R1") != "3 switch(es) carried from the kept record": bad.append("R1 said %r" % out.get("R1"))
+        if got["n1"] != rec(want): bad.append("n1 is %r" % got["n1"])
+        if out.get("R2") != "0 switch(es) carried from the kept record": bad.append("R2 said %r" % out.get("R2"))
+        if got["n2"] != rec(new2, end=False): bad.append("n2 changed: %r" % got["n2"])
+        if out.get("R3") != "none was saved": bad.append("R3 said %r" % out.get("R3"))
+        if got["n3"] != rec(new): bad.append("n3 changed")
+        if not out: bad.append("no output; stderr: " + p.stderr.strip()[:300])
+        _carry_cache[block] = "ok" if not bad else "; ".join(bad)
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+    return _carry_cache[block]
+
+
 def checks(raw):
     rows = []
 
@@ -242,6 +296,20 @@ def checks(raw):
        re.search(r"RemoveFolderContents\(Root \+ '\\sdsys', '\|[^']*\|\$jobs\|", keep) is not None
        and "@{ Rel = 'sdsys\\$jobs';" in between(raw["setup"], "# RELOAD-KEPT-BEGIN", "foreach ($k in $keptItems)"))
 
+    # J11c, J11d - 20 Nov 26, RELEASE_1.1 367 (Linux Solo b5219e1, S.278; the owner: Keep restores what the administrator turned on)
+    st = raw["setup"] or ""
+    rcb = between(st, "# REGISTER-CARRY-BEGIN", "# REGISTER-CARRY-END")
+    ck("J11c", "Keep keeps sdsys accounts; the reload carries only the switch fields (7-12, 15, 18-24; 17 when blank), only to yes, after RELOAD-KEPT and before sd.conf, never copying the record; the finish page says it",
+       re.search(r"RemoveFolderContents\(Root \+ '\\sdsys', '\|[^']*\|accounts\|", keep) is not None
+       and "@(7, 8, 9, 10, 11, 12, 15, 18, 19, 20, 21, 22, 23, 24)" in rcb and "$f[$j - 1] = 'yes'" in rcb and "'no'" not in rcb
+       and "accounts" not in between(st, "# RELOAD-KEPT-BEGIN", "# RELOAD-KEPT-END")
+       and 0 < st.find("# RELOAD-KEPT-END") < st.find("# REGISTER-CARRY-BEGIN") < st.find("$keptConf = Join-Path $ReloadFrom 'sd.conf'")
+       and "Note ('ACCOUNT SWITCHES : ' + $carried)" in rcb
+       and "SwitchesNote := ReportLineAfter(ReportPath, 'ACCOUNT SWITCHES : ');" in keep and "'Account switches: ' + SwitchesNote" in keep)
+    res = carry_behaviour(rcb)
+    ck("J11d", "the carry, run in PowerShell on scratch CR LF records: kept yes turns on 7, 23 and takes 17; a kept no leaves a yes, and a set tile list stays; nothing else moves; CR LF and the last line end kept; no kept record = none was saved",
+       res == "ok", res)
+
     # J12
     cited = set(re.findall(r"sysmsg\((\d+)", jb + rn + du + ac + pg))
     gone = sorted(n for n in cited if not os.path.exists(os.path.join(SDSYS, "messages", n)))
@@ -331,8 +399,15 @@ MUTANTS = [
     ("an upgrade keeps the old per-job tasks", "J9", sub("machine", "    foreach ($t in $old) { $null = Remove-JobTask $t.TaskName.Substring($JobPrefix.Length) }\n", "")),
     ("the page may run another command", "J10", sub("page", "allow = 'set.job'", "allow = 'set.job sh'")),
     ("the password is shown as typed", "J10", sub("page", "@vm : 'Account password' : @vm : 34 : @vm : 64 : @vm : 1", "@vm : 'Account password' : @vm : 34 : @vm : 64 : @vm : ''")),
-    ("Keep drops $jobs", "J11", sub("iss", "voc_removed.saved|$jobs|'", "voc_removed.saved|'")),
+    ("Keep drops $jobs", "J11", sub("iss", "voc_removed.saved|$jobs|accounts|'", "voc_removed.saved|accounts|'")),
     ("the reload does not copy $jobs", "J11", sub("setup", "@{ Rel = 'sdsys\\$jobs';", "@{ Rel = 'sdsys\\$jobz';")),
+    # 20 Nov 26 - RELEASE_1.1 367
+    ("Keep drops the register", "J11c", sub("iss", "|$jobs|accounts|'", "|$jobs|'")),
+    ("the carry takes a field that is not a switch", "J11c", sub("setup", "@(7, 8, 9, 10, 11, 12, 15, 18, 19, 20, 21, 22, 23, 24)", "@(3, 7, 8, 9, 10, 11, 12, 15, 18, 19, 20, 21, 22, 23, 24)")),
+    ("the finish page drops the line", "J11c", sub("iss", "'Account switches: ' + SwitchesNote", "''")),
+    ("the carry copies a kept no over a yes", "J11d", sub("setup", "if ($kv -ieq 'yes') {", "if ($kv -ne '') {")),
+    ("the carry writes LF only", "J11d", sub("setup", "$out = [string]::Join(\"`r`n\", $f.ToArray())", "$out = [string]::Join(\"`n\", $f.ToArray())")),
+    ("the carry overwrites a set tile list", "J11d", sub("setup", "if ($f[16] -eq '') { $f[16] = $k17; $changed++ }", "$f[16] = $k17; $changed++")),
     ("a cited message is missing", "J12", sub("job", "stop sysmsg(15945)", "stop sysmsg(15929)")),
     ("the clock's VOC record names another program", "J12", lambda raw: (dict(raw, **{"newvoc/run.jobs.due": "V\nCA\n$runjob\n"}) if raw.get("newvoc/run.jobs.due") else None)),
     ("the helper takes job requests again", "J13", sub("doors", "if ($kind -cne 'door') { Finish $nonce $false", "if ($kind -cne 'door' -and $kind -cne 'job') { Finish $nonce $false")),
