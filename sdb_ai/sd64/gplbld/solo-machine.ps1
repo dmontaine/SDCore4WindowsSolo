@@ -1213,6 +1213,39 @@ try {
     # listens on nothing (sd.conf ships with APIPORT commented out), and the only start that listens is this
     # task's, in session 0, which cannot show an alert, with the rule already made.  A REMOVE keeps its old order.
     # 16 Nov 26 - S.247: the scheduled jobs' tasks go FIRST on a removal, so that no job starts while SD is being taken down.
+    # 21 Nov 26 - SOLO 85 (Linux Solo e5a2c3e, S.282 DOORS-NOTE; the owner, 21 Nov: "settings do not change after delete and install if the user
+    # chooses keep data").  THE API AND ssh DOORS ARE MACHINE OBJECTS (the firewall rules, the listener, Solo's sshd task), and this removal takes
+    # them, so a reinstall that reloaded the kept data asked again, with the boxes at their defaults: an API the administrator had opened came
+    # back shut, and an ssh he had switched off came back on.  With the Keep answer (-KeepHostKey is how the uninstaller says so) the doors are read
+    # FIRST, here, elevated - an unelevated -Show may not be shown a SYSTEM task - and noted in doors.saved beside the kept data (api= and ssh=,
+    # each off, local or open; a door never set up is off).  The reinstall that reloads takes them as its answers and asks nothing about them
+    # (sd-solo.iss KeptDoorsUsed).  A door this cannot read is not noted and the reinstall asks, as before.
+    if ($Action -eq 'Remove' -and $KeepHostKey) {
+        Note ''
+        Note '--- the API and ssh doors, noted for a reinstall that reloads the kept data'
+        $doorsNote = Join-Path $AppDir 'doors.saved'
+        try {
+            if (Test-Path -LiteralPath $doorsNote) { Remove-Item -LiteralPath $doorsNote -Force }
+            Note ('$ solo-doors.ps1 -Show -AppDir ' + $AppDir)
+            $shown = @(& $Ps -NoProfile -ExecutionPolicy Bypass -File (Join-Path $AppDir 'solo-doors.ps1') -Show -AppDir $AppDir 2>&1)
+            foreach ($o in $shown) { Note ('  | ' + $o) }
+            $doorApi = ''
+            $doorSsh = ''
+            foreach ($o in $shown) {
+                $l = ([string]$o).Trim()
+                if ($l -cmatch '^api mode: (off|local|open)$') { $doorApi = $Matches[1] }
+                elseif ($l -cmatch '^ssh mode: (off|local|open|notsetup)$') { $doorSsh = $Matches[1] }
+            }
+            if ($doorSsh -ceq 'notsetup') { $doorSsh = 'off' }
+            if (($doorApi -ne '') -and ($doorSsh -ne '')) {
+                [IO.File]::WriteAllText($doorsNote, ('api=' + $doorApi + "`r`n" + 'ssh=' + $doorSsh + "`r`n"), [Text.Encoding]::ASCII)
+                Note ('  PASS  kept: the API is ' + $doorApi + ' and ssh is ' + $doorSsh + '; a reinstall that reloads your data keeps them so (' + $doorsNote + ')')
+            }
+            else { Note ('  WARN  not noted (api "' + $doorApi + '", ssh "' + $doorSsh + '"): a reinstall will ask about them') }
+        }
+        catch { Note ('  WARN  not noted: ' + $_.Exception.Message.Trim() + ': a reinstall will ask about them') }
+    }
+
     if ($Action -eq 'Remove') {
         Note ''
         Note '--- scheduled jobs (their tasks; the definitions in $jobs are the user''s data)'

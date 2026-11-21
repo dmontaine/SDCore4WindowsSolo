@@ -177,7 +177,7 @@ m4 = text.replace('$400', '$0')
 check('CONTROL: mutation 4 changed the text', m4 != text)
 check('MUTANT: no reparse-point check is flagged', any('reparse' in x for x in violations(m4)))
 
-m5 = text.replace("RemoveFolderContents(Root, '|user_accounts|sdsys|sd-tls|ssh|', '|sd.conf|.sdcore-kept|')", "RemoveFolderContents(Root, '|', '|')")
+m5 = text.replace("RemoveFolderContents(Root, '|user_accounts|sdsys|sd-tls|ssh|', '|sd.conf|.sdcore-kept|doors.saved|')", "RemoveFolderContents(Root, '|', '|')")
 check('CONTROL: mutation 5 changed the text', m5 != text)
 check('MUTANT: a Keep that keeps nothing is flagged', any('keep lists' in x for x in violations(m5)))
 

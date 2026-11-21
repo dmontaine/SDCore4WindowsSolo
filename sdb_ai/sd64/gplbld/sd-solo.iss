@@ -365,6 +365,10 @@ var
     asks no password; KeptGlobalFound: it also holds $global (managed); KeptStartFound: there is a kept start.default.
     DataChoseDelete is the uninstaller's answer, asked before anything is removed (the ssh host key's step needs it). }
   KeptPwFound, KeptGlobalFound, KeptStartFound, DataChoseDelete: Boolean;
+  { 21 Nov 26 - SOLO 85 (Linux Solo e5a2c3e, S.282 DOORS-KEPT): the API and ssh as the uninstaller's Keep noted them in doors.saved
+    (solo-machine.ps1 Remove), 'off', 'local' or 'open'; both '' when there is no usable note.  A reload that keeps the data takes them
+    as its answers (KeptDoorsUsed) and the Tasks page does not ask. }
+  KeptApi, KeptSsh: String;
   { 06 Oct 26 - SOLO 39.  The steps CurStepChanged found not completed, one per line as the
     dialog lists them ('' when all passed).  The finish page reads it: it said "Setup has finished
     installing ..." after a failed step, which the dialog before it contradicted.  Declared here
@@ -830,6 +834,41 @@ begin
     Result := 'menu';
 end;
 
+{ 21 Nov 26 - SOLO 85: a real file, not a folder and not a link (a reparse point is never read as kept data, as Linux Solo's [ ! -L ]). }
+function PlainFile(const Path: String): Boolean;
+var
+  FR: TFindRec;
+begin
+  Result := False;
+  if FindFirst(Path, FR) then
+  begin
+    try
+      Result := ((FR.Attributes and FILE_ATTRIBUTE_DIRECTORY) = 0) and ((FR.Attributes and $400) = 0);
+    finally
+      FindClose(FR);
+    end;
+  end;
+end;
+
+{ 21 Nov 26 - SOLO 85: the word the uninstaller noted for one door, from a line that is exactly key=off, key=local or key=open (the last
+  one wins, as Linux Solo's kept_door); '' when there is none. }
+function KeptDoorWord(const Path, Key: String): String;
+var
+  Lines: TArrayOfString;
+  I: Integer;
+  L: String;
+begin
+  Result := '';
+  if not LoadStringsFromFile(Path, Lines) then
+    Exit;
+  for I := 0 to GetArrayLength(Lines) - 1 do
+  begin
+    L := Trim(Lines[I]);
+    if (L = Key + '=off') or (L = Key + '=local') or (L = Key + '=open') then
+      Result := Copy(L, Length(Key) + 2, Length(L));
+  end;
+end;
+
 function InitializeSetup: Boolean;
 var
   Missing: String;
@@ -859,6 +898,19 @@ begin
                  FileExists(SoloRoot + '\sdsys\$cred\$admin') and FileExists(SoloRoot + '\sdsys\$cred\$stored');
   KeptGlobalFound := KeptPwFound and FileExists(SoloRoot + '\sdsys\$cred\$global');
   KeptStartFound := KeptWasFound and FileExists(SoloRoot + '\sdsys\start.default');
+  { 21 Nov 26 - SOLO 85: the API and ssh doors as the uninstaller's Keep noted them; both or neither, as it writes them. }
+  KeptApi := '';
+  KeptSsh := '';
+  if KeptWasFound and PlainFile(SoloRoot + '\doors.saved') then
+  begin
+    KeptApi := KeptDoorWord(SoloRoot + '\doors.saved', 'api');
+    KeptSsh := KeptDoorWord(SoloRoot + '\doors.saved', 'ssh');
+    if (KeptApi = '') or (KeptSsh = '') then
+    begin
+      KeptApi := '';
+      KeptSsh := '';
+    end;
+  end;
   ViewerFound := FindPdfReader;
   ViewerAllowedAlready := ViewerListHasPdf(SoloRoot);
   SoloWasInstalled := RegKeyExists(HKCU, SoloKey);
@@ -924,6 +976,15 @@ end;
 function ReloadChosen: Boolean;
 begin
   Result := KeptWasFound and (ReloadPage.SelectedValueIndex = 0);
+end;
+
+{ 21 Nov 26 - SOLO 85 (Linux Solo S.282, the owner: "settings do not change after delete and install if the user chooses keep data").  A
+  reload of kept data whose uninstall noted the API and ssh doors takes them as its answers, and the Tasks page is not shown for them: an API
+  the administrator opened is opened again, and an ssh he had switched off stays off.  A control file's api= or ssh= still wins for that door;
+  a reload declined, or no note, asks as before. }
+function KeptDoorsUsed: Boolean;
+begin
+  Result := ReloadChosen and (KeptApi <> '') and (KeptSsh <> '');
 end;
 
 { 16 Nov 26 - SOLO 72 (Linux Solo S.234 N9): a reload of kept data whose $cred holds the three records keeps the passwords and
@@ -998,6 +1059,8 @@ function ApiWanted: Boolean;
 begin
   if ApiAnswered then
     Result := CfApi <> 'off'
+  else if KeptDoorsUsed then
+    Result := KeptApi <> 'off'
   else
     Result := WizardIsTaskSelected('api');
 end;
@@ -1006,6 +1069,8 @@ function ApiNetworkWanted: Boolean;
 begin
   if ApiAnswered then
     Result := CfApi = 'open'
+  else if KeptDoorsUsed then
+    Result := KeptApi = 'open'
   else
     Result := WizardIsTaskSelected('api\network');
 end;
@@ -1016,6 +1081,8 @@ function SshWanted: Boolean;
 begin
   if SshAnswered then
     Result := CfSsh <> 'off'
+  else if KeptDoorsUsed then
+    Result := KeptSsh <> 'off'
   else if SshServerWasFound then
     Result := WizardIsTaskSelected('ssh')
   else
@@ -1028,6 +1095,8 @@ function SshOpenWanted: Boolean;
 begin
   if SshAnswered then
     Result := CfSsh = 'open'
+  else if KeptDoorsUsed then
+    Result := KeptSsh = 'open'
   else if SshServerWasFound then
     Result := WizardIsTaskSelected('ssh\network')
   else
@@ -1191,7 +1260,7 @@ begin
   else if PageID = OsAccessPage.ID then
     Result := (not DataTreeWasAbsent) or (CmdOsAccess <> '') or (UseControl and (CfOsAccess <> ''))
   else if PageID = wpSelectTasks then
-    Result := SoloWasInstalled or (ApiAnswered and SshAnswered)
+    Result := SoloWasInstalled or KeptDoorsUsed or (ApiAnswered and SshAnswered)   { 21 Nov 26 - SOLO 85: KeptDoorsUsed }
   { 12 Nov 26 - SOLO 56 group 6: the start question on a new tree only, skipped when a control file answers it. }
   else if PageID = StartPage.ID then
     Result := (not DataTreeWasAbsent) or (ReloadChosen and KeptStartFound) or (UseControl and (CfStart <> ''))
@@ -1234,6 +1303,10 @@ begin
   { 17 Nov 26 - P-3890: a global password with the API or ssh not open (ManagedClosedNote). }
   if (CurPageID = wpFinished) and (ManagedClosedNote <> '') then
     WizardForm.FinishedLabel.Caption := WizardForm.FinishedLabel.Caption + #13#10#13#10 + ManagedClosedNote;
+  { 21 Nov 26 - SOLO 85: the doors a reload put back, as Linux Solo says "The API is open, as it was before: not asked."; results only. }
+  if (CurPageID = wpFinished) and KeptDoorsUsed then
+    WizardForm.FinishedLabel.Caption := WizardForm.FinishedLabel.Caption + #13#10#13#10 +
+      'The API is ' + KeptApi + ' and ssh is ' + KeptSsh + ', as they were before the uninstall.';
   { 19 Nov 26 - Linux Solo S.274: the kept scheduled jobs' result, success or not; nothing when there were none. }
   if (CurPageID = wpFinished) and (JobsNote <> '') then
     WizardForm.FinishedLabel.Caption := WizardForm.FinishedLabel.Caption + #13#10#13#10 + 'Scheduled jobs: ' + JobsNote;
@@ -1553,6 +1626,9 @@ begin
     else
       S := S + 'saved data     : START CLEAN - the kept data was moved to ' + KeptFolder + ', not reloaded' + #13#10;
   end;
+  { 21 Nov 26 - SOLO 85: the doors the uninstall noted, taken as the answers. }
+  if KeptDoorsUsed then
+    S := S + 'doors kept     : api ' + KeptApi + ', ssh ' + KeptSsh + ' (noted by the uninstall; not asked)' + #13#10;
   if SoloWasInstalled then
     S := S + 'api and ssh    : not asked on an upgrade; the install keeps what it has' + #13#10
   else
@@ -1918,7 +1994,8 @@ end;
   install is given none, the PDFs added beside the release's own and never over them).  GLOBAL.BP.OUT still goes (the dialog says so). }
 function KeepDataPass(const Root: String): Boolean;
 begin
-  Result := RemoveFolderContents(Root, '|user_accounts|sdsys|sd-tls|ssh|', '|sd.conf|.sdcore-kept|');
+  { 21 Nov 26 - SOLO 85: doors.saved, the API and ssh doors as they were (solo-machine.ps1 Remove writes it), is kept with sd.conf. }
+  Result := RemoveFolderContents(Root, '|user_accounts|sdsys|sd-tls|ssh|', '|sd.conf|.sdcore-kept|doors.saved|');
   if DirExists(Root + '\user_accounts') then
     if not RemoveFolderContents(Root + '\user_accounts', '|sduser|', '|') then
       Result := False;
