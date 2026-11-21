@@ -399,10 +399,10 @@ MUTANTS = [
     ("an upgrade keeps the old per-job tasks", "J9", sub("machine", "    foreach ($t in $old) { $null = Remove-JobTask $t.TaskName.Substring($JobPrefix.Length) }\n", "")),
     ("the page may run another command", "J10", sub("page", "allow = 'set.job'", "allow = 'set.job sh'")),
     ("the password is shown as typed", "J10", sub("page", "@vm : 'Account password' : @vm : 34 : @vm : 64 : @vm : 1", "@vm : 'Account password' : @vm : 34 : @vm : 64 : @vm : ''")),
-    ("Keep drops $jobs", "J11", sub("iss", "voc_removed.saved|$jobs|accounts|'", "voc_removed.saved|accounts|'")),
+    ("Keep drops $jobs", "J11", sub("iss", "voc_removed.saved|$jobs|accounts|solo.policy|pdf|'", "voc_removed.saved|accounts|solo.policy|pdf|'")),
     ("the reload does not copy $jobs", "J11", sub("setup", "@{ Rel = 'sdsys\\$jobs';", "@{ Rel = 'sdsys\\$jobz';")),
     # 20 Nov 26 - RELEASE_1.1 367
-    ("Keep drops the register", "J11c", sub("iss", "|$jobs|accounts|'", "|$jobs|'")),
+    ("Keep drops the register", "J11c", sub("iss", "|$jobs|accounts|solo.policy|pdf|'", "|$jobs|solo.policy|pdf|'")),
     ("the carry takes a field that is not a switch", "J11c", sub("setup", "@(7, 8, 9, 10, 11, 12, 15, 18, 19, 20, 21, 22, 23, 24)", "@(3, 7, 8, 9, 10, 11, 12, 15, 18, 19, 20, 21, 22, 23, 24)")),
     ("the finish page drops the line", "J11c", sub("iss", "'Account switches: ' + SwitchesNote", "''")),
     ("the carry copies a kept no over a yes", "J11d", sub("setup", "if ($kv -ieq 'yes') {", "if ($kv -ne '') {")),

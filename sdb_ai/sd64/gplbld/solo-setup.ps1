@@ -427,11 +427,16 @@ try {
             @{ Rel = 'sdsys\newvoc.mods';       Dir = $true },
             @{ Rel = 'sdsys\voc_removed.saved'; Dir = $true },
             @{ Rel = 'sdsys\$jobs';             Dir = $true },      # 16 Nov 26 - S.247: the jobs' definitions; solo-machine.ps1 gives them their tasks
-            @{ Rel = 'sdsys\start.default';     Dir = $false })
+            @{ Rel = 'sdsys\start.default';     Dir = $false },
+            # 21 Nov 26 - SOLO 87 (Linux Solo S.287): the PDF reader allow-list and the deny list.  The deny list only when this install
+            # is given none (DENY.VERBS SET below replaces it); the kept PDFs are merged after the documentation step, not copied here.
+            @{ Rel = 'sdsys\viewers';           Dir = $false },
+            @{ Rel = 'sdsys\solo.policy';       Dir = $true })
         foreach ($k in $keptItems) {
             $src = Join-Path $ReloadFrom $k.Rel
             $dst = Join-Path $AppDir $k.Rel
             if ($k.Rel -eq 'sdsys\$cred' -and $Passwords) { Note '  passwords: set by this install, the kept ones not used'; continue }
+            if ($k.Rel -eq 'sdsys\solo.policy' -and $denyVerbs) { Note '  deny list: given to this install, the kept one not used'; continue }
             if (-not (Test-Path -LiteralPath $src)) { Note ('  ' + $k.Rel + ': none was kept'); continue }
             $item = Get-Item -LiteralPath $src -Force
             if (($item.Attributes -band $reparse) -or ($item.PSIsContainer -ne $k.Dir)) {
@@ -825,6 +830,29 @@ try {
         } else {
             $t = Invoke-Sd ('-internal DOCS.INSTALL "' + $srcPdf + '"') ''
             Judge ('documentation PDFs (' + $nPdf + ') installed into ' + $pdfDir) $t '(?m)^Copied \d+ document\(s\) into the pdf directory; skipped 0\s*$'
+        }
+    }
+
+    # 21 Nov 26 - SOLO 87 (Linux Solo S.287, solo-stage.sh): THE KEPT DOCUMENTATION PDFs ARE ADDED BESIDE THE RELEASE'S, NEVER OVER THEM.
+    # A reload of kept data (Keep keeps sdsys\pdf) puts back each plain file of the kept folder that this install did not make; a file the
+    # release shipped under the same name stays the release's.  After the documentation step above, so the release's are already here.
+    # Only a plain, lower case named file (docs.install's own rule) is taken; a link or any other name is named and left.
+    if ($ReloadFrom) {
+        $keptPdf = Join-Path $ReloadFrom 'sdsys\pdf'
+        if (-not (Test-Path -LiteralPath $keptPdf -PathType Container)) { Note '  kept documentation: none was kept' }
+        elseif (-not (Test-Path -LiteralPath $pdfDir -PathType Container)) { Note ('  FAIL  kept documentation: there is no ' + $pdfDir); $fails += 'kept documentation' }
+        else {
+            $added = 0; $already = 0; $refused = 0
+            foreach ($f in @(Get-ChildItem -LiteralPath $keptPdf -Force -File -ErrorAction SilentlyContinue)) {
+                $to = Join-Path $pdfDir $f.Name
+                if (($f.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -or ($f.Name -cnotmatch '^[a-z0-9][a-z0-9._-]{0,79}$')) {
+                    $refused++; Note ('  NOTE  kept documentation ' + $f.Name + ' was not taken: a link, or a name outside lower case letters, digits and . _ -'); continue
+                }
+                if (Test-Path -LiteralPath $to) { $already++; continue }
+                try { Copy-Item -LiteralPath $f.FullName -Destination $to -ErrorAction Stop } catch { }
+                if (Test-Path -LiteralPath $to) { $added++ } else { Note ('  FAIL  kept documentation ' + $f.Name + ' was not copied into ' + $pdfDir); $fails += 'kept documentation' }
+            }
+            Note ('  PASS  kept documentation: ' + $added + ' file(s) added beside the release''s, ' + $already + ' already there (the release''s are kept), ' + $refused + ' not taken')
         }
     }
 

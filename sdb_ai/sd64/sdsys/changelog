@@ -3,6 +3,18 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+21 Nov 26  KEEPING YOUR DATA ON UNINSTALL ALSO KEEPS THE DENY LIST, THE DOCUMENTATION AND THE PDF READER LIST, AND AN UPGRADE
+           LEAVES AN SSH SERVER YOU TURNED OFF TURNED OFF.
+
+             What        - Uninstalling and choosing Keep now also leaves the list of denied commands, the documentation
+                           PDFs and the list of PDF readers; a reload puts them back (the deny list only when the new
+                           installation is given no deny-verbs of its own; kept documents are added beside the release's,
+                           never over them).  The Keep dialog says so.  And an upgrade no longer registers Solo's ssh
+                           task again, or starts the ssh server, when remote.ssh off had disabled it.
+             Why         - What an administrator set should not change because SD was removed and installed again or
+                           upgraded; a managed computer's deny list was left empty by a reinstall.
+             Does NOT    - Keep global.bp.out (the dialog still lists it as removed).
+
 21 Nov 26  A SOLO INSTALL NO LONGER LEAVES PORT 22 OPEN.
 
              What        - When the installer installs the OpenSSH server (the computer had none), Microsoft's

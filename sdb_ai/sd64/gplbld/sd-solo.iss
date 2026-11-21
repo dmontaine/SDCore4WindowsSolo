@@ -1948,7 +1948,12 @@ end;
   machine step (solo-machine.ps1 Remove-AllJobTasks); a reinstall that reloads the kept data gives them back (Restore-JobTasks).
   20 Nov 26 - RELEASE_1.1 367 (Linux Solo b5219e1, S.278; the owner, chat 20 Nov, asked whether Keep should restore what the
   administrator had turned on: "yes"): the account register (accounts) too.  A reload reads only the administrator's switches
-  back from it (solo-setup.ps1 REGISTER-CARRY), never the whole record. }
+  back from it (solo-setup.ps1 REGISTER-CARRY), never the whole record.
+  21 Nov 26 - SOLO 87 (outcome audit P4/P5 S5, S14, S20; Linux Solo S.287; R3 "settings do not change after delete and install if the
+  user chooses keep data"): three more, as Linux Solo keeps them - the deny list (solo.policy), which a managed computer's
+  administrator set and which a reinstall without --deny-verbs would otherwise leave EMPTY (a loosening), the PDF reader allow-list
+  (viewers), and the documentation PDFs (pdf).  A reload puts them back (solo-setup.ps1 RELOAD-KEPT: the deny list only when this
+  install is given none, the PDFs added beside the release's own and never over them).  GLOBAL.BP.OUT still goes (the dialog says so). }
 function KeepDataPass(const Root: String): Boolean;
 begin
   Result := RemoveFolderContents(Root, '|user_accounts|sdsys|sd-tls|ssh|', '|sd.conf|.sdcore-kept|');
@@ -1956,8 +1961,8 @@ begin
     if not RemoveFolderContents(Root + '\user_accounts', '|sduser|', '|') then
       Result := False;
   if DirExists(Root + '\sdsys') then
-    if not RemoveFolderContents(Root + '\sdsys', '|$cred|ai|netlogins|newvoc.mods|voc_removed.saved|$jobs|accounts|',
-                                '|audit|audit.*|start.default|') then
+    if not RemoveFolderContents(Root + '\sdsys', '|$cred|ai|netlogins|newvoc.mods|voc_removed.saved|$jobs|accounts|solo.policy|pdf|',
+                                '|audit|audit.*|start.default|viewers|') then
       Result := False;
 end;
 
@@ -2010,8 +2015,8 @@ begin
     ChoseDelete := KeepOrDelete('Keep or delete your SD Core Solo data and configuration?',
       Root + #13#10#13#10 +
       'Keep leaves your account sduser with its data, sd.conf, your passwords, the audit trail, the TLS and ssh ' +
-      'keys and your settings. A new installation offers them back.' + #13#10#13#10 +
-      'Keep removes these: the system files, the list of denied commands, GLOBAL.BP.OUT and the install logs.' + #13#10#13#10 +
+      'keys, the list of denied commands, the documentation PDFs and your settings. A new installation offers them back.' + #13#10#13#10 +
+      'Keep removes these: the system files, GLOBAL.BP.OUT and the install logs.' + #13#10#13#10 +
       'Delete removes the whole folder, for good.');
   DataChoseDelete := ChoseDelete;
   Log('SD Core Solo: data choice: ' + YesNo(ChoseDelete) + ' to delete');

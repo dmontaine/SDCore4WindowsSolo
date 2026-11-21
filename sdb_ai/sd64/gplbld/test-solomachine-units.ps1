@@ -342,6 +342,26 @@ $codeNoComments = (($text -split "`n") | Where-Object { $_ -notmatch '^\s*#' }) 
 Check 'the main flow wraps Register-SoloTask in try/catch that calls Fail, so a throw does not reach the outer catch and skip the ssh steps' (
     $codeNoComments -match '(?s)try \{ Register-SoloTask \}\s*catch \{\s*Fail \(''ERROR '' \+ \$_\.Exception\.Message\.Trim\(\)\)')
 
+# ---- 9. SOLO 86 (21 Nov 26): an upgrade leaves a DISABLED ssh task disabled ------------------------------------------------------
+# remote.ssh off only disables the task (the Doors branch); Register-SshTask registers it again enabled and starts sshd, so an upgrade
+# used to open what the administrator had shut.  The administrator's off is read from the task's own state, BEFORE the registration,
+# and the branch that honours it registers, enables and starts nothing.  Held on the text, and by a mutant of the text.
+function Test-AdminOffGuard([string]$txt) {
+    $iInit = $txt.IndexOf('$sshAdminOff = $false')
+    $iRead = $txt.IndexOf('if ($Action -eq ''Upgrade'' -and $haveSshTask) { $sshAdminOff = ([string](Get-ScheduledTask -TaskName $SshTaskName).State -eq ''Disabled'') }')
+    $iSkip = $txt.IndexOf('if ($wantSsh -and $sshAdminOff) {')
+    $iElse = $txt.IndexOf('elseif ($wantSsh) {')
+    $iReg  = $txt.IndexOf('Register-SshTask $sshListen')
+    if (-not (($iInit -ge 0) -and ($iInit -lt $iRead) -and ($iRead -lt $iSkip) -and ($iSkip -lt $iElse) -and ($iElse -lt $iReg))) { return $false }
+    $branch = $txt.Substring($iSkip, $iElse - $iSkip)
+    return (($branch -notmatch 'Register-SshTask|Enable-ScheduledTask|Start-ScheduledTask|Start-Service|solo-sshd'))
+}
+Check 'SOLO 86: an upgrade reads a Disabled ssh task as the administrator''s off and the branch for it registers, enables and starts nothing' (Test-AdminOffGuard $codeNoComments)
+$mutNoGuard = $codeNoComments.Replace('if ($wantSsh -and $sshAdminOff) {', 'if ($false) {')
+$mutRegisters = $codeNoComments.Replace('left as it is, not registered again and sshd not started''', 'left as it is''; Register-SshTask ''local''')
+Check 'SOLO 86 control: the guard turns red when the off branch can no longer be taken, and when it registers the task' (
+    (-not (Test-AdminOffGuard $mutNoGuard)) -and (-not (Test-AdminOffGuard $mutRegisters)) -and ($mutNoGuard -ne $codeNoComments) -and ($mutRegisters -ne $codeNoComments))
+
 Check ('across every run above the system sshd was NEVER started or given a startup type (Start-Service ' + $script:startTotal + ' times, Set-Service ' + $script:setTotal + ' times)') ($script:startTotal -eq 0 -and $script:setTotal -eq 0)
 $env:ProgramData = $origProgramData
 

@@ -1337,7 +1337,16 @@ try {
         $haveSshTask = [bool](Get-ScheduledTask -TaskName $SshTaskName -ErrorAction SilentlyContinue)
         $wantSsh = ($Action -eq 'Install' -and [bool]$SshIntoSd) -or ($Action -eq 'Upgrade' -and ($haveSshTask -or $script:oldBlockRemoved))
         if ($Action -eq 'Upgrade') { Note ('  upgrade: ssh task registered=' + $haveSshTask + '  old route block removed=' + [bool]$script:oldBlockRemoved) }
-        if ($wantSsh) {
+        # 21 Nov 26 - SOLO 86 (outcome audit P3 S2, owner's R2: "an upgrade should not shut or open what the administrator set"; Linux Solo
+        # does the same: ssh off there means no unit, so an upgrade finds nothing to start).  remote.ssh off only DISABLES the task
+        # (the Doors branch above), and Register-SshTask below registers it again ENABLED and starts sshd.  A task found Disabled on an
+        # upgrade is the administrator's own off: it is left disabled, sshd is not started, and nothing is registered.
+        $sshAdminOff = $false
+        if ($Action -eq 'Upgrade' -and $haveSshTask) { $sshAdminOff = ([string](Get-ScheduledTask -TaskName $SshTaskName).State -eq 'Disabled') }
+        if ($wantSsh -and $sshAdminOff) {
+            Note '  upgrade: the ssh task is disabled (remote.ssh off): left as it is, not registered again and sshd not started'
+        }
+        elseif ($wantSsh) {
             # 18 Nov 26 - SOLO 78: the listen address.  Install: the box (open, else local).  Upgrade: what is installed.
             if ($Action -eq 'Install') { $sshListen = if ($SshScope -eq 'open') { 'open' } else { 'local' } }
             else {

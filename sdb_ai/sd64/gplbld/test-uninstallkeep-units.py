@@ -126,6 +126,12 @@ def violations(text):
     # 20 Nov 26 (RELEASE_1.1 367, Linux Solo b5219e1 S.278): the account register too, so a reload can carry the administrator's switches.
     if not re.search(r"RemoveFolderContents\(Root \+ '\\sdsys', '\|[^']*\|accounts\|", keep):
         bad.append('KeepDataOnly: the sdsys keep list does not name accounts, the register (RELEASE_1.1 367)')
+    # 21 Nov 26 (SOLO 87, Linux Solo S.287; the outcome audit's R3): the deny list (solo.policy), the documentation PDFs (pdf) and the PDF reader
+    # allow-list (viewers) are kept too, so a reload does not leave a managed computer's deny list empty or lose the administrator's documents.
+    if not re.search(r"RemoveFolderContents\(Root \+ '\\sdsys', '\|[^']*\|solo\.policy\|pdf\|'", keep):
+        bad.append('KeepDataOnly: the sdsys keep list does not name solo.policy and pdf, the deny list and the documentation (SOLO 87)')
+    if not re.search(r"'\|audit\|audit\.\*\|start\.default\|viewers\|'\)", keep):
+        bad.append('KeepDataOnly: the sdsys keep files do not name viewers, the PDF reader allow-list (SOLO 87)')
     # 5. reload moves, never deletes
     if 'MoveFileW(' not in prep:
         bad.append('PrepareToInstall: the kept data is not moved with MoveFileW')
@@ -188,13 +194,21 @@ m8 = text.replace("if not DataChoseDelete then\n      Extra := ' -KeepHostKey';"
 check('CONTROL: mutation 8 changed the text', m8 != text)
 check('MUTANT: -KeepHostKey on Delete too is flagged', any('KeepHostKey' in x for x in violations(m8)))
 
-m9 = text.replace("voc_removed.saved|$jobs|accounts|'", "voc_removed.saved|accounts|'", 1)
+m9 = text.replace("voc_removed.saved|$jobs|accounts|solo.policy|pdf|'", "voc_removed.saved|accounts|solo.policy|pdf|'", 1)
 check('CONTROL: mutation 9 changed the text', m9 != text)
 check('MUTANT: a Keep that drops the scheduled jobs is flagged', any('$jobs' in x for x in violations(m9)))
 
-m10 = text.replace("voc_removed.saved|$jobs|accounts|'", "voc_removed.saved|$jobs|'", 1)
+m10 = text.replace("voc_removed.saved|$jobs|accounts|solo.policy|pdf|'", "voc_removed.saved|$jobs|solo.policy|pdf|'", 1)
 check('CONTROL: mutation 10 changed the text', m10 != text)
 check('MUTANT: a Keep that drops the register is flagged (RELEASE_1.1 367)', any('register' in x for x in violations(m10)))
+
+m11 = text.replace("accounts|solo.policy|pdf|'", "accounts|'", 1)
+check('CONTROL: mutation 11 changed the text', m11 != text)
+check('MUTANT: a Keep that drops the deny list and the documentation PDFs is flagged (SOLO 87)', any('solo.policy' in x for x in violations(m11)))
+
+m12 = text.replace("'|audit|audit.*|start.default|viewers|'", "'|audit|audit.*|start.default|'", 1)
+check('CONTROL: mutation 12 changed the text', m12 != text)
+check('MUTANT: a Keep that drops the PDF reader allow-list is flagged (SOLO 87)', any('viewers' in x for x in violations(m12)))
 
 print('')
 if passed == 0:
