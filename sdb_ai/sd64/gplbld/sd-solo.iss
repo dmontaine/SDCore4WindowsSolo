@@ -125,6 +125,11 @@ UninstallDisplayName={#AppName} {#AppVer}
 ; 19 Nov 26 - RELEASE_1.1 356 (sit6, owner): a reinstall skips every page before Ready, so Ready is the first page and has no Back
 ; button, while Inno's stock ReadyLabel2a still says "or click Back if you want to review or change any settings".  True either way:
 ReadyLabel2a=Click Install to continue with the installation.
+; 21 Nov 26 - SOLO 90 (sit12, owner: Inno's stock text "The application may be launched by selecting the installed shortcuts" - "a user would not
+; know what that means"): a plain result line and where to start it, as SD Core's own closing page opens "SD Core is installed.".  The
+; shortcut's name is the [Icons] one.  Results only (the installer-text rule); a failed step or a note still replaces or adds to it (CurPageChanged).
+FinishedLabel=SD Core Solo is installed.%nStart it from the Start menu: SD Core Solo.
+FinishedLabelNoIcons=SD Core Solo is installed.
 
 [Tasks]
 ; 27 Sep 26 - RULING 24: NO "Add to PATH" BOX AND NO "Install Python" BOX.  The
@@ -874,6 +879,21 @@ var
   Missing: String;
 begin
   UseWindowsPowerShellModules;
+  { 21 Nov 26 - SOLO 88 (VM sit12, owner: "a standard windows user could start the install and then not be able to finish it because of the
+    elevation password late in the install").  This installer runs as the user (PrivilegesRequired=lowest) and asks for elevation only at the
+    machine step, after every page and the files.  Solo assumes an administrator account (owner, 6 Oct), so a user who is not a member of
+    Administrators - a split token or not: IsAdmin, which is Inno's renamed IsAdminLoggedOn (ISCC 6 says so) and tests membership of the
+    group, not elevation, so an administrator who has not elevated passes (NOT YET MEASURED: a witness owed on a split-token administrator
+    and a standard account) - is refused here, before anything is written, in one line of what to do.  The reason is in the Solo
+    documentation (installer-text rule).  SuppressibleMsgBox, so a silent install is refused without waiting for a click. }
+  if not IsAdmin then
+  begin
+    Log('SD Core Solo: NOT INSTALLED - the user is not a member of Administrators');
+    SuppressibleMsgBox('SD Core Solo was not installed.' + #13#10#13#10 + 'Sign in with an Administrator account and run Setup again.',
+                       mbError, MB_OK, IDOK);
+    Result := False;
+    Exit;
+  end;
   { 2 Oct 26 - SOLO 28.  THERE IS NO REFUSAL HERE ANY MORE.  This used to stop with "SD Core is installed
     on this computer. Uninstall it first." when the multi-user product's uninstall key or its sd.exe
     was present.  The reasons recorded for it - shared pipe and program names, semaphores - were gone by

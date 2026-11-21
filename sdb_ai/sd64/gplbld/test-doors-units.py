@@ -182,8 +182,30 @@ def chk_page_wait(page):
     return []
 
 
+def chk_sshmode(doors):
+    """SOLO 85 and SOLO 89 (VM sit12, 21 Nov 26): -Show reads the ssh door's state by who is asking.  An elevated caller is shown the
+    SYSTEM task, so no task and a quiet port is 'notsetup' whatever the kept machine ssh folder holds (SOLO 85: the folder made a
+    second Keep note ssh=local); an unelevated caller is not shown it, so the folder with a quiet port is an off task (SOLO 89)."""
+    code = "\n".join(ps_code(doors))
+    probs = []
+    if "$elevated = (New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)" not in code:
+        probs.append("-Show does not ask whether it is elevated")
+    if "$sshUp = Test-Listening $SshPort" not in code:
+        probs.append("-Show does not sample the ssh port once")
+    a = "if (-not $t -and -not $sshUp -and ($elevated -or -not $folder)) { Write-Output 'ssh mode: notsetup' }"
+    b = "elseif (-not $t -and -not $sshUp) { Write-Output 'ssh mode: off' }"
+    c = "elseif ($t -and -not $t.Enabled) { Write-Output 'ssh mode: off' }"
+    pos = [code.find(x) for x in (a, b, c)]
+    if min(pos) < 0 or not (pos[0] < pos[1] < pos[2]):
+        probs.append("the ssh mode tests are missing or out of order (positions %s)" % pos)
+    if code.find("$elevated = ") > code.find("$t = Get-Task $SshTaskName"):
+        probs.append("the elevation is asked after the task is read")
+    return probs
+
+
 def all_checks(t):
     return {
+        "S": chk_sshmode(t["doors"]),
         "N": chk_cim(ps_code(t["doors"]), "solo-doors.ps1") + chk_cim(basic_code(t["verb"]), "remotedoor"),
         "F": chk_firewall(t["doors"], [("api-firewall.ps1", t["apifw"]), ("solo-ssh-firewall.ps1", t["sshfw"])]),
         "T": chk_task(t["doors"], t["machine"], t["verb"]),
@@ -217,9 +239,10 @@ def main():
              "T": "one doors task name in solo-machine.ps1, solo-doors.ps1 and remotedoor",
              "A": "the proof's message is built the same way by the verb and the helper",
              "R": "the request keys the verb writes are the ones the helper reads",
-             "W": "a wait line before each PowerShell wait, in the verb and on the page"}
+             "W": "a wait line before each PowerShell wait, in the verb and on the page",
+             "S": "the ssh mode is read by who asks: elevated sees no task as not set up, unelevated reads a kept folder with a quiet port as off"}
     real = all_checks(t)
-    for k in "NFTARW":
+    for k in "NFTARWS":
         row(k + "  " + names[k], not real[k], "; ".join(real[k])[:400])
 
     # the controls: one planted fault each; the check it aims at must refuse it
@@ -236,6 +259,11 @@ def main():
         ("R", "doors", "req['proof']", "req['proofs']"),
         ("W", "verb", "display sysmsg(12981)", "crt ''"),
         ("W", "page", "msg = sysmsg(15150)", "msg = ''"),
+        ("S", "doors", "($elevated -or -not $folder)", "(-not $folder)"),
+        ("S", "doors", "    elseif (-not $t -and -not $sshUp) { Write-Output 'ssh mode: off' }\n", ""),
+        ("S", "doors", "$sshUp = Test-Listening $SshPort", "$sshUp = $false"),
+        ("S", "doors", "$elevated = (New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)",
+                       "$elevated = $true"),
     ]
     for k, key, old, new in planted:
         m, changed = mutant(t, key, old, new)

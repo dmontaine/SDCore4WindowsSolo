@@ -190,11 +190,18 @@ function Show-Doors {
     Write-Output ('api listening: ' + $(if (Test-Listening $ApiPort) { 'yes' } else { 'no' }))
 
     # ssh: Solo's own sshd, run by a SYSTEM task; not set up at all when there is no task.
-    # An unelevated caller may not be shown a SYSTEM task (not measured), so "not set up" also needs the machine ssh folder absent
-    # and nothing on the port; a task that cannot be seen while either is there reads as set up.
+    # 21 Nov 26 - SOLO 85 and SOLO 89 (VM sit12).  An ELEVATED caller is shown the SYSTEM task, so for it no task is "not set up", whatever
+    # the machine ssh folder holds: a Keep keeps that folder for the host key, and the old test read it as set up, so a second Keep would
+    # have noted ssh=local and turned ssh on.  An UNELEVATED caller is NOT shown the task (measured: a Disabled task came back as no task),
+    # so for it the folder (ssh was set up once) with nothing on the port stands for an off task; it was reported as local, and the verb
+    # then said "ssh is local ... nothing listens" right after remote.ssh off.  The one wrong reading left: an enabled task whose sshd has
+    # not started yet (seconds after boot) reads off to an unelevated caller.  A task that cannot be seen while sshd listens reads as set up.
+    $elevated = (New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     $t = Get-Task $SshTaskName
     $folder = Test-Path -LiteralPath (Join-Path $env:ProgramData 'SDCoreSolo\ssh')
-    if (-not $t -and -not $folder -and -not (Test-Listening $SshPort)) { Write-Output 'ssh mode: notsetup' }
+    $sshUp = Test-Listening $SshPort
+    if (-not $t -and -not $sshUp -and ($elevated -or -not $folder)) { Write-Output 'ssh mode: notsetup' }
+    elseif (-not $t -and -not $sshUp) { Write-Output 'ssh mode: off' }
     elseif ($t -and -not $t.Enabled) { Write-Output 'ssh mode: off' }
     else {
         # 18 Nov 26 - SOLO 78: open only when sshd listens on more than 127.0.0.1 (its config's ListenAddress) AND the rule is

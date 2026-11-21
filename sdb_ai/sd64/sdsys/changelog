@@ -3,6 +3,18 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+21 Nov 26  THE INSTALLER STOPS AT THE START FOR AN ACCOUNT THAT IS NOT AN ADMINISTRATOR, AND ITS LAST PAGE SAYS WHAT HAPPENED.
+
+             What        - Setup now stops before it writes anything when the Windows account is not a member of the
+                           Administrators group ("SD Core Solo was not installed. Sign in with an Administrator account
+                           and run Setup again."); it used to go on to the elevation prompt near the end, which a standard
+                           account could not answer.  The last page says "SD Core Solo is installed." and where to start
+                           it (the Start menu), in place of Windows' stock sentence about shortcuts.  After remote.ssh
+                           off, the report says ssh is off (it said local and "nothing listens"), and a second Keep
+                           keeps ssh off.
+             Why         - A user should find out at the start, not at the end, that the install cannot finish.
+             Does NOT    - Need an elevated window: an administrator's ordinary window is enough.
+
 21 Nov 26  A REINSTALL THAT RELOADS YOUR KEPT DATA BRINGS THE API AND SSH BACK AS THEY WERE.
 
              What        - When you uninstall and choose Keep, the uninstaller now notes whether the API and ssh were off,

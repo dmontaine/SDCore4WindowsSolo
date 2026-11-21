@@ -128,6 +128,37 @@ def violations(text):
         bad.append('the failure dialog is gone or its wording changed')
     if "Log('SD Core Solo: steps not completed: '" not in step:
         bad.append('the failure is not written to the setup log')
+
+    # 7. SOLO 90 (sit12, 21 Nov 26): a clean install's page says what happened and where to start it, not Inno's stock "The application
+    # may be launched by selecting the installed shortcuts"; the shortcut it names is the [Icons] one.
+    msgs = re.search(r'(?ms)^\[Messages\]\s*\n(.*?)(?=^\[)', text)
+    ms = msgs.group(1) if msgs else ''
+    fl = re.search(r'(?m)^FinishedLabel=(.*)$', ms)
+    fn = re.search(r'(?m)^FinishedLabelNoIcons=(.*)$', ms)
+    icon = re.search(r'(?m)^Name:\s*"\{userprograms\}\\([^"]+)"', text)
+    if not fl or 'SD Core Solo is installed.' not in fl.group(1):
+        bad.append('[Messages] FinishedLabel is not a plain result line ("SD Core Solo is installed.")')
+    elif not icon or ('Start menu: ' + icon.group(1).strip() + '.') not in fl.group(1).replace('%n', ' '):
+        bad.append('the finish text does not name the Start menu shortcut of [Icons]')
+    if not fn or 'SD Core Solo is installed.' not in fn.group(1):
+        bad.append('[Messages] FinishedLabelNoIcons is not a plain result line')
+
+    # 8. SOLO 88 (sit12, 21 Nov 26): a user who cannot elevate is refused at the START, before anything is sampled or written; the test is
+    # membership of Administrators (IsAdmin, Inno 6's name for IsAdminLoggedOn: a split-token administrator is NOT elevated, so the
+    # elevation test, IsAdminInstallMode, would refuse them - it is False under PrivilegesRequired=lowest),
+    # and the box is suppressible so a silent install does not wait for a click.
+    init = strip_comments(body(text, 'function', 'InitializeSetup'))
+    m8 = re.search(r'(?s)if\s+not\s+IsAdmin\s+then\s*begin(.*?)\bend;', init)
+    if not m8:
+        bad.append('InitializeSetup has no "if not IsAdmin then begin ... end;" refusal (a standard account would get as far as the elevation prompt)')
+    else:
+        r = m8.group(1)
+        if 'SuppressibleMsgBox' not in r or 'Result := False' not in r or 'Exit;' not in r:
+            bad.append('the administrator refusal does not show a suppressible box and stop (Result := False; Exit;)')
+        if "Log('SD Core Solo: NOT INSTALLED" not in r:
+            bad.append('the administrator refusal is not written to the setup log')
+        if m8.start() > init.find('DataTreeWasAbsent :=') or m8.start() > init.find('LoadControlFile'):
+            bad.append('the administrator refusal comes AFTER the first sampling or the control file is read (it must be the start)')
     return bad
 
 
@@ -155,6 +186,21 @@ def mutate(text, what):
         return t.replace('  { SOLO 37: where the old folder went.', blk + '  { SOLO 37: where the old folder went.', 1)
     if what == 'dialog gone':
         return text.replace("MsgBox('These steps did not complete:'", "MsgBox('Steps failed:'", 1)
+    if what == 'stock finish text':
+        return text.replace('FinishedLabel=SD Core Solo is installed.%nStart it from the Start menu: SD Core Solo.\n', '', 1)
+    if what == 'wrong shortcut':
+        return text.replace('Start it from the Start menu: SD Core Solo.', 'Start it from the Start menu: SD Core.', 1)
+    if what == 'no icon-less text':
+        return text.replace('FinishedLabelNoIcons=SD Core Solo is installed.\n', '', 1)
+    if what == 'no admin test':
+        return text.replace('  if not IsAdmin then\n', '  if False then\n', 1)
+    if what == 'elevated only':
+        return text.replace('  if not IsAdmin then\n', '  if not IsAdminInstallMode then\n', 1)
+    if what == 'admin test late':
+        t = text.replace('  if not IsAdmin then\n', '  if False then\n', 1)
+        return t.replace('  GlobalWasFound := FileExists(SoloRoot', '  if not IsAdmin then\n  begin\n    Result := False;\n    Exit;\n  end;\n  GlobalWasFound := FileExists(SoloRoot', 1)
+    if what == 'blocking box':
+        return text.replace("    SuppressibleMsgBox('SD Core Solo was not installed.' + #13#10#13#10 + 'Sign in with", "    MsgBox('SD Core Solo was not installed.' + #13#10#13#10 + 'Sign in with", 1)
     if what == 'no fit':
         return text.replace('  if CurPageID = wpFinished then\n    WizardForm.FinishedLabel.AdjustHeight;\n', '', 1)
     if what == 'fit too early':
@@ -190,7 +236,14 @@ def main():
             ('after the appends', 'AFTER the sentences'),
             ('dialog gone', 'dialog is gone'),
             ('no fit', 'is not fitted'),
-            ('fit too early', 'fitted BEFORE')):
+            ('fit too early', 'fitted BEFORE'),
+            ('stock finish text', 'FinishedLabel is not a plain result line'),
+            ('wrong shortcut', 'does not name the Start menu shortcut'),
+            ('no icon-less text', 'FinishedLabelNoIcons'),
+            ('no admin test', 'has no "if not IsAdmin'),
+            ('elevated only', 'has no "if not IsAdmin'),
+            ('admin test late', 'comes AFTER'),
+            ('blocking box', 'suppressible box')):
         m = mutate(text, what)
         control = m != text
         check('CONTROL: the mutant "' + what + '" differs from the real file', control)
