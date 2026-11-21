@@ -35,7 +35,10 @@ $text = [IO.File]::ReadAllText($src)
 # Strip comment lines so a sentence ABOUT the old code does not read as the old code.
 $code = (($text -split "`n") | Where-Object { $_ -notmatch '^\s*#' }) -join "`n"
 Check 'no code writes a "Match User" line any more' ($code -notmatch "Match User")
-Check 'no code sets the system sshd service to start at boot (no -StartupType Automatic, no Set-Service sshd)' ($code -notmatch 'StartupType\s+Automatic' -and $code -notmatch 'Set-Service\s+sshd')
+# 21 Nov 26 - SOLO 84: the one Set-Service sshd allowed is Close-MsiPort22's "-StartupType Disabled" (a Solo install does not leave port
+# 22 open; test-soloport22-units holds where it is called).  Anything that would make it start is still refused.
+$setSvc = @([regex]::Matches($code, 'Set-Service\s+sshd[^\r\n]*') | ForEach-Object { $_.Value })
+Check 'no code sets the system sshd service to start at boot (no -StartupType Automatic; the only Set-Service sshd is -StartupType Disabled)' ($code -notmatch 'StartupType\s+Automatic' -and $setSvc.Count -le 1 -and @($setSvc | Where-Object { $_ -notmatch '^Set-Service sshd -StartupType Disabled\b' }).Count -eq 0)
 # The lookbehinds matter: "Restart-Service sshd" - which Remove-OldSshBlock runs, deliberately, only after it
 # really removed a block - contains "start-Service sshd", and "solo-ssh-firewall.ps1" contains "ssh-firewall.ps1".
 Check 'no code starts the system sshd service (no Start-Service sshd)' ($code -notmatch '(?<![A-Za-z])Start-Service\s+sshd')

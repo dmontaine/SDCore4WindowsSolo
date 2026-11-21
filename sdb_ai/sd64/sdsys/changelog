@@ -3,6 +3,15 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+21 Nov 26  A SOLO INSTALL NO LONGER LEAVES PORT 22 OPEN.
+
+             What        - When the installer installs the OpenSSH server (the computer had none), Microsoft's
+                           package starts Windows' own ssh server on port 22 and opens a firewall rule for it.
+                           The installer now stops that server, sets it to Disabled and turns the rule off; Solo's
+                           own ssh server keeps running on 4251 from the same programs.  If port 22 was already
+                           open before the install, it is left exactly as it was.
+             Why         - Solo does not use port 22, so a Solo install should not open it.
+
 20 Nov 26  TOOL.JOBS' HELP LINES FIT THE BOX.
 
              What        - The three help lines at the foot of tool.jobs are shorter, so none is cut at the edge of the

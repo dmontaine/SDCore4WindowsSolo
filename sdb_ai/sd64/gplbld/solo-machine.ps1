@@ -327,12 +327,21 @@ function Remove-OldSshBlock {
 # Microsoft's Win32-OpenSSH MSI page.  SOLO 28: all Solo needs from it is sshd.exe and
 # ssh-keygen.exe - its own sshd runs from them (solo-sshd.ps1).  It does NOT need the system sshd
 # SERVICE, a rule for port 22 or a system sshd_config, so this no longer starts the service to wait
-# for a config, and no longer makes Microsoft's rule when the MSI did not; what the MSI did is
-# reported, not changed.  (Port 22 and that sshd are the full product's.)
+# for a config, and no longer makes Microsoft's rule when the MSI did not.  21 Nov 26 - SOLO 84: what
+# the MSI opened on port 22 (its service, its rule) is now CLOSED right after it ran (Close-MsiPort22);
+# a server that was here before Solo is never run over or changed.
 function Install-SshMsi([string]$Msi) {
     if (-not (Test-Path -LiteralPath $Msi)) { Fail ('the OpenSSH MSI is not at ' + $Msi); return }
     $existing = Find-Sshd
     if ($existing) { Note ('  an ssh server is already here (' + $existing + '); the MSI was not run'); return }
+    # 21 Nov 26 - SOLO 84 (the owner: "if 22 is already open at the time of the install we do not manage it"): port 22's state BEFORE
+    # the MSI - something listening on it, or an enabled inbound rule for it.  Open before: Solo leaves it entirely to whoever opened it.
+    $was22 = @(Get-NetTCPConnection -State Listen -LocalPort 22 -ErrorAction SilentlyContinue).Count -gt 0
+    if (-not $was22) {
+        $was22 = @(Get-NetFirewallRule -Direction Inbound -Enabled True -ErrorAction SilentlyContinue | Where-Object {
+            @($_ | Get-NetFirewallPortFilter -ErrorAction SilentlyContinue | Where-Object { [string]$_.LocalPort -eq '22' }).Count -gt 0 }).Count -gt 0
+    }
+    Note ('  port 22    : ' + $(if ($was22) { 'ALREADY OPEN before the MSI (listening or an enabled rule) - Solo will not manage it' } else { 'closed before the MSI' }))
     Note ('  msi sha256 : ' + (Get-FileHash -LiteralPath $Msi -Algorithm SHA256).Hash + '   ' + (Get-Item -LiteralPath $Msi).Length + ' bytes')
     $log = Join-Path $env:TEMP 'sd-solo-openssh-msi.log'
     $msiexec = Join-Path $env:SystemRoot 'System32\msiexec.exe'
@@ -350,10 +359,36 @@ function Install-SshMsi([string]$Msi) {
     if (-not (Test-Path -LiteralPath $keygen)) { Fail 'the OpenSSH MSI left no ssh-keygen.exe beside sshd.exe, which Solo needs to make its host key'; return }
     $rule = @(Get-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -ErrorAction SilentlyContinue) +
             @(Get-NetFirewallRule -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'OpenSSH SSH Server*' -and $_.Direction -eq 'Inbound' })
-    if ($rule.Count -gt 0) { Note ('  firewall   : the MSI made ' + $rule[0].Name + ' for port 22 - left as it is, Solo does not use port 22') }
+    if ($rule.Count -gt 0) { Note ('  firewall   : the MSI made ' + $rule[0].Name + ' for port 22 - Solo does not use port 22, so it is turned off below') }
     else { Note '  firewall   : the MSI made no rule for port 22, and none was made - Solo does not use port 22' }
-    Note '  the system sshd service is not used by Solo; it was left as the MSI left it'
     Note '  PASS  OpenSSH server programs installed'
+    if ($was22) { Note '  port 22 was open before this install: left as it is (Solo does not manage a port it did not open)' }
+    else { Close-MsiPort22 }
+}
+
+# 21 Nov 26 - SOLO 84.  The owner, 21 Nov 2026: "Since we use non-standard ports in solo, we can assume that if they are open we have done
+# it.  Port 22 should not be opened by a solo install as we dont use it."  Microsoft's MSI starts the system sshd SERVICE on port 22 and
+# opens its rule (sit9: Running/Automatic, rule enabled); Solo's own sshd runs sshd.exe from its own task on 4251 and needs neither.  So,
+# called ONLY right after Solo's installer ran the MSI itself (a server that was already here returns earlier and is never touched): the
+# system sshd is stopped and set Disabled, and the MSI's port-22 rule disabled, then read back.  The programs stay installed.
+function Close-MsiPort22 {
+    $svc = Get-Service sshd -ErrorAction SilentlyContinue
+    if ($svc) {
+        if ($svc.Status -ne 'Stopped') { Stop-Service sshd -Force -ErrorAction SilentlyContinue }
+        Set-Service sshd -StartupType Disabled -ErrorAction SilentlyContinue
+    }
+    $rules = @(Get-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -ErrorAction SilentlyContinue) +
+             @(Get-NetFirewallRule -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'OpenSSH SSH Server*' -and $_.Direction -eq 'Inbound' -and $_.Name -ne 'OpenSSH-Server-In-TCP' })
+    foreach ($r in $rules) { Disable-NetFirewallRule -Name $r.Name -ErrorAction SilentlyContinue }
+    $svc = Get-Service sshd -ErrorAction SilentlyContinue
+    $on = @(foreach ($r in $rules) { Get-NetFirewallRule -Name $r.Name -ErrorAction SilentlyContinue | Where-Object { [string]$_.Enabled -eq 'True' } })
+    $listen = @(Get-NetTCPConnection -State Listen -LocalPort 22 -ErrorAction SilentlyContinue)
+    Note ('  system sshd: ' + $(if ($svc) { [string]$svc.Status + ', ' + $svc.StartType } else { 'NONE' }) + '   port-22 rules: ' + $rules.Count + ' found, ' + $on.Count + ' still enabled   listening on 22: ' + $listen.Count)
+    if (($svc -and ($svc.Status -ne 'Stopped' -or [string]$svc.StartType -ne 'Disabled')) -or $on.Count -gt 0 -or $listen.Count -gt 0) {
+        Fail 'port 22, which the OpenSSH MSI opened, is not closed (the system sshd stopped and Disabled, its rule off)'
+        return
+    }
+    Note '  PASS  port 22 is closed: the system sshd the MSI started is stopped and Disabled, its port-22 rule is off (Solo uses 4251)'
 }
 
 # ---- the startup task ---------------------------------------------------------
