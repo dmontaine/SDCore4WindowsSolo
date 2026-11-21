@@ -97,6 +97,7 @@ function Mask([string]$t) {
     return $t
 }
 function Read-Password([string]$Prompt) {
+    try { $Host.UI.RawUI.FlushInputBuffer() } catch { }   # RELEASE_1.1 372: typed-ahead keys are thrown away, not taken into the password
     $ss = Read-Host -AsSecureString $Prompt
     $b = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($ss)
     try { return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($b) } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b) }

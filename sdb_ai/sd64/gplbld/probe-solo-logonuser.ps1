@@ -96,6 +96,7 @@ if ($c.Ok -or $c.Code -ne 1326) {
     $pass = $false
 }
 
+try { $Host.UI.RawUI.FlushInputBuffer() } catch { }   # RELEASE_1.1 372: typed-ahead keys are thrown away, not taken into the password
 $secret = Read-Host -AsSecureString ('Windows password for ' + $domain + '\' + $user + ' (not shown)')
 if ($secret.Length -eq 0) { 'nothing typed - no real attempt made'; exit 2 }
 $r = Test-Logon $user $domain $secret
