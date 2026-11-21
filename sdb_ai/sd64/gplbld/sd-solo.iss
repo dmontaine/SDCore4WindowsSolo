@@ -1638,58 +1638,20 @@ begin
     Log('RetiredConf: COULD NOT rewrite sd.conf, which still names:' + Removed);
 end;
 
-{ 17 Nov 26 - four-version audit round 4 (P-4944, P-7810), Linux Solo's default_screentheme (S.117).  THE DELIVERED SCREEN THEME IS
-  PAPER, and a kept sd.conf may be from before that line: a kept file with no SCREENTHEME line gets SCREENTHEME=paper after its [sd]
-  line, once.  A file that has a SCREENTHEME line is left exactly as it is: the line is the user's choice (Solo never delivered another
-  value, so there is nothing to convert, where SD Core changes its own delivered blue).  A file with no [sd] section is left alone and
-  the log says so.  Beside RemoveRetiredConf and for the same reason (sd.conf is onlyifdoesntexist, so only a kept file can be old); a
-  new tree has no file yet and nothing is done.  solo-setup.ps1 does the same for a reloaded sd.conf. }
-procedure UpgradeScreenTheme;
-var
-  Lines, NewLines: TArrayOfString;
-  I, N, At: Integer;
-  Conf: String;
-begin
-  Conf := ExpandConstant('{app}\sd.conf');
-  if not LoadStringsFromFile(Conf, Lines) then
-    Exit;
-  N := GetArrayLength(Lines);
-  At := -1;
-  for I := 0 to N - 1 do
-  begin
-    if Copy(Lines[I], 1, 12) = 'SCREENTHEME=' then
-      Exit;
-    if (At < 0) and (Copy(Lines[I], 1, 4) = '[sd]') then
-      At := I;
-  end;
-  if At < 0 then
-  begin
-    Log('ScreenTheme: sd.conf has no [sd] section: SCREENTHEME was not added (the full-screen pages use the plain look)');
-    Exit;
-  end;
-  SetArrayLength(NewLines, N + 1);
-  for I := 0 to At do
-    NewLines[I] := Lines[I];
-  NewLines[At + 1] := 'SCREENTHEME=paper';
-  for I := At + 1 to N - 1 do
-    NewLines[I + 1] := Lines[I];
-  if SaveStringsToFile(Conf, NewLines, False) then
-    Log('ScreenTheme: added SCREENTHEME=paper (the kept sd.conf had no SCREENTHEME line)')
-  else
-    Log('ScreenTheme: COULD NOT rewrite sd.conf; SCREENTHEME=paper was not added');
-end;
+{ 21 Nov 26 - UpgradeScreenTheme (17 Nov, P-4944, Linux Solo S.117: a kept sd.conf with no SCREENTHEME line got paper after its [sd]
+  line) IS REMOVED.  The owner, chat 21 Nov 2026, on the same one-time change in SD Core: "Each user can change their theme, I would
+  think they would get their existing theme back."  A kept sd.conf is left exactly as it is, with or without a SCREENTHEME line; the
+  delivered paper is the shipped sd.conf's, written only on a NEW tree.  solo-setup.ps1 no longer adds it to a reloaded sd.conf either. }
 
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   Params, ReportPath, Extra, Failed: String;
   Code: Integer;
 begin
-  { 9 Nov 26 - RELEASE_1.1 197: see RemoveRetiredConf.  17 Nov 26 - P-4944: and a kept sd.conf with no SCREENTHEME line gets the
-    delivered paper (see UpgradeScreenTheme). }
+  { 9 Nov 26 - RELEASE_1.1 197: see RemoveRetiredConf. }
   if CurStep = ssInstall then
   begin
     RemoveRetiredConf;
-    UpgradeScreenTheme;
   end;
 
   if CurStep <> ssPostInstall then

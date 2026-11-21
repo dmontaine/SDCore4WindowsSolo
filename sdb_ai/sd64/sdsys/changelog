@@ -195,9 +195,9 @@ of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
 17 Nov 26  THE PAPER LOOK ON AN UPGRADE; /OSACCESS ON AN UPGRADE; A PUBLIC KEY IN THE INSTALL FILE; A CUT AUDIT RECORD ENDS ITS LINE.
 
-             What        - an upgrade (or a reload of kept data) adds SCREENTHEME=paper to a kept sd.conf that has no
-                           SCREENTHEME line, so the full-screen pages get the delivered look; a SCREENTHEME line
-                           already there is left as it is.
+             What        - (Withdrawn 21 Nov 26: an upgrade or a reload of kept data no longer adds SCREENTHEME=paper to a
+                           kept sd.conf that has no SCREENTHEME line.  The kept sd.conf is left exactly as it is, and
+                           each user keeps the theme they chose.)
                          - the installer takes /OSACCESS=none, sh, os or both on its command line.  On an upgrade it
                            turns on what it names and turns nothing off; with no /OSACCESS an upgrade keeps the
                            installation's switches.  On a new installation it wins over the install file's os-access.

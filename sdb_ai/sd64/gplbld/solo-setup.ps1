@@ -557,20 +557,9 @@ try {
                 [System.IO.File]::WriteAllLines($conf, [string[]]$confKept)
                 Note ('  configuration: ' + ($confLines.Count - $confKept.Count) + ' retired parameter line(s) taken out of the copy being tried')
             }
-            # 17 Nov 26 - four-version audit round 4 (P-4944), Linux Solo's default_screentheme, as sd-solo.iss UpgradeScreenTheme: a
-            # kept sd.conf with no SCREENTHEME line gets SCREENTHEME=paper after its [sd] line; one that has the line is left as it is.
-            $confLines = @(Get-Content -LiteralPath $conf)
-            if (-not @($confLines | Where-Object { $_ -cmatch '^SCREENTHEME=' }).Count) {
-                $at = -1
-                for ($i = 0; $i -lt $confLines.Count; $i++) { if ($confLines[$i] -cmatch '^\[sd\]') { $at = $i; break } }
-                if ($at -lt 0) { Note '  configuration: the kept sd.conf has no [sd] section, SCREENTHEME was not added' }
-                else {
-                    $themed = @($confLines[0..$at]) + 'SCREENTHEME=paper'
-                    if ($at + 1 -lt $confLines.Count) { $themed += @($confLines[($at + 1)..($confLines.Count - 1)]) }
-                    [System.IO.File]::WriteAllLines($conf, [string[]]$themed)
-                    Note '  configuration: SCREENTHEME=paper added to the copy being tried (the kept file had no SCREENTHEME line)'
-                }
-            }
+            # 21 Nov 26 - the 17 Nov step that added SCREENTHEME=paper to a kept sd.conf with no such line (P-4944, Linux Solo S.117) is
+            # REMOVED: the owner, chat 21 Nov, "Each user can change their theme, I would think they would get their existing theme back."
+            # The kept sd.conf's theme is left exactly as it is.
             # SOLO 33: THE KEPT sd.conf MAY CARRY AN ACTIVE APIPORT, and this unelevated step starts SD before the
             # firewall rule exists - the alert the installer was changed to avoid.  So the API line is switched OFF in
             # the copy being tried; the elevated step switches it ON afterwards only if the API box was ticked.
