@@ -18,6 +18,7 @@
 	  * 
 	  * 
 	  * START-HISTORY:
+	  * 21 Nov 26 SD Core Solo - from Core 0c86ee33 (Linux 2ca433b7, S.297, Windows row 372): a hidden or no-echo prompt read from the keyboard clears the type-ahead first.
 	  * 8 Nov 26 Windows port - from Linux cf405b48 (S.87 batch 14): INPUT ... NOCASEINVERT and the PTERM CASE save and restore are gone with case inversion.
 	  * 18 Oct 26 Windows port - from Linux 5f02bae (12 Oct 26): PTERM ERASE names the erase key (or none) and PTERM CTRL.FILTER discards
 	  *           control characters (openQM 253).
@@ -147,6 +148,12 @@
       if bitand(flags, IN$IF) then
          if not(len(data.queue) and use.data.queue) and not(keyready()) then nothing.waiting = 1
       end
+
+*     21 Nov 26 SD Core Solo - WINDOWS ROW 372, carried from SD Core for Windows 0c86ee33 (Linux 2ca433b7, S.297; Linux Solo c2d5f21): A PASSWORD
+*     PROMPT NEVER STARTS WITH WHAT WAS TYPED BEFORE IT.  When the characters will be read from the keyboard (nothing is taken from the DATA queue)
+*     and they are not echoed (INPUT ... HIDDEN, or no echo), the type-ahead is thrown away first.  A piped input is left alone (clearinput does
+*     nothing on a pipe: it is a script's answers).
+      if (password or no.echo) and not(nothing.waiting) and not(len(data.queue) and use.data.queue) then clearinput
 
       if len(prompt()) and not(nothing.waiting) then display prompt() :
 

@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 21 Nov 26 SD Core Solo - from Core 0c86ee33 (Linux 2ca433b7, S.297, Windows row 372): discard_typeahead(): CLEARINPUT leaves a piped input alone.
  * 21 Nov 26 SD Core Solo - RELEASE_1.1 382: log_termination_signal() writes the error log only, not the user's screen.
  * 18 Nov 26 SD Core Solo - four-version audit round 3 (P-3082, P-3083, P-5448, P-5449): the TCP peer's address is read in Linux's
  *            code form, as SD Core for Windows: the failure test first, "?" on a failed inet_ntop() with no process.status.
@@ -680,6 +681,22 @@ bool write_console(char *p, int bytes) {
   }
 
   return TRUE;
+}
+
+/* ======================================================================
+   discard_typeahead()  -  throw away what was typed before it was asked for
+
+   21 Nov 26  Windows row 372, carried from SD Core for Windows 0c86ee33 (Linux 2ca433b7, S.297; Linux Solo c2d5f21): CLEARINPUT was
+   `while (keyready()) keyin(0)`, and keyready() answers TRUE for ever when the input is a PIPE, so on a pipe it never finished and ate the
+   stream.  A pipe holds the answers a script is giving, not type-ahead, so it is left alone.  Used by CLEARINPUT, and through it by
+   gpl.bp/_input before it reads a password.                                                                                      */
+
+void discard_typeahead() {
+  if (piped_input)
+    return;
+
+  while (keyready())
+    keyin(0);
 }
 
 /* ======================================================================

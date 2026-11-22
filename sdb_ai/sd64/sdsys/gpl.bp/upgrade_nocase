@@ -41,6 +41,8 @@
 * cased, because @sdsys carries backslashes where @ds is '/'.
 *
 * START-HISTORY:
+* 21 Nov 26 SD Core Solo - as Linux Solo c2d5f21 (S.296, Windows row 377): a file under SDSYS that is already case insensitive is not counted or
+*           named (a read only open reads FL$FLAGS); one that is not, or cannot be opened, still is.
 * 17 Nov 26 SD Core Solo - four-version audit round 4 (P-7894): the VOC's own conversion keeps Linux Solo's "if not(this.is.sdsys)"
 *           guard.  Same result: this.is.sdsys is false in the Solo walk.
 * 18 Nov 26 SD Core Solo - four-version audit round 3 (P-5661): carried from SD Core for Windows' program (17 Nov 26) in Linux
@@ -225,6 +227,20 @@ convert.one:
    if not(ospath(one.real : '/%0', OS$EXISTS)) then return   ;* a directory file, or nothing there: silent
    in.sds = (one.key[1, len(sds.real) + 1] = sds.real : '/') or (one.key[1, len(sds.raw) + 1] = sds.raw : '/')
    if in.sds then
+* 21 Nov 26 SD Core Solo - WINDOWS ROW 377, as Linux Solo c2d5f21 (S.296, from SD Core 2ca433b7): a file that is ALREADY case insensitive has
+*   nothing left to convert, and SDSYS's own files are, from creation.  Naming them made the closing warning "Some files were not converted"
+*   appear on every Keep reinstall (VM sit12).  The flag is read through a READ ONLY open, which changes nothing, so the file is still never
+*   converted from here; an open that fails leaves the file counted and named, as before.
+      is.nc = 0
+      openpath one.path readonly to chk.fu on error
+         is.nc = 0
+      end then
+         is.nc = bitand(fileinfo(chk.fu, FL$FLAGS), FL$FLAGS.NOCASE)
+         close chk.fu
+      end else
+         is.nc = 0
+      end
+      if is.nc then return
       locate one.real in sds.files<1> setting sds.at else
          sds.count += 1
          if dcount(sds.files, @fm) < twin.list.cap then sds.files<-1> = one.real
