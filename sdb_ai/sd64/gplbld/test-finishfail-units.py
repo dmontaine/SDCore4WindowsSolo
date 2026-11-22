@@ -177,10 +177,16 @@ def violations(text):
             bad.append('the early request does not stop on "if not ElevationGiven"')
         else:
             r9 = re.search(r'if not ElevationGiven then\s*begin(.*?)end;', b9, re.S).group(1)
-            if 'SuppressibleMsgBox' not in r9 or 'Result := False' not in r9 or 'Exit;' not in r9:
-                bad.append('the declined request does not show a suppressible box and stop (Result := False; Exit;)')
+            if 'FrontBox(' not in r9 or 'Result := False' not in r9 or 'Exit;' not in r9:
+                bad.append('the declined request does not show its box in front (FrontBox) and stop (Result := False; Exit;)')
+        # 22 Nov 26 - SOLO 91: both boxes come to the front (VM sit13: the "not installed" box opened behind another window)
+        if not re.search(r"FrontBox\('Setup needs an administrator", b9) or b9.find('FrontBox(') > b9.find('if not ElevationGiven'):
+            bad.append('the box before Windows\' prompt is not shown in front (FrontBox) before ElevationGiven (SOLO 91)')
         if m9.start() > init.find('DataTreeWasAbsent :=') or m9.start() > init.find('LoadControlFile'):
             bad.append('the early request comes AFTER the first sampling or the control file is read (it must be the start)')
+    fb = strip_comments(body(text, 'procedure', 'FrontBox'))
+    if not fb or not re.search(r"MessageBoxW\(0,.*\$40000 or \$10000\)", fb):
+        bad.append('FrontBox does not call MessageBoxW with MB_TOPMOST ($40000) and MB_SETFOREGROUND ($10000) (SOLO 91)')
     return bad
 
 
@@ -233,6 +239,12 @@ def mutate(text, what):
         return text.replace('  UseWindowsPowerShellModules;\n  { 21 Nov 26 - SOLO 88.  THIS INSTALLER NEVER', '  UseWindowsPowerShellModules;\n  if not IsAdminInstallMode then begin Result := False; Exit; end;\n  { 21 Nov 26 - SOLO 88.  THIS INSTALLER NEVER', 1)
     if what == 'refuse by IsAdminLoggedOn':
         return text.replace('  UseWindowsPowerShellModules;\n  { 21 Nov 26 - SOLO 88.  THIS INSTALLER NEVER', '  UseWindowsPowerShellModules;\n  if not IsAdminLoggedOn then begin Result := False; Exit; end;\n  { 21 Nov 26 - SOLO 88.  THIS INSTALLER NEVER', 1)
+    if what == 'box not in front':
+        return text.replace('Kind or $40000 or $10000)', 'Kind)', 1)
+    if what == 'decline box is a plain MsgBox':
+        return text.replace("      FrontBox('SD Core Solo was not installed.'", "      MsgBox('SD Core Solo was not installed.'", 1).replace(
+            "'An administrator''s name and password were not given. Run Setup again when you have them.', True);",
+            "'An administrator''s name and password were not given. Run Setup again when you have them.', mbError, MB_OK);", 1)
     if what == 'no fit':
         return text.replace('  if CurPageID = wpFinished then\n    WizardForm.FinishedLabel.AdjustHeight;\n', '', 1)
     if what == 'fit too early':
@@ -280,7 +292,9 @@ def main():
             ('early request after the sampling', 'comes AFTER'),
             ('refuse by IsAdmin', 'tests IsAdmin'),
             ('refuse by IsAdminInstallMode', 'tests IsAdminInstallMode'),
-            ('refuse by IsAdminLoggedOn', 'tests IsAdminLoggedOn')):
+            ('refuse by IsAdminLoggedOn', 'tests IsAdminLoggedOn'),
+            ('box not in front', 'MB_TOPMOST'),
+            ('decline box is a plain MsgBox', 'in front (FrontBox) and stop')):
         m = mutate(text, what)
         control = m != text
         check('CONTROL: the mutant "' + what + '" differs from the real file', control)

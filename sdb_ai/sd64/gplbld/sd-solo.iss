@@ -912,6 +912,21 @@ begin
                       '-NoProfile -NonInteractive -WindowStyle Hidden -Command "exit 0"', '', SW_HIDE, ewWaitUntilTerminated, Code) and (Code = 0);
 end;
 
+{ 22 Nov 26 - SOLO 91 (VM sit13: after a standard account declined Windows' prompt, the "was not installed" box opened BEHIND another window and
+  the owner thought Setup had "just ended").  At InitializeSetup there is no wizard window yet to own a box, and Windows' prompt has just taken
+  the foreground, so Inno's MsgBox can open behind whatever window was in front.  Windows' own MessageBox with MB_TOPMOST and MB_SETFOREGROUND
+  comes to the front. }
+function MessageBoxW(hWnd: HWND; lpText, lpCaption: String; uType: Cardinal): Integer;
+  external 'MessageBoxW@user32.dll stdcall';
+
+procedure FrontBox(const Text: String; IsError: Boolean);
+var
+  Kind: Cardinal;
+begin
+  if IsError then Kind := $10 else Kind := $40;            { MB_ICONERROR or MB_ICONINFORMATION, with MB_OK (0) }
+  MessageBoxW(0, Text, SetupMessage(msgSetupAppTitle), Kind or $40000 or $10000);   { MB_TOPMOST, MB_SETFOREGROUND }
+end;
+
 function InitializeSetup: Boolean;
 var
   Missing: String;
@@ -926,12 +941,12 @@ begin
   if (not WizardSilent) and AccountIsStandard then
   begin
     Log('SD Core Solo: a standard account; asking for an administrator now');
-    MsgBox('Setup needs an administrator''s name and password to finish. Windows asks for them next.', mbInformation, MB_OK);
+    FrontBox('Setup needs an administrator''s name and password to finish. Windows asks for them next.', False);    { SOLO 91: in front }
     if not ElevationGiven then
     begin
       Log('SD Core Solo: NOT INSTALLED - no administrator name and password were given');
-      SuppressibleMsgBox('SD Core Solo was not installed.' + #13#10#13#10 +
-                         'An administrator''s name and password were not given. Run Setup again when you have them.', mbError, MB_OK, IDOK);
+      FrontBox('SD Core Solo was not installed.' + #13#10#13#10 +
+               'An administrator''s name and password were not given. Run Setup again when you have them.', True);    { SOLO 91: in front }
       Result := False;
       Exit;
     end;
