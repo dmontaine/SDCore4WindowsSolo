@@ -31,11 +31,17 @@
 #            restarting Solo, and XFER is read when SD starts.  xfer now stops and starts Solo after the write and after the put-back.
 # 18 Nov 26  Solo then died when the owner closed his window: -start ran inside his console, so sdwind did too.  Every -start is now
 #            Start-SoloHidden (solo-start.ps1's way).
+# 22 Nov 26  RELEASE_1.1 352: -Client winscp - the xfer section's upload is WinSCP.com's (a 200 KB text file, default transfer settings,
+#            so WinSCP writes NAME.filepart and renames it), with WinSCP's own log kept; PASS: the file arrived under its own name with the
+#            same SHA-256 and no .filepart is left in xfer.in.  The audit lines are shown whole, whatever names they carry.
 # END-HISTORY
 
 param(
     [string[]]$Only = @(),
-    [switch]$List
+    [switch]$List,
+    # 22 Nov 26 - RELEASE_1.1 352: the xfer section's client.  sftp (Windows' sftp.exe, as row 299 was witnessed) or winscp (WinSCP.com,
+    # which uploads a file over 100 KB under a temporary NAME.filepart and renames it when done).
+    [ValidateSet('sftp', 'winscp')] [string]$Client = 'sftp'
 )
 $ErrorActionPreference = 'Stop'
 
@@ -317,6 +323,15 @@ if ($want -contains 'xfer') {
     $sftpExe = Get-Command sftp.exe -ErrorAction SilentlyContinue; $sshExe = Get-Command ssh.exe -ErrorAction SilentlyContinue
     if ($null -eq $sftpExe -or $null -eq $sshExe) { Bail 'no ssh.exe or sftp.exe (Windows'' OpenSSH client) on PATH' }
     Say ('  sftp: ' + $sftpExe.Source + '   ssh: ' + $sshExe.Source + '   (Windows'' own client, not Git''s)')
+    Say ('  upload client: ' + $Client)
+    $winscp = ''
+    if ($Client -eq 'winscp') {
+        foreach ($cand in @((Join-Path $env:LOCALAPPDATA 'Programs\WinSCP\WinSCP.com'), 'C:\Program Files (x86)\WinSCP\WinSCP.com', 'C:\Program Files\WinSCP\WinSCP.com')) {
+            if (Test-Path -LiteralPath $cand) { $winscp = $cand; break }
+        }
+        if (-not $winscp) { Bail 'no WinSCP.com (winget install WinSCP.WinSCP)' }
+        Say ('  WinSCP.com: ' + $winscp + '   version ' + (Get-Item -LiteralPath $winscp).VersionInfo.ProductVersion)
+    }
     if ($sshExe.Source -notmatch '(?i)\\System32\\OpenSSH\\') { Bail ('ssh.exe resolves to ' + $sshExe.Source + ', not Windows'' OpenSSH (memory: Git''s ssh measures the wrong client)') }
     $tcp = New-Object Net.Sockets.TcpClient
     try { $tcp.Connect('127.0.0.1', 4251); Say '  127.0.0.1:4251 accepts a connection (Solo''s sshd is listening)' } catch { Bail 'nothing listens on 127.0.0.1:4251 - Solo''s sshd is not running (ssh off?)' } finally { $tcp.Close() }
@@ -374,6 +389,30 @@ if ($want -contains 'xfer') {
         Start-Sleep -Seconds 4
         $h.P.StandardInput.WriteLine($script:acctPw); $h.P.StandardInput.WriteLine('TERM 200,9999'); $h.P.StandardInput.WriteLine('RECEIVE'); $h.P.StandardInput.Flush()
         Start-Sleep -Seconds 10
+        if ($Client -eq 'winscp') {
+            # RELEASE_1.1 352: WinSCP's default transfer settings upload a file over 100 KB as NAME.filepart and rename it when done.
+            $big = Join-Path $Work 'orders-big.csv'
+            $sb = New-Object Text.StringBuilder
+            [void]$sb.Append("id,qty,price`r`n")
+            for ($i = 1; $i -le 16000; $i++) { [void]$sb.Append(('{0},{1},{2}.95' -f $i, ($i % 7), ($i % 50)) + "`r`n") }
+            [IO.File]::WriteAllText($big, $sb.ToString(), (New-Object Text.ASCIIEncoding))
+            $bigHash = (Get-FileHash -LiteralPath $big -Algorithm SHA256).Hash
+            Say ('  orders-big.csv: ' + (Get-Item -LiteralPath $big).Length + ' bytes, sha256 ' + $bigHash)
+            Get-ChildItem -LiteralPath $inDir -Filter 'orders-big.csv*' -ErrorAction SilentlyContinue | Remove-Item -Force
+            $wsLog = Join-Path $LogDir ('winscp-352-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.log')
+            $scr = Join-Path $Work 'winscp-352.txt'
+            $pwq = $script:winPw -replace '"', '""'
+            [IO.File]::WriteAllLines($scr, [string[]]@('option batch abort', 'option confirm off',
+                ('open sftp://' + $WinUser + '@127.0.0.1:4251/ -password="' + $pwq + '" -hostkey=* -timeout=20'),
+                ('put "' + $big + '"'), 'exit'), (New-Object Text.ASCIIEncoding))
+            Say ('  > ' + $winscp + ' /ini=nul /log=' + $wsLog + ' /script=' + $scr + '   (open sftp://' + $WinUser + '@127.0.0.1:4251/, put orders-big.csv)')
+            try { $wsOut = & $winscp /ini=nul ('/log=' + $wsLog) ('/script=' + $scr) 2>&1 | Out-String; $wsRc = $LASTEXITCODE }
+            finally { Remove-Item -LiteralPath $scr -Force -ErrorAction SilentlyContinue }
+            Say ('    --- WinSCP.com (exit ' + $wsRc + ') ---')
+            foreach ($l in ((Mask $wsOut) -split "`n")) { if ($l.Trim()) { Say ('    | ' + $l.TrimEnd()) } }
+            Say ('    --- WinSCP''s log, the lines about names (' + $wsLog + ') ---')
+            foreach ($l in @(Get-Content -LiteralPath $wsLog -ErrorAction SilentlyContinue | Where-Object { $_ -match '(?i)filepart|renam|orders-big|Transfer done|resume|error' })) { Say ('    | ' + (Mask $l)) }
+        } else {
         # sftp takes the port as -P (ssh's -p is "preserve" to sftp).
         $sftpOpts = @($opts | ForEach-Object { if ($_ -ceq '-p') { '-P' } else { $_ } })
         $c = Start-Client $sftpExe.Source ($sftpOpts + @(($WinUser + '@127.0.0.1')))
@@ -383,6 +422,7 @@ if ($want -contains 'xfer') {
             Say ('    --- sftp (exit ' + $c.P.ExitCode + ') ---')
             foreach ($l in ((Mask ($c.Out.Result + "`n" + $c.Err.Result)) -split "`n")) { if ($l.Trim()) { Say ('    | ' + $l.TrimEnd()) } }
         } else { Say ('  sftp did not end within 60 s (pid ' + $c.P.Id + ', left alone)') }
+        }
         Start-Sleep -Seconds 3
         $h.P.StandardInput.WriteLine(''); $h.P.StandardInput.Flush()        # Enter closes the transfer slot
         Start-Sleep -Seconds 6
@@ -393,6 +433,17 @@ if ($want -contains 'xfer') {
         } else { Say ('  the ssh client (pid ' + $h.P.Id + ') is still running; its output is not read (left alone)') }
         Start-Sleep -Seconds 2
         $a = Get-AuditSince $mark; Show-Audit $a
+        Say ('  xfer.in now: ' + $(if (Test-Path -LiteralPath $inDir) { ((Get-ChildItem -LiteralPath $inDir -File | ForEach-Object { $_.Name + ' (' + $_.Length + ')' }) -join ', ') } else { '(no folder)' }))
+        if ($Client -eq 'winscp') {
+            $gotB = Join-Path $inDir 'orders-big.csv'
+            $gotBHash = if (Test-Path -LiteralPath $gotB) { (Get-FileHash -LiteralPath $gotB -Algorithm SHA256).Hash } else { '' }
+            Check '352' 'WinSCP exited 0' ($wsRc -eq 0) ('exit ' + $wsRc)
+            Check '352' 'the 200 KB file arrived in xfer.in under its own name, byte for byte (same SHA-256)' ($gotBHash -ne '' -and $gotBHash -eq $bigHash) ('got ' + $(if ($gotBHash) { $gotBHash } else { 'nothing' }))
+            $left = @(Get-ChildItem -LiteralPath $inDir -Filter '*.filepart' -ErrorAction SilentlyContinue)
+            Check '352' 'no .filepart is left in xfer.in' ($left.Count -eq 0) (($left | ForEach-Object { $_.Name }) -join ', ')
+            Check '352' 'the audit has a file line for it' ((CountOf $a 'xfer file dir=in') -ge 1) 'no "xfer file dir=in" line'
+            Check '352' 'the audit has the connection and the closing' (((CountOf $a 'xfer connect dir=in') -ge 1) -and ((CountOf $a 'xfer close dir=in') -ge 1)) 'connect or close missing'
+        } else {
         $got = Join-Path $inDir 'orders.csv'
         $gotHash = if (Test-Path -LiteralPath $got) { (Get-FileHash -LiteralPath $got -Algorithm SHA256).Hash } else { '' }
         Say ('  xfer.in\orders.csv: ' + $(if ($gotHash) { 'sha256 ' + $gotHash } else { 'ABSENT' }))
@@ -403,7 +454,8 @@ if ($want -contains 'xfer') {
                          @('reason=not plain text', 'the audit has the binary file refused as not plain text'), @('xfer close dir=in', 'the audit has the closing'))) {
             Check '299' $w[1] ((CountOf $a ([regex]::Escape($w[0]))) -ge 1) ('no audit line with "' + $w[0] + '"')
         }
-        Say '  NOT MEASURED: WinSCP''s .filepart (no WinSCP here; untried on Linux too)'
+        Say '  NOT MEASURED here: WinSCP''s .filepart (that is -Client winscp, row 352)'
+        }
     } finally {
         Say ''; Say '  --- put back: SET.XFER.ACCESS OFF, the original sd.conf ---'
         $null = Invoke-Session 'xfer-off' @('SET.XFER.ACCESS OFF') -Admin
@@ -411,6 +463,7 @@ if ($want -contains 'xfer') {
         Restart-Solo 'xfer-off'
         Say ('  sd.conf XFER lines now: ' + $(if (@(Get-Content -LiteralPath $Conf | Where-Object { $_ -match '^\s*XFER\s*=' }).Count) { (@(Get-Content -LiteralPath $Conf | Where-Object { $_ -match '^\s*XFER\s*=' }) -join ' | ') } else { '(none)' }) + '   (the copy taken before, put back byte for byte)')
         foreach ($n in @('orders.csv', 'logo.bin')) { $f = Join-Path $inDir $n; if (Test-Path -LiteralPath $f) { Remove-Item -LiteralPath $f -Force } }
+        Get-ChildItem -LiteralPath $inDir -Filter 'orders-big.csv*' -ErrorAction SilentlyContinue | Remove-Item -Force
     }
 }
 
