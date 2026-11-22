@@ -7722,7 +7722,7 @@ cited by: `tool_home`
 Press Enter to return
 ```
 
-cited by: `tool_dict`, `tool_files`, `tool_home`, `tool_remote`, `tool_voc`
+cited by: `tk_restart`, `tool_dict`, `tool_files`, `tool_home`, `tool_remote`, `tool_voc`
 
 ### msg:12871
 > kind=message tier=reference since=- src=sdsys/messages/12871:1#40549194

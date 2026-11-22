@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 21 Nov 26 SD Core Solo - RELEASE_1.1 382: log_termination_signal() writes the error log only, not the user's screen.
  * 18 Nov 26 SD Core Solo - four-version audit round 3 (P-3082, P-3083, P-5448, P-5449): the TCP peer's address is read in Linux's
  *            code form, as SD Core for Windows: the failure test first, "?" on a failed inet_ntop() with no process.status.
  * 18 Nov 26 SD Core Solo - four-version audit round 2 (P-5878, P-5879): a TCP peer whose family is not AF_INET reads "?", as the
@@ -1189,14 +1190,19 @@ void signal_handler(signum) int signum;
 /* ======================================================================
    log_termination_signal()  -  The line signal_handler() may not write itself (S.196): called by process_events() when it
    handles EVT_TERMINATE, in normal context.  Logs once per signal received; nothing when the event came from elsewhere
-   (LOGOUT, sd -stop's raise_event).                                                                                       */
+   (LOGOUT, sd -stop's raise_event).
+   21 Nov 26 SD Core Solo - RELEASE_1.1 382 (the owner, VM sit12 round 8: the line flashed over the full-screen page during a restart,
+   "sloppy"): written to the error log only, not to the user's screen.  log_printf() also displays to a logged-in user; log_message()
+   is its log half.  As SD Core for Windows.                                                                                */
 
 void log_termination_signal() {
   int signum = term_signal_seen;
+  char s[64];
 
   if (signum != 0) {
     term_signal_seen = 0;
-    log_printf("Received termination signal %d\n", signum);
+    sprintf(s, "Received termination signal %d", signum);
+    log_message(s);
   }
 }
 
