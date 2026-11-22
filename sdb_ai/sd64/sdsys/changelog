@@ -3,6 +3,23 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+22 Nov 26  A PAGE'S STATUS LINE SHOWS THE WHOLE MESSAGE OF THE COMMAND IT RAN.
+
+             What        - tool.backups, tool.config, tool.gates, tool.jobs and tool.remote show the command's last
+                           message, and tool.catalog, tool.files, tool.sessions and tool.voc its first, with the lines
+                           of that message joined by a space.
+             Why         - A message written on two lines showed only one of them.
+             Does NOT    - Join separate messages, or change the lines shown in the log of commands.
+
+22 Nov 26  A RULE SEPARATES THE AI LINE FROM THE STATUS LINE.
+
+             What        - On the home screen and on each tool page with an AI line, a horizontal rule, like the one
+                           below the status line, is drawn between the AI line and the status line.  On the home screen
+                           the status line keeps saying how to use the AI line while you type or edit in it.
+             Why         - With the paper theme the AI line and the status line read as one bar, and any key in the
+                           line cleared the status line's message on the home screen.
+             Does NOT    - Change a page when the AI is off.  With the AI on, the page's body is one row shorter.
+
 22 Nov 26  THE INSTALLER'S ADMINISTRATOR BOXES OPEN IN FRONT.
 
              What        - When a standard Windows account runs Setup, the box that says Windows will ask for an

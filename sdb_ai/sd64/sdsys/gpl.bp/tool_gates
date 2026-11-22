@@ -28,6 +28,7 @@
 * 12 Nov 26 dm  S.221 (Core-Solo parity audit, finding 7; owner, 12 Nov 2026: "Carry it"), SD Core's S.88 L2: the three boxes are panes of the layout service ($tk_layout).  At
 *               140 by 43 they are exactly the boxes the page has always drawn; in a larger window every box takes the extra columns and the box about the cursor's row the extra
 *               rows, and a resize is followed (refresh, the rectangles again, the page drawn again).  Every position on the page is now relative to its pane.
+* 22 Nov 26 SD Core Solo - from Linux Solo eac819a (S.300, RELEASE_1.1 380): the status line shows the verb's last message whole ($tk_capt).
 * END-HISTORY
 *
 * START-DESCRIPTION:
@@ -482,13 +483,7 @@ change:
       if err # '' then
          msg = err
       end else
-         said = ''                                               ;* the verb's last line: the state afterwards
-         for oi = dcount(out, @fm) to 1 step -1
-            if trim(out<oi>) # '' then
-               said = trim(out<oi>)
-               exit
-            end
-         next oi
+         call $tk_capt('last', out, '', said)                    ;* the verb's last message, whole (S.300): the state afterwards
          msg = (if said # '' then said[1, 130] else 'ran, status ' : st)
       end
       gosub read.all

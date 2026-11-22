@@ -44,6 +44,8 @@
 * 15 Nov 26 SD Core Solo - RELEASE_1.1 314, the line above carried from Linux Solo 10fcf2f onto Windows Solo's doors (SOLO 62): the pick list and the
 *              typed word are Linux's; after Run the terminal still goes to the verb (the doors helper and the administrator password), and the
 *              Windows texts about the firewall rule stay.  Linux's sdsys login view (view 6) is not here: Windows Solo has no sdsys user.
+* 22 Nov 26 SD Core Solo - from Linux Solo eac819a (S.300, RELEASE_1.1 380): the status line shows the verb's last message whole ($tk_capt; Solo
+*              has no local.sdsys, so nothing is skipped).
 * END-HISTORY
 *
 * START-DESCRIPTION:
@@ -644,10 +646,7 @@ confirm.and.run:
          msg = err
       end else
          msg = sent[1, 60] : ' ran (status ' : stat : ')'
-         lastl = ''
-         for k = 1 to dcount(out, @fm)
-            if trim(out<k>) # '' then lastl = trim(out<k>)
-         next k
+         call $tk_capt('last', out, '', lastl)         ;* S.300: the whole last message
          if lastl # '' then msg = msg : ': ' : lastl
       end
    end else

@@ -20,6 +20,7 @@
 *               runs as the Windows user whether or not that user is signed in (SET.JOB and the doors helper make it), so the words say so; the
 *               hand-over folder is made with OSPATH and taken only when SD_FILE_PRIVATE says it is this Windows user's alone (Linux: umask 077,
 *               mkdir, chmod 700), and the file is removed with DELETESEQ; the messages are Windows Solo's (15948, 15942, 15045, 12826).
+* 22 Nov 26 SD Core Solo - from Linux Solo eac819a (S.300, RELEASE_1.1 380): the status line shows the verb's last message whole ($tk_capt).
 * END-HISTORY
 *
 * START-DESCRIPTION:
@@ -442,10 +443,7 @@ run.sent:
       return
    end
    out = change(change(out, char(13) : char(10), @fm), char(13), '')
-   said = ''
-   for oi = dcount(out, @fm) to 1 step -1
-      if said = '' and trim(out<oi>) # '' then said = trim(out<oi>)
-   next oi
+   call $tk_capt('last', out, '', said)                ;* S.300: the whole last message
    msg = (if said # '' then said[1, 130] else 'ran, status ' : st)
    okind = (if st = 0 then 'ok' else 'refuse')
    call $tk_out('add', ctx, okind, sent : '  ' : trim(change(out, @fm, ' ')), '')
