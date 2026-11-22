@@ -874,25 +874,67 @@ begin
   end;
 end;
 
+{ 21 Nov 26 - SOLO 88 (VM sit12; the owner: "we need something at the beginning of the install so that a standard account is not blocked by
+  the elevation request later in the install").  A STANDARD account - no Administrators group in its token at all - is asked for an
+  administrator's name and password at the START, before anything is written, instead of meeting that request at the machine step after every
+  page and the files.  `whoami /groups` lists the group S-1-5-32-544 for an administrator even when its token is filtered ("Group used for deny
+  only"), so an administrator's ordinary double-click is NOT standard and is never asked here; a list that cannot be read is not standard
+  either.  (Inno's IsAdmin cannot decide this: it is True only when Setup is ELEVATED - measured, see InitializeSetup.) }
+function AccountIsStandard: Boolean;
+var
+  Tmp: String;
+  Lines: TArrayOfString;
+  I, Code: Integer;
+begin
+  Result := False;
+  Tmp := ExpandConstant('{tmp}\sd-groups.txt');
+  if not Exec(ExpandConstant('{cmd}'), '/c whoami /groups /fo csv /nh > "' + Tmp + '"', '', SW_HIDE, ewWaitUntilTerminated, Code) or (Code <> 0) then
+    Exit;
+  if not LoadStringsFromFile(Tmp, Lines) then
+    Exit;
+  DeleteFile(Tmp);
+  if GetArrayLength(Lines) = 0 then
+    Exit;
+  Result := True;
+  for I := 0 to GetArrayLength(Lines) - 1 do
+    if Pos('S-1-5-32-544', Lines[I]) > 0 then
+      Result := False;
+end;
+
+{ 21 Nov 26 - SOLO 88: ask Windows for elevation once, now, with a command that does nothing.  An administrator would be shown a consent
+  prompt; a standard account is asked for an administrator's name and password.  ShellExec is False when that is declined or cannot be
+  given (error 1223); the process's own exit code is the proof that it ran elevated-capable. }
+function ElevationGiven: Boolean;
+var
+  Code: Integer;
+begin
+  Result := ShellExec('runas', ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+                      '-NoProfile -NonInteractive -WindowStyle Hidden -Command "exit 0"', '', SW_HIDE, ewWaitUntilTerminated, Code) and (Code = 0);
+end;
+
 function InitializeSetup: Boolean;
 var
   Missing: String;
 begin
   UseWindowsPowerShellModules;
-  { 21 Nov 26 - SOLO 88 (VM sit12, owner: "a standard windows user could start the install and then not be able to finish it because of the
-    elevation password late in the install").  This installer runs as the user (PrivilegesRequired=lowest) and asks for elevation only at the
-    machine step, after every page and the files.  Solo assumes an administrator account (owner, 6 Oct), so a user who is not a member of
-    Administrators - a split token or not: IsAdmin, which is Inno's renamed IsAdminLoggedOn (ISCC 6 says so) and tests membership of the
-    group, not elevation, so an administrator who has not elevated passes (NOT YET MEASURED: a witness owed on a split-token administrator
-    and a standard account) - is refused here, before anything is written, in one line of what to do.  The reason is in the Solo
-    documentation (installer-text rule).  SuppressibleMsgBox, so a silent install is refused without waiting for a click. }
-  if not IsAdmin then
+  { 21 Nov 26 - SOLO 88.  THIS INSTALLER NEVER REFUSES AN ACCOUNT BY ITS RIGHTS.  An "if not IsAdmin then refuse" check stood here for about two
+    hours and was withdrawn: MEASURED on VM sit12 (the owner's screenshot), Inno 6's IsAdmin is True only when Setup is ELEVATED, so an
+    administrator's ordinary double-click was refused too ("Solo is not supposed to need an elevated account").  The one thing done for a
+    STANDARD account is to ask it, here at the start and before anything is written, for the administrator's name and password the machine step
+    will want later; if that is declined the install stops with one line, and a silent install skips it (nobody to answer).  The machine step
+    still asks again, as before: Windows does not let one prompt carry over to a second process. }
+  if (not WizardSilent) and AccountIsStandard then
   begin
-    Log('SD Core Solo: NOT INSTALLED - the user is not a member of Administrators');
-    SuppressibleMsgBox('SD Core Solo was not installed.' + #13#10#13#10 + 'Sign in with an Administrator account and run Setup again.',
-                       mbError, MB_OK, IDOK);
-    Result := False;
-    Exit;
+    Log('SD Core Solo: a standard account; asking for an administrator now');
+    MsgBox('Setup needs an administrator''s name and password to finish. Windows asks for them next.', mbInformation, MB_OK);
+    if not ElevationGiven then
+    begin
+      Log('SD Core Solo: NOT INSTALLED - no administrator name and password were given');
+      SuppressibleMsgBox('SD Core Solo was not installed.' + #13#10#13#10 +
+                         'An administrator''s name and password were not given. Run Setup again when you have them.', mbError, MB_OK, IDOK);
+      Result := False;
+      Exit;
+    end;
   end;
   { 2 Oct 26 - SOLO 28.  THERE IS NO REFUSAL HERE ANY MORE.  This used to stop with "SD Core is installed
     on this computer. Uninstall it first." when the multi-user product's uninstall key or its sd.exe

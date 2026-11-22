@@ -143,22 +143,44 @@ def violations(text):
     if not fn or 'SD Core Solo is installed.' not in fn.group(1):
         bad.append('[Messages] FinishedLabelNoIcons is not a plain result line')
 
-    # 8. SOLO 88 (sit12, 21 Nov 26): a user who cannot elevate is refused at the START, before anything is sampled or written; the test is
-    # membership of Administrators (IsAdmin, Inno 6's name for IsAdminLoggedOn: a split-token administrator is NOT elevated, so the
-    # elevation test, IsAdminInstallMode, would refuse them - it is False under PrivilegesRequired=lowest),
-    # and the box is suppressible so a silent install does not wait for a click.
+    # 8. SOLO 88, WITHDRAWN 21 Nov 26 (the owner on VM sit12: "solo is not supposed to need an elevated account - the standard account block is
+    # blocking all accounts").  InitializeSetup never refuses by the account's rights.  MEASURED on the VM: Inno 6's IsAdmin is True only when
+    # Setup is ELEVATED, so a check on it refused an administrator's ordinary double-click too.  None of Inno's rights tests may be used to stop.
     init = strip_comments(body(text, 'function', 'InitializeSetup'))
-    m8 = re.search(r'(?s)if\s+not\s+IsAdmin\s+then\s*begin(.*?)\bend;', init)
-    if not m8:
-        bad.append('InitializeSetup has no "if not IsAdmin then begin ... end;" refusal (a standard account would get as far as the elevation prompt)')
+    for fn in ('IsAdmin', 'IsAdminInstallMode', 'IsAdminLoggedOn', 'IsPowerUserLoggedOn', 'IsNonAdminInstallMode'):
+        if re.search(r'\b' + fn + r'\b', init) or re.search(r'\b' + fn + r'\b', strip_comments(body(text, 'function', 'AccountIsStandard'))):
+            bad.append('InitializeSetup tests ' + fn + ': it would refuse an account by its rights (an ordinary double-click is not elevated)')
+
+    # 9. SOLO 88, the shape that replaced the block (owner, 21 Nov 26: "we need something at the beginning of the install so that a standard
+    # account is not blocked by the elevation request later in the install"): a STANDARD account (no Administrators group in its token at all;
+    # an administrator's filtered token still lists S-1-5-32-544 as deny-only, so it is NOT standard) is asked for elevation at the START, before
+    # anything is sampled or written; the install stops only when that is declined; a silent install skips it; an unreadable list is not standard.
+    std = strip_comments(body(text, 'function', 'AccountIsStandard'))
+    ele = strip_comments(body(text, 'function', 'ElevationGiven'))
+    if not std or not ele:
+        bad.append('AccountIsStandard or ElevationGiven is missing')
     else:
-        r = m8.group(1)
-        if 'SuppressibleMsgBox' not in r or 'Result := False' not in r or 'Exit;' not in r:
-            bad.append('the administrator refusal does not show a suppressible box and stop (Result := False; Exit;)')
-        if "Log('SD Core Solo: NOT INSTALLED" not in r:
-            bad.append('the administrator refusal is not written to the setup log')
-        if m8.start() > init.find('DataTreeWasAbsent :=') or m8.start() > init.find('LoadControlFile'):
-            bad.append('the administrator refusal comes AFTER the first sampling or the control file is read (it must be the start)')
+        if 'whoami /groups' not in std or "Pos('S-1-5-32-544', Lines[I]) > 0" not in std:
+            bad.append('AccountIsStandard does not read the token\'s groups with whoami and look for S-1-5-32-544')
+        if not re.search(r"Pos\('S-1-5-32-544', Lines\[I\]\) > 0 then\s*Result := False;", std):
+            bad.append('AccountIsStandard: finding the Administrators group must make the account NOT standard')
+        if not re.search(r"begin\s*Result := False;\s*Tmp :=", std):
+            bad.append('AccountIsStandard: it must start from False, so a list that cannot be read is not standard')
+        if "ShellExec('runas'" not in ele or '(Code = 0)' not in ele:
+            bad.append("ElevationGiven does not ask with ShellExec('runas', ...) and judge the exit code")
+    m9 = re.search(r"(?s)if \(not WizardSilent\) and AccountIsStandard then\s*begin(.*?)\n  end;", init)
+    if not m9:
+        bad.append("InitializeSetup has no 'if (not WizardSilent) and AccountIsStandard then begin ... end;' (a silent install must skip it)")
+    else:
+        b9 = m9.group(1)
+        if not re.search(r'if not ElevationGiven then\s*begin(.*?)end;', b9, re.S):
+            bad.append('the early request does not stop on "if not ElevationGiven"')
+        else:
+            r9 = re.search(r'if not ElevationGiven then\s*begin(.*?)end;', b9, re.S).group(1)
+            if 'SuppressibleMsgBox' not in r9 or 'Result := False' not in r9 or 'Exit;' not in r9:
+                bad.append('the declined request does not show a suppressible box and stop (Result := False; Exit;)')
+        if m9.start() > init.find('DataTreeWasAbsent :=') or m9.start() > init.find('LoadControlFile'):
+            bad.append('the early request comes AFTER the first sampling or the control file is read (it must be the start)')
     return bad
 
 
@@ -192,15 +214,25 @@ def mutate(text, what):
         return text.replace('Start it from the Start menu: SD Core Solo.', 'Start it from the Start menu: SD Core.', 1)
     if what == 'no icon-less text':
         return text.replace('FinishedLabelNoIcons=SD Core Solo is installed.\n', '', 1)
-    if what == 'no admin test':
-        return text.replace('  if not IsAdmin then\n', '  if False then\n', 1)
-    if what == 'elevated only':
-        return text.replace('  if not IsAdmin then\n', '  if not IsAdminInstallMode then\n', 1)
-    if what == 'admin test late':
-        t = text.replace('  if not IsAdmin then\n', '  if False then\n', 1)
-        return t.replace('  GlobalWasFound := FileExists(SoloRoot', '  if not IsAdmin then\n  begin\n    Result := False;\n    Exit;\n  end;\n  GlobalWasFound := FileExists(SoloRoot', 1)
-    if what == 'blocking box':
-        return text.replace("    SuppressibleMsgBox('SD Core Solo was not installed.' + #13#10#13#10 + 'Sign in with", "    MsgBox('SD Core Solo was not installed.' + #13#10#13#10 + 'Sign in with", 1)
+    if what == 'asks a silent install too':
+        return text.replace('  if (not WizardSilent) and AccountIsStandard then\n', '  if AccountIsStandard then\n', 1)
+    if what == 'administrator counts as standard':
+        return text.replace("    if Pos('S-1-5-32-544', Lines[I]) > 0 then\n      Result := False;", "    if Pos('S-1-5-32-544', Lines[I]) > 0 then\n      Result := True;", 1)
+    if what == 'unreadable list is standard':
+        return text.replace("  Result := False;\n  Tmp := ExpandConstant('{tmp}\\sd-groups.txt');", "  Result := True;\n  Tmp := ExpandConstant('{tmp}\\sd-groups.txt');", 1)
+    if what == 'no runas':
+        return text.replace("Result := ShellExec('runas'", "Result := ShellExec('open'", 1)
+    if what == 'stops when elevation is given':
+        return text.replace('    if not ElevationGiven then\n', '    if ElevationGiven then\n', 1)
+    if what == 'early request after the sampling':
+        t = text.replace('  if (not WizardSilent) and AccountIsStandard then\n', '  if False then\n', 1)
+        return t.replace('  GlobalWasFound := FileExists(SoloRoot', '  if (not WizardSilent) and AccountIsStandard then\n  begin\n    if not ElevationGiven then\n    begin\n      SuppressibleMsgBox(\'x\', mbError, MB_OK, IDOK);\n      Result := False;\n      Exit;\n    end;\n  end;\n  GlobalWasFound := FileExists(SoloRoot', 1)
+    if what == 'refuse by IsAdmin':
+        return text.replace('  UseWindowsPowerShellModules;\n  { 21 Nov 26 - SOLO 88.  THIS INSTALLER NEVER', '  UseWindowsPowerShellModules;\n  if not IsAdmin then begin Result := False; Exit; end;\n  { 21 Nov 26 - SOLO 88.  THIS INSTALLER NEVER', 1)
+    if what == 'refuse by IsAdminInstallMode':
+        return text.replace('  UseWindowsPowerShellModules;\n  { 21 Nov 26 - SOLO 88.  THIS INSTALLER NEVER', '  UseWindowsPowerShellModules;\n  if not IsAdminInstallMode then begin Result := False; Exit; end;\n  { 21 Nov 26 - SOLO 88.  THIS INSTALLER NEVER', 1)
+    if what == 'refuse by IsAdminLoggedOn':
+        return text.replace('  UseWindowsPowerShellModules;\n  { 21 Nov 26 - SOLO 88.  THIS INSTALLER NEVER', '  UseWindowsPowerShellModules;\n  if not IsAdminLoggedOn then begin Result := False; Exit; end;\n  { 21 Nov 26 - SOLO 88.  THIS INSTALLER NEVER', 1)
     if what == 'no fit':
         return text.replace('  if CurPageID = wpFinished then\n    WizardForm.FinishedLabel.AdjustHeight;\n', '', 1)
     if what == 'fit too early':
@@ -240,10 +272,15 @@ def main():
             ('stock finish text', 'FinishedLabel is not a plain result line'),
             ('wrong shortcut', 'does not name the Start menu shortcut'),
             ('no icon-less text', 'FinishedLabelNoIcons'),
-            ('no admin test', 'has no "if not IsAdmin'),
-            ('elevated only', 'has no "if not IsAdmin'),
-            ('admin test late', 'comes AFTER'),
-            ('blocking box', 'suppressible box')):
+            ('asks a silent install too', "has no 'if (not WizardSilent)"),
+            ('administrator counts as standard', 'must make the account NOT standard'),
+            ('unreadable list is standard', 'it must start from False'),
+            ('no runas', "does not ask with ShellExec('runas'"),
+            ('stops when elevation is given', 'does not stop on "if not ElevationGiven"'),
+            ('early request after the sampling', 'comes AFTER'),
+            ('refuse by IsAdmin', 'tests IsAdmin'),
+            ('refuse by IsAdminInstallMode', 'tests IsAdminInstallMode'),
+            ('refuse by IsAdminLoggedOn', 'tests IsAdminLoggedOn')):
         m = mutate(text, what)
         control = m != text
         check('CONTROL: the mutant "' + what + '" differs from the real file', control)
