@@ -3,6 +3,13 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+21 Nov 26  A PAGE'S STATUS LINE SHOWS A COMMAND'S LAST MESSAGE WHOLE.
+
+             What        - After a page ran a command whose last message was longer than one line, the status line
+                           showed only the end of it, after a stray letter (for example "Mstarted.").  It now shows
+                           the whole message.
+             Does NOT    - Change what any command does.
+
 21 Nov 26  THE INSTALLER'S LAST PAGE SAYS WHAT HAPPENED, AND AFTER REMOTE.SSH OFF THE REPORT SAYS SSH IS OFF.
 
              What        - The last page says "SD Core Solo is installed." and where to start it (the Start menu), in
