@@ -1,0 +1,75 @@
+* TK_RESTART
+* The full-screen toolkit, shared base: the box that asks whether to restart SD now, after a page made a change that needs a restart.
+* Copyright (c) 2026, SD Core Solo for Windows.  This program is free software; you can redistribute
+* it and/or modify it under the terms of the GNU General Public License, version 3 or later.
+*
+* START-HISTORY:
+* 21 Nov 26 SD Core Solo - New.  RELEASE_1.1 382, the owner in chat: "A dialog specifying why a restart might be needed, warning that
+*           everyone will be logged out and giving a Restart|Not now option would be the best", and "That should be true for any other full
+*           screen action where a restart is needed to implement it".  The box is SD Core for Windows' own; only the restart differs (below).
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+*   call $tk_restart(why, res, msg)
+*
+*     why   why this change needs a restart, one line to a field (the page's own words: which setting, and that SD reads it only when it starts)
+*     res   returned: 'later' when Not now was chosen (or Esc, or no terminal); 'failed' when Restart was chosen and the restart could not be
+*           started.  When the restart works this session is ended with every other, so nothing comes back.
+*     msg   returned: the line for the page's status bar
+*
+*   The box: its title says "Restart SD?", then why, then that a restart signs out everyone using SD and ends this session too, then what Not now
+*   means.  Two buttons, Restart and Not now; NOT NOW IS THE DEFAULT ($tk_confirm's last button is), so Enter alone never restarts SD.
+*
+*   SOLO'S RESTART.  Solo has no service: "sd-solo -restart" stops every session and the daemon and starts them again.  It is started as a
+*   process of its own (Start-Process, hidden, as solo-start.ps1 starts sd-solo.exe), so it outlives this session, which it ends; it is no
+*   session itself, so the stop leaves it running.  SD_SESSION is taken out of that process's environment first: sd.c refuses any sd-solo
+*   started from inside SD while it is set (a guard against starting SD inside SD by accident, sd.c:396), and this one is deliberate.
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+subroutine tk_restart(why, res, msg)
+$catalog $tk_restart
+
+$include int$keys.h
+
+deffun ps_script_out(script, want.out) calling '!ps_script_out'
+
+   res = 'later'
+   msg = ''
+
+   lines = why
+   lines<-1> = 'Restarting stops SD and starts it again.  Everyone using SD is signed out, and this session ends too.'
+   lines<-1> = 'Not now: nothing restarts, and the change takes effect when SD is next started.'
+   call $tk_confirm('sd-solo -restart', lines, '', cres, cmsg, 'Restart SD?', '&Restart,&Not now')
+   if cres # 'run' then
+      msg = 'SD was not restarted: the change takes effect when SD is next started'
+      return
+   end
+
+   q = char(39)
+   exe = kernel(K$WINPATH, '/usr/bin/sd-solo.exe')
+   ps  =       'Remove-Item Env:SD_SESSION -ErrorAction SilentlyContinue'
+   ps := @fm : 'if (-not (Test-Path -LiteralPath ' : q : exe : q : ')) { Write-Output ' : q : 'no ' : exe : q : '; exit 2 }'
+   ps := @fm : 'Start-Process -FilePath ' : q : exe : q : ' -ArgumentList ' : q : '-restart' : q : ' -WindowStyle Hidden'
+   ps := @fm : 'exit 0'
+   rs = ps_script_out(ps, @true)
+   rc = rs<1>
+   if rc = 0 then
+      msg = 'SD is restarting: this session ends'
+      return
+   end
+   res = 'failed'
+   last = ''
+   rn = dcount(rs, @fm)
+   for ri = 2 to rn
+      if trim(rs<ri>) # '' then last = trim(rs<ri>)
+   next ri
+   msg = 'SD was not restarted (status ' : rc : ')' : (if last = '' then '' else ': ' : last)
+   return
+end
+
+* END-CODE
