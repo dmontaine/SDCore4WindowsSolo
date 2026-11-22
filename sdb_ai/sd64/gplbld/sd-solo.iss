@@ -264,18 +264,18 @@ Source: "{src}\ssh-server\*.msi"; DestDir: "{app}\ssh-server"; Flags: external s
 
 ; 19 Nov 26 - RELEASE_1.1 351 (Linux S.262; Core 35d5b38f; owner 19 Nov: the CURRENT state holds no GPL client, all four).  THE
 ; CLIENT LIBRARIES COME FROM BESIDE THE INSTALLER: the clean-room library, one for all four products, in the release package's
-; clients\Windows64 and clients\Windows32 (gplbld\stage-clients.ps1 puts them there, for a cycle too).  The DLLs go in usr\bin
-; as before, and every file in usr\clients\client64 and client32, where a person building a client program finds them.  Its
+; clients\Windows64 (gplbld\stage-clients.ps1 puts it there, for a cycle too).  The DLLs go in usr\bin
+; as before, and every file in usr\clients\client64, where a person building a client program finds them.  Its
 ; SDConnectLocal starts the sd.exe beside the DLL and Solo's server is sd-solo.exe, so on a Solo-only computer a local connect
 ; fails at once (as Linux Solo's); a program reaches Solo over the API, port 4249 named.  external + skipifsourcedoesntexist:
 ; nothing binary in the installer; no clients folder beside it, no client library installed.  stage.py's PF_RETIRED deletes
 ; the GPL copies first, so an upgrade keeps none.
+; 21 Nov 26 - RELEASE_1.1 383, as SD Core (owner: "pull the 32 bit dlls from the release ... the old programs written for qm
+; will not work out of the box with sd").  Only the 64-bit pair is installed; the 32-bit set stays in the private store.
+; PF_RETIRED still deletes an earlier 32-bit copy, and the emptied usr\clients\client32 with it.
 Source: "{src}\clients\Windows64\*.dll"; DestDir: "{app}\usr\bin"; Flags: external ignoreversion skipifsourcedoesntexist
-Source: "{src}\clients\Windows32\*.dll"; DestDir: "{app}\usr\bin"; Flags: external ignoreversion skipifsourcedoesntexist
 Source: "{src}\clients\Windows64\*.dll"; DestDir: "{app}\usr\clients\client64"; Flags: external ignoreversion skipifsourcedoesntexist
 Source: "{src}\clients\Windows64\*.dll.a"; DestDir: "{app}\usr\clients\client64"; Flags: external ignoreversion skipifsourcedoesntexist
-Source: "{src}\clients\Windows32\*.dll"; DestDir: "{app}\usr\clients\client32"; Flags: external ignoreversion skipifsourcedoesntexist
-Source: "{src}\clients\Windows32\*.dll.a"; DestDir: "{app}\usr\clients\client32"; Flags: external ignoreversion skipifsourcedoesntexist
 
 ; 10 Nov 26 - RELEASE_1.1 215: the Start menu shortcut, which Solo never had (owner, 10 Nov:
 ; "can solo get a start menu shortcut as well?").  In the person's own Start menu, as the

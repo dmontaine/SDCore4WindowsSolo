@@ -708,6 +708,12 @@ PF_RETIRED = [
     for _n in CLIENT_FILES_RETIRED
 ]
 
+# 21 Nov 26 - RELEASE_1.1 383, as SD Core (owner: "pull the 32 bit dlls from the release").  sd-solo.iss installs no 32-bit
+# client any more; CLIENT_FILES_RETIRED deletes an earlier version's, and this deletes the folder they leave empty.
+PF_RETIRED_DIRS = [
+    ('usr\\clients\\client32', 'RELEASE_1.1 383: the 32-bit QM client set is not shipped'),
+]
+
 SDSYS_PRESERVE = [
     ('$cred',          'the credential register - every account password'),
     ('accounts',       'the account register; ships with SDSYS and then grows'),
@@ -1386,6 +1392,10 @@ def write_upgrade_iss(stage, sdsys, bootstrapped):
     for name, why in PF_RETIRED:
         dels.append(r'; retired from {app}: %s' % why)
         dels.append(r'Name: "{app}\%s"; Type: files' % name)
+    # 21 Nov 26 - RELEASE_1.1 383: a directory a retired file leaves empty goes too, after its files, and only if empty.
+    for name, why in PF_RETIRED_DIRS:
+        dels.append(r'; retired from {app}: %s' % why)
+        dels.append(r'Name: "{app}\%s"; Type: dirifempty' % name)
 
     with open(path, 'w', encoding='ascii', newline='\n') as f:
         f.write(UPGRADE_HEADER)
