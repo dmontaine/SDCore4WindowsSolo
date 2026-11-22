@@ -440,7 +440,8 @@ if ($want -contains 'xfer') {
             Check '352' 'WinSCP exited 0' ($wsRc -eq 0) ('exit ' + $wsRc)
             Check '352' 'the 200 KB file arrived in xfer.in under its own name, byte for byte (same SHA-256)' ($gotBHash -ne '' -and $gotBHash -eq $bigHash) ('got ' + $(if ($gotBHash) { $gotBHash } else { 'nothing' }))
             $left = @(Get-ChildItem -LiteralPath $inDir -Filter '*.filepart' -ErrorAction SilentlyContinue)
-            Check '352' 'no .filepart is left in xfer.in' ($left.Count -eq 0) (($left | ForEach-Object { $_.Name }) -join ', ')
+            # 22 Nov 26: the first run's sign-in failed, nothing was uploaded, and this passed on nothing; it now needs the file to have arrived
+            Check '352' 'no .filepart is left in xfer.in (after a file arrived)' ($gotBHash -ne '' -and $left.Count -eq 0) $(if ($gotBHash -eq '') { 'nothing arrived, so nothing was measured' } else { ($left | ForEach-Object { $_.Name }) -join ', ' })
             Check '352' 'the audit has a file line for it' ((CountOf $a 'xfer file dir=in') -ge 1) 'no "xfer file dir=in" line'
             Check '352' 'the audit has the connection and the closing' (((CountOf $a 'xfer connect dir=in') -ge 1) -and ((CountOf $a 'xfer close dir=in') -ge 1)) 'connect or close missing'
         } else {
