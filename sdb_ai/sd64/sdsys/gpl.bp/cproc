@@ -18,6 +18,9 @@
 * 
 * 
 * START-HISTORY:
+* 22 Nov 26 SD Core Solo - SOLO 92 (Linux Solo ab3fab0, S.290, the owner: "Lower case"): the deny list is stored in lower case;
+*           check.denied.verb folds the verb typed and the list it reads to lower case, so a list written in capitals by an older install
+*           denies as before.
 * 20 Nov 26 SD Core Solo - RELEASE_1.1 364 (Linux Solo 6aea37f, S.277): int.update.accounts no longer says 5200 before $LOGIN; LOGIN says
 *           it after the mode 4 refusal test.
 * 18 Nov 26 SD Core Solo - four-version audit round 3, Linux Solo's forms: end of piped input ('' with STATUS() = ER$EOF) goes to
@@ -3847,9 +3850,9 @@ find.private.catalogue:
 * ======================================================================
 * check.denied.verb  -  28 Sep 26 SD Core Solo, ruling 34.  Sets verb.denied
 * when the verb is on the install's deny list: @SDSYS/solo.policy, record
-* denied.verbs, one upper-case verb name per line (solo_deny writes it).  The
-* name compared is the verb as typed, upper-cased, hyphens as dots - the same
-* spelling the VOC lookup above ends on.  No file or no record: nothing is
+* denied.verbs, one lower-case verb name per line (DENY.VERBS writes it; S.290:
+* a list an older install wrote in capitals is folded as it is read).  The
+* name compared is the verb as typed, in lower case, hyphens as dots.  No file or no record: nothing is
 * denied.  Read on every call rather than cached: CPROC runs nested for
 * EXECUTE, and a cached copy would be one more thing to keep in step.
 *
@@ -3866,10 +3869,12 @@ find.private.catalogue:
 * dispatched and is not touched; everything here is dv.*.
 
 check.denied.verb:
-   dv.name = change(upcase(verb), '-', '.')
-   if dv.name = 'ADMIN' or dv.name = 'OFF' or dv.name = 'QUIT' or dv.name = 'LO' then return
+   dv.name = change(downcase(verb), '-', '.')
+   if dv.name = 'admin' or dv.name = 'off' or dv.name = 'quit' or dv.name = 'lo' then return
    openpath @sdsys:@ds:'solo.policy' to dv.f then
       read dv.rec from dv.f, 'denied.verbs' then
+*        22 Nov 26 - S.290: the list is stored in lower case; one an older install wrote in capitals is folded as it is read
+         dv.rec = downcase(dv.rec)
 *        One verb per line is one per field, and "in x<1>" searches FIELDS
 *        from field 1 (bcomp emits value 0; op_locat.c then searches fields).
 *        It converted to values first, so field 1 was the whole list and only
@@ -3883,8 +3888,8 @@ check.denied.verb:
                dv.i += 1
             while dv.i <= dv.n and not(verb.denied)
                dv.other = ''
-*              VOC ids are lower case here; the list holds upper-case names.  (18 Nov 26, P-4647: one read, as Linux Solo.)
-               read dv.other from voc, downcase(dv.rec<dv.i>) else dv.other = ''
+*              VOC ids are lower case here, and so is the list (S.290).  (18 Nov 26, P-4647: one read, as Linux Solo.)
+               read dv.other from voc, dv.rec<dv.i> else dv.other = ''
                if upcase(dv.other<1>)[1,1] = 'V' then
                   if upcase(dv.other<2>) : @vm : downcase(dv.other<3>) : @vm : dv.other<4> = dv.key then
                      verb.denied = @true

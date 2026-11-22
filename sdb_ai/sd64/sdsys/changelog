@@ -3,6 +3,36 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+22 Nov 26  THE AI LINE STAYS ON A PAGE THAT DRAWS ITSELF AGAIN.
+
+             What        - On fourteen administrator pages (tool.ai, tool.audit, tool.backups, tool.bulk, tool.catalog,
+                           tool.config, tool.files, tool.gates, tool.menus, tool.query, tool.remote, tool.sessions,
+                           tool.test, tool.viewers) the AI line stays after F5, a change of view or a command.
+             Why         - Since the AI line moved up a row to make room for its rule, those pages' own clear of
+                           their body reached the line, and nothing put it back.
+
+22 Nov 26  TOOL.CONFIG OFFERS A RESTART ONLY WHEN ONE WOULD CHANGE SOMETHING, AND A RESTART ASKED FOR IS AUDITED.
+
+             What        - The "Restart SD?" box comes up after a change only when the file then differs from what SD
+                           is running with.  Each restart asked for writes one audit line, sd restart app=tool.config
+                           status=asked, or status=refused when it could not be started.
+             Why         - Setting a value back to the one SD already runs with offered a restart that would change
+                           nothing; and a restart, which signs out everyone, left no line in the trail.
+
+22 Nov 26  THE DENIED-VERBS LIST IS STORED IN LOWER CASE.
+
+             What        - DENY.VERBS stores each name in lower case, as it already printed them; a list an older
+                           install stored in capitals is read and enforced as before, and written back in lower case
+                           at the next change.  A denied command is refused however it is typed.
+             Why         - SD's names are lower case everywhere else (the owner: "Lower case"), and SD Core for
+                           Linux Solo stores them so.
+
+22 Nov 26  TOOL.BULK SHOWS A MESSAGE OF SEVERAL LINES WHOLE.
+
+             What        - What the page's own SELECT, or the CREATE.FILE of its undo file, said is shown whole on the
+                           status line, its lines joined by a space, as on the other pages.
+             Why         - Only the first line of such a message was shown.
+
 22 Nov 26  A PAGE'S STATUS LINE SHOWS THE WHOLE MESSAGE OF THE COMMAND IT RAN.
 
              What        - tool.backups, tool.config, tool.gates, tool.jobs and tool.remote show the command's last

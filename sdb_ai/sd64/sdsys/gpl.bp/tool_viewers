@@ -143,7 +143,7 @@ read.all:
 
 draw.all:
    cw = ctx<TK.C.W>
-   chh = ctx<TK.C.H> - 5
+   chh = (if ctx<TK.C.AIROW> then ctx<TK.C.BODYH> else ctx<TK.C.H> - 5)        ;* 22 Nov 26: with the AI line the clear stops above it (S.305 moved the line up a row and H - 5 wiped it)
    screen clear at 0,1 size cw,chh
    screen box at 1,1 size 70,14 title 'Allowed for pdf'
    screen box at 72,1 size 67,14 title 'Found on this machine'

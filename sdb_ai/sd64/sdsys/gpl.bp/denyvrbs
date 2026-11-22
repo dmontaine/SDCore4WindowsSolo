@@ -18,6 +18,10 @@
 *
 *
 * START-HISTORY:
+* 22 Nov 26 SD Core Solo - SOLO 92, from Linux Solo ab3fab0 (S.290, the owner: "Lower case"): the list is STORED in lower case, as everything it
+*           prints already was.  A name is made lower case when it is taken and the record is folded to lower case when it is read, so a list an
+*           older install wrote in capitals is read as it always was and is written back in lower case at the next add, remove or set.  CPROC
+*           folds what it reads the same way.
 * 16 Nov 26 Windows port - from Linux Solo c8dac7a: the refusal is message 15917 (was 12030), text unchanged.
 * 29 Sep 26 SD Core Solo - SOLO 22: says which other verbs the list denies
 *           because they run the same command ("also denies ..."), before
@@ -51,7 +55,7 @@
 * listed verb (2001) until ADMIN or a global sign-in.  The C write gate and
 * !voc_guard keep that file to this program and the server.
 *
-* A NAME IS NORMALISED as CPROC compares it: upper case, hyphens as dots.  One
+* A NAME IS NORMALISED as CPROC compares it: lower case (S.290), hyphens as dots.  One
 * that is not a plausible verb name (a letter or $ first, then letters,
 * digits, . $ _) is refused by name and the rest still apply.  NEVER DENIED:
 * ADMIN, OFF, QUIT and LO - denying ADMIN would leave nothing that could
@@ -106,16 +110,16 @@ $include err.h
 *  "in list<1>" searches FIELDS from field 1 (bcomp emits value 0): it matched
 *  only a one-verb list, and "never" matched nothing (verify-solo leg 17c).
    list = ''
-   read rec from pol.f, 'denied.verbs' then list = convert(@fm, @vm, rec)
+   read rec from pol.f, 'denied.verbs' then list = downcase(convert(@fm, @vm, rec))   ;* S.290: lower case; a list an older install wrote in capitals is folded as it is read
 
-   never = 'ADMIN' : @vm : 'OFF' : @vm : 'QUIT' : @vm : 'LO'
+   never = 'admin' : @vm : 'off' : @vm : 'quit' : @vm : 'lo'
    bad = 0
    if mode = 'SET' then list = ''
 
    if mode # 'LIST' then
       k = dcount(arg, ',')
       for i = 1 to k
-         name = change(upcase(field(arg, ',', i)), '-', '.')
+         name = change(downcase(field(arg, ',', i)), '-', '.')           ;* S.290: stored as SD prints it, in lower case
          if name = '' then continue
          ok = (alpha(name[1,1]) or name[1,1] = '$')
          if ok then
@@ -163,9 +167,7 @@ $include err.h
          keys = ''
          k = dcount(list, @vm)
          for i = 1 to k
-            read r from voc.f, list<1,i> else
-               read r from voc.f, downcase(list<1,i>) else r = ''
-            end
+            read r from voc.f, list<1,i> else r = ''                     ;* VOC ids are lower case, and so is the list (S.290)
             if upcase(r<1>)[1,1] = 'V' then
                keys<-1> = upcase(r<2>) : '|' : downcase(r<3>) : '|' : r<4>
             end
@@ -174,7 +176,7 @@ $include err.h
             select voc.f to 11
             loop
                readnext id from 11 else exit
-               name = change(upcase(id), '-', '.')
+               name = change(downcase(id), '-', '.')
                locate name in list<1,1> setting pos then continue
                locate name in never<1,1> setting pos then continue
                read r from voc.f, id else continue
