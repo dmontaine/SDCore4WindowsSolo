@@ -3,6 +3,12 @@ WS2.0-0 - SD Core Solo for Windows, in progress
 Changes since WS1.1-3.  NOTHING IN THIS SECTION HAS BEEN RELEASED.  (This section was WS1.2-0 until 10 Nov 26: the next release
 of both Windows products is 2.0-0, as all four SD Core versions will be.)
 
+22 Nov 26  SD NAMES ITSELF "SD CORE SOLO FOR WINDOWS" EVERYWHERE YOU SEE ITS NAME.
+
+             What        - The sign-on banner is "SD Core Solo for Windows, version WS2.0-0"; the installer's publisher
+                           is "SD Core"; messages 5009 and 5163 and the start-up log line name SD Core Solo for Windows.
+             Why         - They said "String Database", which is not this product's name.
+
 22 Nov 26  THE AI LINE STAYS ON A PAGE THAT DRAWS ITSELF AGAIN.
 
              What        - On fourteen administrator pages (tool.ai, tool.audit, tool.backups, tool.bulk, tool.catalog,

@@ -3911,7 +3911,7 @@
 "part": "core.md",
 "since": "-",
 "tier": "core",
-"words": 1532
+"words": 1535
 },
 "dict:chaining": {
 "kind": "dict.conv",
@@ -18359,7 +18359,7 @@
 "part": "reference/messages.md",
 "since": "-",
 "tier": "reference",
-"words": 12
+"words": 15
 },
 "msg:5010": {
 "kind": "message",
@@ -18954,7 +18954,7 @@
 "part": "reference/messages.md",
 "since": "-",
 "tier": "reference",
-"words": 15
+"words": 18
 },
 "msg:5170": {
 "kind": "message",

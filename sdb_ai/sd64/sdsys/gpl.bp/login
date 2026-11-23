@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* 22 Nov 26 SD Core Solo - the sign-on banner is "SD Core Solo for Windows, version <stamp>" (owner: "String Database" should
+*           appear nowhere a user could see it).
 * 20 Nov 26 SD Core Solo - RELEASE_1.1 364 (Linux Solo 6aea37f, S.277): update.accounts all refused (10172) before any VOC is touched;
 *           5200 is said here, after that test, not by cproc.
 * 20 Nov 26 SD Core Solo - SOLO 74 (sit8): the job clock's one-shot "run.jobs.due" is admitted as run.job is (the kept password, or the
@@ -613,7 +615,7 @@ deffun pw_complex(pw) calling '!pw_complex'
       * Modified by Composer AI - 2026/06/10.
       * Close version banner string; unclosed quote caused "Unrecognised statement".
       * display "SD, the Multivalue String Database, version " : SD.REV.STAMP : "(AI modified)
-      display "SD Core Solo for Windows, the Essential Multivalue String Database, version " : SD.REV.STAMP
+      display "SD Core Solo for Windows, version " : SD.REV.STAMP
       * --------------------
       display "(c) 2000-2026 by Ladybridge Systems and Other Contributors"
       display

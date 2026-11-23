@@ -1,7 +1,7 @@
 # SD Core Solo — source tree
 
-The source of SD Core Solo for Windows, the single-user edition of SD Core, the
-multivalue String Database, for one Windows user. SD Core for Linux is the version
+The source of SD Core Solo for Windows, the single-user edition of SD Core, a
+multivalue database, for one Windows user. SD Core for Linux is the version
 the other SD Core versions follow; this edition has its features except those that
 exist to serve more than one person. The repository's top-level `README.md`
 describes the product.

@@ -66,7 +66,8 @@
 ; 30 Sep 26 - WS1.1-2: managed-mode ssh key install (request 49) and first-use
 ; certificate pinning in the client library (SOLO 24).
 #define AppName      "SD Core Solo for Windows"
-#define AppPublisher "String Database"
+#define AppPublisher "SD Core"
+; 22 Nov 26 - AppPublisher was "String Database" (Apps & features shows it); owner: "String Database" should appear nowhere a user could see it.
 #define SoloDir      "{%USERPROFILE}\SDCoreSolo"
 ; upgrade.iss names the data root {#DataDir}; in Solo it is the install folder.
 #define DataDir      "{app}"
