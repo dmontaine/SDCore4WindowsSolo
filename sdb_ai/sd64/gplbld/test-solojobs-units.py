@@ -2,7 +2,7 @@
 """test-solojobs-units.py - Solo's scheduled jobs (S.247; SOLO 74): SET.JOB, RUN.JOB, RUN.JOBS.DUE, SET.JOBS.ACCESS, the TOOL.JOBS page, login's
 run.job and job-clock routes, the job clock task and the installer's parts, as invariants.
 
-    python C:\\Users\\Don\\Projects\\SDCore4WindowsSolo\\sdb_ai\\sd64\\gplbld\\test-solojobs-units.py [--selftest]
+    python C:\\Users\\Don\\SDCoreProject\\SDCore4WindowsSolo\\sdb_ai\\sd64\\gplbld\\test-solojobs-units.py [--selftest]
 
 16 Nov 2026, Windows port of Linux Solo's guard (2d3db81, 72c2457): the checks that are portable are Linux's, word for word where the code is.
 20 Nov 2026, SOLO 74 (sit8): a job no longer has a Task Scheduler task of its own.  The VM showed that the doors helper (SYSTEM) may not register

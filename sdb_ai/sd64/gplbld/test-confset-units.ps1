@@ -1,6 +1,6 @@
 # test-confset-units.ps1 - drive sd-confset.ps1, the Windows half of SET.CONFIG (RELEASE_1.1 218).
 #
-#   powershell -ExecutionPolicy Bypass -File C:\Users\Don\Projects\SDCore4WindowsSolo\sdb_ai\sd64\gplbld\test-confset-units.ps1
+#   powershell -ExecutionPolicy Bypass -File C:\Users\Don\SDCoreProject\SDCore4WindowsSolo\sdb_ai\sd64\gplbld\test-confset-units.ps1
 #
 # SD CORE SOLO (12 Nov 2026, SOLO 56 group 5): SD Core for Windows' guard.  One row differs: NETWAIT's effect is
 # restart in Solo (no Solo session reads sd.conf), where Core says session.  The table check below already holds the

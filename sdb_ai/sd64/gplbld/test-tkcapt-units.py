@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # test-tkcapt-units.py - what a captured message is ($tk_capt, S.300; SD Core for Windows' row 380), read off the source as text.
 #
-#   python3 /home/don/Projects/SDCore4LinuxSolo/sdb_ai/sd64/gplbld/test-tkcapt-units.py [--selftest]
+#   python3 /home/don/SDCoreProject/SDCore4LinuxSolo/sdb_ai/sd64/gplbld/test-tkcapt-units.py [--selftest]
 #
 # Carried from SD Core (68856fc1), 22 Nov 2026.  Differs only where Solo does: PAGES (no tool_accounts or tool_jobs; its jobs page is tool_solojobs), no
 # local.sdsys skip in tool_remote (C7), and 11 calls, not 12 (C8).

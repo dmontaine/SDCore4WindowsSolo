@@ -37,7 +37,7 @@
     the cheap way to find out whether a change compiles.
 
 .EXAMPLE
-    powershell -ExecutionPolicy Bypass -File C:\Users\Don\Projects\SDCore4WindowsSolo\sdb_ai\sd64\gplbld\cycle.ps1
+    powershell -ExecutionPolicy Bypass -File C:\Users\Don\SDCoreProject\SDCore4WindowsSolo\sdb_ai\sd64\gplbld\cycle.ps1
 #>
 
 [CmdletBinding()]
@@ -46,7 +46,7 @@ param(
     # 27 Sep 2026 - was %USERPROFILE%\sdout.  A subfolder, not Project_Installers
     # itself: a test build has the release installer's file name and would
     # overwrite it.
-    [string] $Out   = (Join-Path $env:USERPROFILE 'Projects\Project_Installers\sdout'),
+    [string] $Out   = (Join-Path $env:USERPROFILE 'SDCoreProject\Project_Installers\sdout'),
     [switch] $SkipInstall
 )
 

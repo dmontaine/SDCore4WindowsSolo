@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """test-aihelper-units.py - the AI helper sd-ai.exe of SD Core Solo (gplsrc/sdai, native C), BUILT AND RUN.  RELEASE_1.1 246.
 
-  python C:\\Users\\Don\\Projects\\SDCore4WindowsSolo\\sdb_ai\\sd64\\gplbld\\test-aihelper-units.py [--selftest [--from=N]]
+  python C:\\Users\\Don\\SDCoreProject\\SDCore4WindowsSolo\\sdb_ai\\sd64\\gplbld\\test-aihelper-units.py [--selftest [--from=N]]
 
 From SD Core's guard of the same name (13 Nov 2026), 16 Nov 2026 for Solo's same-user helper (Linux Solo gplbld/sd-ai, owner 23 Oct 2026): there
 is no service and no named pipe, the SD session starts "sd-ai.exe --one" per request on anonymous pipes, the caller is the helper's OWN token,

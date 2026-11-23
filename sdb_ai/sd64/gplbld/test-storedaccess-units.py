@@ -3,7 +3,7 @@
 account password ($cred $stored) signs in only a one-shot that is exactly run.job <name> or mcp.call <id> [agent], unless
 SET.STORED.ACCESS ON (register field 24).
 
-    python C:/Users/Don/Projects/SDCore4WindowsSolo/sdb_ai/sd64/gplbld/test-storedaccess-units.py [--selftest]
+    python C:/Users/Don/SDCoreProject/SDCore4WindowsSolo/sdb_ai/sd64/gplbld/test-storedaccess-units.py [--selftest]
 
 FREE: reads files only.  Exit 0 every check passed, 1 a check failed, 2 it could not run.
 

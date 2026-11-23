@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """test-mcp-units.py - the MCP door of SD Core Solo for Windows (S.211), free: no SD, no install, no elevation.
 
-  python C:/Users/Don/Projects/SDCore4WindowsSolo/sdb_ai/sd64/gplbld/test-mcp-units.py [--selftest]
+  python C:/Users/Don/SDCoreProject/SDCore4WindowsSolo/sdb_ai/sd64/gplbld/test-mcp-units.py [--selftest]
 
 TWO PARTS.  (1) The launcher gplbld/solo-mcp.py is run as an MCP client runs it, on pipes, against a FAKE sd-solo (SOLO_MCP_SD) that reads the request file
 as mcp.call would and answers in its markers: the framing, the agent's name, the request file's lines and its removal, the local refusals, the cuts, the

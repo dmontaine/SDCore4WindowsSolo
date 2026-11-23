@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """test-soloexamples-units.py - examples.bp in Solo's one account (S.261) as invariants read off the source.  Free: no install, no elevation, no sd.
 
-    python C:/Users/Don/Projects/SDCore4WindowsSolo/sdb_ai/sd64/gplbld/test-soloexamples-units.py [--selftest]
+    python C:/Users/Don/SDCoreProject/SDCore4WindowsSolo/sdb_ai/sd64/gplbld/test-soloexamples-units.py [--selftest]
 
 16 Nov 2026, RELEASE_1.1 335: Linux Solo's guard of the same name (fb685f0) with SD Core for Windows' test-examples-units.py (9ba9d612) folded in.  The
 owner, 17 Nov 2026: "there should be a examples.bp file available to all users that contains those programs and a set of training programs typical for a

@@ -1,7 +1,7 @@
 # test-apifirewall-units.ps1 - free-tier guard for what api-firewall.ps1 -Retarget does
 # about a firewall rule an older build left under the OLD name.
 #
-#   powershell -ExecutionPolicy Bypass -File C:\Users\Don\Projects\SDCore4WindowsSolo\sdb_ai\sd64\gplbld\test-apifirewall-units.ps1
+#   powershell -ExecutionPolicy Bypass -File C:\Users\Don\SDCoreProject\SDCore4WindowsSolo\sdb_ai\sd64\gplbld\test-apifirewall-units.ps1
 #
 # ORDINARY UNELEVATED PROMPT.  No firewall, no install, no SD.  Exit 0 all passed,
 # 1 something failed, 2 could not set up.

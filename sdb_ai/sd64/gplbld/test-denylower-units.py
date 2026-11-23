@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # test-denylower-units.py - the deny list is stored in lower case (S.290; the owner, 22 Nov 2026: "Lower case"), read off the source as text.
 #
-#   python C:\Users\Don\Projects\SDCore4WindowsSolo\sdb_ai\sd64\gplbld\test-denylower-units.py [--selftest]
+#   python C:\Users\Don\SDCoreProject\SDCore4WindowsSolo\sdb_ai\sd64\gplbld\test-denylower-units.py [--selftest]
 #
 #   D1  DENY.VERBS makes a name lower case when it takes it (hyphens as dots), and never upper case
 #   D2  DENY.VERBS folds the record it reads to lower case, so a list an older install wrote in capitals is the same list; it writes what it holds

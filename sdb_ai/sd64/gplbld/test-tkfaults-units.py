@@ -5,7 +5,7 @@ WINDOWS SOLO (12 Nov 2026, SOLO 56 group 5): SD Core for Windows' copy, which re
 are here.  Two Solo differences: F0 asks for 10 other pages (no tool.accounts, jobs or entries in Solo; tool.config and tool.remote not carried yet), and F5 wants
 NO seven-argument call - Solo's tool.gates is Linux Solo's one-account page, which has no gate matrix and so no leave question (its mutant is a page given one).
 
-    python3 /home/don/Projects/SDCore4Linux/sdb_ai/sd64/gplbld/test-tkfaults-units.py [--selftest]
+    python3 /home/don/SDCoreProject/SDCore4Linux/sdb_ai/sd64/gplbld/test-tkfaults-units.py [--selftest]
 
 WHAT THIS IS, AND WHAT IT IS NOT.  It reads BASIC and message files as text.  ***IT RUNS NOTHING, SO IT CANNOT SAY THAT A PAGE ENDS WHEN ITS INPUT ENDS, THAT A WINDOW IS REFUSED OR WHAT A
 BOX IS TITLED ON THE SCREEN***: that is `sandbox-tk-faults.py` (a private SD; sessions on a closed pipe and on a pseudo-terminal; the disk and the screen as the evidence).  What a text check

@@ -9,8 +9,8 @@
 # is used again - open item), and the short programs that end at once (acc_archive, acc_os_bakdir, netcred, netdefs, locktracer, importdata, ...), whose variable goes with them.
 # FREE CHECK: the BASIC read as text; no install, no sd.
 #
-#   python3 /home/don/Projects/SDCore4Linux/sdb_ai/sd64/gplbld/test-openseq-else-units.py
-#   python3 /home/don/Projects/SDCore4Linux/sdb_ai/sd64/gplbld/test-openseq-else-units.py --selftest
+#   python3 /home/don/SDCoreProject/SDCore4Linux/sdb_ai/sd64/gplbld/test-openseq-else-units.py
+#   python3 /home/don/SDCoreProject/SDCore4Linux/sdb_ai/sd64/gplbld/test-openseq-else-units.py --selftest
 import os
 import re
 import sys

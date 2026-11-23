@@ -1,6 +1,6 @@
 # test-soloswap-units.ps1 - drive solo-restore-swap.ps1, its rules and whole runs.
 #
-#   powershell -ExecutionPolicy Bypass -File C:\Users\Don\Projects\SDCore4WindowsSolo\sdb_ai\sd64\gplbld\test-soloswap-units.ps1
+#   powershell -ExecutionPolicy Bypass -File C:\Users\Don\SDCoreProject\SDCore4WindowsSolo\sdb_ai\sd64\gplbld\test-soloswap-units.ps1
 #
 # ORDINARY UNELEVATED PROMPT.  No install, no SD, no elevation.  Exit 0 all
 # passed, 1 something failed, 2 could not set up.  Everything it makes is under

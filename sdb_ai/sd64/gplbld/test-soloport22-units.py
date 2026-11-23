@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """test-soloport22-units.py - a Solo install does not leave port 22 open (SOLO 84).
 
-    python C:\\Users\\Don\\Projects\\SDCore4WindowsSolo\\sdb_ai\\sd64\\gplbld\\test-soloport22-units.py [--selftest]
+    python C:\\Users\\Don\\SDCoreProject\\SDCore4WindowsSolo\\sdb_ai\\sd64\\gplbld\\test-soloport22-units.py [--selftest]
 
 The owner, 21 Nov 2026: "Since we use non-standard ports in solo, we can assume that if they are open we have done it.  Port 22 should not
 be opened by a solo install as we dont use it."  Microsoft's OpenSSH MSI, which Solo's installer runs when the computer has no ssh server,

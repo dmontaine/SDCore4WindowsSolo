@@ -1,8 +1,8 @@
 # witness-solo-host.ps1 - the HOST half of the 18 Nov 2026 sitting: SD Core Solo rows that need a current Solo install and a person
 # to type its passwords, but no VM.  Sitting plan: SDCore4Windows .claude/vm-sitting-20261118.md, part H.
 #
-#   powershell -ExecutionPolicy Bypass -File C:\Users\Don\Projects\SDCore4WindowsSolo\sdb_ai\sd64\gplbld\witness-solo-host.ps1 -Only <section[,section]>
-#   powershell -ExecutionPolicy Bypass -File C:\Users\Don\Projects\SDCore4WindowsSolo\sdb_ai\sd64\gplbld\witness-solo-host.ps1 -List
+#   powershell -ExecutionPolicy Bypass -File C:\Users\Don\SDCoreProject\SDCore4WindowsSolo\sdb_ai\sd64\gplbld\witness-solo-host.ps1 -Only <section[,section]>
+#   powershell -ExecutionPolicy Bypass -File C:\Users\Don\SDCoreProject\SDCore4WindowsSolo\sdb_ai\sd64\gplbld\witness-solo-host.ps1 -List
 #
 # AN ORDINARY, UNELEVATED PowerShell on the HOST, as the Windows user Solo is installed for.  It asks (Read-Host, no echo) only for
 # the passwords the chosen sections need: the ACCOUNT password (every section), the ADMINISTRATOR password (voc, lock, xfer), the
