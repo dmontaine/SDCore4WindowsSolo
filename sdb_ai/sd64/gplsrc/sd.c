@@ -17,7 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
- * 22 Nov 26 SD Core Solo - the start-up log line names the product (owner: "String Database" should appear nowhere a user can see it).
+ * 22 Nov 26 SD Core Solo - sd-solo --version is "SD Core Solo for Windows Version <stamp>" and the start-up log line names the product
+ *           (owner: no "String Database" where a user sees it; then, through Linux mail T1030: no "(sd-solo)", no "64 Bit").
  * 18 Nov 26 SD Core Solo - four-version audit round 3 (P-1228, P-5452, P-7377): the one-SD-per-session guard says "type exit", lower case,
  *           on one line, after comlin()'s declarations, as Linux and SD Core for Windows.
  * 17 Nov 26 SD Core Solo - from Linux Solo 04d8c8d5 (S.62, SD Core's fix): -TERM's value is bounded (longer than 32 is refused by name).
@@ -206,7 +207,7 @@ int main(int argc, char *argv[]) {
   #define msgsz 256
   char msg[msgsz];
   openlog ("sd_Log", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
-  syslog (LOG_INFO, "SD Core Solo for Windows (sd-solo) command line:");
+  syslog (LOG_INFO, "SD Core Solo for Windows command line:");
   strcpy(msg,"sd ");
   for (arg = 1; (arg < argc); arg++) {
     if ((strlen(msg)+ strlen(argv[arg]) + 2) < msgsz){
@@ -616,7 +617,7 @@ Private bool comlin(int argc, char *argv[]) {
             goto help;
           } else if (!stricmp(argv[arg], "--VERSION")) {
 /* rev 0.9.1 Mar 25 return to single rev track */            
-            printf("SD Core Solo for Windows (sd-solo) Version %s %s\n", SD_REV_STAMP, BUILD_TARGET);
+            printf("SD Core Solo for Windows Version %s\n", SD_REV_STAMP);
             exit(0);
           } else
             goto unrecognised;
