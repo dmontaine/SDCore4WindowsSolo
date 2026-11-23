@@ -1,6 +1,6 @@
 * SETSTOREDACC
 * SET.STORED.ACCESS verb
-* Copyright (c) String Database
+* Copyright (c) Donald Montaine
 *
 * START-HISTORY:
 * 18 Nov 26 SD Core Solo for Linux - written (S.247; owner, 18 Nov 2026: "restrict the stored password").  The kept copy of the account password

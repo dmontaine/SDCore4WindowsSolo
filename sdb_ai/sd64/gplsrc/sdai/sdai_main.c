@@ -1,6 +1,6 @@
 /* SDAI_MAIN.C
  * sd-ai.exe, the in-SD model helper of SD Core Solo for Windows: the decisions, one request.
- * Copyright (c) String Database
+ * Copyright (c) Donald Montaine
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

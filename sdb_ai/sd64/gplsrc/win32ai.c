@@ -1,6 +1,6 @@
 /* WIN32AI.C
  * The transport of the in-SD AI helper (op_ai.c), SD Core Solo for Windows.
- * Copyright (c) String Database
+ * Copyright (c) Donald Montaine
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

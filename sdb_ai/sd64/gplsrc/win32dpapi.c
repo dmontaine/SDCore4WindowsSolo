@@ -1,7 +1,7 @@
 /* WIN32DPAPI.C
  * Native Windows half of SD Core Solo's stored account password: encrypt and
  * decrypt with DPAPI for the Windows user this process runs as.
- * Copyright (c) String Database
+ * Copyright (c) Donald Montaine
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

@@ -2,7 +2,7 @@
  * Native Windows half of the API's TLS relay: start sdtlsrelay.exe on a
  * restricted copy of this process's own token, at Low integrity, with exactly
  * two inherited handles.
- * Copyright (c) String Database
+ * Copyright (c) Donald Montaine
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

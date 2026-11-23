@@ -1,6 +1,6 @@
 * SETMCP
 * SET.MCP verb: whether an AI agent's MCP client may use the account through the MCP launcher (S.211), and whether it may also run a sentence of its own.
-* Copyright (c) String Database
+* Copyright (c) Donald Montaine
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by

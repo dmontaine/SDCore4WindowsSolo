@@ -1,6 +1,6 @@
 * SETXFERACC
 * SET.XFER.ACCESS verb
-* Copyright (c) String Database
+* Copyright (c) Donald Montaine
 *
 * START-HISTORY:
 * 15 Nov 26 SD Core Solo for Linux - written (the Solo carry of SD Core's S.242, file transfer over the ssh login).  THE OWNER'S WORDS, 15 Nov

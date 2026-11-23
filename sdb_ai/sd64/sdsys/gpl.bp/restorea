@@ -1,6 +1,6 @@
 * RESTOREA
 * RESTORE.ACCOUNT verb (S.50).
-* Copyright (c) String Database
+* Copyright (c) Donald Montaine
 *
 * START-HISTORY:
 * 25 Oct 26 Windows port - from Linux 2287a0a: gcat.restore reads the global catalogue with the call name in LOWER case (it was upcase()d, so the lookup

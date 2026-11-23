@@ -1,6 +1,6 @@
 /* SDAI_CTL.C
  * sd-ai.exe as the client of the AI helper (Linux Solo's sd-ai-ctl).
- * Copyright (c) String Database
+ * Copyright (c) Donald Montaine
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
