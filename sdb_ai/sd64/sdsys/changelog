@@ -8,7 +8,7 @@ of both Windows products is 2.0-0, as all four SD Core versions will be.)
              What        - sd-solo --version prints "SD Core Solo for Windows Version WS2.0-0"; the sign-on banner
                            is "SD Core Solo for Windows, version WS2.0-0"; the installer's publisher
                            is "SD Core"; messages 5009 and 5163 and the start-up log line name SD Core Solo for Windows.
-             Why         - They said "String Database", which is not this product's name.
+             Why         - They used an older name, which is not this product's name.
 
 22 Nov 26  THE AI LINE STAYS ON A PAGE THAT DRAWS ITSELF AGAIN.
 
@@ -9210,8 +9210,8 @@ previous one.
 
 24 Aug 26  THE SIGN-ON BANNER NOW SAYS "SD CORE".
 
-           The line printed when you sign on reads "SD Core for Windows, the
-           Essential Multivalue String Database".  It is a name change only -
+           The line printed when you sign on names "SD Core for Windows".  It is
+           a name change only -
            nothing about what the product does has changed with it.  The point
            is to tell this build apart from regular SD at a glance, so that a
            screenshot or a support question says which one it came from.
@@ -10918,7 +10918,7 @@ previous one.
            belongs to a live SD is still never touched, and "sd -start" still
            refuses to disturb a system that is already up.
 
-15 Aug 26  SD now runs as a Windows service, called "String Database (SD)".
+15 Aug 26  SD now runs as a Windows service, called "SD Core for Windows".
            The installer creates it and starts it, and Windows starts it
            again after every restart - so SD is simply up, and nobody has to
            type "sd -start" any more.  Stopping the service stops SD and ends
@@ -12178,7 +12178,7 @@ Version 0.6.3
 
    
 
-         Update MESSAGES file, change references from SCARLETDME  to String Database (sd)
+         Update MESSAGES file, change references from SCARLETDME  to SD
 
 
          Remove hold over users in $LOGINS
@@ -12249,7 +12249,7 @@ Prior to 1/19/2024
 
 ------------------
 
-SD, the String Database is based on code originally released under the
+SD is based on code originally released under the
 
 GPL license in 2007 as a GPL release of the OpenQM database. Later
 
